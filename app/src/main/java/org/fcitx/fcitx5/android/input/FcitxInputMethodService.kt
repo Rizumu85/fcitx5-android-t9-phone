@@ -613,6 +613,26 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     override fun onEvaluateFullscreenMode() = false
 
+    private fun mapKeyEvent(keyCode: Int, event: KeyEvent): Pair<Int, KeyEvent> {
+        return if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+            val newKeyCode = KeyEvent.KEYCODE_SPACE
+            newKeyCode to KeyEvent(
+                event.downTime,
+                event.eventTime,
+                event.action,
+                newKeyCode,
+                event.repeatCount,
+                event.metaState,
+                event.deviceId,
+                event.scanCode,
+                event.flags,
+                event.source
+            )
+        } else {
+            keyCode to event
+        }
+    }
+
     private fun forwardKeyEvent(event: KeyEvent): Boolean {
         // reason to use a self increment index rather than timestamp:
         // KeyUp and KeyDown events actually can happen on the same time
@@ -632,18 +652,20 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        val (mappedKeyCode, mappedEvent) = mapKeyEvent(keyCode, event)
         // request to show floating CandidatesView when pressing physical keyboard
-        if (inputDeviceMgr.evaluateOnKeyDown(event, this)) {
+        if (inputDeviceMgr.evaluateOnKeyDown(mappedEvent, this)) {
             postFcitxJob {
                 focus(true)
             }
             forceShowSelf()
         }
-        return forwardKeyEvent(event) || super.onKeyDown(keyCode, event)
+        return forwardKeyEvent(mappedEvent) || super.onKeyDown(mappedKeyCode, mappedEvent)
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
-        return forwardKeyEvent(event) || super.onKeyUp(keyCode, event)
+        val (mappedKeyCode, mappedEvent) = mapKeyEvent(keyCode, event)
+        return forwardKeyEvent(mappedEvent) || super.onKeyUp(mappedKeyCode, mappedEvent)
     }
 
     // Added in API level 14, deprecated in 29
@@ -1065,7 +1087,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         recreateInputViewPrefs.forEach {
             it.unregisterOnChangeListener(recreateInputViewListener)
         }
-        prefs.candidates.unregisterOnChangeListener(recreateCandidatesViewListener)
+        prefs.candidates.registerOnChangeListener(recreateCandidatesViewListener)
         ThemeManager.removeOnChangedListener(onThemeChangeListener)
         super.onDestroy()
         // Fcitx might be used in super.onDestroy()
