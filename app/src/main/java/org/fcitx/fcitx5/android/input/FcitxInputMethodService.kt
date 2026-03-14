@@ -613,9 +613,22 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     override fun onEvaluateFullscreenMode() = false
 
+    /**
+     * Maps T9 physical keys for input mode only.
+     * - DPAD_CENTER (confirm) -> SPACE (for candidate selection)
+     * - KEYCODE_BACK (back) -> KEYCODE_DEL (backspace)
+     * When NOT in input mode, pass through original events so normal phone usage works.
+     */
     private fun mapKeyEvent(keyCode: Int, event: KeyEvent): Pair<Int, KeyEvent> {
-        return if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
-            val newKeyCode = KeyEvent.KEYCODE_SPACE
+        if (!inputDeviceMgr.isInInputMode) {
+            return keyCode to event
+        }
+        val newKeyCode = when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_CENTER -> KeyEvent.KEYCODE_SPACE
+            KeyEvent.KEYCODE_BACK -> KeyEvent.KEYCODE_DEL
+            else -> keyCode
+        }
+        return if (newKeyCode != keyCode) {
             newKeyCode to KeyEvent(
                 event.downTime,
                 event.eventTime,

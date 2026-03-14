@@ -64,6 +64,9 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
     private var startedInputView = false
     private var isNullInputType = true
 
+    /** True when user is in an input field (input view has been started). Used for T9 key remapping. */
+    val isInInputMode: Boolean get() = startedInputView
+
     private var candidatesViewMode by AppPrefs.getInstance().candidates.mode
 
     fun notifyOnStartInput(attribute: EditorInfo) {
