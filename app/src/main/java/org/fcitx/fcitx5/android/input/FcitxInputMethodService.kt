@@ -649,12 +649,25 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     // ==================== T9 Input State ====================
 
     /**
-     * T9 input states for determining key behavior
+     * T9 input modes (switched by # long press)
+     */
+    private enum class T9InputMode {
+        CHINESE,  // 中文九键
+        ENGLISH,  // 英文九键 (multi-tap)
+        NUMBER    // 数字模式
+    }
+
+    /**
+     * Current T9 input mode
+     */
+    private var currentT9Mode = T9InputMode.CHINESE
+
+    /**
+     * T9 input states for determining key behavior within Chinese mode
      */
     private enum class T9InputState {
         CHINESE_IDLE,      // 中文未输入
-        CHINESE_COMPOSING, // 中文已输入
-        ENGLISH            // 英文状态 (ascii_mode)
+        CHINESE_COMPOSING  // 中文已输入
     }
 
     /**
@@ -663,29 +676,184 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var t9CapsLock = false
 
     /**
+     * Track if Shift is active for next character only
+     */
+    private var t9ShiftActive = false
+
+    /**
      * Track if a long press action was triggered for # key.
      * This prevents short press action from firing on KEY_UP after a long press.
      */
     private var t9PoundLongPressTriggered = false
 
     /**
-     * Track if a long press action was triggered for 0 key.
+     * Track long press for digit keys (0-9)
      */
-    private var t9ZeroLongPressTriggered = false
+    private val digitLongPressFlags = mutableMapOf<Int, Boolean>()
+
+    // ===== Multi-tap state for English mode =====
+    private var multiTapLastKey = -1
+    private var multiTapLastTime = 0L
+    private var multiTapIndex = 0
+    private var multiTapPendingChar: Char? = null
+    private val MULTITAP_TIMEOUT = 1200L  // Increased from 500ms for easier typing
+
+    private val multiTapMap = mapOf(
+        KeyEvent.KEYCODE_1 to ",.?!'\"-@/:",  // English punctuation (comma first)
+        KeyEvent.KEYCODE_2 to "abc",
+        KeyEvent.KEYCODE_3 to "def",
+        KeyEvent.KEYCODE_4 to "ghi",
+        KeyEvent.KEYCODE_5 to "jkl",
+        KeyEvent.KEYCODE_6 to "mno",
+        KeyEvent.KEYCODE_7 to "pqrs",
+        KeyEvent.KEYCODE_8 to "tuv",
+        KeyEvent.KEYCODE_9 to "wxyz"
+    )
+
+    // Handler for multi-tap timeout
+    private val multiTapHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val multiTapTimeoutRunnable = Runnable {
+        if (multiTapPendingChar != null) {
+            commitMultiTapChar()
+        }
+    }
+
+    // Handler for mode indicator
+    private val modeIndicatorHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var modeIndicatorShowing = false
+    private val modeIndicatorDismissRunnable = Runnable {
+        if (modeIndicatorShowing) {
+            currentInputConnection?.setComposingText("", 1)
+            currentInputConnection?.finishComposingText()
+            modeIndicatorShowing = false
+        }
+    }
 
     /**
-     * Get current T9 input state based on composing text and input method
+     * Show mode indicator briefly using composing text
+     */
+    private fun showModeIndicator(mode: String) {
+        modeIndicatorHandler.removeCallbacks(modeIndicatorDismissRunnable)
+        currentInputConnection?.setComposingText("[$mode]", 1)
+        modeIndicatorShowing = true
+        modeIndicatorHandler.postDelayed(modeIndicatorDismissRunnable, 600)
+    }
+
+
+    /**
+     * Get current T9 input state based on composing text (only used in CHINESE mode)
      */
     private fun getT9InputState(): T9InputState {
-        val hasComposing = composing.isNotEmpty()
-        // For now, we determine English mode by checking if there's no composing
-        // and the input is in a simple text field. A more accurate way would be
-        // to query Rime's ascii_mode, but that requires async call.
-        // TODO: Implement proper ascii_mode detection from Rime
-        return when {
-            hasComposing -> T9InputState.CHINESE_COMPOSING
-            else -> T9InputState.CHINESE_IDLE
+        return if (composing.isNotEmpty()) {
+            T9InputState.CHINESE_COMPOSING
+        } else {
+            T9InputState.CHINESE_IDLE
         }
+    }
+
+    /**
+     * Commit any pending multi-tap character
+     * Returns true if there was a character to commit
+     */
+    private fun commitMultiTapChar(): Boolean {
+        multiTapHandler.removeCallbacks(multiTapTimeoutRunnable)
+        val hadPendingChar = multiTapPendingChar != null
+        multiTapPendingChar?.let {
+            val char = if (t9CapsLock || t9ShiftActive) it.uppercaseChar() else it
+            // Just commit the text - setComposingText will be replaced by this
+            currentInputConnection?.commitText(char.toString(), 1)
+            multiTapPendingChar = null
+            t9ShiftActive = false
+        }
+        multiTapLastKey = -1
+        multiTapIndex = 0
+        return hadPendingChar
+    }
+
+    /**
+     * Cancel any pending multi-tap character without committing
+     */
+    private fun cancelMultiTapChar() {
+        multiTapHandler.removeCallbacks(multiTapTimeoutRunnable)
+        if (multiTapPendingChar != null) {
+            // Clear composing text without committing by setting empty string
+            currentInputConnection?.setComposingText("", 1)
+            currentInputConnection?.finishComposingText()
+            multiTapPendingChar = null
+        }
+        multiTapLastKey = -1
+        multiTapIndex = 0
+    }
+
+    /**
+     * Reset all multi-tap state (used when switching modes)
+     */
+    private fun resetMultiTapState() {
+        multiTapHandler.removeCallbacks(multiTapTimeoutRunnable)
+        if (multiTapPendingChar != null) {
+            currentInputConnection?.finishComposingText()
+        }
+        multiTapPendingChar = null
+        multiTapLastKey = -1
+        multiTapLastTime = 0L
+        multiTapIndex = 0
+    }
+
+    /**
+     * Handle multi-tap key press in English mode
+     */
+    private fun handleMultiTapKey(keyCode: Int): Boolean {
+        val letters = multiTapMap[keyCode] ?: return false
+        val currentTime = android.os.SystemClock.elapsedRealtime()
+
+        // Cancel any pending timeout
+        multiTapHandler.removeCallbacks(multiTapTimeoutRunnable)
+
+        if (keyCode == multiTapLastKey && currentTime - multiTapLastTime < MULTITAP_TIMEOUT) {
+            // Same key pressed within timeout - cycle to next letter
+            multiTapIndex = (multiTapIndex + 1) % letters.length
+        } else {
+            // Different key or timeout expired - commit previous and start new
+            commitMultiTapChar()
+            multiTapIndex = 0
+        }
+
+        multiTapLastKey = keyCode
+        multiTapLastTime = currentTime
+        multiTapPendingChar = letters[multiTapIndex]
+
+        val displayChar = if (t9CapsLock || t9ShiftActive) {
+            multiTapPendingChar!!.uppercaseChar()
+        } else {
+            multiTapPendingChar!!
+        }
+        currentInputConnection?.setComposingText(displayChar.toString(), 1)
+
+        // Schedule auto-commit after timeout
+        multiTapHandler.postDelayed(multiTapTimeoutRunnable, MULTITAP_TIMEOUT)
+
+        return true
+    }
+
+    /**
+     * Switch to next T9 input mode
+     */
+    private fun switchToNextT9Mode() {
+        // Clear any pending multi-tap state before switching
+        resetMultiTapState()
+        
+        currentT9Mode = when (currentT9Mode) {
+            T9InputMode.CHINESE -> T9InputMode.ENGLISH
+            T9InputMode.ENGLISH -> T9InputMode.NUMBER
+            T9InputMode.NUMBER -> T9InputMode.CHINESE
+        }
+        
+        val modeName = when (currentT9Mode) {
+            T9InputMode.CHINESE -> "中"
+            T9InputMode.ENGLISH -> "En"
+            T9InputMode.NUMBER -> "123"
+        }
+        showModeIndicator(modeName)
     }
 
     /**
@@ -700,69 +868,166 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (!inputDeviceMgr.isInInputMode) return false
         if (event.action != KeyEvent.ACTION_DOWN) return false
 
-        val state = getT9InputState()
+        val chineseState = getT9InputState()
 
         return when (keyCode) {
-            // # key: short press = enter, long press = switch input method
-            // Short press is deferred to KEY_UP to distinguish from long press
+            // # key: short press = enter (+ commit pending char), long press = switch input mode
             KeyEvent.KEYCODE_POUND -> {
-                when (state) {
-                    T9InputState.CHINESE_COMPOSING -> false // No action defined, pass through
-                    else -> {
-                        if (event.repeatCount == 0) {
-                            // First KEY_DOWN: reset long press flag, consume but don't act yet
-                            t9PoundLongPressTriggered = false
-                            true
-                        } else if (event.repeatCount == 1) {
-                            // First repeat: this is a long press, switch input method
-                            t9PoundLongPressTriggered = true
-                            postFcitxJob {
-                                enumerateIme()
-                            }
-                            true
-                        } else {
-                            true // Consume subsequent repeats
-                        }
+                if (currentT9Mode == T9InputMode.CHINESE && chineseState == T9InputState.CHINESE_COMPOSING) {
+                    false // Pass through to Rime when composing Chinese
+                } else {
+                    if (event.repeatCount == 0) {
+                        t9PoundLongPressTriggered = false
+                        true
+                    } else if (event.repeatCount == 1) {
+                        t9PoundLongPressTriggered = true
+                        switchToNextT9Mode()
+                        true
+                    } else {
+                        true
                     }
                 }
             }
 
-            // 0 key: short press = space, long press = switch to number keyboard
-            // Short press is deferred to KEY_UP to distinguish from long press
-            KeyEvent.KEYCODE_0 -> {
-                when (state) {
-                    T9InputState.CHINESE_COMPOSING -> false // No action defined, pass through
-                    else -> {
-                        if (event.repeatCount == 0) {
-                            // First KEY_DOWN: reset long press flag, consume but don't act yet
-                            t9ZeroLongPressTriggered = false
-                            true
-                        } else if (event.repeatCount == 1) {
-                            // First repeat: this is a long press, switch to number keyboard
-                            t9ZeroLongPressTriggered = true
-                            // TODO: Implement switch to number keyboard
-                            // For now, just consume the event
-                            true
-                        } else {
-                            true // Consume subsequent repeats
-                        }
-                    }
-                }
+            // 0-9 keys: long press outputs digit
+            in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> {
+                handleDigitKey(keyCode, event, chineseState)
             }
 
             // * key: English mode - short press = shift, long press = caps lock
             KeyEvent.KEYCODE_STAR -> {
-                // For now, * key in Chinese modes is handled by Rime (punctuation)
-                // In English mode, we handle shift/caps lock
-                // Since we can't easily detect English mode yet, just pass through
-                // TODO: Implement when ascii_mode detection is available
-                false
+                when (currentT9Mode) {
+                    T9InputMode.ENGLISH -> {
+                        if (event.repeatCount == 0) {
+                            digitLongPressFlags[keyCode] = false
+                            true
+                        } else if (event.repeatCount == 1) {
+                            digitLongPressFlags[keyCode] = true
+                            t9CapsLock = !t9CapsLock
+                            showModeIndicator(if (t9CapsLock) "ABC" else "abc")
+                            true
+                        } else {
+                            true
+                        }
+                    }
+                    T9InputMode.CHINESE -> {
+                        if (chineseState == T9InputState.CHINESE_COMPOSING) {
+                            false // Pass through - Rime handles * in composing
+                        } else {
+                            false // Pass through for now
+                        }
+                    }
+                    T9InputMode.NUMBER -> false // * passes through in number mode
+                }
             }
 
-            // Arrow keys are NOT intercepted - let them pass through to Rime/system
-            // Rime's key_binder will handle: Up/Down -> Page_Up/Down, Left/Right -> selection
+            // Confirm key: commit pending multi-tap char in English mode
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                if (currentT9Mode == T9InputMode.ENGLISH && multiTapPendingChar != null) {
+                    if (event.repeatCount == 0) {
+                        commitMultiTapChar()
+                        true
+                    } else {
+                        true
+                    }
+                } else {
+                    false // Pass through
+                }
+            }
 
             else -> false
+        }
+    }
+
+    /**
+     * Handle digit key (0-9) based on current mode
+     */
+    private fun handleDigitKey(keyCode: Int, event: KeyEvent, chineseState: T9InputState): Boolean {
+        val digit = keyCode - KeyEvent.KEYCODE_0
+
+        when (currentT9Mode) {
+            T9InputMode.NUMBER -> {
+                // Number mode: always output digit directly
+                if (event.repeatCount == 0) {
+                    currentInputConnection?.commitText(digit.toString(), 1)
+                    return true
+                }
+                return true
+            }
+
+            T9InputMode.ENGLISH -> {
+                // English mode: short press = multi-tap, long press = digit
+                if (keyCode in KeyEvent.KEYCODE_2..KeyEvent.KEYCODE_9) {
+                    if (event.repeatCount == 0) {
+                        digitLongPressFlags[keyCode] = false
+                        return handleMultiTapKey(keyCode)
+                    } else if (event.repeatCount == 1) {
+                        // Long press: cancel the pending letter and output digit
+                        digitLongPressFlags[keyCode] = true
+                        cancelMultiTapChar()
+                        currentInputConnection?.commitText(digit.toString(), 1)
+                        return true
+                    }
+                    return true
+                } else if (keyCode == KeyEvent.KEYCODE_0) {
+                    // 0 key: short press = space, long press = 0
+                    if (event.repeatCount == 0) {
+                        digitLongPressFlags[keyCode] = false
+                        return true
+                    } else if (event.repeatCount == 1) {
+                        digitLongPressFlags[keyCode] = true
+                        cancelMultiTapChar()
+                        currentInputConnection?.commitText("0", 1)
+                        return true
+                    }
+                    return true
+                } else if (keyCode == KeyEvent.KEYCODE_1) {
+                    // 1 key: short press = punctuation multi-tap, long press = 1
+                    if (event.repeatCount == 0) {
+                        digitLongPressFlags[keyCode] = false
+                        return handleMultiTapKey(keyCode)  // Use multi-tap for English punctuation
+                    } else if (event.repeatCount == 1) {
+                        digitLongPressFlags[keyCode] = true
+                        cancelMultiTapChar()
+                        currentInputConnection?.commitText("1", 1)
+                        return true
+                    }
+                    return true
+                }
+                return false
+            }
+
+            T9InputMode.CHINESE -> {
+                // Chinese mode: short press = Rime T9, long press = digit
+                if (chineseState == T9InputState.CHINESE_COMPOSING) {
+                    // When composing, pass all digits to Rime
+                    return false
+                }
+                // Not composing: long press outputs digit
+                if (keyCode == KeyEvent.KEYCODE_0) {
+                    // 0 key special: short press = space, long press = 0
+                    if (event.repeatCount == 0) {
+                        digitLongPressFlags[keyCode] = false
+                        return true
+                    } else if (event.repeatCount == 1) {
+                        digitLongPressFlags[keyCode] = true
+                        currentInputConnection?.commitText("0", 1)
+                        return true
+                    }
+                    return true
+                } else {
+                    // 1-9 keys: short press = Rime, long press = digit
+                    if (event.repeatCount == 0) {
+                        digitLongPressFlags[keyCode] = false
+                        return false // Pass to Rime for T9 input
+                    } else if (event.repeatCount == 1) {
+                        digitLongPressFlags[keyCode] = true
+                        currentInputConnection?.commitText(digit.toString(), 1)
+                        return true
+                    }
+                    return true
+                }
+            }
         }
     }
 
@@ -817,39 +1082,107 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
      */
     private fun handleT9SpecialKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         if (!inputDeviceMgr.isInInputMode) return false
-        val state = getT9InputState()
+        val chineseState = getT9InputState()
 
         return when (keyCode) {
-            // # key: short press = enter
+            // # key: short press = confirm pending char OR enter (if no pending)
             KeyEvent.KEYCODE_POUND -> {
-                when (state) {
-                    T9InputState.CHINESE_COMPOSING -> false
-                    else -> {
-                        // If long press was NOT triggered, execute short press action (enter)
-                        if (!t9PoundLongPressTriggered) {
+                if (currentT9Mode == T9InputMode.CHINESE && chineseState == T9InputState.CHINESE_COMPOSING) {
+                    false
+                } else {
+                    if (!t9PoundLongPressTriggered) {
+                        // If there was a pending char, just confirm it (no enter)
+                        // If no pending char, send enter
+                        val hadPendingChar = commitMultiTapChar()
+                        if (!hadPendingChar) {
                             currentInputConnection?.commitText("\n", 1)
                         }
-                        // Reset the flag
-                        t9PoundLongPressTriggered = false
-                        true
                     }
+                    t9PoundLongPressTriggered = false
+                    true
                 }
             }
-            // 0 key: short press = space
+
+            // 0 key: short press = space (+ commit pending multi-tap char)
             KeyEvent.KEYCODE_0 -> {
-                when (state) {
-                    T9InputState.CHINESE_COMPOSING -> false
-                    else -> {
-                        // If long press was NOT triggered, execute short press action (space)
-                        if (!t9ZeroLongPressTriggered) {
-                            currentInputConnection?.commitText(" ", 1)
-                        }
-                        // Reset the flag
-                        t9ZeroLongPressTriggered = false
+                if (currentT9Mode == T9InputMode.CHINESE && chineseState == T9InputState.CHINESE_COMPOSING) {
+                    false
+                } else if (currentT9Mode == T9InputMode.NUMBER) {
+                    true // Already handled in KEY_DOWN
+                } else {
+                    if (digitLongPressFlags[keyCode] != true) {
+                        commitMultiTapChar()
+                        currentInputConnection?.commitText(" ", 1)
+                    }
+                    digitLongPressFlags[keyCode] = false
+                    true
+                }
+            }
+
+            // 2-9 keys: in English mode, commit composing text on key up if it's not a long press
+            in KeyEvent.KEYCODE_2..KeyEvent.KEYCODE_9 -> {
+                when (currentT9Mode) {
+                    T9InputMode.ENGLISH -> {
+                        // Multi-tap handled in KEY_DOWN, just consume KEY_UP
+                        // Don't commit here - wait for timeout or different key
                         true
+                    }
+                    T9InputMode.CHINESE -> {
+                        if (chineseState == T9InputState.CHINESE_COMPOSING) {
+                            false // Pass to Rime
+                        } else if (digitLongPressFlags[keyCode] == true) {
+                            digitLongPressFlags[keyCode] = false
+                            true // Long press already handled
+                        } else {
+                            false // Short press passes to Rime
+                        }
+                    }
+                    T9InputMode.NUMBER -> true // Already handled in KEY_DOWN
+                }
+            }
+
+            // 1 key
+            KeyEvent.KEYCODE_1 -> {
+                when (currentT9Mode) {
+                    T9InputMode.ENGLISH -> {
+                        // Multi-tap handled in KEY_DOWN, just consume KEY_UP
+                        true
+                    }
+                    else -> {
+                        if (digitLongPressFlags[keyCode] == true) {
+                            digitLongPressFlags[keyCode] = false
+                            true
+                        } else {
+                            false // Short press passes to Rime for punctuation
+                        }
                     }
                 }
             }
+
+            // * key: short press = shift in English mode
+            KeyEvent.KEYCODE_STAR -> {
+                when (currentT9Mode) {
+                    T9InputMode.ENGLISH -> {
+                        if (digitLongPressFlags[keyCode] != true) {
+                            t9ShiftActive = !t9ShiftActive
+                            showModeIndicator(if (t9ShiftActive) "ShiftON" else "ShiftOFF")
+                        }
+                        digitLongPressFlags[keyCode] = false
+                        true
+                    }
+                    else -> false
+                }
+            }
+
+            // Confirm key: already handled in KEY_DOWN
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                if (currentT9Mode == T9InputMode.ENGLISH) {
+                    true // Consume to prevent double action
+                } else {
+                    false
+                }
+            }
+
             else -> false
         }
     }
