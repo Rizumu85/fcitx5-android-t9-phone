@@ -52,6 +52,7 @@ import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.core.FcitxKeyMapping
 import org.fcitx.fcitx5.android.core.FormattedText
 import org.fcitx.fcitx5.android.core.KeyStates
+import org.fcitx.fcitx5.android.core.TextFormatFlag
 import org.fcitx.fcitx5.android.core.KeySym
 import org.fcitx.fcitx5.android.core.ScancodeMapping
 import org.fcitx.fcitx5.android.core.SubtypeManager
@@ -65,6 +66,8 @@ import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.cursor.CursorRange
 import org.fcitx.fcitx5.android.input.cursor.CursorTracker
+import org.fcitx.fcitx5.android.input.t9.T9CompositionTracker
+import org.fcitx.fcitx5.android.input.t9.T9PinyinUtils
 import org.fcitx.fcitx5.android.utils.InputMethodUtil
 import org.fcitx.fcitx5.android.utils.alpha
 import org.fcitx.fcitx5.android.utils.forceShowSelf
@@ -228,6 +231,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun handleFcitxEvent(event: FcitxEvent<*>) {
         when (event) {
             is FcitxEvent.CommitStringEvent -> {
+                t9CompositionTracker.clear()
                 commitText(event.data.text, event.data.cursor)
             }
             is FcitxEvent.KeyEvent -> event.data.let event@{
@@ -702,6 +706,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var multiTapPendingChar: Char? = null
     private val MULTITAP_TIMEOUT = 1200L  // Increased from 500ms for easier typing
 
+    /** T9 composition tracker for pinyin selection bar (digit sequence for current segment). */
+    private val t9CompositionTracker = T9CompositionTracker()
+
     private val multiTapMap = mapOf(
         KeyEvent.KEYCODE_1 to ",.?!'\"-@/:",  // English punctuation (comma first)
         KeyEvent.KEYCODE_2 to "abc",
@@ -1057,6 +1064,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         cachedKeyEvents.put(timestamp, event)
         val sym = KeySym.fromKeyEvent(event)
         if (sym != null) {
+            if (useT9KeyboardLayout && currentT9Mode == T9InputMode.CHINESE && event.action == KeyEvent.ACTION_DOWN) {
+                when (event.keyCode) {
+                    KeyEvent.KEYCODE_DEL -> t9CompositionTracker.backspace()
+                    KeyEvent.KEYCODE_1 -> t9CompositionTracker.appendApostrophe()
+                    in KeyEvent.KEYCODE_2..KeyEvent.KEYCODE_9 ->
+                        t9CompositionTracker.appendDigit('0' + (event.keyCode - KeyEvent.KEYCODE_0))
+                }
+            }
             val states = KeyStates.fromKeyEvent(event)
             val up = event.action == KeyEvent.ACTION_UP
             postFcitxJob {
@@ -1066,6 +1081,58 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
         Timber.d("Skipped KeyEvent: $event")
         return false
+    }
+
+    // ==================== T9 Pinyin selection bar ====================
+
+    /** Current T9 segment (digits 2-9 after last apostrophe) for pinyin candidates. */
+    fun getCurrentT9Segment(): String = t9CompositionTracker.getCurrentSegment()
+
+    /** Total number of digit keys (2-9) in current composition, for truncating first-row pinyin. */
+    fun getT9CompositionKeyCount(): Int =
+        t9CompositionTracker.getFullComposition().count { it in '2'..'9' }
+
+    /** Candidate pinyin list for current T9 segment; empty if segment empty or not T9. */
+    fun getT9PinyinCandidates(): List<String> =
+        if (useT9KeyboardLayout && currentT9Mode == T9InputMode.CHINESE)
+            T9PinyinUtils.t9KeyToPinyin(getCurrentT9Segment())
+        else
+            emptyList()
+
+    /** Preedit as pinyin with apostrophes for first row; null if not T9 Chinese or empty. */
+    fun getT9PreeditDisplay(): FormattedText? {
+        if (!useT9KeyboardLayout || currentT9Mode != T9InputMode.CHINESE) return null
+        val raw = t9CompositionTracker.getFullComposition()
+        if (raw.isEmpty()) return null
+        val segments = raw.split('\'')
+        val pinyinSegments = segments.map { seg ->
+            val digits = seg.filter { c -> c in '2'..'9' }
+            if (digits.isEmpty()) seg
+            else T9PinyinUtils.t9KeyToPinyin(digits).firstOrNull() ?: seg
+        }
+        val display = pinyinSegments.joinToString("'")
+        if (display.isEmpty()) return null
+        return FormattedText(arrayOf(display), intArrayOf(TextFormatFlag.NoFlag.flag), -1)
+    }
+
+    /** Replace current T9 segment with selected pinyin (backspace + type pinyin). */
+    fun selectT9Pinyin(pinyin: String) {
+        val segment = getCurrentT9Segment()
+        if (segment.isEmpty() || pinyin.isEmpty()) return
+        val backspaceCount = T9PinyinUtils.pinyinToT9Keys(pinyin).length
+        if (backspaceCount <= 0) return
+        t9CompositionTracker.removeCurrentSegment()
+        postFcitxJob {
+            val k = KeyStates.Virtual
+            for (_i in 0 until backspaceCount) {
+                sendKey(KeySym(FcitxKeyMapping.FcitxKey_BackSpace), k, up = false)
+                sendKey(KeySym(FcitxKeyMapping.FcitxKey_BackSpace), k, up = true)
+            }
+            for (c in pinyin) {
+                sendKey(c, k.states, up = false)
+                sendKey(c, k.states, up = true)
+            }
+        }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
