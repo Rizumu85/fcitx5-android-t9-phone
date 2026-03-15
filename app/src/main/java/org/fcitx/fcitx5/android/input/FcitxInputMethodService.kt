@@ -1123,10 +1123,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 } else {
                     if (!t9PoundLongPressTriggered) {
                         // If there was a pending char, just confirm it (no enter)
-                        // If no pending char, send enter
+                        // If no pending char, perform enter/return (respects IME action: search, go, etc.)
                         val hadPendingChar = commitMultiTapChar()
                         if (!hadPendingChar) {
-                            currentInputConnection?.commitText("\n", 1)
+                            handleReturnKey()
                         }
                     }
                     t9PoundLongPressTriggered = false
