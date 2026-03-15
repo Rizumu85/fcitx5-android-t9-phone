@@ -192,9 +192,10 @@ class CommaKey(
     )
 )
 
-class LanguageKey : KeyDef(
+class LanguageKey(percentWidth: Float = 0.1f) : KeyDef(
     Appearance.Image(
         src = R.drawable.ic_baseline_language_24,
+        percentWidth = percentWidth,
         variant = Variant.AltForeground,
         viewId = R.id.button_lang
     ),
@@ -204,11 +205,15 @@ class LanguageKey : KeyDef(
     )
 )
 
-class SpaceKey : KeyDef(
+/**
+ * @param percentWidth 0f = fill remaining row width (default for full keyboard);
+ *        positive value = fixed fraction of row (e.g. 0.38f for T9 to match picker bottom row).
+ */
+class SpaceKey(percentWidth: Float = 0f) : KeyDef(
     Appearance.Text(
         displayText = " ",
         textSize = 13f,
-        percentWidth = 0f,
+        percentWidth = percentWidth,
         border = Border.Special,
         viewId = R.id.button_space,
         soundEffect = InputFeedbacks.SoundEffect.SpaceBar

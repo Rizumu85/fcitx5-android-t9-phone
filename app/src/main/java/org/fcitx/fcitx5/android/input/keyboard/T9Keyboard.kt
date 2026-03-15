@@ -30,24 +30,20 @@ class T9Keyboard(
     companion object {
         const val Name = "T9"
 
+        // 符号保持原样 0.15；表情 0.09、退格 0.11，固定和 0.6 → 空格 40%、回车 0.15 不变。
+        // [符号 0.15, 表情 0.09, 地球 0.1, 空格 0f, 退格 0.11, 回车 0.15]
         val Layout: List<List<KeyDef>> = listOf(
             listOf(
-                // Symbol picker entry
                 LayoutSwitchKey("符号", PickerWindow.Key.Symbol.name, 0.15f, KeyDef.Appearance.Variant.Alternative),
-                // Emoji picker entry (icon only, no comma)
                 ImagePickerSwitchKey(
                     R.drawable.ic_baseline_tag_faces_24,
                     PickerWindow.Key.Emoji,
-                    0.1f,
+                    0.08f,
                     KeyDef.Appearance.Variant.Alternative
                 ),
-                // Language switch (globe)
-                LanguageKey(),
-                // Space bar (fills remaining width)
+                LanguageKey(0.12f),
                 SpaceKey(),
-                // Backspace
-                BackspaceKey(),
-                // Return/Enter
+                BackspaceKey(0.10f),
                 ReturnKey()
             )
         )
