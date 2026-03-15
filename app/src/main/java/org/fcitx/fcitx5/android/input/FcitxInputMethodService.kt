@@ -669,6 +669,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var t9PoundLongPressTriggered = false
 
     /**
+     * Track if a long press action was triggered for 0 key.
+     */
+    private var t9ZeroLongPressTriggered = false
+
+    /**
      * Get current T9 input state based on composing text and input method
      */
     private fun getT9InputState(): T9InputState {
@@ -698,7 +703,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         val state = getT9InputState()
 
         return when (keyCode) {
-            // # key: short press = cycle mode, long press = enter
+            // # key: short press = enter, long press = switch input method
             // Short press is deferred to KEY_UP to distinguish from long press
             KeyEvent.KEYCODE_POUND -> {
                 when (state) {
@@ -709,11 +714,34 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                             t9PoundLongPressTriggered = false
                             true
                         } else if (event.repeatCount == 1) {
-                            // First repeat: this is a long press, send Enter
+                            // First repeat: this is a long press, switch input method
                             t9PoundLongPressTriggered = true
-                            currentInputConnection?.let { ic ->
-                                ic.commitText("\n", 1)
+                            postFcitxJob {
+                                enumerateIme()
                             }
+                            true
+                        } else {
+                            true // Consume subsequent repeats
+                        }
+                    }
+                }
+            }
+
+            // 0 key: short press = space, long press = switch to number keyboard
+            // Short press is deferred to KEY_UP to distinguish from long press
+            KeyEvent.KEYCODE_0 -> {
+                when (state) {
+                    T9InputState.CHINESE_COMPOSING -> false // No action defined, pass through
+                    else -> {
+                        if (event.repeatCount == 0) {
+                            // First KEY_DOWN: reset long press flag, consume but don't act yet
+                            t9ZeroLongPressTriggered = false
+                            true
+                        } else if (event.repeatCount == 1) {
+                            // First repeat: this is a long press, switch to number keyboard
+                            t9ZeroLongPressTriggered = true
+                            // TODO: Implement switch to number keyboard
+                            // For now, just consume the event
                             true
                         } else {
                             true // Consume subsequent repeats
@@ -792,18 +820,32 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         val state = getT9InputState()
 
         return when (keyCode) {
+            // # key: short press = enter
             KeyEvent.KEYCODE_POUND -> {
                 when (state) {
                     T9InputState.CHINESE_COMPOSING -> false
                     else -> {
-                        // If long press was NOT triggered, execute short press action
+                        // If long press was NOT triggered, execute short press action (enter)
                         if (!t9PoundLongPressTriggered) {
-                            postFcitxJob {
-                                enumerateIme()
-                            }
+                            currentInputConnection?.commitText("\n", 1)
                         }
                         // Reset the flag
                         t9PoundLongPressTriggered = false
+                        true
+                    }
+                }
+            }
+            // 0 key: short press = space
+            KeyEvent.KEYCODE_0 -> {
+                when (state) {
+                    T9InputState.CHINESE_COMPOSING -> false
+                    else -> {
+                        // If long press was NOT triggered, execute short press action (space)
+                        if (!t9ZeroLongPressTriggered) {
+                            currentInputConnection?.commitText(" ", 1)
+                        }
+                        // Reset the flag
+                        t9ZeroLongPressTriggered = false
                         true
                     }
                 }
