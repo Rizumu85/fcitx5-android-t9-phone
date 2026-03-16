@@ -46,6 +46,8 @@ import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.withTheme
 import splitties.views.dsl.core.wrapContent
 import splitties.views.padding
+import android.view.View.MeasureSpec
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 @SuppressLint("ViewConstructor")
@@ -65,6 +67,10 @@ class CandidatesView(
     private val fontSize by candidatesPrefs.fontSize
     private val itemPaddingVertical by candidatesPrefs.itemPaddingVertical
     private val itemPaddingHorizontal by candidatesPrefs.itemPaddingHorizontal
+    private val horizontalMargin by candidatesPrefs.horizontalMargin
+    private val bubbleGap by candidatesPrefs.bubbleGap
+    private val candidateItemSpacing by candidatesPrefs.candidateItemSpacing
+    private val smallRowHeightPercent by candidatesPrefs.smallRowHeightPercent
 
     private var inputPanel = FcitxEvent.InputPanelEvent.Data()
     private var paged = FcitxEvent.PagedCandidateEvent.Data.Empty
@@ -106,9 +112,9 @@ class CandidatesView(
         setPadding(h, v, h, v)
     }
 
-    /** Slightly smaller font for third row (candidates). */
+    /** Third row (candidates) use candidate font size setting as-is. */
     private val setupTextViewCandidates: TextView.() -> Unit = {
-        textSize = (fontSize * 0.9f).coerceAtLeast(1f)
+        textSize = fontSize.toFloat().coerceAtLeast(1f)
         val v = dp(itemPaddingVertical)
         val h = dp(itemPaddingHorizontal)
         setPadding(h, v, h, v)
@@ -130,8 +136,11 @@ class CandidatesView(
 
     private val preeditUi = PreeditUi(ctx, theme, setupTextViewSmallRow)
 
+    private val showPaginationArrows by candidatesPrefs.showPaginationArrows
     private val candidatesUi = PagedCandidatesUi(
         ctx, theme, setupTextViewCandidates,
+        showPaginationArrows,
+        dp(windowRadius),
         onCandidateClick = { index -> fcitx.launchOnReady { it.select(index) } },
         onPrevPage = { fcitx.launchOnReady { it.offsetCandidatePage(-1) } },
         onNextPage = { fcitx.launchOnReady { it.offsetCandidatePage(1) } }
@@ -162,10 +171,10 @@ class CandidatesView(
             return linePx + 2 * dpCandidates(itemPaddingVertical)
         }
 
-    /** First row: 7/11 so descenders (g,p,y,q) are not clipped, same as second row. */
-    private val preeditRowHeightPx: Int get() = oneCandidateRowHeightPx * 7 / 11
-    /** Second row: 7/11 so descenders (q,p,g,y) are not clipped. */
-    private val pinyinBarRowHeightPx: Int get() = oneCandidateRowHeightPx * 7 / 11
+    /** First row: height = candidate row × smallRowHeightPercent%. */
+    private val preeditRowHeightPx: Int get() = oneCandidateRowHeightPx * smallRowHeightPercent / 100
+    /** Second row: same as first. */
+    private val pinyinBarRowHeightPx: Int get() = oneCandidateRowHeightPx * smallRowHeightPercent / 100
 
     /** Font size for first/second row (6/11 of candidate row) so text fits. */
     private val smallRowFontSizeSp: Float get() = fontSize * 6f / 11f
@@ -246,11 +255,12 @@ class CandidatesView(
     }
 
     private fun updateUi() {
-        // First row: in T9 Chinese show predicted pinyin (first candidate comment) truncated by key count, or digits→pinyin
+        // First row: in T9 Chinese show predicted pinyin of the candidate at cursor (not always first)
         val useT9 = AppPrefs.getInstance().keyboard.useT9KeyboardLayout.getValue()
         val t9Preedit = when {
             useT9 && paged.candidates.isNotEmpty() -> {
-                val comment = paged.candidates.first().comment
+                val comment = paged.candidates.getOrNull(paged.cursorIndex)?.comment
+                    ?: paged.candidates.first().comment
                 if (comment.isNotEmpty()) {
                     val keyCount = service.getT9CompositionKeyCount()
                     val display = truncateCommentByKeyCount(comment, keyCount)
@@ -324,33 +334,42 @@ class CandidatesView(
 
     private var bottomInsets = 0
 
+    /** Horizontal gap from screen edge so the bubble doesn't touch left/right. */
+    private val horizontalMarginPx: Int get() = dp(horizontalMargin)
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        // Enforce maxWidth so total width never exceeds (parent - 2*margin); ViewGroup does not do this by default
+        val maxW = if (maxWidth > 0) maxWidth else Int.MAX_VALUE
+        val mode = MeasureSpec.getMode(widthMeasureSpec)
+        val size = MeasureSpec.getSize(widthMeasureSpec)
+        val constrainedSize = if (mode == MeasureSpec.UNSPECIFIED) maxW else min(size, maxW)
+        val constrainedSpec = MeasureSpec.makeMeasureSpec(constrainedSize, if (mode == MeasureSpec.UNSPECIFIED) MeasureSpec.AT_MOST else mode)
+        super.onMeasure(constrainedSpec, heightMeasureSpec)
+    }
+
     private fun updatePosition() {
+        val (parentWidth, parentHeight) = parentSize
+        val marginPx = horizontalMarginPx
+        if (parentWidth > 0) {
+            val maxW = (parentWidth - 2 * marginPx).toInt().coerceAtLeast(minWidth)
+            if (maxWidth != maxW) {
+                maxWidth = maxW
+                requestLayout()
+            }
+        }
         if (visibility != VISIBLE) {
-            // skip unnecessary updates
             return
         }
-        val (parentWidth, parentHeight) = parentSize
         if (parentWidth <= 0 || parentHeight <= 0) {
-            // panic, bail
             translationX = 0f
             translationY = 0f
             return
         }
-        val (horizontal, bottom, top) = anchorPosition
+        val (_horizontal, bottom, top) = anchorPosition
         val w: Int = width
         val h: Int = height
-        val selfWidth = w.toFloat()
         val selfHeight = h.toFloat()
-        // Left-align when possible; if bubble would go off right, shift left so it stays fully visible
-        val tX: Float = if (layoutDirection == LAYOUT_DIRECTION_RTL) {
-            val rtlOffset = parentWidth - horizontal
-            if (rtlOffset + selfWidth > parentWidth) selfWidth - parentWidth else -rtlOffset
-        } else {
-            val leftAligned = horizontal
-            val rightEdge = leftAligned + selfWidth
-            if (rightEdge <= parentWidth) leftAligned
-            else (parentWidth - selfWidth).coerceIn(0f, leftAligned)
-        }
+        val tX: Float = marginPx.toFloat()
         val bottomLimit = parentHeight - bottomInsets
         val bottomSpace = bottomLimit - bottom
         // move CandidatesView above cursor anchor, only when
@@ -360,7 +379,6 @@ class CandidatesView(
         ) top - selfHeight else bottom
         translationX = tX
         translationY = tY
-        // update touchEventReceiverWindow's position after CandidatesView's
         touchEventReceiverWindow.showAt(tX.roundToInt(), tY.roundToInt(), w, h)
         shouldUpdatePosition = false
     }
@@ -390,8 +408,9 @@ class CandidatesView(
             preeditRowHeightPx
         ).apply { gravity = Gravity.START or Gravity.TOP })
 
+        // Pinyin bar: width 0 so bubble2 width is driven only by candidates; we sync width after layout
         bubble2Wrapper.addView(pinyinBarScroll, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
+            0,
             pinyinBarRowHeightPx
         ).apply { gravity = Gravity.START or Gravity.TOP })
         bubble2Wrapper.addView(candidatesUi.root, LinearLayout.LayoutParams(
@@ -400,29 +419,42 @@ class CandidatesView(
         ).apply { gravity = Gravity.START or Gravity.TOP })
         (candidatesUi.root as? RecyclerView)?.addItemDecoration(object : RecyclerView.ItemDecoration() {
             override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
-                outRect.right = dp(4)
+                outRect.right = dp(candidateItemSpacing)
             }
         })
 
+        // Bubble 1: width by pinyin content, left-aligned
         contentWrapper.addView(bubble1Wrapper, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { gravity = Gravity.START })
+        ).apply { gravity = Gravity.START or Gravity.TOP })
+        // Bubble 2: width by content (candidates row), right edge at content width within margin
         contentWrapper.addView(bubble2Wrapper, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply {
-            gravity = Gravity.START
-            topMargin = dp(4)
+            gravity = Gravity.START or Gravity.TOP
+            topMargin = dp(bubbleGap)
         })
 
-        add(contentWrapper, lParams(wrapContent, wrapContent) {
+        add(contentWrapper, lParams(matchParent, wrapContent) {
             topOfParent()
             startOfParent()
         })
 
+        // After layout, give pinyin bar the same width as candidates so it scrolls inside bubble2
+        bubble2Wrapper.viewTreeObserver.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                val cw = candidatesUi.root.width
+                if (cw > 0 && (pinyinBarScroll.layoutParams as? LinearLayout.LayoutParams)?.width != cw) {
+                    (pinyinBarScroll.layoutParams as? LinearLayout.LayoutParams)?.width = cw
+                    pinyinBarScroll.requestLayout()
+                }
+            }
+        })
+
         isFocusable = false
-        layoutParams = ViewGroup.LayoutParams(wrapContent, wrapContent)
+        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
     }
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {

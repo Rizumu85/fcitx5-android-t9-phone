@@ -275,6 +275,7 @@
     <string name="crop">裁剪</string>
     <string name="candidates_window">候選詞視窗</string>
     <string name="show_candidates_window">顯示候選詞視窗</string>
+    <string name="candidates_show_pagination_arrows">顯示翻頁箭頭</string>
     <string name="candidates_window_radius">候選詞窗口半徑</string>
     <string name="follow_input_device">視輸入設備而定</string>
     <string name="candidates_orientation">候選詞列表方向</string>
@@ -285,6 +286,10 @@
     <string name="candidates_padding">候選詞邊距</string>
     <string name="candidates_window_min_width">候選窗口最小寬度</string>
     <string name="candidates_window_padding">候選窗口邊距</string>
+    <string name="candidates_horizontal_margin">候選條左右邊距</string>
+    <string name="candidates_bubble_gap">兩氣泡之間的間距</string>
+    <string name="candidates_item_spacing">候選詞項之間的間距</string>
+    <string name="candidates_small_row_percent">第一/二行高度（佔候選行%）</string>
     <string name="restart_fcitx_instance">重新啟動 Fcitx 實例</string>
     <string name="restart_fcitx_instance_confirm">Fcitx 實例將被銷燬並重新初始化。繼續嗎？</string>
     <string name="ignore_system_window_insets">忽略系統窗口邊襯區 (WindowInsets)</string>

@@ -321,10 +321,23 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             int(R.string.candidates_window_padding, "candidates_window_padding", 4, 0, 32, "dp")
 
         val fontSize =
-            int(R.string.candidates_font_size, "candidates_window_font_size", 20, 4, 64, "sp")
+            int(R.string.candidates_font_size, "candidates_window_font_size", 18, 4, 64, "sp")
+
+        val showPaginationArrows =
+            switch(R.string.candidates_show_pagination_arrows, "candidates_show_pagination_arrows", false)
 
         val windowRadius =
-            int(R.string.candidates_window_radius, "candidates_window_radius", 0, 0, 48, "dp")
+            int(R.string.candidates_window_radius, "candidates_window_radius", 4, 0, 48, "dp")
+
+        val horizontalMargin =
+            int(R.string.candidates_horizontal_margin, "candidates_horizontal_margin", 8, 0, 48, "dp")
+        val bubbleGap =
+            int(R.string.candidates_bubble_gap, "candidates_bubble_gap", 4, 0, 24, "dp")
+        val candidateItemSpacing =
+            int(R.string.candidates_item_spacing, "candidates_item_spacing", 4, 0, 16, "dp")
+        /** First/second row height as percentage of candidate row height (50–90%). */
+        val smallRowHeightPercent =
+            int(R.string.candidates_small_row_percent, "candidates_small_row_percent", 64, 50, 90, "%")
 
         val itemPaddingVertical: ManagedPreference.PInt
         val itemPaddingHorizontal: ManagedPreference.PInt
@@ -334,10 +347,10 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
                 R.string.candidates_padding,
                 R.string.vertical,
                 "candidates_item_padding_vertical",
-                2,
+                0,
                 R.string.horizontal,
                 "candidates_item_padding_horizontal",
-                4,
+                2,
                 0,
                 64,
                 "dp"

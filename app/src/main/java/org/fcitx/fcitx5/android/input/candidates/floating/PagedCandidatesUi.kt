@@ -28,6 +28,8 @@ class PagedCandidatesUi(
     override val ctx: Context,
     val theme: Theme,
     private val setupTextView: TextView.() -> Unit,
+    private val showPaginationArrows: Boolean,
+    private val highlightCornerRadiusPx: Int,
     private val onCandidateClick: (Int) -> Unit,
     private val onPrevPage: () -> Unit,
     private val onNextPage: () -> Unit
@@ -51,13 +53,13 @@ class PagedCandidatesUi(
             data.candidates.getOrNull(position).hashCode().toLong()
 
         override fun getItemCount() =
-            data.candidates.size + (if (data.hasPrev || data.hasNext) 1 else 0)
+            data.candidates.size + (if (showPaginationArrows && (data.hasPrev || data.hasNext)) 1 else 0)
 
         override fun getItemViewType(position: Int) = if (position < data.candidates.size) 0 else 1
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): UiHolder {
             return when (viewType) {
-                0 -> UiHolder.Candidate(LabeledCandidateItemUi(ctx, theme, setupTextView))
+                0 -> UiHolder.Candidate(LabeledCandidateItemUi(ctx, theme, setupTextView, highlightCornerRadiusPx))
                 else -> UiHolder.Pagination(PaginationUi(ctx, theme)).apply {
                     ui.prevIcon.setOnClickListener {
                         onPrevPage.invoke()
