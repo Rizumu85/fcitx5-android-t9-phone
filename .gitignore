@@ -45,6 +45,16 @@ out/
 .gradle/
 build/
 
+# Android release metadata (AGP)
+**/build-metadata.json
+**/build-metadata.*.json
+**/output-metadata.json
+**/output-metadata.*.json
+
+# Local release output folder (if generated locally)
+/app/release/
+/plugin/*/release/
+
 # Local configuration file (sdk path, etc)
 local.properties
 

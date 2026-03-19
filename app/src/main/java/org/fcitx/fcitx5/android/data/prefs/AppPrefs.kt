@@ -131,7 +131,7 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         val focusChangeResetKeyboard =
             switch(R.string.reset_keyboard_on_focus_change, "reset_keyboard_on_focus_change", true)
         val expandToolbarByDefault =
-            switch(R.string.expand_toolbar_by_default, "expand_toolbar_by_default", false)
+            switch(R.string.expand_toolbar_by_default, "expand_toolbar_by_default", true)
         val inlineSuggestions = switch(R.string.inline_suggestions, "inline_suggestions", true)
         val toolbarNumRowOnPassword =
             switch(R.string.toolbar_num_row_on_password, "toolbar_num_row_on_password", true)
@@ -179,7 +179,7 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             LangSwitchBehavior.T9ModeSwitch
         ) { showLangSwitchKey.getValue() }
         val useT9KeyboardLayout =
-            switch(R.string.use_t9_keyboard_layout, "use_t9_keyboard_layout", false)
+            switch(R.string.use_t9_keyboard_layout, "use_t9_keyboard_layout", true)
 
         val t9KeyboardHeightPercent: ManagedPreference.PInt
         val t9KeyboardHeightPercentLandscape: ManagedPreference.PInt
@@ -310,8 +310,8 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         val windowMinWidth = int(
             R.string.candidates_window_min_width,
             "candidates_window_min_width",
-            0,
-            0,
+            400,
+            200,
             640,
             "dp",
             10
