@@ -1168,7 +1168,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun selectT9Pinyin(pinyin: String) {
         val segment = getCurrentT9Segment()
         if (segment.isEmpty() || pinyin.isEmpty()) return
-        val backspaceCount = T9PinyinUtils.pinyinToT9Keys(pinyin).length
+        val backspaceCount = t9CompositionTracker.getCurrentSegmentKeyLength()
         if (backspaceCount <= 0) return
         t9CompositionTracker.removeCurrentSegment()
         postFcitxJob {
