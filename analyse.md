@@ -104,18 +104,22 @@ The model can live in `input/t9` as small data classes plus a builder, or start 
 
 ## 6. Current Defect List
 
-| ID | Severity | Location | Problem |
-|---|---:|---|---|
-| C1 | Critical | Service plus `CandidatesView` | No explicit model for resolved pinyin prefix plus unresolved digit suffix. This is the root of mixed-row states after pinyin selection. |
-| C2 | Critical | `selectT9Pinyin` | It sends backspaces, selected pinyin, and remaining digits, but local state only keeps remaining digits. The selected prefix is lost as presentation state. |
-| C3 | High | `CandidatesView.updateUi` | Top row logic mixes candidate-comment truncation, tracker preedit, and raw-preedit fallback. It can switch strategies mid-render. |
-| C4 | High | `syncT9CompositionWithInputPanel` | Sync only recognizes all-digit raw preedit. Mixed preedit like `ai96` is not parsed into resolved prefix plus unresolved digits. |
-| C5 | High | Delete/back/focus-out paths | Undo semantics after pinyin selection are not defined around resolved prefix plus unresolved suffix. |
-| C6 | Medium | `T9PinyinUtils.kt` | `t9KeyToPinyin` and `matchedPrefixLength` still use `take(6)`, silently ignoring later keys. |
-| C7 | Medium | `useT9KeyboardLayout` naming/gating | The stored setting is effectively "T9 mode enabled"; code should use that meaning consistently, but persisted-key migration is optional later. |
-| C8 | Medium | `PinyinSelectionBarComponent.kt` | Duplicate pinyin-row implementation appears stale and can mislead future changes. |
-| C9 | Low | `onKeyUp` | `t9ConsumedNavigationKeyUp = null` appears twice in the same branch. Harmless but should be cleaned during nearby edits. |
-| C10 | Low | English mode | English STAR and multi-tap display may still need cleanup, but they are not the main blocker for Chinese T9 coherence. |
+| ID | Severity | Status | Location | Problem |
+|---|---:|---|---|---|
+| C1 | Critical | RESOLVED | Service plus `CandidatesView` | `T9CompositionModel` now explicitly represents `resolvedSegments` + `unresolvedDigits` + `pendingSelection` + `rawPreedit`. |
+| C2 | Critical | RESOLVED | `selectT9Pinyin` | Selection records a `T9ResolvedSegment`, keeps the remaining suffix, and sets `pendingSelection` so the next Rime update can confirm/correct. |
+| C3 | High | RESOLVED | `CandidatesView.updateUi` | A single `T9PresentationState` is built via `getT9PresentationState`; `updateUi` no longer switches strategies mid-render and `truncateCommentByKeyCount` is gone. |
+| C4 | High | PARTIAL | `syncT9CompositionWithInputPanel` | All-digit and empty-preedit branches are handled. Mixed preedit is only reconstructed when `resolvedSegments` is already non-empty; the fallback branch just stashes `rawPreedit` with empty `unresolvedDigits`. Verify whether Rime can emit mixed preedit without a prior Kotlin-side selection and, if so, extend the parser. |
+| C5 | High | OPEN | Delete/back/focus-out paths | Undo semantics after pinyin selection are not defined around resolved prefix plus unresolved suffix. |
+| C6 | Medium | OPEN | `T9PinyinUtils.kt` | `t9KeyToPinyin` and `matchedPrefixLength` still use `take(6)`, silently ignoring later keys. |
+| C7 | Medium | OPEN | `useT9KeyboardLayout` naming/gating | The stored setting is effectively "T9 mode enabled"; code should use that meaning consistently, but persisted-key migration is optional later. |
+| C8 | Medium | OPEN | `PinyinSelectionBarComponent.kt` | Duplicate pinyin-row implementation appears stale and can mislead future changes. |
+| C9 | Low | OPEN | `onKeyUp` | `t9ConsumedNavigationKeyUp = null` appears twice in the same branch. Harmless but should be cleaned during nearby edits. |
+| C10 | Low | OPEN | English mode | English STAR and multi-tap display may still need cleanup, but they are not the main blocker for Chinese T9 coherence. |
+
+### Additional change since last revision
+
+- `handleFcitxEvent.CommitStringEvent` in `FcitxInputMethodService` now intercepts letter-only Rime commits in T9 Chinese mode and routes them through `updateComposingText` instead of `commitText`. This keeps raw pinyin letters inside the composing region so the app text field does not receive final text on pinyin chip/OK selection. Phase C delete/focus-out work must keep this branch in mind: clearing the model on focus-out must also clear the composing region, and delete should not rely on that letter run being a real commit.
 
 ## 7. Reference From yuyansdk
 
@@ -135,12 +139,15 @@ Do not port:
 
 ## 8. Recommended Implementation Order
 
-1. Add a composition model that can represent resolved prefix plus unresolved suffix.
-2. Make `selectT9Pinyin` update/mark that model transactionally instead of losing the selected prefix.
-3. Build one presentation snapshot from model plus latest fcitx input-panel and paged-candidate data.
-4. Make `CandidatesView` render the top row and pinyin row from that single snapshot.
-5. Define delete/back/focus-out transitions against the same model.
-6. Only then address lower-risk cleanup: six-digit truncation, preference naming, stale component removal, English cleanup, and controller extraction.
+Steps 1-4 landed; remaining work starts at step 5.
+
+1. ~~Add a composition model that can represent resolved prefix plus unresolved suffix.~~ (done)
+2. ~~Make `selectT9Pinyin` update/mark that model transactionally instead of losing the selected prefix.~~ (done)
+3. ~~Build one presentation snapshot from model plus latest fcitx input-panel and paged-candidate data.~~ (done)
+4. ~~Make `CandidatesView` render the top row and pinyin row from that single snapshot.~~ (done)
+5. Define delete/back/focus-out transitions against the same model (plan Phase C). Must also clear the composing region written by the letter-commit intercept described in section 6.
+6. Verify C4: confirm whether Rime ever emits mixed preedit without a prior Kotlin-side selection and, if so, extend `syncT9CompositionWithInputPanel` to rebuild `resolvedSegments` from the letter run.
+7. Only then address lower-risk cleanup: six-digit truncation, preference naming, stale component removal, English cleanup, and controller extraction.
 
 ## 9. Verification Notes
 

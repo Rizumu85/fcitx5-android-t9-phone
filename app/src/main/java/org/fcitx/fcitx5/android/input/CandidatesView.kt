@@ -26,7 +26,6 @@ import androidx.recyclerview.widget.RecyclerView
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.core.FormattedText
-import org.fcitx.fcitx5.android.core.TextFormatFlag
 import org.fcitx.fcitx5.android.daemon.FcitxConnection
 import org.fcitx.fcitx5.android.daemon.launchOnReady
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
@@ -295,28 +294,13 @@ class CandidatesView(
         return moved
     }
 
-    private fun evaluateVisibility(): Boolean {
+    private fun evaluateVisibility(topReading: FormattedText?, pinyinRowVisible: Boolean): Boolean {
         return inputPanel.preedit.isNotEmpty() ||
                 paged.candidates.isNotEmpty() ||
                 inputPanel.auxUp.isNotEmpty() ||
                 inputPanel.auxDown.isNotEmpty() ||
-                (AppPrefs.getInstance().keyboard.useT9KeyboardLayout.getValue() && service.getT9PinyinCandidates().isNotEmpty())
-    }
-
-    /** Truncate candidate pinyin (comment) by current key count: show only as many letters per syllable as keys typed. */
-    private fun truncateCommentByKeyCount(comment: String, keyCount: Int): String {
-        if (keyCount <= 0) return ""
-        val syllables = comment.split(Regex("[\'\\s]+")).filter { it.isNotEmpty() }
-        if (syllables.isEmpty()) return comment.take(keyCount)
-        var remaining = keyCount
-        val parts = mutableListOf<String>()
-        for (syl in syllables) {
-            if (remaining <= 0) break
-            val take = minOf(syl.length, remaining)
-            parts.add(syl.take(take))
-            remaining -= take
-        }
-        return parts.joinToString("'")
+                topReading?.isNotEmpty() == true ||
+                pinyinRowVisible
     }
 
     private fun updateT9FocusIndicator() {
@@ -326,49 +310,22 @@ class CandidatesView(
     }
 
     private fun updateUi() {
-        // First row: in T9 Chinese show predicted pinyin of the candidate at cursor (not always first)
         val useT9 = AppPrefs.getInstance().keyboard.useT9KeyboardLayout.getValue()
-        val shouldSyncT9Composition = useT9 &&
-            (inputPanel.preedit.isNotEmpty() ||
-                (inputPanel.auxUp.isEmpty() &&
-                    inputPanel.auxDown.isEmpty() &&
-                    paged.candidates.isEmpty()))
-        if (shouldSyncT9Composition) {
+        val t9State = if (useT9) {
             service.syncT9CompositionWithInputPanel(inputPanel)
-        }
-        val rawT9Preedit = inputPanel.preedit.toString()
-        val t9PreeditFallback = if (
-            useT9 &&
-            rawT9Preedit.isNotEmpty() &&
-            rawT9Preedit.all { it in '1'..'9' || it == '\'' }
-        ) {
-            service.getT9PreeditDisplay(rawT9Preedit)
+            service.getT9PresentationState(inputPanel, paged)
         } else {
             null
         }
-        val t9Preedit = when {
-            useT9 && paged.candidates.isNotEmpty() -> {
-                val comment = paged.candidates.getOrNull(paged.cursorIndex)?.comment
-                    ?: paged.candidates.first().comment
-                if (comment.isNotEmpty()) {
-                    val keyCount = service.getT9CompositionKeyCount()
-                    val display = truncateCommentByKeyCount(comment, keyCount)
-                    if (display.isNotEmpty()) FormattedText(arrayOf(display), intArrayOf(TextFormatFlag.NoFlag.flag), -1)
-                    else service.getT9PreeditDisplay() ?: t9PreeditFallback
-                } else service.getT9PreeditDisplay() ?: t9PreeditFallback
-            }
-            useT9 -> service.getT9PreeditDisplay() ?: t9PreeditFallback
-            else -> null
-        }
-        val panelToShow = t9Preedit?.let {
+        val panelToShow = t9State?.topReading?.let {
             FcitxEvent.InputPanelEvent.Data(it, inputPanel.auxUp, inputPanel.auxDown)
         } ?: inputPanel
         preeditUi.update(panelToShow)
         preeditUi.root.visibility = if (preeditUi.visible) VISIBLE else GONE
         candidatesUi.update(paged, orientation)
-        updatePinyinBar()
+        updatePinyinBar(t9State?.pinyinOptions ?: emptyList(), useT9)
         updateT9FocusIndicator()
-        if (evaluateVisibility()) {
+        if (evaluateVisibility(t9State?.topReading, t9State?.pinyinRowVisible == true)) {
             visibility = VISIBLE
         } else {
             // RecyclerView won't update its items when ancestor view is GONE
@@ -376,8 +333,7 @@ class CandidatesView(
         }
     }
 
-    private fun updatePinyinBar() {
-        val useT9 = AppPrefs.getInstance().keyboard.useT9KeyboardLayout.getValue()
+    private fun updatePinyinBar(candidates: List<String>, useT9: Boolean) {
         if (!useT9) {
             pinyinBarAdapter.clear()
             pinyinBarRecyclerView.scrollToPosition(0)
@@ -386,7 +342,6 @@ class CandidatesView(
             service.moveT9CandidateFocus(FcitxInputMethodService.T9CandidateFocus.BOTTOM)
             return
         }
-        val candidates = service.getT9PinyinCandidates()
         if (candidates.isEmpty()) {
             pinyinBarAdapter.clear()
             pinyinBarRecyclerView.scrollToPosition(0)

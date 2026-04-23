@@ -2,6 +2,16 @@
 
 Audience: another coding agent. Read `analyse.md` first. The current source already has partial fixes: RecyclerView pinyin row, chip adapter, top/bottom focus state, and `commitT9PinyinSelection`. Do not restart from older plans. The next work should make pinyin selection a coherent, reversible composition-state transition.
 
+## Progress Snapshot (kept in sync with source)
+
+- Phase 0 (Step 0): baseline confirmed. Active paths listed below are present in source.
+- Phase A Step 1: DONE. `T9CompositionModel.kt` introduces `T9ResolvedSegment`, `T9PendingSelection`, `T9CompositionModel`, `T9PresentationState`. Deviation: `T9PresentationState` only carries `topReading` + `pinyinOptions` (with derived `pinyinRowVisible`); candidate focus is still rendered from service state via `updateT9FocusIndicator()` rather than a snapshot field.
+- Phase A Step 2: DONE. `selectT9Pinyin` now appends a `T9ResolvedSegment`, keeps remaining suffix as `unresolvedDigits`, and records a `pendingSelection` marker.
+- Phase A Step 3: PARTIAL. Pure-digit and empty preedit branches handle model/tracker correctly. Mixed preedit (letters + trailing digits) is reconstructed into `unresolvedDigits` **only when `resolvedSegments` is already non-empty**. If Rime ever emits a mixed preedit without a prior selection, the code stashes `rawPreedit` with empty `unresolvedDigits`. Flag this under C4 until verified against live Rime behaviour.
+- Phase B Steps 4-5: DONE. `getT9PresentationState` builds one snapshot; `CandidatesView.updateUi` renders top row and pinyin row from it and `evaluateVisibility` takes the snapshot into account. `truncateCommentByKeyCount` was removed; comment-based truncation is no longer used for the top row.
+- Additional (not originally in plan): `handleFcitxEvent.CommitStringEvent` now intercepts letter-only commits in T9 Chinese mode and keeps them in the composing region via `updateComposingText` instead of committing to the app text field. This directly backs the "no final commit on pinyin select" rule - keep it in mind when defining Phase C delete/focus-out behaviour.
+- Phases C (Steps 6-7) and D: NOT STARTED.
+
 ## Ground Rules
 
 1. Work on `CandidatesView.kt` for the active pinyin/top/candidate UI. `PinyinSelectionBarComponent.kt` is not the active path unless a fresh source check proves otherwise.
@@ -61,7 +71,7 @@ Change:
 - Add small data classes in `app/src/main/java/org/fcitx/fcitx5/android/input/t9/`, for example:
   - `T9ResolvedSegment(pinyin: String, sourceDigits: String)`
   - `T9CompositionModel(resolvedSegments: List<T9ResolvedSegment>, unresolvedDigits: String)`
-  - `T9PresentationState(topReading: FormattedText?, pinyinOptions: List<String>, pinyinRowVisible: Boolean, focus: T9CandidateFocus)`
+  - `T9PresentationState(topReading: FormattedText?, pinyinOptions: List<String>)` with `pinyinRowVisible` as a derived property. Candidate focus currently stays on the service and is read by `CandidatesView.updateT9FocusIndicator()`; fold it into the snapshot only if a later step actually needs it.
 - Keep this small. Do not build a full controller yet.
 - Add helpers to:
   - initialize/update unresolved digits from raw digit preedit
@@ -122,6 +132,7 @@ Change:
 - For all-digit preedit, model should become no resolved segments plus raw unresolved digits.
 - For mixed preedit such as `ai96`, keep or reconstruct resolved prefix `ai` and unresolved suffix `96`.
 - If reconstruction from preedit alone is ambiguous, use the pending-selection marker from Step 2 and clear that marker after the next matching fcitx update.
+- Current code only performs the mixed-preedit digit extraction when `resolvedSegments` is non-empty. If verification shows Rime can emit mixed preedit without a prior selection (e.g. after a Rime-initiated commit/recomposition), extend the branch to tokenize letters vs digits and rebuild `resolvedSegments` from the letter run.
 - If preedit is empty, clear model, tracker, focus, and pinyin adapter state.
 
 Files:
