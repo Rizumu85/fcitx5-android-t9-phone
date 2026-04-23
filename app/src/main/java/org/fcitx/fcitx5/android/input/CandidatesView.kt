@@ -136,15 +136,28 @@ class CandidatesView(
 
     private val preeditUi = PreeditUi(ctx, theme, setupTextViewSmallRow)
 
+    /**
+     * Last candidate list actually shown to the user. When T9 pinyin filtering is active this
+     * differs from [paged] (the raw fcitx page) and tap indices must be translated back before
+     * being sent to fcitx, otherwise taps on filtered rows would pick the wrong character.
+     */
+    private var t9ShownPaged: FcitxEvent.PagedCandidateEvent.Data? = null
+
     private val showPaginationArrows by candidatesPrefs.showPaginationArrows
     private val candidatesUi = PagedCandidatesUi(
         ctx, theme, setupTextViewCandidates,
         showPaginationArrows,
         dp(windowRadius),
-        onCandidateClick = { index ->
+        onCandidateClick = { shownIndex ->
             service.moveT9CandidateFocus(FcitxInputMethodService.T9CandidateFocus.BOTTOM)
             updateT9FocusIndicator()
-            fcitx.launchOnReady { it.select(index) }
+            val shown = t9ShownPaged
+            val originalIndex = if (shown != null && shown !== paged) {
+                val target = shown.candidates.getOrNull(shownIndex)
+                val idx = target?.let { paged.candidates.indexOf(it) } ?: -1
+                if (idx >= 0) idx else shownIndex
+            } else shownIndex
+            fcitx.launchOnReady { it.select(originalIndex) }
         },
         onPrevPage = { fcitx.launchOnReady { it.offsetCandidatePage(-1) } },
         onNextPage = { fcitx.launchOnReady { it.offsetCandidatePage(1) } }
@@ -284,6 +297,14 @@ class CandidatesView(
         updateT9FocusIndicator()
     }
 
+    /**
+     * Force a full UI refresh. Needed after model-only mutations (pinyin chip selection,
+     * delete-reopen) that don't trigger a fcitx event and therefore wouldn't otherwise redraw.
+     */
+    fun refreshT9Ui() {
+        updateUi()
+    }
+
     fun getHighlightedT9Pinyin(): String? = pinyinBarAdapter.getHighlightedPinyin()
 
     fun moveHighlightedT9Pinyin(delta: Int): Boolean {
@@ -311,9 +332,11 @@ class CandidatesView(
 
     private fun updateUi() {
         val useT9 = AppPrefs.getInstance().keyboard.useT9KeyboardLayout.getValue()
+        val effectivePaged = if (useT9) service.filterPagedByResolvedPinyin(paged) else paged
+        t9ShownPaged = effectivePaged
         val t9State = if (useT9) {
             service.syncT9CompositionWithInputPanel(inputPanel)
-            service.getT9PresentationState(inputPanel, paged)
+            service.getT9PresentationState(inputPanel, effectivePaged)
         } else {
             null
         }
@@ -322,7 +345,7 @@ class CandidatesView(
         } ?: inputPanel
         preeditUi.update(panelToShow)
         preeditUi.root.visibility = if (preeditUi.visible) VISIBLE else GONE
-        candidatesUi.update(paged, orientation)
+        candidatesUi.update(effectivePaged, orientation)
         updatePinyinBar(t9State?.pinyinOptions ?: emptyList(), useT9)
         updateT9FocusIndicator()
         if (evaluateVisibility(t9State?.topReading, t9State?.pinyinRowVisible == true)) {

@@ -134,11 +134,52 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         t9CompositionModel = T9CompositionModel()
     }
 
-    fun handleVirtualT9Backspace() {
-        if (useT9KeyboardLayout && currentT9Mode == T9InputMode.CHINESE) {
-            t9CompositionTracker.backspace()
-            updateT9CompositionModelFromTracker()
+    /**
+     * Handle a virtual (on-screen) backspace press. Returns true when the press was consumed
+     * by reopening a previously selected pinyin segment back into its source digits; the caller
+     * must then skip sending a regular backspace to fcitx. Returns false for the normal
+     * shrink-unresolved-suffix path (caller still forwards the backspace to fcitx/Rime).
+     */
+    fun handleVirtualT9Backspace(): Boolean {
+        if (!useT9KeyboardLayout || currentT9Mode != T9InputMode.CHINESE) return false
+        if (shouldReopenLastResolvedSegment()) {
+            val consumed = popLastResolvedSegment()
+            if (consumed) candidatesView?.refreshT9Ui()
+            return consumed
         }
+        t9CompositionTracker.backspace()
+        updateT9CompositionModelFromTracker()
+        return false
+    }
+
+    /**
+     * Delete should first undo any selected pinyin segment before shrinking the digit input.
+     * While a pinyin is selected, the user's most recent decision is the selection itself; a
+     * single delete rolls that back rather than editing the trailing digit suffix.
+     */
+    private fun shouldReopenLastResolvedSegment(): Boolean =
+        useT9KeyboardLayout &&
+            currentT9Mode == T9InputMode.CHINESE &&
+            t9CompositionModel.resolvedSegments.isNotEmpty()
+
+    /**
+     * Undo the last pinyin selection by prepending its source digits to the unresolved suffix.
+     * Rime's composition already carries the full digit sequence (pinyin selection is
+     * model-only), so no Rime keys are replayed.
+     */
+    private fun popLastResolvedSegment(): Boolean {
+        val segments = t9CompositionModel.resolvedSegments
+        val last = segments.lastOrNull() ?: return false
+        val newResolved = segments.dropLast(1)
+        val restoredUnresolved = last.sourceDigits + t9CompositionModel.unresolvedDigits
+        t9CompositionTracker.replace(restoredUnresolved)
+        t9CompositionModel = T9CompositionModel(
+            resolvedSegments = newResolved,
+            unresolvedDigits = restoredUnresolved,
+            rawPreedit = newResolved.joinToString("") { it.sourceDigits } + restoredUnresolved,
+            pendingSelection = null,
+        )
+        return true
     }
 
     private fun resetComposingState() {
@@ -249,25 +290,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun handleFcitxEvent(event: FcitxEvent<*>) {
         when (event) {
             is FcitxEvent.CommitStringEvent -> {
-                val commit = event.data.text
-                // Rime may emit a CommitString for raw pinyin letters; in T9 Chinese that must stay
-                // in the composing region until a Hanzi commit, not as committed text in the app.
-                if (useT9KeyboardLayout &&
-                    currentT9Mode == T9InputMode.CHINESE &&
-                    commit.isNotEmpty() &&
-                    commit.all { it.isLetter() || it == '\'' }
-                ) {
-                    updateComposingText(
-                        FormattedText(
-                            arrayOf(commit),
-                            intArrayOf(TextFormatFlag.NoFlag.flag),
-                            commit.length
-                        )
-                    )
-                } else {
-                    clearT9CompositionState()
-                    commitText(commit, event.data.cursor)
-                }
+                clearT9CompositionState()
+                commitText(event.data.text, event.data.cursor)
             }
             is FcitxEvent.KeyEvent -> event.data.let event@{
                 if (it.states.virtual) {
@@ -1217,60 +1241,30 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             t9CompositionTracker.getCurrentSegment()
         }
 
-    /** Keep the Kotlin-side T9 tracker in sync with Rime's composing state. */
+    /**
+     * Keep the Kotlin-side T9 model in sync with Rime's composing state.
+     *
+     * The tracker (driven by user key events in [forwardKeyEvent]) is the authoritative source
+     * for the digit sequence the user actually typed. Rime's preedit here is a display form -
+     * the t9 schema has `isDisplayOriginalPreedit: false`, so it arrives already converted
+     * (e.g. "a" for "2", "ai'96" for "2496"). Parsing that display form would mis-read user
+     * intent (take only the trailing digits and wipe the earlier segment).
+     *
+     * So we only use Rime's preedit here to detect empty state (Rime cleared/committed) and
+     * to record a display fallback; we never rebuild `unresolvedDigits` from it.
+     */
     fun syncT9CompositionWithInputPanel(data: FcitxEvent.InputPanelEvent.Data) {
-        if (!useT9KeyboardLayout || currentT9Mode != T9InputMode.CHINESE) {
-            return
-        }
+        if (!useT9KeyboardLayout || currentT9Mode != T9InputMode.CHINESE) return
         val rawPreedit = data.preedit.toString()
-        if (rawPreedit.isNotEmpty() && rawPreedit.all { it in '2'..'9' || it == '\'' }) {
-            val pendingSelection = t9CompositionModel.pendingSelection
-            if (rawPreedit != t9CompositionTracker.getFullComposition() ||
-                t9CompositionModel.hasResolvedSegments ||
-                t9CompositionModel.rawPreedit != rawPreedit
-            ) {
-                t9CompositionTracker.replace(rawPreedit)
-                t9CompositionModel = if (pendingSelection != null &&
-                    rawPreedit == pendingSelection.remainingDigits
-                ) {
-                    t9CompositionModel.copy(
-                        unresolvedDigits = t9CompositionTracker.getCurrentSegment(),
-                        rawPreedit = rawPreedit
-                    )
-                } else {
-                    T9CompositionModel(
-                        unresolvedDigits = t9CompositionTracker.getCurrentSegment(),
-                        rawPreedit = rawPreedit
-                    )
-                }
-            }
-            return
-        }
         if (rawPreedit.isEmpty()) {
             if (!t9CompositionTracker.isEmpty() || t9CompositionModel != T9CompositionModel()) {
                 clearT9CompositionState()
             }
             return
         }
-        // Mixed preedit (letters + digits): Rime often shows pinyin for earlier syllables plus a
-        // trailing digit run. Do not take only that suffix as the whole T9 segment while the user
-        // is still in raw key input, or the pinyin bar would jump from e.g. 2496 to 96 only.
-        if (!t9CompositionModel.hasResolvedSegments) {
-            t9CompositionModel = t9CompositionModel.copy(
-                rawPreedit = rawPreedit,
-                unresolvedDigits = ""
-            )
-            return
+        if (t9CompositionModel.rawPreedit != rawPreedit) {
+            t9CompositionModel = t9CompositionModel.copy(rawPreedit = rawPreedit)
         }
-        val unresolvedDigits = rawPreedit
-            .takeLastWhile { it in '2'..'9' || it == '\'' }
-            .filter { it in '2'..'9' }
-        t9CompositionTracker.replace(unresolvedDigits)
-        t9CompositionModel = T9CompositionModel(
-            resolvedSegments = t9CompositionModel.resolvedSegments,
-            unresolvedDigits = unresolvedDigits,
-            rawPreedit = rawPreedit
-        )
     }
 
     /** Total number of digit keys (2-9) in current composition, for truncating first-row pinyin. */
@@ -1353,7 +1347,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
         val comment = paged.candidates.getOrNull(paged.cursorIndex)?.comment
             ?: paged.candidates.firstOrNull()?.comment.orEmpty()
-        val topReading = if (comment.isNotEmpty()) {
+        val topReading = if (t9CompositionModel.hasResolvedSegments) {
+            // The user picked a pinyin prefix; the top row must reflect their selection,
+            // not whatever Rime's first unfiltered candidate happens to read.
+            buildT9CompositionModelDisplay()
+                ?: comment.takeIf { it.isNotEmpty() }?.let { formattedT9Text(it) }
+                ?: getT9PreeditDisplay()
+        } else if (comment.isNotEmpty()) {
             formattedT9Text(comment)
         } else {
             getT9PreeditDisplay()
@@ -1366,7 +1366,46 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         )
     }
 
-    /** Replace current T9 segment with selected pinyin (backspace + type pinyin). */
+    /**
+     * Filter Rime's Hanzi candidates to only those whose pinyin comment begins with the
+     * selected pinyin prefix. This is the point of the pinyin selection feature: narrow
+     * the Hanzi row to the reading the user chose.
+     *
+     * Note: Rime is still composing the full digit sequence (Option B), so this filter
+     * only trims the current page client-side. If the current page has few matches the
+     * row may look sparse; that's acceptable here and can be revisited later if needed.
+     */
+    fun filterPagedByResolvedPinyin(
+        paged: FcitxEvent.PagedCandidateEvent.Data
+    ): FcitxEvent.PagedCandidateEvent.Data {
+        if (!useT9KeyboardLayout || currentT9Mode != T9InputMode.CHINESE) return paged
+        val resolved = t9CompositionModel.resolvedSegments
+        if (resolved.isEmpty() || paged.candidates.isEmpty()) return paged
+        val expected = resolved.joinToString(" ") { it.pinyin }
+        val filteredList = paged.candidates.filter { candidate ->
+            val normalized = candidate.comment.replace('\'', ' ').trim()
+            normalized == expected || normalized.startsWith("$expected ")
+        }
+        if (filteredList.isEmpty()) return paged // fall back to unfiltered rather than a blank row
+        if (filteredList.size == paged.candidates.size) return paged
+        val originallyHighlighted = paged.candidates.getOrNull(paged.cursorIndex)
+        val newCursor = originallyHighlighted
+            ?.let { filteredList.indexOf(it) }
+            ?.takeIf { it >= 0 }
+            ?: 0
+        return paged.copy(
+            candidates = filteredList.toTypedArray(),
+            cursorIndex = newCursor
+        )
+    }
+
+    /**
+     * Record the user's pinyin choice as a resolved segment of the Kotlin-side composition model.
+     * Rime's raw-digit composition is intentionally left untouched: replaying letters + remaining
+     * digits into the T9 schema was unreliable and leaked text (e.g. "ai96") into the app field.
+     * Hanzi candidates still come from Rime's full-digit query; the top row and pinyin chip row
+     * render their "selected pinyin" view from the model instead.
+     */
     fun selectT9Pinyin(pinyin: String) {
         val segment = getCurrentT9Segment()
         if (segment.isEmpty() || pinyin.isEmpty()) return
@@ -1374,40 +1413,22 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (matchedPrefixLength <= 0) return
         val selectedDigits = segment.take(matchedPrefixLength)
         val remainingDigits = segment.drop(matchedPrefixLength)
-        val backspaceCount = segment.length
-        if (backspaceCount <= 0) return
         val selectedSegment = T9ResolvedSegment(pinyin, selectedDigits)
         t9CompositionTracker.replaceCurrentSegment(remainingDigits)
+        val newResolved = t9CompositionModel.resolvedSegments + selectedSegment
         t9CompositionModel = t9CompositionModel.copy(
-            resolvedSegments = t9CompositionModel.resolvedSegments + selectedSegment,
+            resolvedSegments = newResolved,
             unresolvedDigits = remainingDigits,
-            rawPreedit = buildString {
-                append((t9CompositionModel.resolvedSegments + selectedSegment).joinToString("") { it.pinyin })
-                append(remainingDigits)
-            },
+            rawPreedit = newResolved.joinToString("") { it.sourceDigits } + remainingDigits,
             pendingSelection = T9PendingSelection(selectedSegment, remainingDigits)
         )
-        postFcitxJob {
-            val k = KeyStates.Virtual
-            for (_i in 0 until backspaceCount) {
-                sendKey(KeySym(FcitxKeyMapping.FcitxKey_BackSpace), k, up = false)
-                sendKey(KeySym(FcitxKeyMapping.FcitxKey_BackSpace), k, up = true)
-            }
-            for (c in pinyin) {
-                sendKey(c, k.states, up = false)
-                sendKey(c, k.states, up = true)
-            }
-            for (digit in remainingDigits) {
-                sendKey(digit, k.states, up = false)
-                sendKey(digit, k.states, up = true)
-            }
-        }
     }
 
     fun commitT9PinyinSelection(pinyin: String): Boolean {
         if (pinyin.isEmpty()) return false
         selectT9Pinyin(pinyin)
         moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
+        candidatesView?.refreshT9Ui()
         return true
     }
 
@@ -1469,6 +1490,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
 
         val (mappedKeyCode, mappedEvent) = mapKeyEvent(keyCode, event)
+        // Intercept physical DEL (including BACK remapped to DEL) when the only thing left to
+        // undo is a previously selected pinyin segment; reopen it as digits instead of letting
+        // Rime swallow another letter.
+        if (mappedKeyCode == KeyEvent.KEYCODE_DEL &&
+            mappedEvent.action == KeyEvent.ACTION_DOWN &&
+            shouldReopenLastResolvedSegment()
+        ) {
+            popLastResolvedSegment()
+            candidatesView?.refreshT9Ui()
+            t9ConsumedNavigationKeyUp = keyCode
+            return true
+        }
         // request to show floating CandidatesView when pressing physical keyboard
         if (inputDeviceMgr.evaluateOnKeyDown(mappedEvent, this)) {
             postFcitxJob {

@@ -1,16 +1,19 @@
 # Implementation Plan - T9 Composition Model First
 
-Audience: another coding agent. Read `analyse.md` first. The current source already has partial fixes: RecyclerView pinyin row, chip adapter, top/bottom focus state, and `commitT9PinyinSelection`. Do not restart from older plans. The next work should make pinyin selection a coherent, reversible composition-state transition.
+Audience: another coding agent. Read `analyse.md` first. The current source already has the composition model, RecyclerView pinyin row, chip adapter, top/bottom focus state, model-only pinyin selection, client-side Hanzi filtering, and delete-to-reopen behaviour. Do not restart from older plans. The next work should finish focus-out/touch-away clearing and manual verification for the coherent T9 composition flow.
 
 ## Progress Snapshot (kept in sync with source)
 
 - Phase 0 (Step 0): baseline confirmed. Active paths listed below are present in source.
 - Phase A Step 1: DONE. `T9CompositionModel.kt` introduces `T9ResolvedSegment`, `T9PendingSelection`, `T9CompositionModel`, `T9PresentationState`. Deviation: `T9PresentationState` only carries `topReading` + `pinyinOptions` (with derived `pinyinRowVisible`); candidate focus is still rendered from service state via `updateT9FocusIndicator()` rather than a snapshot field.
-- Phase A Step 2: DONE. `selectT9Pinyin` now appends a `T9ResolvedSegment`, keeps remaining suffix as `unresolvedDigits`, and records a `pendingSelection` marker.
-- Phase A Step 3: PARTIAL. Pure-digit and empty preedit branches handle model/tracker correctly. Mixed preedit (letters + trailing digits) is reconstructed into `unresolvedDigits` **only when `resolvedSegments` is already non-empty**. If Rime ever emits a mixed preedit without a prior selection, the code stashes `rawPreedit` with empty `unresolvedDigits`. Flag this under C4 until verified against live Rime behaviour.
-- Phase B Steps 4-5: DONE. `getT9PresentationState` builds one snapshot; `CandidatesView.updateUi` renders top row and pinyin row from it and `evaluateVisibility` takes the snapshot into account. `truncateCommentByKeyCount` was removed; comment-based truncation is no longer used for the top row.
-- Additional (not originally in plan): `handleFcitxEvent.CommitStringEvent` now intercepts letter-only commits in T9 Chinese mode and keeps them in the composing region via `updateComposingText` instead of committing to the app text field. This directly backs the "no final commit on pinyin select" rule - keep it in mind when defining Phase C delete/focus-out behaviour.
-- Phases C (Steps 6-7) and D: NOT STARTED.
+- Phase A Step 2: DONE (re-implemented as "Option B", see below). `selectT9Pinyin` updates the Kotlin model only - `resolvedSegments` += new `T9ResolvedSegment`, suffix stored in `unresolvedDigits`, `pendingSelection` marker recorded. **No Rime key replay.** An earlier design (backspace + pinyin letters + remaining digits into Rime) leaked text like `ai96` into the app field and sometimes crashed, because the t9 schema did not reliably consume the mixed letter+digit sequence. Current design leaves Rime's raw-digit composition untouched; the "selected pinyin" view is a Kotlin-side overlay. `commitT9PinyinSelection` now also calls `candidatesView?.refreshT9Ui()` because no fcitx event fires and the UI would otherwise not redraw.
+- Phase A Step 3: DONE (simplified). `syncT9CompositionWithInputPanel` no longer tries to parse Rime's preedit for `unresolvedDigits`. Rime's t9 schema has `isDisplayOriginalPreedit: false`, so its preedit is a display form (e.g. `a` for `2`, `ai'96` for `2496`) - parsing it was overwriting the tracker with the trailing digit run and breaking pinyin chips for fresh input. The tracker (built from user key events in `forwardKeyEvent`) is now the authoritative source for `unresolvedDigits`; sync only detects empty Rime preedit (to clear) and records `rawPreedit` as a debug fallback.
+- Phase B Steps 4-5: DONE. `getT9PresentationState` builds one snapshot; `CandidatesView.updateUi` renders top row and pinyin row from it and `evaluateVisibility` takes the snapshot into account. `truncateCommentByKeyCount` was removed; comment-based truncation is no longer used for the top row. Under Option B, when `resolvedSegments` is non-empty the top reading prefers the model build (`resolved pinyin + first pinyin for unresolvedDigits`, e.g. `ai wo`) over the first Hanzi candidate's comment (which would otherwise show something like `bi wo`). When `resolvedSegments` is empty the comment path is preferred.
+- Phase B addendum - Hanzi filtering: DONE. `FcitxInputMethodService.filterPagedByResolvedPinyin` narrows the candidate page (client-side) to entries whose comment starts with the resolved-pinyin prefix. `CandidatesView.updateUi` calls it before rendering, and the candidate click handler translates the filtered index back to the original fcitx index via `t9ShownPaged` so taps still select the intended character. Trade-off: this is a client-side trim of the current Rime page, so if Rime's page contains few `ai*` entries the row can look sparse; in that case the filter falls back to the unfiltered page rather than showing an empty row. A deeper fix (making Rime itself narrow to `ai*`) would require pushing letters back into Rime, which reintroduces the text-leak that drove Option B, so it is deferred.
+- Phase C Step 6: DONE (with design change). Any delete while `resolvedSegments` is non-empty first reopens the last resolved segment back into the unresolved suffix (prepends its `sourceDigits` to the current `unresolvedDigits`), no Rime keys replayed. The "only reopen when unresolved is empty" variant was replaced by the user-requested "selection is the most recent decision, so delete undoes it first". Wired in three places: `handleVirtualT9Backspace` (on-screen delete, returns `Boolean`), `onKeyDown` intercept for `KEYCODE_DEL`/mapped `KEYCODE_BACK` (consumes the key + UP via `t9ConsumedNavigationKeyUp`), and `CommonKeyActionListener.SymAction` (skips `sendKey` on consumed press). Each reopen path also calls `candidatesView?.refreshT9Ui()` because no fcitx event fires.
+- Step removed: `handleFcitxEvent.CommitStringEvent` letter intercept is gone. Under Option B we never push letters into Rime, so Rime cannot emit a letter commit; the intercept became dead code that could mask unrelated bugs.
+- Phase C Step 7 (focus-out / touch-away coherent clear): NOT STARTED.
+- Phase D: NOT STARTED.
 
 ## Ground Rules
 
@@ -99,14 +102,14 @@ Purpose: stop losing the selected pinyin prefix as soon as a chip is selected.
 Change:
 
 - Keep `commitT9PinyinSelection(pinyin)` as the shared touch/hardware entry point.
-- In `selectT9Pinyin`, before sending keys to fcitx:
+- In `selectT9Pinyin`:
   - compute the matched prefix against `model.unresolvedDigits`
   - record the selected segment in the model as resolved composing state
   - retain the remaining suffix as `model.unresolvedDigits`
-  - set an optional pending-selection marker so the next fcitx update can confirm or correct state
-- Continue sending backspaces + selected pinyin + remaining digits to fcitx if that is still the Rime-compatible transaction.
-- The visible final state should be overwritten by the next authoritative fcitx update, but the optimistic state must contain both selected prefix and remaining suffix.
-- Do not write selected pinyin to the app text field as final committed text.
+  - set an optional pending-selection marker for debugging/state consistency
+- Do **not** send backspaces, pinyin letters, or remaining digits back into fcitx/Rime. That replay path leaked mixed text into the app field and could crash.
+- Keep Rime composing the original digit sequence; use the Kotlin model as the overlay for selected-pinyin UI state.
+- Refresh `CandidatesView` after model-only selection because no fcitx event is guaranteed.
 
 Files:
 
@@ -120,20 +123,19 @@ Verify:
 - App text field receives no final text.
 - Logs/model show resolved `ai/24` and unresolved `96`.
 - Pinyin row options are based on `96`.
+- Rime receives no replayed pinyin letters for the selection.
 - Physical OK on highlighted `ai` produces the same model state as touch.
 
-### Step 3 - Parse Or Reconcile Mixed Rime Preedit
+### Step 3 - Sync Without Parsing Rime Display Preedit
 
-Purpose: keep Kotlin model and Rime state aligned after Rime receives selected pinyin plus remaining digits.
+Purpose: keep Kotlin model and Rime state aligned without misreading Rime's display preedit as raw user input.
 
 Change:
 
-- Update `syncT9CompositionWithInputPanel` so it handles more than all-digit preedit.
-- For all-digit preedit, model should become no resolved segments plus raw unresolved digits.
-- For mixed preedit such as `ai96`, keep or reconstruct resolved prefix `ai` and unresolved suffix `96`.
-- If reconstruction from preedit alone is ambiguous, use the pending-selection marker from Step 2 and clear that marker after the next matching fcitx update.
-- Current code only performs the mixed-preedit digit extraction when `resolvedSegments` is non-empty. If verification shows Rime can emit mixed preedit without a prior selection (e.g. after a Rime-initiated commit/recomposition), extend the branch to tokenize letters vs digits and rebuild `resolvedSegments` from the letter run.
-- If preedit is empty, clear model, tracker, focus, and pinyin adapter state.
+- Treat `T9CompositionTracker` (updated from user key events in `forwardKeyEvent`) as the authoritative source for raw digits.
+- Do not rebuild `unresolvedDigits` from `data.preedit`; the t9 schema exposes a display form such as `a` or `ai'96`, not the original key sequence.
+- If preedit is empty, clear model/tracker state.
+- If preedit is non-empty, record it as `rawPreedit` only for display/debug fallback.
 
 Files:
 
@@ -142,6 +144,7 @@ Files:
 
 Verify:
 
+- Plain digit entry such as `2496` keeps unresolved digits as `2496` even if Rime display preedit is `ai'96`.
 - `2496 -> select ai` survives the next input-panel update with resolved `ai` and unresolved `96`.
 - Full delete or commit empties the model.
 - Touch-away then return does not resurrect old model/preedit/candidate state.
@@ -211,11 +214,12 @@ Purpose: make pinyin selection reversible and prevent mixed stale states.
 Change:
 
 - Define delete behaviour against the model:
-  - If `unresolvedDigits` is non-empty, delete from the suffix first.
-  - If suffix is empty and resolved segments exist, delete/reopen the last resolved segment as digits or send the matching Rime backspaces needed to undo it.
+  - If resolved segments exist, delete first reopens the last selected segment as source digits at the front of `unresolvedDigits`.
+  - If no resolved segments exist, fall through to normal digit-suffix deletion/backspace behaviour.
   - If everything is empty, fall through to normal delete.
+- Do not replay keys into Rime while reopening; under Option B, Rime is already composing the full digit sequence.
 - Ensure hardware DEL/BACK, on-screen delete, mapped BACK-to-DEL, and any virtual key path use the same helper.
-- Remove small nearby duplicate cleanup such as duplicated `t9ConsumedNavigationKeyUp = null` if touched.
+- Consume the matching key-up after physical DEL/BACK is handled as a model-only reopen.
 
 Files:
 
@@ -226,6 +230,7 @@ Files:
 Verify:
 
 - `2496 -> select ai -> delete`: state backs out coherently with no mixed rows.
+- Touch delete and physical delete first restore `2496`/fresh pinyin options before later deletes shrink the digits.
 - Full delete clears model, top row, pinyin row, and Hanzi row.
 - Touch delete and physical delete produce the same result.
 

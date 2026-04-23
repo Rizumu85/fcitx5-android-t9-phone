@@ -96,7 +96,7 @@ class CommonKeyActionListener :
                 }
                 is SymAction -> service.postFcitxJob {
                     if (action.sym.sym == FcitxKeyMapping.FcitxKey_BackSpace) {
-                        service.handleVirtualT9Backspace()
+                        if (service.handleVirtualT9Backspace()) return@postFcitxJob
                     }
                     sendKey(action.sym, action.states)
                 }
