@@ -18,10 +18,10 @@ import android.view.ViewTreeObserver.OnGlobalLayoutListener
 import android.view.ViewTreeObserver.OnPreDrawListener
 import android.view.WindowInsets
 import android.widget.FrameLayout
-import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.annotation.Size
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.FcitxEvent
@@ -33,6 +33,7 @@ import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.candidates.floating.PagedCandidatesUi
 import org.fcitx.fcitx5.android.input.preedit.PreeditUi
+import org.fcitx.fcitx5.android.input.t9.T9PinyinChipAdapter
 import splitties.dimensions.dp
 import splitties.views.dsl.constraintlayout.below
 import splitties.views.dsl.constraintlayout.bottomOfParent
@@ -147,17 +148,24 @@ class CandidatesView(
     )
 
     /** T9 pinyin selection bar: row above candidates, replaces number row when visible. */
-    private val pinyinBarContainer = LinearLayout(ctx).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
+    private val pinyinBarAdapter by lazy {
+        T9PinyinChipAdapter(
+            theme = theme,
+            textSizeSp = smallRowFontSizeSp,
+            horizontalPaddingPx = dpCandidates(itemPaddingHorizontal),
+            verticalPaddingPx = dpCandidates(itemPaddingVertical),
+            rowHeightPx = pinyinBarRowHeightPx,
+            cornerRadiusPx = dpCandidates(windowRadius).toFloat(),
+            onChipClick = { service.selectT9Pinyin(it) }
+        )
     }
-    private val pinyinBarScroll = HorizontalScrollView(ctx).apply {
-        isFillViewport = false
+    private val pinyinBarLayoutManager = LinearLayoutManager(ctx, RecyclerView.HORIZONTAL, false)
+    private val pinyinBarRecyclerView = RecyclerView(ctx).apply {
+        layoutManager = pinyinBarLayoutManager
+        adapter = pinyinBarAdapter
         overScrollMode = View.OVER_SCROLL_NEVER
-        addView(pinyinBarContainer, FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT
-        ))
+        itemAnimator = null
+        isHorizontalScrollBarEnabled = false
         visibility = View.GONE
     }
 
@@ -235,8 +243,9 @@ class CandidatesView(
         paged = FcitxEvent.PagedCandidateEvent.Data.Empty
         preeditUi.update(inputPanel)
         preeditUi.root.visibility = GONE
-        pinyinBarContainer.removeAllViews()
-        pinyinBarScroll.visibility = View.GONE
+        pinyinBarAdapter.clear()
+        pinyinBarRecyclerView.scrollToPosition(0)
+        pinyinBarRecyclerView.visibility = View.GONE
         candidatesUi.update(paged, orientation)
         visibility = INVISIBLE
     }
@@ -318,48 +327,22 @@ class CandidatesView(
     private fun updatePinyinBar() {
         val useT9 = AppPrefs.getInstance().keyboard.useT9KeyboardLayout.getValue()
         if (!useT9) {
-            pinyinBarContainer.removeAllViews()
-            pinyinBarScroll.visibility = View.GONE
+            pinyinBarAdapter.clear()
+            pinyinBarRecyclerView.scrollToPosition(0)
+            pinyinBarRecyclerView.visibility = View.GONE
             return
         }
         val candidates = service.getT9PinyinCandidates()
         if (candidates.isEmpty()) {
-            pinyinBarContainer.removeAllViews()
-            pinyinBarScroll.visibility = View.GONE
+            pinyinBarAdapter.clear()
+            pinyinBarRecyclerView.scrollToPosition(0)
+            pinyinBarRecyclerView.visibility = View.GONE
             return
         }
-        pinyinBarScroll.visibility = View.VISIBLE
-        pinyinBarContainer.removeAllViews()
-        val paddingH = dpCandidates(itemPaddingHorizontal)
-        val paddingV = dpCandidates(itemPaddingVertical)
-        val marginEndPx = dpCandidates(itemPaddingHorizontal)
-        val radius = dpCandidates(windowRadius).toFloat()
-        val chipBg = Color.TRANSPARENT
-        val textColor = theme.candidateTextColor
-        for (pinyin in candidates) {
-            val chip = TextView(ctx).apply {
-                text = pinyin
-                setTextColor(textColor)
-                textSize = smallRowFontSizeSp
-                setPadding(paddingH, paddingV, paddingH, paddingV)
-                minHeight = pinyinBarRowHeightPx
-                gravity = Gravity.CENTER_VERTICAL or Gravity.START
-                includeFontPadding = false
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    setLineHeight(pinyinBarRowHeightPx)
-                }
-                background = GradientDrawable().apply {
-                    setColor(chipBg)
-                    this.shape = GradientDrawable.RECTANGLE
-                    cornerRadius = radius
-                }
-                setOnClickListener { service.selectT9Pinyin(pinyin) }
-            }
-            val params = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { marginEnd = marginEndPx }
-            pinyinBarContainer.addView(chip, params)
+        val changed = pinyinBarAdapter.submitList(candidates)
+        pinyinBarRecyclerView.visibility = View.VISIBLE
+        if (changed) {
+            pinyinBarRecyclerView.scrollToPosition(0)
         }
     }
 
@@ -440,7 +423,7 @@ class CandidatesView(
         ).apply { gravity = Gravity.START or Gravity.TOP })
 
         // Pinyin bar: width 0 so bubble2 width is driven only by candidates; we sync width after layout
-        bubble2Wrapper.addView(pinyinBarScroll, LinearLayout.LayoutParams(
+        bubble2Wrapper.addView(pinyinBarRecyclerView, LinearLayout.LayoutParams(
             0,
             pinyinBarRowHeightPx
         ).apply { gravity = Gravity.START or Gravity.TOP })
@@ -451,6 +434,13 @@ class CandidatesView(
         (candidatesUi.root as? RecyclerView)?.addItemDecoration(object : RecyclerView.ItemDecoration() {
             override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
                 outRect.right = dp(candidateItemSpacing)
+            }
+        })
+        pinyinBarRecyclerView.addItemDecoration(object : RecyclerView.ItemDecoration() {
+            override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
+                if (parent.getChildAdapterPosition(view) != RecyclerView.NO_POSITION) {
+                    outRect.right = dp(itemPaddingHorizontal)
+                }
             }
         })
 
@@ -477,9 +467,9 @@ class CandidatesView(
         bubble2Wrapper.viewTreeObserver.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {
             override fun onGlobalLayout() {
                 val cw = candidatesUi.root.width
-                if (cw > 0 && (pinyinBarScroll.layoutParams as? LinearLayout.LayoutParams)?.width != cw) {
-                    (pinyinBarScroll.layoutParams as? LinearLayout.LayoutParams)?.width = cw
-                    pinyinBarScroll.requestLayout()
+                if (cw > 0 && (pinyinBarRecyclerView.layoutParams as? LinearLayout.LayoutParams)?.width != cw) {
+                    (pinyinBarRecyclerView.layoutParams as? LinearLayout.LayoutParams)?.width = cw
+                    pinyinBarRecyclerView.requestLayout()
                 }
             }
         })
