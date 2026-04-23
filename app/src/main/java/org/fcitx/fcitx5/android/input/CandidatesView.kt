@@ -505,25 +505,27 @@ class CandidatesView(
         t9BulkFilteredOriginalIndices = intArrayOf()
         fcitx.launchOnReady { api ->
             val rawCandidates = api.getCandidates(0, T9_BULK_FILTER_LIMIT)
-            if (signature != t9BulkFilterRequestSignature) return@launchOnReady
             val filtered = rawCandidates.mapIndexedNotNull { index, raw ->
                 parseBulkCandidate(raw)?.takeIf {
                     service.candidateMatchesT9ResolvedPrefix(it, expected)
                 }?.let { index to it }
             }
-            t9BulkFilteredOriginalIndices = filtered.map { it.first }.toIntArray()
-            t9BulkFilteredPaged = if (filtered.isEmpty()) {
-                null
-            } else {
-                FcitxEvent.PagedCandidateEvent.Data(
-                    candidates = filtered.map { it.second }.toTypedArray(),
-                    cursorIndex = 0,
-                    layoutHint = paged.layoutHint,
-                    hasPrev = false,
-                    hasNext = rawCandidates.size >= T9_BULK_FILTER_LIMIT
-                )
+            post {
+                if (signature != t9BulkFilterRequestSignature) return@post
+                t9BulkFilteredOriginalIndices = filtered.map { it.first }.toIntArray()
+                t9BulkFilteredPaged = if (filtered.isEmpty()) {
+                    null
+                } else {
+                    FcitxEvent.PagedCandidateEvent.Data(
+                        candidates = filtered.map { it.second }.toTypedArray(),
+                        cursorIndex = 0,
+                        layoutHint = paged.layoutHint,
+                        hasPrev = false,
+                        hasNext = rawCandidates.size >= T9_BULK_FILTER_LIMIT
+                    )
+                }
+                refreshT9Ui()
             }
-            refreshT9Ui()
         }
     }
 
