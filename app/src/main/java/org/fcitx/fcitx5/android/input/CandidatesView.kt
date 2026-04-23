@@ -655,10 +655,6 @@ class CandidatesView(
             resetT9BulkFilterState()
             return
         }
-        if (prefixes.isEmpty()) {
-            resetT9BulkFilterState()
-            return
-        }
         val signature = buildString {
             append(prefixes.joinToString(separator = "/")).append('|')
             append(t9HanziCharacterBudget).append('|')
@@ -673,13 +669,15 @@ class CandidatesView(
         t9BulkFilteredAllCandidates = emptyList()
         t9BulkFilteredPageIndex = 0
         fcitx.launchOnReady { api ->
-            val rawCandidates = api.getCandidates(0, T9_BULK_FILTER_LIMIT)
-            val filtered = matchT9Candidates(
-                rawCandidates.mapIndexedNotNull { index, raw ->
+            val parsedCandidates = api.getCandidates(0, T9_BULK_FILTER_LIMIT)
+                .mapIndexedNotNull { index, raw ->
                     parseBulkCandidate(raw)?.let { IndexedValue(index, it) }
-                },
-                prefixes
-            )
+                }
+            val filtered = if (prefixes.isEmpty()) {
+                T9MatchedCandidates(null, parsedCandidates)
+            } else {
+                matchT9Candidates(parsedCandidates, prefixes)
+            }
             post {
                 if (signature != t9BulkFilterRequestSignature) return@post
                 t9BulkFilteredMatchedPrefix = filtered.prefix
