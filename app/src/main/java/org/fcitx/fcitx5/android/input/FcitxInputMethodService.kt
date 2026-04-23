@@ -692,15 +692,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         CHINESE_COMPOSING  // 中文已输入
     }
 
-    /**
-     * Track if Caps Lock is enabled for English mode
-     */
-    private var t9CapsLock = false
+    private enum class T9EnglishCaseState {
+        OFF,
+        SHIFT_ONCE,
+        CAPS
+    }
 
-    /**
-     * Track if Shift is active for next character only
-     */
-    private var t9ShiftActive = false
+    private var t9EnglishCaseState = T9EnglishCaseState.OFF
 
     /**
      * Track if a long press action was triggered for # key.
@@ -790,6 +788,45 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
     }
 
+    private fun applyEnglishCase(char: Char): Char = when (t9EnglishCaseState) {
+        T9EnglishCaseState.OFF -> char
+        T9EnglishCaseState.SHIFT_ONCE, T9EnglishCaseState.CAPS -> char.uppercaseChar()
+    }
+
+    private fun consumeEnglishShiftOnce() {
+        if (t9EnglishCaseState == T9EnglishCaseState.SHIFT_ONCE) {
+            t9EnglishCaseState = T9EnglishCaseState.OFF
+        }
+    }
+
+    private fun handleEnglishStarShortPress() {
+        t9EnglishCaseState = when (t9EnglishCaseState) {
+            T9EnglishCaseState.OFF -> T9EnglishCaseState.SHIFT_ONCE
+            T9EnglishCaseState.SHIFT_ONCE, T9EnglishCaseState.CAPS -> T9EnglishCaseState.OFF
+        }
+        showModeIndicator(
+            when (t9EnglishCaseState) {
+                T9EnglishCaseState.OFF -> "abc"
+                T9EnglishCaseState.SHIFT_ONCE -> "Abc"
+                T9EnglishCaseState.CAPS -> "ABC"
+            }
+        )
+    }
+
+    private fun handleEnglishStarLongPress() {
+        t9EnglishCaseState = when (t9EnglishCaseState) {
+            T9EnglishCaseState.OFF, T9EnglishCaseState.SHIFT_ONCE -> T9EnglishCaseState.CAPS
+            T9EnglishCaseState.CAPS -> T9EnglishCaseState.OFF
+        }
+        showModeIndicator(
+            when (t9EnglishCaseState) {
+                T9EnglishCaseState.OFF -> "abc"
+                T9EnglishCaseState.SHIFT_ONCE -> "Abc"
+                T9EnglishCaseState.CAPS -> "ABC"
+            }
+        )
+    }
+
     /**
      * Commit any pending multi-tap character
      * Returns true if there was a character to commit
@@ -798,11 +835,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         multiTapHandler.removeCallbacks(multiTapTimeoutRunnable)
         val hadPendingChar = multiTapPendingChar != null
         multiTapPendingChar?.let {
-            val char = if (t9CapsLock || t9ShiftActive) it.uppercaseChar() else it
+            val char = applyEnglishCase(it)
             // Just commit the text - setComposingText will be replaced by this
             currentInputConnection?.commitText(char.toString(), 1)
             multiTapPendingChar = null
-            t9ShiftActive = false
+            consumeEnglishShiftOnce()
         }
         multiTapLastKey = -1
         multiTapIndex = 0
@@ -861,11 +898,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         multiTapLastTime = currentTime
         multiTapPendingChar = letters[multiTapIndex]
 
-        val displayChar = if (t9CapsLock || t9ShiftActive) {
-            multiTapPendingChar!!.uppercaseChar()
-        } else {
-            multiTapPendingChar!!
-        }
+        val displayChar = applyEnglishCase(multiTapPendingChar!!)
         currentInputConnection?.setComposingText(displayChar.toString(), 1)
 
         // Schedule auto-commit after timeout
@@ -955,10 +988,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                             true
                         } else if (event.repeatCount == 1) {
                             digitLongPressFlags[keyCode] = true
-                            val newCapsState = !t9CapsLock  // Capture intended state first
-                            commitMultiTapChar()  // Commit pending char (may affect shift state)
-                            t9CapsLock = newCapsState
-                            showModeIndicator(if (t9CapsLock) "ABC" else "abc")
+                            handleEnglishStarLongPress()
                             true
                         } else {
                             true
@@ -1311,10 +1341,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 when (currentT9Mode) {
                     T9InputMode.ENGLISH -> {
                         if (digitLongPressFlags[keyCode] != true) {
-                            val newShiftState = !t9ShiftActive  // Capture intended state first
-                            commitMultiTapChar()  // Commit pending char (may reset t9ShiftActive)
-                            t9ShiftActive = newShiftState
-                            showModeIndicator(if (t9ShiftActive) "ShiftON" else "ShiftOFF")
+                            handleEnglishStarShortPress()
                         }
                         digitLongPressFlags[keyCode] = false
                         true
