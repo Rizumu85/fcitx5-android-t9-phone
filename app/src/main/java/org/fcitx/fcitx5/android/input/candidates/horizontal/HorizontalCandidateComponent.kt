@@ -205,6 +205,11 @@ class HorizontalCandidateComponent :
         }
     }
 
+    fun clearTransientState() {
+        adapter.updateCandidates(emptyArray(), 0)
+        refreshExpanded(0)
+    }
+
     private fun triggerCandidateAction(idx: Int, actionIdx: Int) {
         fcitx.runIfReady { triggerCandidateAction(idx, actionIdx) }
     }

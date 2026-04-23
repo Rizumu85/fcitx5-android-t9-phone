@@ -402,6 +402,10 @@ class InputView(
         broadcaster.onSelectionUpdate(start, end)
     }
 
+    fun clearTransientState() {
+        kawaiiBar.clearTransientState()
+    }
+
     @RequiresApi(Build.VERSION_CODES.R)
     fun handleInlineSuggestions(response: InlineSuggestionsResponse): Boolean {
         return kawaiiBar.handleInlineSuggestions(response)

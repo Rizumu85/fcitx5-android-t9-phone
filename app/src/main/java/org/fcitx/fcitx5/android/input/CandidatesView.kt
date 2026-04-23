@@ -47,6 +47,7 @@ import splitties.views.dsl.core.withTheme
 import splitties.views.dsl.core.wrapContent
 import splitties.views.padding
 import android.view.View.MeasureSpec
+import timber.log.Timber
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -219,15 +220,42 @@ class CandidatesView(
     override fun handleFcitxEvent(it: FcitxEvent<*>) {
         when (it) {
             is FcitxEvent.InputPanelEvent -> {
+                Timber.d(
+                    "CandidatesView InputPanelEvent: preedit=%s auxUp=%s auxDown=%s",
+                    it.data.preedit,
+                    it.data.auxUp,
+                    it.data.auxDown
+                )
                 inputPanel = it.data
                 updateUi()
             }
             is FcitxEvent.PagedCandidateEvent -> {
+                Timber.d(
+                    "CandidatesView PagedCandidateEvent: size=%s cursor=%s",
+                    it.data.candidates.size,
+                    it.data.cursorIndex
+                )
                 paged = it.data
                 updateUi()
             }
             else -> {}
         }
+    }
+
+    fun clearTransientState() {
+        Timber.d(
+            "CandidatesView clearTransientState: preedit=%s paged=%s",
+            inputPanel.preedit,
+            paged.candidates.size
+        )
+        inputPanel = FcitxEvent.InputPanelEvent.Data()
+        paged = FcitxEvent.PagedCandidateEvent.Data.Empty
+        preeditUi.update(inputPanel)
+        preeditUi.root.visibility = GONE
+        pinyinBarContainer.removeAllViews()
+        pinyinBarScroll.visibility = View.GONE
+        candidatesUi.update(paged, orientation)
+        visibility = INVISIBLE
     }
 
     private fun evaluateVisibility(): Boolean {
@@ -257,7 +285,12 @@ class CandidatesView(
     private fun updateUi() {
         // First row: in T9 Chinese show predicted pinyin of the candidate at cursor (not always first)
         val useT9 = AppPrefs.getInstance().keyboard.useT9KeyboardLayout.getValue()
-        if (useT9) {
+        val shouldSyncT9Composition = useT9 &&
+            (inputPanel.preedit.isNotEmpty() ||
+                (inputPanel.auxUp.isEmpty() &&
+                    inputPanel.auxDown.isEmpty() &&
+                    paged.candidates.isEmpty()))
+        if (shouldSyncT9Composition) {
             service.syncT9CompositionWithInputPanel(inputPanel)
         }
         val rawT9Preedit = inputPanel.preedit.toString()

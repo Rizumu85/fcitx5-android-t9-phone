@@ -125,6 +125,7 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
 
     fun evaluateOnViewClicked(service: FcitxInputMethodService) {
         if (!startedInputView) return
+        if (useT9KeyboardLayout) return
         isVirtualKeyboard = when (candidatesViewMode) {
             FloatingCandidatesMode.SystemDefault -> service.superEvaluateInputViewShown()
             else -> true
@@ -133,6 +134,7 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
 
     fun evaluateOnUpdateEditorToolType(toolType: Int, service: FcitxInputMethodService) {
         if (!startedInputView) return
+        if (useT9KeyboardLayout) return
         isVirtualKeyboard = when (candidatesViewMode) {
             FloatingCandidatesMode.SystemDefault -> service.superEvaluateInputViewShown()
             FloatingCandidatesMode.InputDevice ->

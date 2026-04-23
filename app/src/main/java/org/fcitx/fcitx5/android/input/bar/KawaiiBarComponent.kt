@@ -473,6 +473,12 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         barStateMachine.push(CandidatesUpdated, CandidateEmpty to data.candidates.isEmpty())
     }
 
+    fun clearTransientState() {
+        horizontalCandidate.clearTransientState()
+        barStateMachine.push(PreeditUpdated, PreeditEmpty to true)
+        barStateMachine.push(CandidatesUpdated, CandidateEmpty to true)
+    }
+
     override fun onWindowAttached(window: InputWindow) {
         when (window) {
             is InputWindow.ExtendedInputWindow<*> -> {

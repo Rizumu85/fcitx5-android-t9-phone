@@ -30,6 +30,16 @@ class T9CompositionTracker {
         buffer.clear()
     }
 
+    fun replace(rawComposition: String) {
+        buffer.clear()
+        rawComposition.forEach { ch ->
+            when {
+                ch in '2'..'9' -> buffer.append(ch)
+                ch == '\'' -> buffer.append(ch)
+            }
+        }
+    }
+
     /**
      * Current segment to show pinyin for: from last apostrophe (or start) to end, digits only.
      */

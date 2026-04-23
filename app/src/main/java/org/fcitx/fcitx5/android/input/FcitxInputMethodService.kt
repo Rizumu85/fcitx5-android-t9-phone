@@ -776,6 +776,30 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
     }
 
+    private fun clearChineseT9CompositionFromEditorTap() {
+        Timber.d(
+            "T9 tap-clear requested: enabled=%s mode=%s state=%s tracker=%s composing=%s",
+            useT9KeyboardLayout,
+            currentT9Mode,
+            getT9InputState(),
+            t9CompositionTracker.getFullComposition(),
+            composing
+        )
+        if (!useT9KeyboardLayout || currentT9Mode != T9InputMode.CHINESE) return
+        if (getT9InputState() != T9InputState.CHINESE_COMPOSING && t9CompositionTracker.isEmpty()) {
+            Timber.d("T9 tap-clear skipped: no active Chinese T9 composition")
+            return
+        }
+        resetComposingState()
+        candidatesView?.clearTransientState()
+        inputView?.clearTransientState()
+        currentInputConnection?.finishComposingText()
+        postFcitxJob {
+            Timber.d("T9 tap-clear: focusOutIn")
+            focusOutIn()
+        }
+    }
+
     /**
      * Commit any pending multi-tap character
      * Returns true if there was a character to commit
@@ -1104,11 +1128,17 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     /** Keep the Kotlin-side T9 tracker in sync with Rime's composing state. */
     fun syncT9CompositionWithInputPanel(data: FcitxEvent.InputPanelEvent.Data) {
-        if (useT9KeyboardLayout &&
-            currentT9Mode == T9InputMode.CHINESE &&
-            data.preedit.isEmpty() &&
-            !t9CompositionTracker.isEmpty()
-        ) {
+        if (!useT9KeyboardLayout || currentT9Mode != T9InputMode.CHINESE) {
+            return
+        }
+        val rawPreedit = data.preedit.toString()
+        if (rawPreedit.isNotEmpty() && rawPreedit.all { it in '2'..'9' || it == '\'' }) {
+            if (rawPreedit != t9CompositionTracker.getFullComposition()) {
+                t9CompositionTracker.replace(rawPreedit)
+            }
+            return
+        }
+        if (data.preedit.isEmpty() && !t9CompositionTracker.isEmpty()) {
             clearT9CompositionState()
         }
     }
@@ -1321,6 +1351,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onViewClicked(focusChanged: Boolean) {
         super.onViewClicked(focusChanged)
+        Timber.d(
+            "onViewClicked: focusChanged=%s tracker=%s composing=%s",
+            focusChanged,
+            t9CompositionTracker.getFullComposition(),
+            composing
+        )
+        clearChineseT9CompositionFromEditorTap()
         inputDeviceMgr.evaluateOnViewClicked(this)
     }
 
@@ -1445,7 +1482,15 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     ) {
         // onUpdateSelection can left behind when user types quickly enough, eg. long press backspace
         cursorUpdateIndex += 1
-        Timber.d("onUpdateSelection: old=[$oldSelStart,$oldSelEnd] new=[$newSelStart,$newSelEnd]")
+        Timber.d(
+            "onUpdateSelection: old=[%s,%s] new=[%s,%s] tracker=%s composing=%s",
+            oldSelStart,
+            oldSelEnd,
+            newSelStart,
+            newSelEnd,
+            t9CompositionTracker.getFullComposition(),
+            composing
+        )
         handleCursorUpdate(newSelStart, newSelEnd, cursorUpdateIndex)
         inputView?.updateSelection(newSelStart, newSelEnd)
     }
@@ -1517,6 +1562,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun handleCursorUpdate(newSelStart: Int, newSelEnd: Int, updateIndex: Int) {
+        Timber.d(
+            "handleCursorUpdate: new=[%s,%s] composing=%s tracker=%s",
+            newSelStart,
+            newSelEnd,
+            composing,
+            t9CompositionTracker.getFullComposition()
+        )
         if (selection.consume(newSelStart, newSelEnd)) {
             return // do nothing if prediction matches
         } else {
@@ -1529,7 +1581,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (composing.isEmpty()) {
             postFcitxJob {
                 if (!isEmpty()) {
-                    Timber.d("handleCursorUpdate: reset")
+                    Timber.d("handleCursorUpdate: reset with non-empty fcitx state")
                     clearT9CompositionState()
                     reset()
                 }
@@ -1552,8 +1604,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 }
             }
         } else {
-            Timber.d("handleCursorUpdate: focus out/in")
+            Timber.d(
+                "handleCursorUpdate: focus out/in tracker=%s newCursor=%s",
+                t9CompositionTracker.getFullComposition(),
+                newSelStart
+            )
             resetComposingState()
+            candidatesView?.clearTransientState()
+            inputView?.clearTransientState()
             // cursor outside composing range, finish composing as-is
             currentInputConnection?.finishComposingText()
             // `fcitx.reset()` here would commit preedit after new cursor position
@@ -1706,6 +1764,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             monitorCursorAnchor(false)
         }
         resetComposingState()
+        candidatesView?.clearTransientState()
+        inputView?.clearTransientState()
         postFcitxJob {
             focusOutIn()
         }
@@ -1715,6 +1775,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     override fun onFinishInput() {
         Timber.d("onFinishInput")
         clearT9CompositionState()
+        candidatesView?.clearTransientState()
+        inputView?.clearTransientState()
         postFcitxJob {
             focus(false)
         }
