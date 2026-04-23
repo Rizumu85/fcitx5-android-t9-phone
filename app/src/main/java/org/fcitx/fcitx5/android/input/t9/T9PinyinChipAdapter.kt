@@ -22,6 +22,7 @@ class T9PinyinChipAdapter(
 ) : RecyclerView.Adapter<T9PinyinChipAdapter.ViewHolder>() {
 
     private var pinyins: List<String> = emptyList()
+    private var highlightActive = false
 
     var highlightedIndex: Int = 0
         private set
@@ -40,6 +41,23 @@ class T9PinyinChipAdapter(
 
     fun clear() {
         submitList(emptyList())
+    }
+
+    fun getHighlightedPinyin(): String? = pinyins.getOrNull(highlightedIndex)
+
+    fun setHighlightActive(active: Boolean) {
+        if (highlightActive == active) return
+        highlightActive = active
+        notifyDataSetChanged()
+    }
+
+    fun moveHighlightedIndex(delta: Int): Boolean {
+        if (pinyins.isEmpty()) return false
+        val newIndex = (highlightedIndex + delta).coerceIn(0, pinyins.lastIndex)
+        if (newIndex == highlightedIndex) return false
+        highlightedIndex = newIndex
+        notifyDataSetChanged()
+        return true
     }
 
     override fun getItemCount(): Int = pinyins.size
@@ -73,6 +91,23 @@ class T9PinyinChipAdapter(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val pinyin = pinyins[position]
         holder.chip.text = pinyin
+        val isActive = highlightActive && position == highlightedIndex
+        holder.chip.setTextColor(
+            if (isActive) theme.genericActiveForegroundColor else theme.candidateTextColor
+        )
+        holder.chip.background = if (isActive) {
+            GradientDrawable().apply {
+                setColor(theme.genericActiveBackgroundColor)
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = cornerRadiusPx
+            }
+        } else {
+            GradientDrawable().apply {
+                setColor(android.graphics.Color.TRANSPARENT)
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = cornerRadiusPx
+            }
+        }
         holder.chip.setOnClickListener { onChipClick(pinyin) }
     }
 

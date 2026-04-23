@@ -1,139 +1,133 @@
 # T9 Analysis - fcitx5-android-t9-phone
 
-Scope: this fork adds phone-style T9 input to fcitx5-android, mainly for Chinese input through Rime. This document is written for a follow-up coding agent and should be read together with `plan.md`.
+Scope: this fork adds phone-style T9 input to fcitx5-android, mainly for Chinese input through Rime. This document records the current implementation snapshot and the latest clarified UX contract so the next coding pass can fix the state model instead of continuing one bug at a time.
 
 ## 1. Confirmed Product Target
 
-1. Primary goal: Chinese T9 input. English multi-tap and number mode should keep working, but the main new UX work is Chinese T9.
-2. Keep T9 state in Kotlin for now. The current `T9CompositionTracker` / `T9PinyinUtils` design may be simplified, but do not move the logic into a new C++ Rime processor.
-3. Use yuyansdk only as a behavioural reference for a reliable candidate/pinyin row. Do not port its full keyboard, symbol database, haptics, mode switcher, or visual style.
+1. Primary goal: Chinese T9 input. English multi-tap and number mode should keep working, but the main active UX work is Chinese T9 composition and candidate coherence.
+2. Keep T9 state in Kotlin for now. The design may be simplified, but do not move T9 logic into a new C++ Rime processor.
+3. Use yuyansdk only as a behavioural reference for reliable row updates and touch interactions. Do not port its full keyboard, symbol database, haptics, mode switcher, or visual style.
 4. Touch is a first-class secondary input path. Physical T9 keys are primary, but every visible T9 action should also be doable by touch.
-5. Touch and hardware paths must share the same action functions. For example, tapping a pinyin chip and pressing OK on a highlighted pinyin chip should both call the same pinyin-selection function.
+5. Touch and hardware paths must share the same action functions. For example, tapping a pinyin chip and pressing OK on a highlighted pinyin chip should both call the same `selectT9Pinyin` path.
 
-## 2. Desired Candidate UX
+## 2. Clarified UX Contract
 
-Both rows should be visible during Chinese T9 composition:
+There are three T9 surfaces that must stay coherent:
 
-```text
-+------------------------------------------+
-| Pinyin selector row                       |  top row
-+------------------------------------------+
-| Rime Chinese candidate row                |  bottom row, default focus
-+------------------------------------------+
-| T9 keyboard                               |
-+------------------------------------------+
-```
+1. Top composition display: shows the user-facing pinyin reading for the current composition.
+2. Pinyin candidate row: shows selectable pinyin choices only for the unresolved current segment.
+3. Hanzi candidate row: shows Rime Hanzi candidates for the same composition state.
 
-Expected behaviour:
+Latest clarified behaviour:
 
-- Default focus is the bottom row, so the user can directly choose Chinese candidates.
-- Physical UP moves focus to the top pinyin row.
-- Physical DOWN moves focus back to the bottom candidate row.
-- OK/Enter while the top row is focused selects the highlighted pinyin through the same path as a chip tap.
-- Selecting a top-row pinyin filters the bottom row by replacing the current digit segment with the selected pinyin letters in Rime.
-- Tapping a row moves focus to that row. Tapping a pinyin chip selects it and returns focus to the bottom row.
-- Hit targets should stay at least 40 dp tall.
+- After `2496 -> select ai`, the app text field should still receive no final text yet.
+- The top composition display should show the full resolved reading, for example `ai wo` if the current highlighted Hanzi candidate implies that `96 -> wo`.
+- The pinyin candidate row should no longer offer `ai`; it should advance to the unresolved suffix only.
+- Selecting a Hanzi candidate should commit Hanzi only, not stray pinyin text or raw digits.
+- Delete/back should let the user reopen or back out of a wrong pinyin selection cleanly.
+
+This means a pinyin selection is a composition-state transition, not a final commit.
 
 ## 3. Current Implementation Snapshot
 
-Current source was checked before this rewrite. Several older plan assumptions were stale.
+Current source was checked after several bug-fix rounds. The current problem is no longer just one missing event handler; it is a coherence issue between multiple state sources.
 
 ### T9 Routing And State
 
 - Main routing lives in `app/src/main/java/org/fcitx/fcitx5/android/input/FcitxInputMethodService.kt`.
-- Important methods:
+- Important methods now include:
   - `handleT9SpecialKey`
   - `handleDigitKey`
   - `handleT9SpecialKeyUp`
   - `forwardKeyEvent`
+  - `syncT9CompositionWithInputPanel`
   - `getT9PinyinCandidates`
   - `getT9PreeditDisplay`
   - `selectT9Pinyin`
-- State currently includes `currentT9Mode`, `t9CapsLock`, `t9ShiftActive`, `digitLongPressFlags`, English multi-tap fields, and `t9CompositionTracker`.
-- `digitLongPressFlags` is already a `MutableMap<Int, Boolean>`, not the older fixed-size BooleanArray mentioned in the previous plan. The old array-index crash fix is no longer the right step.
-- `T9CompositionTracker.clear()` already exists.
-- `syncT9CompositionWithInputPanel(...)` already exists in the service, but the active candidate UI path must call it before reading pinyin candidates.
+  - `commitT9PinyinSelection`
+  - focus-navigation helpers for top and bottom rows
+- State now includes `currentT9Mode`, English case state, long-press flags, `t9CompositionTracker`, and top-versus-bottom candidate focus.
+- `T9CompositionTracker.clear()` exists.
+- `syncT9CompositionWithInputPanel(...)` exists, but it is still part of a mixed model rather than a complete shared presentation pipeline.
 
 ### Active Candidate UI
 
-There are two pinyin-row implementations in the tree:
+- `CandidatesView.kt` is the active T9 pinyin-row owner.
+- The active pinyin row is already on `RecyclerView` with `T9PinyinChipAdapter.kt`.
+- `PagedCandidatesUi.kt` owns the bottom Hanzi row.
+- `PinyinSelectionBarComponent.kt` still appears stale and should not receive new work unless a fresh source check proves it is wired.
 
-- `app/src/main/java/org/fcitx/fcitx5/android/input/CandidatesView.kt` has an embedded T9 pinyin row (`pinyinBarScroll` / `pinyinBarContainer`) above `candidatesUi`.
-- `app/src/main/java/org/fcitx/fcitx5/android/input/t9/PinyinSelectionBarComponent.kt` also renders pinyin chips, but `rg` found no active references to that component from `InputView` or other input UI setup.
+### Known Live Render Split
 
-Conclusion: fix the active pinyin row in `CandidatesView.kt` first. Do not spend implementation time on `PinyinSelectionBarComponent.kt` unless a fresh source check proves it is actually registered.
+The code currently renders T9 from multiple sources:
 
-### T9 Enabled Preference
+- The pinyin row reads `service.getT9PinyinCandidates()`, which is based on the tracker's current segment.
+- The top row in `CandidatesView.updateUi()` can use:
+  - tracker-based T9 preedit
+  - raw preedit fallback
+  - current Hanzi candidate comment truncated by key count
+- `selectT9Pinyin(...)` updates `t9CompositionTracker` optimistically before the asynchronous fcitx update comes back.
+- `syncT9CompositionWithInputPanel(...)` only runs behind conditional gating in `CandidatesView.updateUi()`.
 
-`useT9KeyboardLayout` currently controls whether the virtual keyboard starts as T9 in `KeyboardWindow.kt`. Some T9 routing code in `FcitxInputMethodService.kt` can still run before checking that preference.
+That is the architectural reason the three rows can disagree after pinyin selection, backspace, or focus changes.
 
-Plain-English meaning of the edge case:
+## 4. Core Architectural Problem
 
-- Turning off the virtual T9 keyboard preference may hide the on-screen T9 keyboard.
-- It does not necessarily mean physical number keys stop being interpreted as T9.
-- A user with a physical keypad could therefore get T9 behaviour without seeing the T9 on-screen layout.
+The current implementation mixes at least three truths:
 
-User preference clarified after the first rewrite: the setting can reasonably become "T9 mode enabled" rather than only "use T9 keyboard layout". When enabled, both the virtual T9 UI and T9 key routing should be enabled. When disabled, both should be disabled.
+1. Local Kotlin tracker state in `t9CompositionTracker`
+2. Raw fcitx input-panel preedit
+3. Hanzi candidate comment-derived reading
 
-Implementation note: do not casually rename the persisted preference key from `use_t9_keyboard_layout` to `use_t9_mode` unless a migration is added. Safer first pass:
+Because each row can read from a different source in the same render cycle, several bad states become possible:
 
-- Keep the stored key for compatibility.
-- Rename local code aliases to something like `t9ModeEnabled`.
-- Change the user-facing preference label/description to "Enable T9 mode" if needed.
-- Gate routing, tracker updates, candidate-row special UI, keyboard layout, and T9 height off this one semantic value.
+- top row shows one reading while pinyin row still offers chips for an older segment
+- Hanzi row is correct for the new composition while top row is still based on stale tracker state
+- pinyin selection updates the tracker immediately, but the visible final state depends on an async fcitx response that has not arrived yet
+- clearing or focus-out can reset one surface while another surface still renders from old data
 
-## 4. Defect List
+The next implementation should therefore build one shared presentation snapshot from fcitx event data and use that snapshot to render all three rows.
+
+## 5. Current Defect List
 
 | ID | Severity | Current location | Problem |
 |---|---:|---|---|
-| B1 | High | `CandidatesView.kt` `updatePinyinBar` | Active pinyin row uses `removeAllViews` + manual chip creation inside `HorizontalScrollView`. This matches the reported intermittent refresh issue. |
-| B2 | Medium | `FcitxInputMethodService.kt` `getT9PreeditDisplay` and English multi-tap path | English pending multi-tap text is not exposed through the shared T9 preedit display. Confirm exact visible symptom before coding because `handleMultiTapKey` also calls `setComposingText` directly. |
-| B3 | Resolved / obsolete | Older plan only | The older BooleanArray raw-keycode crash no longer matches current code. Current code uses a map. Do not implement the old Step 3. |
-| B4 | Medium | `T9PinyinUtils.kt` | `t9KeyToPinyin` still truncates input to six digits with `take(6)`, silently ignoring later keys. |
-| B5 | Medium | `handleT9SpecialKey`, STAR in Chinese mode | STAR currently falls through in Chinese mode. Desired feature: toggle full-width versus half-width punctuation using existing fcitx/Rime punctuation support. |
-| B6 | Low / conditional | POUND short press | POUND short press confirm behaviour is ambiguous. Skip unless the user can reproduce a real problem. |
-| B8 | Medium | `handleDigitKey`, number mode | Number-mode long-press behaviour for 1 and 0 does not implement the documented symbol/space behaviour. |
-| B9 | High | STAR in English mode plus `t9CapsLock` / `t9ShiftActive` | Rapid STAR presses or STAR short-then-long can leave English mode stuck in caps. Root cause is likely split shift/caps flags plus KEY_DOWN/KEY_UP double handling. |
-| B10 | Medium | Tracker/Rime sync | Kotlin tracker and Rime composing state can desync. `clear()` and `syncT9CompositionWithInputPanel` exist, but the active candidate path must call sync reliably. |
-| B11 | High | Candidate focus | Top pinyin row and bottom Rime candidate row have no shared focus state or UP/DOWN/OK navigation. |
-| B12 | High | `selectT9Pinyin` and active pinyin chip click | Tapping a pinyin chip can fail to commit/filter in Rime. Likely causes: stale view hierarchy, click not reaching service, wrong backspace count, or send-order desync. |
-| B13 | Medium | `useT9KeyboardLayout` preference scope | User now leans toward one semantic T9 mode: the preference should gate both UI and routing. Keep the stored key or add migration if renaming. |
-| B14 | Medium | Duplicate pinyin-row implementations | `PinyinSelectionBarComponent.kt` appears unused while `CandidatesView.kt` has the active row. This can mislead future fixes and should be removed or documented after B1/B12 are fixed. |
-| B15 | High | Virtual/on-screen delete path plus `t9CompositionTracker` | User repro: entering T9, then deleting with the on-screen delete button removes visible pinyin, but after the last pinyin is deleted an older full pinyin reappears without Hanzi candidates. After typing new input, pinyin/Hanzi update but the pinyin-candidate row does not. Likely cause: virtual delete bypasses the same tracker/Rime sync used by hardware `forwardKeyEvent`, leaving stale Kotlin tracker state or stale adapter contents. |
-| B16 | High | Focus-out / touch-away handling and candidate surfaces | User repro: tapping away hides the input UI as desired, but another Hanzi candidate bar appears at the bottom/top of keyboard area, seemingly the default fcitx5 candidate UI; continuing to type keeps the old pre-touch composition. Likely cause: touch-away hides UI but does not reset/focus-out Rime composition and all candidate surfaces consistently. |
+| C1 | Critical | `FcitxInputMethodService.kt` plus `CandidatesView.kt` | No single shared T9 presentation state exists. Top row, pinyin row, and Hanzi row can read different truths in the same update pass. |
+| C2 | High | `CandidatesView.kt` `updateUi` | T9 sync is conditionally gated, so some input-panel changes do not refresh or clear the tracker before the UI renders. |
+| C3 | High | `FcitxInputMethodService.kt` `selectT9Pinyin` | Pinyin selection is partly optimistic local state and partly async fcitx state, so post-selection UI can show mixed old/new composition. |
+| C4 | High | Delete / backspace / focus-out paths | Back-out behaviour after a pinyin selection is not yet defined as one coherent composition-state transition. |
+| C5 | Medium | `T9PinyinUtils.kt` | `t9KeyToPinyin` still truncates input to six digits with `take(6)`, silently ignoring later keys. |
+| C6 | Medium | `useT9KeyboardLayout` preference scope | The preference is serving as semantic T9 mode enabled, but naming and remaining gates may still be inconsistent. |
+| C7 | Medium | `PinyinSelectionBarComponent.kt` | Duplicate pinyin-row implementation appears stale and can mislead future fixes. |
+| C8 | Medium | English mode | English STAR and multi-tap display may still need cleanup, but they are no longer the main blocker for Chinese T9 coherence. |
 
-## 5. Reference From yuyansdk
+## 6. Reference From yuyansdk
 
 Use only the following ideas:
 
-- Candidate/pinyin row backed by `RecyclerView` and an adapter.
-- Stable list update pattern: replace list, notify/diff, reset row state when input changes.
-- Touch selection calls the same commit function as hardware selection.
+- Candidate and pinyin rows backed by stable adapter-based lists
+- Clear row responsibility boundaries
+- Touch selection calling the same commit function as hardware selection
 
 Do not port:
 
-- Full keyboard UI.
-- Haptics or sound.
-- Symbol database.
-- Input-mode switcher.
-- Cloud input or frequency reranking.
+- Full keyboard UI
+- Haptics or sound
+- Symbol database
+- Input-mode switcher
+- Cloud input or frequency reranking
 
-## 6. Implementation Dependencies
+## 7. Recommended Implementation Order
 
-Recommended order:
+1. Build one T9 presentation snapshot from fcitx input-panel data plus paged candidates.
+2. Make `CandidatesView` render top row and pinyin row from that snapshot in one pass.
+3. Make `selectT9Pinyin(...)` transactional so authoritative UI settles on the next fcitx update, not on mixed local state.
+4. Define coherent delete/back/focus-out behaviour for reopening earlier segment choices.
+5. Only after that, revisit longer-tail items such as preference naming, long-input truncation, English STAR cleanup, and stale component removal.
 
-1. Fix T9 enabled gating and state reset/sync first: B13, B10, B15, B16.
-2. Fix the active row and pinyin selection path: B1, B12.
-3. Fix the English STAR state machine: B9.
-4. Add the two-row focus model: B11.
-5. Complete smaller documented behaviours: B8, B4, B5.
-6. Remove stale duplicate UI and refactor only after behaviour is stable: B14 and controller extraction.
-
-The old plan order put tracker sync first, but part of that work already exists. The revised plan keeps the intent while changing Step 1 to wire the existing sync method into the active UI path.
-
-## 7. Verification Notes
+## 8. Verification Notes
 
 - Use correct T9 examples. For example, `ai` maps to digits `2 4`, not `2 3`.
 - Every interaction step needs both a physical-key verification and a touch verification when a touch surface exists.
-- Any step touching candidate rows should verify scroll, refresh, chip click, and row visibility.
-- Any step touching physical navigation should log the real hardware keycodes first. Some phone keypads do not send standard Android DPAD keycodes.
+- The key regression scenario is `2496 -> select ai -> select Hanzi -> back/delete`.
+- The success condition is not just “the correct Hanzi appears”; all three rows must stay mutually consistent through the whole flow.

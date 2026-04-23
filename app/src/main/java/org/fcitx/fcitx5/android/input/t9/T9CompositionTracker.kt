@@ -69,6 +69,22 @@ class T9CompositionTracker {
         buffer.delete(start, end)
     }
 
+    fun replaceCurrentSegment(newSegment: String) {
+        val lastApos = buffer.lastIndexOf('\'')
+        val start = if (lastApos < 0) 0 else lastApos + 1
+        val oldSegment = getCurrentSegment()
+        val end = start + oldSegment.length
+        buffer.replace(
+            start,
+            end,
+            buildString {
+                newSegment.forEach { ch ->
+                    if (ch in '2'..'9') append(ch)
+                }
+            }
+        )
+    }
+
     fun isEmpty(): Boolean = buffer.isEmpty()
 
     /** Full composition (digits and apostrophes) for building pinyin preedit display. */

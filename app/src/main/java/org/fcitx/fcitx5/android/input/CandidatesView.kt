@@ -142,7 +142,11 @@ class CandidatesView(
         ctx, theme, setupTextViewCandidates,
         showPaginationArrows,
         dp(windowRadius),
-        onCandidateClick = { index -> fcitx.launchOnReady { it.select(index) } },
+        onCandidateClick = { index ->
+            service.moveT9CandidateFocus(FcitxInputMethodService.T9CandidateFocus.BOTTOM)
+            updateT9FocusIndicator()
+            fcitx.launchOnReady { it.select(index) }
+        },
         onPrevPage = { fcitx.launchOnReady { it.offsetCandidatePage(-1) } },
         onNextPage = { fcitx.launchOnReady { it.offsetCandidatePage(1) } }
     )
@@ -156,7 +160,10 @@ class CandidatesView(
             verticalPaddingPx = dpCandidates(itemPaddingVertical),
             rowHeightPx = pinyinBarRowHeightPx,
             cornerRadiusPx = dpCandidates(windowRadius).toFloat(),
-            onChipClick = { service.selectT9Pinyin(it) }
+            onChipClick = {
+                service.commitT9PinyinSelection(it)
+                updateT9FocusIndicator()
+            }
         )
     }
     private val pinyinBarLayoutManager = LinearLayoutManager(ctx, RecyclerView.HORIZONTAL, false)
@@ -167,6 +174,27 @@ class CandidatesView(
         itemAnimator = null
         isHorizontalScrollBarEnabled = false
         visibility = View.GONE
+    }
+    private val pinyinRowWrapper = FrameLayout(ctx).apply {
+        addView(pinyinBarRecyclerView, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ))
+        setOnClickListener {
+            service.moveT9CandidateFocus(FcitxInputMethodService.T9CandidateFocus.TOP)
+            updateT9FocusIndicator()
+        }
+        visibility = View.GONE
+    }
+    private val candidateRowWrapper = FrameLayout(ctx).apply {
+        addView(candidatesUi.root, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ))
+        setOnClickListener {
+            service.moveT9CandidateFocus(FcitxInputMethodService.T9CandidateFocus.BOTTOM)
+            updateT9FocusIndicator()
+        }
     }
 
     private fun dpCandidates(value: Int): Int = (value * ctx.resources.displayMetrics.density).toInt()
@@ -246,8 +274,25 @@ class CandidatesView(
         pinyinBarAdapter.clear()
         pinyinBarRecyclerView.scrollToPosition(0)
         pinyinBarRecyclerView.visibility = View.GONE
+        pinyinRowWrapper.visibility = View.GONE
+        service.moveT9CandidateFocus(FcitxInputMethodService.T9CandidateFocus.BOTTOM)
+        updateT9FocusIndicator()
         candidatesUi.update(paged, orientation)
         visibility = INVISIBLE
+    }
+
+    fun syncT9CandidateFocus() {
+        updateT9FocusIndicator()
+    }
+
+    fun getHighlightedT9Pinyin(): String? = pinyinBarAdapter.getHighlightedPinyin()
+
+    fun moveHighlightedT9Pinyin(delta: Int): Boolean {
+        val moved = pinyinBarAdapter.moveHighlightedIndex(delta)
+        if (moved) {
+            pinyinBarRecyclerView.scrollToPosition(pinyinBarAdapter.highlightedIndex)
+        }
+        return moved
     }
 
     private fun evaluateVisibility(): Boolean {
@@ -272,6 +317,12 @@ class CandidatesView(
             remaining -= take
         }
         return parts.joinToString("'")
+    }
+
+    private fun updateT9FocusIndicator() {
+        val topFocused = service.getT9CandidateFocus() == FcitxInputMethodService.T9CandidateFocus.TOP
+        pinyinBarAdapter.setHighlightActive(topFocused)
+        candidatesUi.setHighlightActive(!topFocused)
     }
 
     private fun updateUi() {
@@ -316,6 +367,7 @@ class CandidatesView(
         preeditUi.root.visibility = if (preeditUi.visible) VISIBLE else GONE
         candidatesUi.update(paged, orientation)
         updatePinyinBar()
+        updateT9FocusIndicator()
         if (evaluateVisibility()) {
             visibility = VISIBLE
         } else {
@@ -330,6 +382,8 @@ class CandidatesView(
             pinyinBarAdapter.clear()
             pinyinBarRecyclerView.scrollToPosition(0)
             pinyinBarRecyclerView.visibility = View.GONE
+            pinyinRowWrapper.visibility = View.GONE
+            service.moveT9CandidateFocus(FcitxInputMethodService.T9CandidateFocus.BOTTOM)
             return
         }
         val candidates = service.getT9PinyinCandidates()
@@ -337,10 +391,13 @@ class CandidatesView(
             pinyinBarAdapter.clear()
             pinyinBarRecyclerView.scrollToPosition(0)
             pinyinBarRecyclerView.visibility = View.GONE
+            pinyinRowWrapper.visibility = View.GONE
+            service.moveT9CandidateFocus(FcitxInputMethodService.T9CandidateFocus.BOTTOM)
             return
         }
         val changed = pinyinBarAdapter.submitList(candidates)
         pinyinBarRecyclerView.visibility = View.VISIBLE
+        pinyinRowWrapper.visibility = View.VISIBLE
         if (changed) {
             pinyinBarRecyclerView.scrollToPosition(0)
         }
@@ -423,11 +480,11 @@ class CandidatesView(
         ).apply { gravity = Gravity.START or Gravity.TOP })
 
         // Pinyin bar: width 0 so bubble2 width is driven only by candidates; we sync width after layout
-        bubble2Wrapper.addView(pinyinBarRecyclerView, LinearLayout.LayoutParams(
+        bubble2Wrapper.addView(pinyinRowWrapper, LinearLayout.LayoutParams(
             0,
             pinyinBarRowHeightPx
         ).apply { gravity = Gravity.START or Gravity.TOP })
-        bubble2Wrapper.addView(candidatesUi.root, LinearLayout.LayoutParams(
+        bubble2Wrapper.addView(candidateRowWrapper, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply { gravity = Gravity.START or Gravity.TOP })
@@ -467,9 +524,9 @@ class CandidatesView(
         bubble2Wrapper.viewTreeObserver.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {
             override fun onGlobalLayout() {
                 val cw = candidatesUi.root.width
-                if (cw > 0 && (pinyinBarRecyclerView.layoutParams as? LinearLayout.LayoutParams)?.width != cw) {
-                    (pinyinBarRecyclerView.layoutParams as? LinearLayout.LayoutParams)?.width = cw
-                    pinyinBarRecyclerView.requestLayout()
+                if (cw > 0 && (pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.width != cw) {
+                    (pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.width = cw
+                    pinyinRowWrapper.requestLayout()
                 }
             }
         })

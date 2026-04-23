@@ -223,6 +223,21 @@ object T9PinyinUtils {
         return result
     }
 
+    fun matchedPrefixLength(t9DigitSequence: String?, pinyin: String?): Int {
+        if (t9DigitSequence.isNullOrEmpty() || pinyin.isNullOrEmpty()) return 0
+        val digits = t9DigitSequence.take(6).filter { it in '2'..'9' }
+        if (digits.isEmpty()) return 0
+        val groupSeq = groupSequenceFromDigits(digits)
+        for (len in groupSeq.length downTo 1) {
+            val prefix = groupSeq.substring(0, len)
+            val matches = pinyinMap[prefix]?.split(",") ?: continue
+            if (matches.any { it == pinyin }) {
+                return len
+            }
+        }
+        return 0
+    }
+
     private val groupToDigit = mapOf(
         'A' to '2', 'D' to '3', 'G' to '4', 'J' to '5',
         'M' to '6', 'P' to '7', 'T' to '8', 'W' to '9'

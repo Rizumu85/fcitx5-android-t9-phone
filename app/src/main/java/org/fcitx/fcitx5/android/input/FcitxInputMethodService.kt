@@ -139,6 +139,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         composing.clear()
         composingText = FormattedText.Empty
         clearT9CompositionState()
+        t9CandidateFocus = T9CandidateFocus.BOTTOM
     }
 
     private var cursorUpdateIndex: Int = 0
@@ -692,6 +693,17 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         CHINESE_COMPOSING  // 中文已输入
     }
 
+    enum class T9CandidateFocus {
+        TOP,
+        BOTTOM
+    }
+
+    private val t9FocusUpKeyCodes = setOf(KeyEvent.KEYCODE_DPAD_UP)
+    private val t9FocusDownKeyCodes = setOf(KeyEvent.KEYCODE_DPAD_DOWN)
+    private val t9FocusOkKeyCodes = setOf(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER)
+    private val t9FocusLeftKeyCodes = setOf(KeyEvent.KEYCODE_DPAD_LEFT)
+    private val t9FocusRightKeyCodes = setOf(KeyEvent.KEYCODE_DPAD_RIGHT)
+
     private enum class T9EnglishCaseState {
         OFF,
         SHIFT_ONCE,
@@ -699,6 +711,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private var t9EnglishCaseState = T9EnglishCaseState.OFF
+    private var t9CandidateFocus = T9CandidateFocus.BOTTOM
+    private var t9ConsumedNavigationKeyUp: Int? = null
 
     /**
      * Track if a long press action was triggered for # key.
@@ -787,6 +801,15 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             focusOutIn()
         }
     }
+
+    fun getT9CandidateFocus(): T9CandidateFocus = t9CandidateFocus
+
+    fun moveT9CandidateFocus(newFocus: T9CandidateFocus) {
+        t9CandidateFocus = newFocus
+        candidatesView?.syncT9CandidateFocus()
+    }
+
+    fun getT9CandidateFocusIndicatorColor(): Int = highlightColor
 
     private fun applyEnglishCase(char: Char): Char = when (t9EnglishCaseState) {
         T9EnglishCaseState.OFF -> char
@@ -1209,9 +1232,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun selectT9Pinyin(pinyin: String) {
         val segment = getCurrentT9Segment()
         if (segment.isEmpty() || pinyin.isEmpty()) return
+        val matchedPrefixLength = T9PinyinUtils.matchedPrefixLength(segment, pinyin)
+        if (matchedPrefixLength <= 0) return
+        val remainingDigits = segment.drop(matchedPrefixLength)
         val backspaceCount = t9CompositionTracker.getCurrentSegmentKeyLength()
         if (backspaceCount <= 0) return
-        t9CompositionTracker.removeCurrentSegment()
+        t9CompositionTracker.replaceCurrentSegment(remainingDigits)
         postFcitxJob {
             val k = KeyStates.Virtual
             for (_i in 0 until backspaceCount) {
@@ -1222,7 +1248,53 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 sendKey(c, k.states, up = false)
                 sendKey(c, k.states, up = true)
             }
+            for (digit in remainingDigits) {
+                sendKey(digit, k.states, up = false)
+                sendKey(digit, k.states, up = true)
+            }
         }
+    }
+
+    fun commitT9PinyinSelection(pinyin: String): Boolean {
+        if (pinyin.isEmpty()) return false
+        selectT9Pinyin(pinyin)
+        moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
+        return true
+    }
+
+    fun commitHighlightedT9Pinyin(): Boolean {
+        val pinyin = candidatesView?.getHighlightedT9Pinyin() ?: return false
+        return commitT9PinyinSelection(pinyin)
+    }
+
+    private fun handleT9CandidateFocusNavigation(keyCode: Int, event: KeyEvent): Boolean {
+        if (!useT9KeyboardLayout || currentT9Mode != T9InputMode.CHINESE) return false
+        if (event.action != KeyEvent.ACTION_DOWN) return false
+        if (getT9PinyinCandidates().isEmpty()) return false
+        val handled = when {
+            keyCode in t9FocusUpKeyCodes -> {
+                moveT9CandidateFocus(T9CandidateFocus.TOP)
+                true
+            }
+            keyCode in t9FocusDownKeyCodes -> {
+                moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
+                true
+            }
+            keyCode in t9FocusLeftKeyCodes && getT9CandidateFocus() == T9CandidateFocus.TOP -> {
+                candidatesView?.moveHighlightedT9Pinyin(-1) == true
+            }
+            keyCode in t9FocusRightKeyCodes && getT9CandidateFocus() == T9CandidateFocus.TOP -> {
+                candidatesView?.moveHighlightedT9Pinyin(1) == true
+            }
+            keyCode in t9FocusOkKeyCodes && getT9CandidateFocus() == T9CandidateFocus.TOP -> {
+                commitHighlightedT9Pinyin()
+            }
+            else -> false
+        }
+        if (handled) {
+            t9ConsumedNavigationKeyUp = keyCode
+        }
+        return handled
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
@@ -1243,6 +1315,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             return true
         }
 
+        if (handleT9CandidateFocusNavigation(keyCode, event)) {
+            return true
+        }
+
         val (mappedKeyCode, mappedEvent) = mapKeyEvent(keyCode, event)
         // request to show floating CandidatesView when pressing physical keyboard
         if (inputDeviceMgr.evaluateOnKeyDown(mappedEvent, this)) {
@@ -1255,6 +1331,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (t9ConsumedNavigationKeyUp == keyCode) {
+            t9ConsumedNavigationKeyUp = null
+            return true
+        }
         // For T9 special keys that were handled in onKeyDown, consume the key up too
         if (handleT9SpecialKeyUp(keyCode, event)) {
             return true
