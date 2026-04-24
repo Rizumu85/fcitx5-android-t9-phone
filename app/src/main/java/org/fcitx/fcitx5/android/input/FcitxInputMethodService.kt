@@ -150,6 +150,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun isChineseT9InputModeActive(): Boolean =
         t9InputModeEnabled && currentT9Mode == T9InputMode.CHINESE
 
+    fun isEnglishT9InputModeActive(): Boolean =
+        t9InputModeEnabled && currentT9Mode == T9InputMode.ENGLISH
+
     /**
      * Handle a virtual (on-screen) backspace press. Returns true when the press was consumed
      * by reopening a previously selected pinyin segment back into its source digits; the caller
@@ -1446,9 +1449,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     fun getT9ResolvedPinyinFilterPrefixes(): List<String> {
-        val full = getT9ResolvedPinyinPrefix() ?: return emptyList()
-        val first = t9CompositionModel.resolvedSegments.firstOrNull()?.pinyin ?: return listOf(full)
-        return if (first == full) listOf(full) else listOf(full, first)
+        val resolved = t9CompositionModel.resolvedSegments.map { it.pinyin }
+        if (resolved.isEmpty()) return emptyList()
+        return (resolved.size downTo 1)
+            .map { count -> resolved.take(count).joinToString(" ") }
+            .distinct()
     }
 
     fun isT9PartialResolvedPinyinPrefix(prefix: String): Boolean {
@@ -1513,11 +1518,44 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         expected: String
     ): Boolean {
         val normalized = normalizeT9CandidateComment(candidate.comment)
+        val expectedSegments = resolvedSegmentsForT9FilterPrefix(expected)
+        if (!expectedSegments.isNullOrEmpty()) {
+            val commentSegments = normalized
+                .split(' ')
+                .map { it.trim().lowercase() }
+                .filter { it.isNotEmpty() }
+            if (commentSegments.size >= expectedSegments.size &&
+                expectedSegments.indices.all { index ->
+                    commentSegmentMatchesResolvedSegment(commentSegments[index], expectedSegments[index])
+                }
+            ) {
+                return true
+            }
+        }
         return normalized == expected || normalized.startsWith("$expected ")
     }
 
     private fun normalizeT9CandidateComment(comment: String): String =
-        comment.replace('\'', ' ').trim()
+        comment.replace('\'', ' ').trim().lowercase()
+
+    private fun resolvedSegmentsForT9FilterPrefix(prefix: String): List<T9ResolvedSegment>? {
+        val resolved = t9CompositionModel.resolvedSegments
+        for (count in 1..resolved.size) {
+            val segments = resolved.take(count)
+            if (segments.joinToString(" ") { it.pinyin } == prefix) {
+                return segments
+            }
+        }
+        return null
+    }
+
+    private fun commentSegmentMatchesResolvedSegment(
+        commentSegment: String,
+        resolvedSegment: T9ResolvedSegment
+    ): Boolean {
+        if (commentSegment == resolvedSegment.pinyin) return true
+        return T9PinyinUtils.pinyinToT9Keys(commentSegment) == resolvedSegment.sourceDigits
+    }
 
     /**
      * Record the user's pinyin choice as a resolved segment of the Kotlin-side composition model.

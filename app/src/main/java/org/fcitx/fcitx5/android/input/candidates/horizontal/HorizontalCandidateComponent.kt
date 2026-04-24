@@ -55,6 +55,7 @@ class HorizontalCandidateComponent :
     private val bar: KawaiiBarComponent by manager.must()
 
     private val fillStyle by AppPrefs.getInstance().keyboard.horizontalCandidateStyle
+    private val t9HanziCharacterBudget by AppPrefs.getInstance().candidates.t9HanziCharacterBudget
     private val maxSpanCountPref by lazy {
         AppPrefs.getInstance().keyboard.run {
             if (context.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT)
@@ -180,7 +181,11 @@ class HorizontalCandidateComponent :
             clearTransientState()
             return
         }
-        val candidates = data.candidates
+        val candidates = if (service.isEnglishT9InputModeActive()) {
+            data.candidates.take(englishT9CandidateWordBudget()).toTypedArray()
+        } else {
+            data.candidates
+        }
         val total = data.total
         val maxSpanCount = maxSpanCountPref.getValue()
         when (fillStyle) {
@@ -208,6 +213,9 @@ class HorizontalCandidateComponent :
             refreshExpanded(0)
         }
     }
+
+    private fun englishT9CandidateWordBudget(): Int =
+        (t9HanziCharacterBudget.coerceAtLeast(2) / 2).coerceAtLeast(1)
 
     fun clearTransientState() {
         adapter.updateCandidates(emptyArray(), 0)

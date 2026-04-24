@@ -21,6 +21,8 @@ import com.google.android.flexbox.FlexboxLayoutManager
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.core.FcitxEvent.PagedCandidateEvent.LayoutHint
 import org.fcitx.fcitx5.android.data.theme.Theme
+import kotlin.math.roundToInt
+import splitties.dimensions.dp
 import splitties.views.dsl.core.Ui
 import splitties.views.dsl.recyclerview.recyclerView
 
@@ -39,6 +41,8 @@ class PagedCandidatesUi(
 
     private var isVertical = false
     private var highlightActive = true
+    private val highlightOverflowPaddingPx =
+        (highlightCornerRadiusPx * 0.35f).roundToInt().coerceAtLeast(ctx.dp(2))
 
     sealed class UiHolder(open val ui: Ui) : RecyclerView.ViewHolder(ui.root) {
         class Candidate(override val ui: LabeledCandidateItemUi) : UiHolder(ui)
@@ -116,6 +120,9 @@ class PagedCandidatesUi(
         layoutManager = candidatesLayoutManager
         overScrollMode = View.OVER_SCROLL_NEVER
         itemAnimator = null
+        clipChildren = false
+        clipToPadding = false
+        setPadding(highlightOverflowPaddingPx, 0, highlightOverflowPaddingPx, 0)
     }
 
     @SuppressLint("NotifyDataSetChanged")
