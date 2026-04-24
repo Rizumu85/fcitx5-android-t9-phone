@@ -39,6 +39,7 @@ import org.fcitx.fcitx5.android.input.dependency.context
 import org.fcitx.fcitx5.android.input.dependency.fcitx
 import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.theme
+import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.utils.item
 import org.mechdancer.dependency.manager.must
 import splitties.dimensions.dp
@@ -215,7 +216,7 @@ class HorizontalCandidateComponent :
     }
 
     private fun englishT9CandidateWordBudget(): Int =
-        (t9HanziCharacterBudget.coerceAtLeast(2) / 2).coerceAtLeast(1)
+        T9CandidateBudget.englishWordLimit(t9HanziCharacterBudget)
 
     fun clearTransientState() {
         adapter.updateCandidates(emptyArray(), 0)

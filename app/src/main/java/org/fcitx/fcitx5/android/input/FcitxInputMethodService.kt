@@ -184,22 +184,69 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     /**
      * Undo the last pinyin selection by prepending its source digits to the unresolved suffix.
-     * Rime's composition already carries the full digit sequence (pinyin selection is
-     * model-only), so no Rime keys are replayed.
+     * Engine-backed selections are also restored inside Rime so candidate narrowing follows the
+     * same state as the Kotlin presentation model.
      */
     private fun popLastResolvedSegment(): Boolean {
         val segments = t9CompositionModel.resolvedSegments
         val last = segments.lastOrNull() ?: return false
         val newResolved = segments.dropLast(1)
+        val previousUnresolved = t9CompositionModel.unresolvedDigits
         val restoredUnresolved = last.sourceDigits + t9CompositionModel.unresolvedDigits
+        val enginePreedit = newResolved.joinToString("") {
+            if (it.engineBacked) t9EngineReplacementText(it.pinyin) else it.sourceDigits
+        } + restoredUnresolved
+        val fallbackRawPreedit = newResolved.joinToString("") { it.sourceDigits } + restoredUnresolved
         t9CompositionTracker.replace(restoredUnresolved)
         t9CompositionModel = T9CompositionModel(
             resolvedSegments = newResolved,
             unresolvedDigits = restoredUnresolved,
-            rawPreedit = newResolved.joinToString("") { it.sourceDigits } + restoredUnresolved,
+            rawPreedit = enginePreedit,
             pendingSelection = null,
         )
+        if (last.engineBacked) {
+            restoreT9ResolvedSegmentInEngine(last, previousUnresolved, fallbackRawPreedit)
+        }
         return true
+    }
+
+    private fun t9EngineReplacementText(pinyin: String): String = "${pinyin.lowercase()}'"
+
+    private fun restoreT9ResolvedSegmentInEngine(
+        segment: T9ResolvedSegment,
+        previousUnresolved: String,
+        fallbackRawPreedit: String
+    ) {
+        val selectedInput = t9EngineReplacementText(segment.pinyin)
+        postFcitxJob {
+            val input = getRimeInput()
+            val expectedStart = input.length - previousUnresolved.length - selectedInput.length
+            val start = expectedStart.takeIf {
+                it >= 0 && input.regionMatches(it, selectedInput, 0, selectedInput.length)
+            } ?: input.lastIndexOf(selectedInput).takeIf { it >= 0 }
+            val restored = start != null &&
+                replaceRimeInput(start, selectedInput.length, segment.sourceDigits, start + segment.sourceDigits.length)
+            if (!restored) {
+                setCandidatePagingMode(candidatePagingModeForCurrentInputDevice())
+                reset()
+                fallbackRawPreedit.forEach { ch ->
+                    if (ch in '2'..'9' || ch == '\'') {
+                        sendKey(ch)
+                    }
+                }
+            }
+            this@FcitxInputMethodService.lifecycleScope.launch {
+                if (!restored) {
+                    t9CompositionModel = t9CompositionModel.copy(
+                        resolvedSegments = t9CompositionModel.resolvedSegments.map {
+                            it.copy(engineBacked = false)
+                        },
+                        rawPreedit = fallbackRawPreedit
+                    )
+                }
+                candidatesView?.refreshT9Ui()
+            }
+        }
     }
 
     private fun resetComposingState() {
@@ -1451,6 +1498,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun getT9ResolvedPinyinFilterPrefixes(): List<String> {
         val resolved = t9CompositionModel.resolvedSegments.map { it.pinyin }
         if (resolved.isEmpty()) return emptyList()
+        if (t9CompositionModel.pendingSelection != null ||
+            t9CompositionModel.resolvedSegments.all { it.engineBacked }
+        ) {
+            return emptyList()
+        }
         return (resolved.size downTo 1)
             .map { count -> resolved.take(count).joinToString(" ") }
             .distinct()
@@ -1558,11 +1610,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     /**
-     * Record the user's pinyin choice as a resolved segment of the Kotlin-side composition model.
-     * Rime's raw-digit composition is intentionally left untouched: replaying letters + remaining
-     * digits into the T9 schema was unreliable and leaked text (e.g. "ai96") into the app field.
-     * Hanzi candidates still come from Rime's full-digit query; the top row and pinyin chip row
-     * render their "selected pinyin" view from the model instead.
+     * Record the user's pinyin choice and try to narrow Rime itself by replacing the matching
+     * T9 digit span with "pinyin'". If the bridge replacement fails, the unresolved model stays
+     * on the previous client-side filtering path as a fallback.
      */
     fun selectT9Pinyin(pinyin: String) {
         val segment = getCurrentT9Segment()
@@ -1580,6 +1630,76 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             rawPreedit = newResolved.joinToString("") { it.sourceDigits } + remainingDigits,
             pendingSelection = T9PendingSelection(selectedSegment, remainingDigits)
         )
+        replaceT9SelectedDigitsInEngine(selectedSegment, segment, remainingDigits)
+    }
+
+    private fun replaceT9SelectedDigitsInEngine(
+        selectedSegment: T9ResolvedSegment,
+        originalSegment: String,
+        remainingDigits: String
+    ) {
+        val replacement = t9EngineReplacementText(selectedSegment.pinyin)
+        postFcitxJob {
+            val input = getRimeInput()
+            val start = input.length - originalSegment.length
+            val canReplace = start >= 0 &&
+                input.regionMatches(start, selectedSegment.sourceDigits, 0, selectedSegment.sourceDigits.length)
+            val replaced = canReplace &&
+                replaceRimeInput(
+                    start,
+                    selectedSegment.sourceDigits.length,
+                    replacement,
+                    start + replacement.length
+                )
+            this@FcitxInputMethodService.lifecycleScope.launch {
+                if (replaced) {
+                    markT9SelectionEngineBacked(selectedSegment, remainingDigits)
+                } else {
+                    clearPendingT9Selection(selectedSegment, remainingDigits)
+                }
+                candidatesView?.refreshT9Ui()
+            }
+        }
+    }
+
+    private fun markT9SelectionEngineBacked(
+        selectedSegment: T9ResolvedSegment,
+        remainingDigits: String
+    ) {
+        val resolved = t9CompositionModel.resolvedSegments.toMutableList()
+        val index = resolved.indexOfFirst {
+            it.pinyin == selectedSegment.pinyin &&
+                it.sourceDigits == selectedSegment.sourceDigits &&
+                !it.engineBacked
+        }
+        if (index < 0) return
+        resolved[index] = resolved[index].copy(engineBacked = true)
+        val pending = t9CompositionModel.pendingSelection
+        val nextPending = pending?.takeUnless {
+            it.segment.pinyin == selectedSegment.pinyin &&
+                it.segment.sourceDigits == selectedSegment.sourceDigits &&
+                it.remainingDigits == remainingDigits
+        }
+        t9CompositionModel = t9CompositionModel.copy(
+            resolvedSegments = resolved,
+            rawPreedit = resolved.joinToString("") {
+                if (it.engineBacked) t9EngineReplacementText(it.pinyin) else it.sourceDigits
+            } + t9CompositionModel.unresolvedDigits,
+            pendingSelection = nextPending
+        )
+    }
+
+    private fun clearPendingT9Selection(
+        selectedSegment: T9ResolvedSegment,
+        remainingDigits: String
+    ) {
+        val pending = t9CompositionModel.pendingSelection ?: return
+        if (pending.segment.pinyin == selectedSegment.pinyin &&
+            pending.segment.sourceDigits == selectedSegment.sourceDigits &&
+            pending.remainingDigits == remainingDigits
+        ) {
+            t9CompositionModel = t9CompositionModel.copy(pendingSelection = null)
+        }
     }
 
     fun commitT9PinyinSelection(pinyin: String): Boolean {

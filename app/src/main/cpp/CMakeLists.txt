@@ -45,6 +45,9 @@ target_include_directories(pinyin-customphrase INTERFACE "${CHINESE_ADDONS_PINYI
 target_link_libraries(pinyin-customphrase PRIVATE Fcitx5::Utils LibIME::Core)
 
 add_library(native-lib SHARED native-lib.cpp androidaddonloader/androidaddonloader.cpp)
+target_include_directories(native-lib PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../../../plugin/rime/src/main/cpp/fcitx5-rime/src"
+        )
 target_link_libraries(native-lib
         log
         libuv::uv_a

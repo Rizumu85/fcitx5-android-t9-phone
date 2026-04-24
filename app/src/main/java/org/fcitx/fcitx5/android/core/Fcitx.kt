@@ -118,6 +118,13 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
     override suspend fun isEmpty(): Boolean = withFcitxContext { isInputPanelEmpty() }
     override suspend fun reset() = withFcitxContext { resetInputContext() }
     override suspend fun moveCursor(position: Int) = withFcitxContext { repositionCursor(position) }
+    override suspend fun getRimeInput(): String = withFcitxContext { Fcitx.getRimeInput() }
+    override suspend fun replaceRimeInput(
+        start: Int,
+        length: Int,
+        text: String,
+        caretPos: Int
+    ): Boolean = withFcitxContext { Fcitx.replaceRimeInput(start, length, text, caretPos) }
     override suspend fun availableIme() =
         withFcitxContext { availableInputMethods() ?: emptyArray() }
 
@@ -295,6 +302,12 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
 
         @JvmStatic
         external fun repositionCursor(position: Int)
+
+        @JvmStatic
+        external fun getRimeInput(): String
+
+        @JvmStatic
+        external fun replaceRimeInput(start: Int, length: Int, text: String, caretPos: Int): Boolean
 
         @JvmStatic
         external fun toggleInputMethod()

@@ -32,6 +32,7 @@
 #include <quickphrase_public.h>
 #include <unicode_public.h>
 #include <clipboard_public.h>
+#include <rime_public.h>
 
 #include <libime/pinyin/pinyindictionary.h>
 #include <libime/table/tablebaseddictionary.h>
@@ -92,6 +93,7 @@ public:
         p_quickphrase = addonMgr.addon("quickphrase");
         p_unicode = addonMgr.addon("unicode");
         p_clipboard = addonMgr.addon("clipboard", true);
+        p_rime = addonMgr.addon("rime", true);
         setupCallback(p_frontend);
     }
 
@@ -438,6 +440,20 @@ public:
         return p_frontend->call<fcitx::IAndroidFrontend::offsetCandidatePage>(delta);
     }
 
+    std::string getRimeInput() {
+        if (!p_frontend || !p_rime) return {};
+        auto *ic = p_frontend->call<fcitx::IAndroidFrontend::activeInputContext>();
+        if (!ic) return {};
+        return p_rime->call<fcitx::IRime::getInput>(ic);
+    }
+
+    bool replaceRimeInput(int start, int length, const std::string &replacement, int caretPos) {
+        if (!p_frontend || !p_rime) return false;
+        auto *ic = p_frontend->call<fcitx::IAndroidFrontend::activeInputContext>();
+        if (!ic) return false;
+        return p_rime->call<fcitx::IRime::replaceInput>(ic, start, length, replacement, caretPos);
+    }
+
     void save() {
         p_instance->save();
     }
@@ -466,6 +482,7 @@ private:
     fcitx::AddonInstance *p_quickphrase = nullptr;
     fcitx::AddonInstance *p_unicode = nullptr;
     fcitx::AddonInstance *p_clipboard = nullptr;
+    fcitx::AddonInstance *p_rime = nullptr;
 
     void resetGlobalPointers() {
         p_instance.reset();
@@ -474,6 +491,7 @@ private:
         p_quickphrase = nullptr;
         p_unicode = nullptr;
         p_clipboard = nullptr;
+        p_rime = nullptr;
     }
 };
 
@@ -820,6 +838,21 @@ JNIEXPORT void JNICALL
 Java_org_fcitx_fcitx5_android_core_Fcitx_repositionCursor(JNIEnv *env, jclass clazz, jint position) {
     FCITX_DEBUG() << "repositionCursor: to " << position;
     Fcitx::Instance().repositionCursor(position);
+}
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_org_fcitx_fcitx5_android_core_Fcitx_getRimeInput(JNIEnv *env, jclass clazz) {
+    RETURN_VALUE_IF_NOT_RUNNING(env->NewStringUTF(""))
+    const auto input = Fcitx::Instance().getRimeInput();
+    return env->NewStringUTF(input.c_str());
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_org_fcitx_fcitx5_android_core_Fcitx_replaceRimeInput(JNIEnv *env, jclass clazz, jint start, jint length, jstring replacement, jint caretPos) {
+    RETURN_VALUE_IF_NOT_RUNNING(false)
+    return Fcitx::Instance().replaceRimeInput(start, length, CString(env, replacement), caretPos);
 }
 
 extern "C"

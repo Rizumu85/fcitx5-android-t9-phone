@@ -8,6 +8,7 @@ import org.fcitx.fcitx5.android.core.FormattedText
 data class T9ResolvedSegment(
     val pinyin: String,
     val sourceDigits: String,
+    val engineBacked: Boolean = false,
 )
 
 data class T9PendingSelection(
