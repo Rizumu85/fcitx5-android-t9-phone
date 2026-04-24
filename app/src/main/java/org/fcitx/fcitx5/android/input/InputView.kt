@@ -8,6 +8,7 @@ package org.fcitx.fcitx5.android.input
 import android.annotation.SuppressLint
 import android.content.res.Configuration
 import android.os.Build
+import android.view.KeyEvent
 import android.view.View
 import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
@@ -71,6 +72,11 @@ class InputView(
     fcitx: FcitxConnection,
     theme: Theme
 ) : BaseInputView(service, fcitx, theme) {
+
+    override fun dispatchKeyEventPreIme(event: KeyEvent): Boolean {
+        if (service.handlePreImeKeyEvent(event)) return true
+        return super.dispatchKeyEventPreIme(event)
+    }
 
     private val keyBorder by ThemeManager.prefs.keyBorder
 

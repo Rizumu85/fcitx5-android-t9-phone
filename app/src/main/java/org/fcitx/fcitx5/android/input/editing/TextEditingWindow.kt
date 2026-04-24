@@ -90,7 +90,9 @@ class TextEditingWindow : InputWindow.ExtendedInputWindow<TextEditingWindow>(),
             }
             backspaceButton.onClickWithRepeating {
                 userSelection = false
-                service.sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
+                if (!service.deleteSelectionIfAny()) {
+                    service.sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
+                }
             }
             clipboardButton.setOnClickListener {
                 windowManager.attachWindow(ClipboardWindow())

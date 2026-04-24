@@ -20,6 +20,7 @@ import android.util.LruCache
 import android.util.Size
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
@@ -29,6 +30,8 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InlineSuggestionsRequest
 import android.view.inputmethod.InlineSuggestionsResponse
 import android.view.inputmethod.InputMethodSubtype
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
 import android.widget.FrameLayout
 import android.widget.inline.InlinePresentationSpec
 import androidx.annotation.Keep
@@ -41,10 +44,12 @@ import androidx.autofill.inline.v1.InlineSuggestionUi
 import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.CapabilityFlags
 import org.fcitx.fcitx5.android.core.FcitxAPI
@@ -85,6 +90,7 @@ import splitties.dimensions.dp
 import splitties.resources.styledColor
 import timber.log.Timber
 import kotlin.math.max
+import kotlin.math.min
 
 class FcitxInputMethodService : LifecycleInputMethodService() {
 
@@ -153,6 +159,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun isEnglishT9InputModeActive(): Boolean =
         t9InputModeEnabled && currentT9Mode == T9InputMode.ENGLISH
 
+    private suspend fun refreshT9UiOnMain() {
+        withContext(Dispatchers.Main.immediate) {
+            candidatesView?.refreshT9Ui()
+        }
+    }
+
     /**
      * Handle a virtual (on-screen) backspace press. Returns true when the press was consumed
      * by reopening a previously selected pinyin segment back into its source digits; the caller
@@ -163,12 +175,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (!t9InputModeEnabled || currentT9Mode != T9InputMode.CHINESE) return false
         if (shouldReopenLastResolvedSegment()) {
             val consumed = popLastResolvedSegment(fcitx)
-            if (consumed) candidatesView?.refreshT9Ui()
+            if (consumed) refreshT9UiOnMain()
             return consumed
         }
         t9CompositionTracker.backspace()
         updateT9CompositionModelFromTracker()
-        candidatesView?.refreshT9Ui()
+        refreshT9UiOnMain()
         return false
     }
 
@@ -603,10 +615,104 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     fun deleteSelection() {
+        deleteSelectionIfAny()
+    }
+
+    fun deleteSelectionIfAny(): Boolean {
         val lastSelection = selection.latest
-        if (lastSelection.isEmpty()) return
+        Timber.tag(T9_BACK_DELETE_TAG).d(
+            "deleteSelectionIfAny: latest=(${lastSelection.start},${lastSelection.end})"
+        )
+        if (lastSelection.isEmpty()) {
+            Timber.tag(T9_BACK_DELETE_TAG).d("deleteSelectionIfAny: no tracked selection")
+            return false
+        }
+        val ic = currentInputConnection ?: return false
         selection.predict(lastSelection.start)
-        currentInputConnection?.commitText("", 1)
+        ic.commitText("", 1)
+        lastExplicitSelectionDeleteUptime = SystemClock.uptimeMillis()
+        updateSelectionBackCallback(false)
+        Timber.tag(T9_BACK_DELETE_TAG).d("deleteSelectionIfAny: deleted")
+        return true
+    }
+
+    private val selectionBackCallback: OnBackInvokedCallback by lazy {
+        OnBackInvokedCallback {
+            Timber.tag(T9_BACK_DELETE_TAG).d("selectionBackCallback: invoked")
+            if (!deleteSelectionIfAny()) {
+                updateSelectionBackCallback(false)
+            }
+        }
+    }
+    private var selectionBackCallbackRegistered = false
+    private var selectionPreImeBackConsumed = false
+    private var lastEditorTouchUptime = 0L
+    private var lastExplicitSelectionDeleteUptime = 0L
+    private var deletingCollapsedSelection = false
+
+    fun handlePreImeKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode != KeyEvent.KEYCODE_BACK) return false
+        if (event.action == KeyEvent.ACTION_UP && selectionPreImeBackConsumed) {
+            selectionPreImeBackConsumed = false
+            return true
+        }
+        if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount != 0) return false
+
+        val consumed = deleteSelectionIfAny()
+        selectionPreImeBackConsumed = consumed
+        return consumed
+    }
+
+    private fun updateSelectionBackCallback(hasSelection: Boolean) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val dispatcher = window.window?.onBackInvokedDispatcher ?: return
+        if (hasSelection && !selectionBackCallbackRegistered) {
+            Timber.tag(T9_BACK_DELETE_TAG).d("selectionBackCallback: register")
+            dispatcher.registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_OVERLAY,
+                selectionBackCallback
+            )
+            selectionBackCallbackRegistered = true
+        } else if (!hasSelection && selectionBackCallbackRegistered) {
+            Timber.tag(T9_BACK_DELETE_TAG).d("selectionBackCallback: unregister")
+            dispatcher.unregisterOnBackInvokedCallback(selectionBackCallback)
+            selectionBackCallbackRegistered = false
+        }
+    }
+
+    private fun deleteCollapsedSelectionIfNeeded(
+        oldSelStart: Int,
+        oldSelEnd: Int,
+        newSelStart: Int,
+        newSelEnd: Int
+    ): Boolean {
+        if (deletingCollapsedSelection) return false
+        if (!t9InputModeEnabled || inputDeviceMgr.isVirtualKeyboard) return false
+        if (oldSelStart == oldSelEnd || newSelStart != newSelEnd) return false
+
+        val now = SystemClock.uptimeMillis()
+        if (now - lastEditorTouchUptime < EDITOR_TOUCH_SELECTION_CANCEL_WINDOW_MS) return false
+        if (now - lastExplicitSelectionDeleteUptime < EXPLICIT_SELECTION_DELETE_WINDOW_MS) return false
+
+        val start = min(oldSelStart, oldSelEnd)
+        val end = max(oldSelStart, oldSelEnd)
+        if (start < 0 || end <= start) return false
+
+        val ic = currentInputConnection ?: return false
+        deletingCollapsedSelection = true
+        try {
+            selection.predict(start)
+            ic.withBatchEdit {
+                setSelection(start, end)
+                commitText("", 1)
+            }
+            lastExplicitSelectionDeleteUptime = SystemClock.uptimeMillis()
+            updateSelectionBackCallback(false)
+            Timber.tag(T9_BACK_DELETE_TAG).d("deleteCollapsedSelectionIfNeeded: deleted old=($start,$end)")
+            return true
+        } finally {
+            deletingCollapsedSelection = false
+        }
     }
 
     fun sendCombinationKeyEvents(
@@ -1754,6 +1860,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_DEL) {
+            Timber.tag(T9_BACK_DELETE_TAG).d(
+                "onKeyDown: keyCode=$keyCode action=${event.action} repeat=${event.repeatCount}"
+            )
+        }
         // Handle T9 special keys first
         if (handleT9SpecialKey(keyCode, event)) {
             return true
@@ -1804,6 +1915,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_DEL) {
+            Timber.tag(T9_BACK_DELETE_TAG).d(
+                "onKeyUp: keyCode=$keyCode action=${event.action} tracking=${event.isTracking}"
+            )
+        }
         if (t9ConsumedNavigationKeyUp == keyCode) {
             t9ConsumedNavigationKeyUp = null
             return true
@@ -1932,6 +2048,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onViewClicked(focusChanged: Boolean) {
         super.onViewClicked(focusChanged)
+        lastEditorTouchUptime = SystemClock.uptimeMillis()
         clearChineseT9CompositionFromEditorTap()
         inputDeviceMgr.evaluateOnViewClicked(this)
     }
@@ -1939,6 +2056,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     @RequiresApi(34)
     override fun onUpdateEditorToolType(toolType: Int) {
         super.onUpdateEditorToolType(toolType)
+        if (toolType == MotionEvent.TOOL_TYPE_FINGER || toolType == MotionEvent.TOOL_TYPE_STYLUS) {
+            lastEditorTouchUptime = SystemClock.uptimeMillis()
+        }
         inputDeviceMgr.evaluateOnUpdateEditorToolType(toolType, this)
     }
 
@@ -2001,6 +2121,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         // initialSel{Start,End} is outdated. but it's the client app's responsibility to send
         // right cursor position, try to workaround this would simply introduce more bugs.
         selection.resetTo(attribute.initialSelStart, attribute.initialSelEnd)
+        updateSelectionBackCallback(attribute.initialSelStart != attribute.initialSelEnd)
         resetComposingState()
         val flags = CapabilityFlags.fromEditorInfo(attribute)
         capabilityFlags = flags
@@ -2057,7 +2178,15 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     ) {
         // onUpdateSelection can left behind when user types quickly enough, eg. long press backspace
         cursorUpdateIndex += 1
+        Timber.tag(T9_BACK_DELETE_TAG).d(
+            "onUpdateSelection: old=($oldSelStart,$oldSelEnd) new=($newSelStart,$newSelEnd)"
+        )
+        if (deleteCollapsedSelectionIfNeeded(oldSelStart, oldSelEnd, newSelStart, newSelEnd)) {
+            inputView?.updateSelection(newSelStart, newSelEnd)
+            return
+        }
         handleCursorUpdate(newSelStart, newSelEnd, cursorUpdateIndex)
+        updateSelectionBackCallback(newSelStart != newSelEnd)
         inputView?.updateSelection(newSelStart, newSelEnd)
     }
 
@@ -2314,6 +2443,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     override fun onFinishInputView(finishingInput: Boolean) {
         Timber.d("onFinishInputView: finishingInput=$finishingInput")
+        updateSelectionBackCallback(false)
         decorLocationUpdated = false
         inputDeviceMgr.onFinishInputView()
         currentInputConnection?.apply {
@@ -2331,6 +2461,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     override fun onFinishInput() {
         Timber.d("onFinishInput")
+        updateSelectionBackCallback(false)
         clearT9CompositionState()
         candidatesView?.clearTransientState()
         inputView?.clearTransientState()
@@ -2353,6 +2484,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     override fun onDestroy() {
+        updateSelectionBackCallback(false)
         recreateInputViewPrefs.forEach {
             it.unregisterOnChangeListener(recreateInputViewListener)
         }
@@ -2387,5 +2519,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     @Suppress("ConstPropertyName")
     companion object {
         const val DeleteSurroundingFlag = "org.fcitx.fcitx5.android.DELETE_SURROUNDING"
+        private const val T9_BACK_DELETE_TAG = "T9BackDelete"
+        private const val EDITOR_TOUCH_SELECTION_CANCEL_WINDOW_MS = 300L
+        private const val EXPLICIT_SELECTION_DELETE_WINDOW_MS = 500L
     }
 }

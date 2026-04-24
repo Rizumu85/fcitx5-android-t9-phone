@@ -703,7 +703,7 @@ class CandidatesView(
     }
 
     private fun t9CandidateBudgetCost(candidate: FcitxEvent.Candidate): Int {
-        return T9CandidateBudget.candidateCost(candidate.text, service.isEnglishT9InputModeActive())
+        return T9CandidateBudget.candidateCost(candidate.text)
     }
 
     private fun applyT9BulkFilteredPage(page: T9CandidateBudgetPage) {

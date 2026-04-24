@@ -39,7 +39,6 @@ import org.fcitx.fcitx5.android.input.dependency.context
 import org.fcitx.fcitx5.android.input.dependency.fcitx
 import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.theme
-import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.utils.item
 import org.mechdancer.dependency.manager.must
 import splitties.dimensions.dp
@@ -56,7 +55,6 @@ class HorizontalCandidateComponent :
     private val bar: KawaiiBarComponent by manager.must()
 
     private val fillStyle by AppPrefs.getInstance().keyboard.horizontalCandidateStyle
-    private val t9HanziCharacterBudget by AppPrefs.getInstance().candidates.t9HanziCharacterBudget
     private val maxSpanCountPref by lazy {
         AppPrefs.getInstance().keyboard.run {
             if (context.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT)
@@ -182,11 +180,7 @@ class HorizontalCandidateComponent :
             clearTransientState()
             return
         }
-        val candidates = if (service.isEnglishT9InputModeActive()) {
-            data.candidates.take(englishT9CandidateWordBudget()).toTypedArray()
-        } else {
-            data.candidates
-        }
+        val candidates = data.candidates
         val total = data.total
         val maxSpanCount = maxSpanCountPref.getValue()
         when (fillStyle) {
@@ -214,9 +208,6 @@ class HorizontalCandidateComponent :
             refreshExpanded(0)
         }
     }
-
-    private fun englishT9CandidateWordBudget(): Int =
-        T9CandidateBudget.englishWordLimit(t9HanziCharacterBudget)
 
     fun clearTransientState() {
         adapter.updateCandidates(emptyArray(), 0)

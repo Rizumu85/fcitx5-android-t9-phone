@@ -11,11 +11,8 @@ object T9CandidateBudget {
 
     fun normalizedBudget(value: Int): Int = value.coerceIn(MIN, MAX)
 
-    fun englishWordLimit(value: Int): Int =
-        (normalizedBudget(value) / ENGLISH_WORD_COST).coerceAtLeast(1)
-
-    fun candidateCost(text: String, englishMode: Boolean): Int {
-        if (englishMode) return ENGLISH_WORD_COST
+    fun candidateCost(text: String): Int {
+        if (isEnglishWord(text)) return ENGLISH_WORD_COST
         if (text.isEmpty()) return 1
 
         val codePoints = text.codePoints().toArray()
@@ -43,6 +40,13 @@ object T9CandidateBudget {
             }
         }
         return cost.coerceAtLeast(1)
+    }
+
+    private fun isEnglishWord(text: String): Boolean {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return false
+        return trimmed.all { it in 'A'..'Z' || it in 'a'..'z' || it == '\'' || it == '-' } &&
+            trimmed.any { it in 'A'..'Z' || it in 'a'..'z' }
     }
 
     private fun skipEmojiCluster(codePoints: IntArray, start: Int): Int {
