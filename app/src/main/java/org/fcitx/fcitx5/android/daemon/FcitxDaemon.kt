@@ -43,7 +43,20 @@ object FcitxDaemon {
     private val realFcitx by lazy { Fcitx(appContext) }
 
     // don't leak fcitx instance
-    private val fcitxImpl by lazy { object : FcitxAPI by realFcitx {} }
+    private val fcitxImpl by lazy {
+        object : FcitxAPI by realFcitx {
+            override suspend fun getRimeInput(): String =
+                realFcitx.getRimeInput()
+
+            override suspend fun replaceRimeInput(
+                start: Int,
+                length: Int,
+                text: String,
+                caretPos: Int
+            ): Boolean =
+                realFcitx.replaceRimeInput(start, length, text, caretPos)
+        }
+    }
 
     private fun mkConnection(name: String) = object : FcitxConnection {
 

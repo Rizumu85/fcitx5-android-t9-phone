@@ -159,10 +159,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
      * must then skip sending a regular backspace to fcitx. Returns false for the normal
      * shrink-unresolved-suffix path (caller still forwards the backspace to fcitx/Rime).
      */
-    fun handleVirtualT9Backspace(): Boolean {
+    suspend fun handleVirtualT9Backspace(fcitx: FcitxAPI): Boolean {
         if (!t9InputModeEnabled || currentT9Mode != T9InputMode.CHINESE) return false
         if (shouldReopenLastResolvedSegment()) {
-            val consumed = popLastResolvedSegment()
+            val consumed = popLastResolvedSegment(fcitx)
             if (consumed) candidatesView?.refreshT9Ui()
             return consumed
         }
@@ -187,7 +187,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
      * Engine-backed selections are also restored inside Rime so candidate narrowing follows the
      * same state as the Kotlin presentation model.
      */
-    private fun popLastResolvedSegment(): Boolean {
+    private suspend fun popLastResolvedSegment(fcitx: FcitxAPI): Boolean {
         val segments = t9CompositionModel.resolvedSegments
         val last = segments.lastOrNull() ?: return false
         val newResolved = segments.dropLast(1)
@@ -205,47 +205,42 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             pendingSelection = null,
         )
         if (last.engineBacked) {
-            restoreT9ResolvedSegmentInEngine(last, previousUnresolved, fallbackRawPreedit)
+            restoreT9ResolvedSegmentInEngine(fcitx, last, previousUnresolved, fallbackRawPreedit)
         }
         return true
     }
 
     private fun t9EngineReplacementText(pinyin: String): String = "${pinyin.lowercase()}'"
 
-    private fun restoreT9ResolvedSegmentInEngine(
+    private suspend fun restoreT9ResolvedSegmentInEngine(
+        fcitx: FcitxAPI,
         segment: T9ResolvedSegment,
         previousUnresolved: String,
         fallbackRawPreedit: String
     ) {
         val selectedInput = t9EngineReplacementText(segment.pinyin)
-        postFcitxJob {
-            val input = getRimeInput()
-            val expectedStart = input.length - previousUnresolved.length - selectedInput.length
-            val start = expectedStart.takeIf {
-                it >= 0 && input.regionMatches(it, selectedInput, 0, selectedInput.length)
-            } ?: input.lastIndexOf(selectedInput).takeIf { it >= 0 }
-            val restored = start != null &&
-                replaceRimeInput(start, selectedInput.length, segment.sourceDigits, start + segment.sourceDigits.length)
-            if (!restored) {
-                setCandidatePagingMode(candidatePagingModeForCurrentInputDevice())
-                reset()
-                fallbackRawPreedit.forEach { ch ->
-                    if (ch in '2'..'9' || ch == '\'') {
-                        sendKey(ch)
-                    }
+        val input = fcitx.getRimeInput()
+        val expectedStart = input.length - previousUnresolved.length - selectedInput.length
+        val start = expectedStart.takeIf {
+            it >= 0 && input.regionMatches(it, selectedInput, 0, selectedInput.length)
+        } ?: input.lastIndexOf(selectedInput).takeIf { it >= 0 }
+        val caretPos = input.length - selectedInput.length + segment.sourceDigits.length
+        val restored = start != null &&
+            fcitx.replaceRimeInput(start, selectedInput.length, segment.sourceDigits, caretPos)
+        if (!restored) {
+            fcitx.setCandidatePagingMode(candidatePagingModeForCurrentInputDevice())
+            fcitx.reset()
+            fallbackRawPreedit.forEach { ch ->
+                if (ch in '2'..'9' || ch == '\'') {
+                    fcitx.sendKey(ch)
                 }
             }
-            this@FcitxInputMethodService.lifecycleScope.launch {
-                if (!restored) {
-                    t9CompositionModel = t9CompositionModel.copy(
-                        resolvedSegments = t9CompositionModel.resolvedSegments.map {
-                            it.copy(engineBacked = false)
-                        },
-                        rawPreedit = fallbackRawPreedit
-                    )
-                }
-                candidatesView?.refreshT9Ui()
-            }
+            t9CompositionModel = t9CompositionModel.copy(
+                resolvedSegments = t9CompositionModel.resolvedSegments.map {
+                    it.copy(engineBacked = false)
+                },
+                rawPreedit = fallbackRawPreedit
+            )
         }
     }
 
@@ -1649,14 +1644,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                     start,
                     selectedSegment.sourceDigits.length,
                     replacement,
-                    start + replacement.length
+                    input.length - selectedSegment.sourceDigits.length + replacement.length
                 )
+            if (replaced) {
+                markT9SelectionEngineBacked(selectedSegment, remainingDigits)
+            } else {
+                clearPendingT9Selection(selectedSegment, remainingDigits)
+            }
             this@FcitxInputMethodService.lifecycleScope.launch {
-                if (replaced) {
-                    markT9SelectionEngineBacked(selectedSegment, remainingDigits)
-                } else {
-                    clearPendingT9Selection(selectedSegment, remainingDigits)
-                }
                 candidatesView?.refreshT9Ui()
             }
         }
@@ -1788,8 +1783,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             mappedEvent.action == KeyEvent.ACTION_DOWN &&
             shouldReopenLastResolvedSegment()
         ) {
-            popLastResolvedSegment()
-            candidatesView?.refreshT9Ui()
+            postFcitxJob {
+                if (popLastResolvedSegment(this)) {
+                    this@FcitxInputMethodService.lifecycleScope.launch {
+                        candidatesView?.refreshT9Ui()
+                    }
+                }
+            }
             t9ConsumedNavigationKeyUp = keyCode
             return true
         }

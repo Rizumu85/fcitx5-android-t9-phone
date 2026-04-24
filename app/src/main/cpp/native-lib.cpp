@@ -444,14 +444,14 @@ public:
         if (!p_frontend || !p_rime) return {};
         auto *ic = p_frontend->call<fcitx::IAndroidFrontend::activeInputContext>();
         if (!ic) return {};
-        return p_rime->call<fcitx::IRime::getInput>(ic);
+        return p_rime->call<fcitx::IRimeEngine::getInput>(ic);
     }
 
     bool replaceRimeInput(int start, int length, const std::string &replacement, int caretPos) {
         if (!p_frontend || !p_rime) return false;
         auto *ic = p_frontend->call<fcitx::IAndroidFrontend::activeInputContext>();
         if (!ic) return false;
-        return p_rime->call<fcitx::IRime::replaceInput>(ic, start, length, replacement, caretPos);
+        return p_rime->call<fcitx::IRimeEngine::replaceInput>(ic, start, length, replacement, caretPos);
     }
 
     void save() {
