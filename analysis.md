@@ -69,6 +69,18 @@ Review and tighten the completed global feature set before final consolidation.
   separator, before the next digit is typed. That points to display ordering:
   while the raw T9 source ends with an apostrophe, candidate-comment/Rime
   display is transient and should not outrank the local raw preedit display.
+- Structural review: `FcitxInputMethodService.kt` is now about 3900 lines and
+  combines Android IME lifecycle, key dispatch, Chinese T9/Rime composition,
+  English multi-tap, number-mode calculator flow, physical selection mode, and
+  several UI panel controls. The highest-value cleanup is not a broad rewrite
+  by input mode. Prefer extracting small, behavior-preserving modules at clear
+  boundaries: transient UI panels from `InputView`, number-mode operator/result
+  state, physical selection state/actions, and eventually Chinese T9 preview
+  helpers. Keep the service as the Android/Fcitx integration owner.
+- Current cleanup scope: extract only transient panel UI and number-mode
+  controller logic. Leave Chinese T9 and physical selection behavior in place.
+  Preserve existing method names on `InputView` where the service calls them so
+  the refactor stays mechanically verifiable.
 
 ## Physical OK Selection Mode Request
 

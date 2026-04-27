@@ -477,6 +477,23 @@ For Chinese idle `1`, delay opening/cycling the punctuation list until key-up,
 the same as the pending-punctuation `1` path. This lets Android report a
 long-press repeat before any symbol list is opened; if long-press occurs, cancel
 the deferred punctuation action and commit literal digit `1`.
+
+For future cleanup, keep `FcitxInputMethodService` as the Android/Fcitx boundary
+and move self-contained responsibilities outward in small steps. UI-only
+transient panels should live under dedicated input view classes. Number-mode
+operator mappings and result-choice state can become a small controller with
+callbacks for committing text and showing panels. Physical selection mode can
+become a state/action controller that owns anchor/focus/action-panel flags.
+Chinese T9 preview and segmentation helpers can later move into a model/helper
+module, but only after the current behavior remains stable under user testing.
+
+The first cleanup pass should preserve behavior by extracting `InputView`'s
+selection action panel and number operator/result panels into view helpers.
+`InputView` remains responsible for adding them to the root constraint layout
+and exposes the same show/hide methods to the service. The second pass can move
+number-mode operator mappings, transient panel state, expression evaluation,
+and result-choice key handling into a controller that depends only on callbacks
+for text commit, text-before-cursor lookup, and panel visibility.
 When a Hanzi candidate loses focus, clear its active background immediately
 instead of fading it out. The incoming focus may still animate, but the old
 highlight must not linger during T9 deletion or candidate-context resets.

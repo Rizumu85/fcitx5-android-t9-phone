@@ -114,6 +114,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private lateinit var contentView: FrameLayout
     private var inputView: InputView? = null
     private var candidatesView: CandidatesView? = null
+    private val numberModeController = NumberModeController(
+        commitText = { text -> currentInputConnection?.commitText(text, 1) },
+        getTextBeforeCursor = {
+            currentInputConnection
+                ?.getTextBeforeCursor(96, 0)
+                ?.toString()
+        },
+        showOperatorHints = { inputView?.showNumberOperatorHints() },
+        hideOperatorHints = { inputView?.hideNumberOperatorHints() },
+        showEqualsChoice = { prefix, result -> inputView?.showNumberEqualsChoice(prefix, result) },
+        hideEqualsChoice = { inputView?.hideNumberEqualsChoice() }
+    )
 
     private val navbarMgr = NavigationBarManager()
     private val inputDeviceMgr = InputDeviceManager { isVirtualKeyboard ->
@@ -297,10 +309,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         physicalSelectionRangeActive = false
         physicalSelectionActionPanelActive = false
         inputView?.hideSelectionActionHints()
-        numberTransientPanel = NumberTransientPanel.NONE
-        inputView?.hideNumberOperatorHints()
-        inputView?.hideNumberEqualsChoice()
-        pendingNumberEqualsResult = null
+        numberModeController.dismissTransientPanel()
         lastSelectionReplacementKeyUptime = 0L
     }
 
@@ -790,7 +799,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
         if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount != 0) return false
 
-        if (numberTransientPanel != NumberTransientPanel.NONE) {
+        if (numberModeController.hasTransientPanel) {
             dismissNumberTransientPanel()
             selectionPreImeBackConsumed = true
             return true
@@ -1281,19 +1290,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         CAPS
     }
 
-    private enum class NumberTransientPanel {
-        NONE,
-        OPERATOR_HINT,
-        RESULT_CHOICE
-    }
-
     private var t9EnglishCaseState = T9EnglishCaseState.OFF
     private var t9CandidateFocus = T9CandidateFocus.BOTTOM
     private var t9ConsumedNavigationKeyUp: Int? = null
     private var physicalSelectionMode = false
     private var physicalSelectionActionPanelActive = false
-    private var numberTransientPanel = NumberTransientPanel.NONE
-    private var pendingNumberEqualsResult: String? = null
     private var pendingPhysicalSelectionOkKeyCode: Int? = null
     private var physicalSelectionOkLongPressTriggered = false
     private var physicalSelectionAnchor = -1
@@ -1760,230 +1761,24 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
     }
 
-    private val numberModeOperatorMap = mapOf(
-        KeyEvent.KEYCODE_1 to "-",
-        KeyEvent.KEYCODE_2 to "+",
-        KeyEvent.KEYCODE_3 to "=",
-        KeyEvent.KEYCODE_4 to "π",
-        KeyEvent.KEYCODE_5 to "/",
-        KeyEvent.KEYCODE_6 to "≈",
-        KeyEvent.KEYCODE_7 to "(",
-        KeyEvent.KEYCODE_8 to "%",
-        KeyEvent.KEYCODE_9 to ")",
-        KeyEvent.KEYCODE_0 to "."
-    )
-
     private fun showNumberOperatorHintPanel() {
-        dismissNumberTransientPanel()
-        numberTransientPanel = NumberTransientPanel.OPERATOR_HINT
-        inputView?.showNumberOperatorHints()
+        numberModeController.showOperatorHintPanel()
     }
 
     private fun dismissNumberTransientPanel() {
-        val previousPanel = numberTransientPanel
-        numberTransientPanel = NumberTransientPanel.NONE
-        pendingNumberEqualsResult = null
-        when (previousPanel) {
-            NumberTransientPanel.OPERATOR_HINT -> inputView?.hideNumberOperatorHints()
-            NumberTransientPanel.RESULT_CHOICE -> inputView?.hideNumberEqualsChoice()
-            NumberTransientPanel.NONE -> Unit
-        }
-    }
-
-    private fun commitNumberEqualsResult() {
-        val result = pendingNumberEqualsResult ?: return dismissNumberTransientPanel()
-        dismissNumberTransientPanel()
-        currentInputConnection?.commitText(result, 1)
+        numberModeController.dismissTransientPanel()
     }
 
     private fun commitNumberModeOperator(operator: String): Boolean {
-        dismissNumberTransientPanel()
-        if (operator != "=" && operator != "≈") {
-            currentInputConnection?.commitText(operator, 1)
-            return true
-        }
-        val result = evaluateNumberExpressionBeforeCursor(approximate = operator == "≈")
-        currentInputConnection?.commitText(operator, 1)
-        if (result != null) {
-            pendingNumberEqualsResult = result
-            numberTransientPanel = NumberTransientPanel.RESULT_CHOICE
-            inputView?.showNumberEqualsChoice(operator, result)
-        }
-        return true
+        return numberModeController.commitOperator(operator)
     }
 
     private fun handleNumberTransientPanelKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (numberTransientPanel == NumberTransientPanel.NONE || event.action != KeyEvent.ACTION_DOWN) {
-            return false
+        val result = numberModeController.handleTransientPanelKeyDown(keyCode, event)
+        result.consumedKeyUp?.let {
+            t9ConsumedNavigationKeyUp = it
         }
-        if (event.repeatCount > 0) return true
-        return when (numberTransientPanel) {
-            NumberTransientPanel.OPERATOR_HINT -> handleNumberOperatorHintPanelKeyDown(keyCode)
-            NumberTransientPanel.RESULT_CHOICE -> handleNumberResultChoiceKeyDown(keyCode)
-            NumberTransientPanel.NONE -> false
-        }
-    }
-
-    private fun handleNumberOperatorHintPanelKeyDown(keyCode: Int): Boolean {
-        if (keyCode in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9) {
-            val operator = numberModeOperatorMap[keyCode] ?: return true
-            commitNumberModeOperator(operator)
-            t9ConsumedNavigationKeyUp = keyCode
-            return true
-        }
-        if (keyCode == KeyEvent.KEYCODE_STAR) {
-            commitNumberModeOperator("*")
-            t9ConsumedNavigationKeyUp = keyCode
-            return true
-        }
-        return when (keyCode) {
-            KeyEvent.KEYCODE_POUND,
-            KeyEvent.KEYCODE_DPAD_CENTER,
-            KeyEvent.KEYCODE_ENTER,
-            KeyEvent.KEYCODE_DEL,
-            KeyEvent.KEYCODE_BACK -> {
-                dismissNumberTransientPanel()
-                t9ConsumedNavigationKeyUp = keyCode
-                true
-            }
-            else -> {
-                dismissNumberTransientPanel()
-                false
-            }
-        }
-    }
-
-    private fun handleNumberResultChoiceKeyDown(keyCode: Int): Boolean {
-        return when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                commitNumberEqualsResult()
-                t9ConsumedNavigationKeyUp = keyCode
-                true
-            }
-            KeyEvent.KEYCODE_DEL, KeyEvent.KEYCODE_BACK -> {
-                dismissNumberTransientPanel()
-                t9ConsumedNavigationKeyUp = keyCode
-                true
-            }
-            else -> {
-                dismissNumberTransientPanel()
-                false
-            }
-        }
-    }
-
-    private fun evaluateNumberExpressionBeforeCursor(approximate: Boolean = false): String? {
-        val before = currentInputConnection
-            ?.getTextBeforeCursor(96, 0)
-            ?.toString()
-            ?: return null
-        val expression = before.takeLastWhile {
-            it.isDigit() || it in setOf('.', '+', '-', '*', '/', '%', '(', ')', ' ', 'π')
-        }.trim()
-        if (expression.isBlank() || expression.none { it.isDigit() || it == 'π' }) return null
-        return runCatching {
-            val value = NumberExpressionParser(expression).parse()
-            if (approximate) formatApproximateNumberResult(value) else formatNumberResult(value)
-        }.getOrNull()
-    }
-
-    private fun formatNumberResult(value: Double): String {
-        if (!value.isFinite()) return value.toString()
-        val long = value.toLong()
-        return if (value == long.toDouble()) long.toString() else {
-            String.format(java.util.Locale.US, "%.10f", value)
-                .trimEnd('0')
-                .trimEnd('.')
-        }
-    }
-
-    private fun formatApproximateNumberResult(value: Double): String {
-        if (!value.isFinite()) return value.toString()
-        val long = value.toLong()
-        return if (value == long.toDouble()) long.toString() else {
-            String.format(java.util.Locale.US, "%.2f", value)
-                .trimEnd('0')
-                .trimEnd('.')
-        }
-    }
-
-    private class NumberExpressionParser(private val text: String) {
-        private var index = 0
-
-        fun parse(): Double {
-            val value = parseExpression()
-            skipSpaces()
-            check(index == text.length)
-            return value
-        }
-
-        private fun parseExpression(): Double {
-            var value = parseTerm()
-            while (true) {
-                skipSpaces()
-                value = when {
-                    match('+') -> value + parseTerm()
-                    match('-') -> value - parseTerm()
-                    else -> return value
-                }
-            }
-        }
-
-        private fun parseTerm(): Double {
-            var value = parseFactor()
-            while (true) {
-                skipSpaces()
-                value = when {
-                    match('*') -> value * parseFactor()
-                    match('/') -> value / parseFactor()
-                    match('%') -> value % parseFactor()
-                    startsFactor() -> value * parseFactor()
-                    else -> return value
-                }
-            }
-        }
-
-        private fun parseFactor(): Double {
-            skipSpaces()
-            if (match('+')) return parseFactor()
-            if (match('-')) return -parseFactor()
-            if (match('(')) {
-                val value = parseExpression()
-                check(match(')'))
-                return value
-            }
-            if (match('π')) return Math.PI
-            return parseNumber()
-        }
-
-        private fun startsFactor(): Boolean {
-            skipSpaces()
-            if (index >= text.length) return false
-            return text[index].isDigit() || text[index] == '.' || text[index] == '(' || text[index] == 'π'
-        }
-
-        private fun parseNumber(): Double {
-            skipSpaces()
-            val start = index
-            while (index < text.length && (text[index].isDigit() || text[index] == '.')) {
-                index += 1
-            }
-            check(index > start)
-            return text.substring(start, index).toDouble()
-        }
-
-        private fun match(char: Char): Boolean {
-            skipSpaces()
-            if (index >= text.length || text[index] != char) return false
-            index += 1
-            return true
-        }
-
-        private fun skipSpaces() {
-            while (index < text.length && text[index].isWhitespace()) {
-                index += 1
-            }
-        }
+        return result.handled
     }
 
     /**
@@ -2139,7 +1934,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                     return true
                 } else if (event.repeatCount == 1) {
                     digitLongPressFlags[keyCode] = true
-                    val operator = numberModeOperatorMap[keyCode] ?: digit.toString()
+                    val operator = numberModeController.operatorForKey(keyCode) ?: digit.toString()
                     return commitNumberModeOperator(operator)
                 }
                 return true

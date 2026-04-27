@@ -6,6 +6,10 @@ Rizum Guidelines are active for this project/thread until the user says otherwis
 
 ## Current Checklist
 
+- [x] Extract `InputView` transient selection/number panels into dedicated view helpers.
+- [x] Extract number-mode operator/result-choice state behind callbacks.
+- [ ] Then extract physical selection state/actions behind callbacks.
+- [ ] Leave Chinese T9 preview/model extraction for a later, separately tested pass.
 - [x] Remove punctuation-mapped apostrophe key fallback from Chinese T9 segmentation.
 - [x] Run a narrow static diff check for the segmentation fallback removal.
 - [x] Prefer local T9 preedit display while raw composition ends with a separator.
