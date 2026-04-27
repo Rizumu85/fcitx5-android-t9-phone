@@ -6,6 +6,20 @@ Rizum Guidelines are active for this project/thread until the user says otherwis
 
 ## Current Checklist
 
+- [x] Remove punctuation-mapped apostrophe key fallback from Chinese T9 segmentation.
+- [x] Run a narrow static diff check for the segmentation fallback removal.
+- [x] Prefer local T9 preedit display while raw composition ends with a separator.
+- [x] Run a narrow static diff check for the trailing-separator display fix.
+- [x] Remove the mistaken symbol-picker quote ordering fallback.
+- [x] Remove duplicate curly quote variants from the ordinary symbol page.
+- [x] Run a narrow static diff check for the quote fallback removal.
+- [x] Restore Chinese T9 long-press `0` as the tenth Hanzi candidate shortcut.
+- [x] Run narrow static and Kotlin syntax checks for the `0` shortcut fix.
+- [x] Extract Chinese T9 digit key-down handling into a dedicated helper.
+- [x] Extract Chinese T9 digit key-up handling into a dedicated helper.
+- [x] Run narrow static and Kotlin syntax checks for the Chinese digit-handler cleanup.
+- [x] Encapsulate pending Chinese T9 punctuation fields into a grouped state.
+- [x] Run narrow static and Kotlin syntax checks for the punctuation-state cleanup.
 - [x] Document the IME-local font customization scope.
 - [x] Add a keyboard setting that lists fonts available on the current device.
 - [x] Apply the selected font to keyboard labels, candidates, preedit, and mode badges.

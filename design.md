@@ -326,6 +326,13 @@ state owns the active punctuation set, highlighted index, visible punctuation
 text, and deferred short-`1` flag. This keeps punctuation cleanup local while
 leaving the larger Chinese T9/Rime composition model untouched.
 
+Keep Chinese physical digit handling behavior-preserving while shortening the
+main key handlers. Extract the Chinese `0`, `1`, and `2`-`9` timing rules into
+small helper functions, but keep short-press-on-key-up and long-press shortcut
+semantics exactly as tested.
+When active Chinese T9 composition exists, long-press shortcuts cover all ten
+visible candidate slots: `1`-`9` select indices 0-8 and `0` selects index 9.
+
 ## T9 Pinyin Design
 
 The current static T9 pinyin map is incomplete for longer syllables. The audit
@@ -391,10 +398,11 @@ For shortcut-label candidates, use an explicit centered text alignment and a
 small minimum cell width. This stabilizes symbol/punctuation candidates whose
 glyph side bearings or bidi-neutral characters otherwise make them appear
 uneven, while preserving the centered Hanzi appearance.
-Chinese/full-width symbol surfaces should prefer Chinese quote marks:
-double quotes `“”` and single quotes `‘’`. Keep straight ASCII quotes available
-only later in the general symbol set, not as the first visible quote choice in
-Chinese-oriented symbol pages.
+Chinese T9 `1` punctuation should keep Chinese curly quote marks in its local
+punctuation list. The broader symbol picker should not apply an extra quote
+ordering fallback; keep straight ASCII or full-width quote marks in their normal
+symbol-page positions and leave decorative/curly variants out of the ordinary
+punctuation page.
 Long-pressing a physical digit should select the matching visible bottom-row
 candidate. For physical Chinese T9 `2`-`9`, consume key-down locally and send
 the digit to Rime only on key-up when no long press was detected. This avoids
@@ -458,6 +466,13 @@ Keep `T9CompositionModel.rawPreedit` source-only: digits `2`-`9` plus
 apostrophes. Rime's rendered preedit can still be used as an input-panel
 fallback, but it should not overwrite the canonical source model once local T9
 tracking exists.
+For Chinese T9 segmentation, insert ASCII apostrophe directly into the Rime
+buffer when possible. Do not fall back to sending an apostrophe key event,
+because the punctuation addon can remap that key to Chinese quote marks.
+When the local raw T9 composition ends with an apostrophe, prefer the local
+raw-preedit display over candidate-comment preview. The separator has just been
+entered and the next segment is empty, so candidate/Rime display can be
+temporarily stale or punctuation-mapped.
 For Chinese idle `1`, delay opening/cycling the punctuation list until key-up,
 the same as the pending-punctuation `1` path. This lets Android report a
 long-press repeat before any symbol list is opened; if long-press occurs, cancel

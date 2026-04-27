@@ -42,6 +42,33 @@ Review and tighten the completed global feature set before final consolidation.
   punctuation state. The existing four fields (`set`, `index`, `text`, and
   deferred one-key flag) always move together and can be grouped without
   changing Rime composition, pinyin filtering, or Hanzi preview logic.
+- After the punctuation state cleanup is verified, the next small cleanup is to
+  extract Chinese-mode digit key-down and key-up branches into dedicated helper
+  functions. This should be a behavior-preserving move only: no Rime buffer,
+  pinyin preview, or candidate-selection rules should change.
+- User verification found the extraction preserved most behavior, but revealed
+  a missed shortcut case: while Chinese T9 composition is active, long-pressing
+  `0` should select the tenth visible Hanzi candidate instead of committing
+  literal `0`.
+- The separator glyph concern was inspected without changing behavior. The T9
+  composition tracker stores ASCII apostrophe (`'`), `forwardChineseT9SeparatorShortPress`
+  sends ASCII apostrophe to Rime, and the preview join paths render ASCII
+  apostrophes. Curly single/double quote glyphs are present in the Chinese
+  punctuation candidate list, so any observed curly quote should be localized
+  by UI location before changing separator logic.
+- Correction: the earlier symbol-picker quote ordering fallback came from a
+  misunderstanding. Chinese T9 `1` punctuation already contains the intended
+  Chinese curly quote marks. Remove only the extra picker ordering preference
+  that pushed curly quotes into the ordinary punctuation page.
+- Bug report: pressing short `1` for Chinese T9 segmentation can sometimes
+  produce a visible Chinese quote mark (`“`). The likely cause is the separator
+  fallback path: if direct Rime buffer insertion fails, `sendKey("apostrophe")`
+  lets the Fcitx punctuation addon translate apostrophe as a Chinese quote.
+  The segmentation path should never send a punctuation-mapped apostrophe key.
+- Follow-up: the quote can still appear only immediately after the first
+  separator, before the next digit is typed. That points to display ordering:
+  while the raw T9 source ends with an apostrophe, candidate-comment/Rime
+  display is transient and should not outrank the local raw preedit display.
 
 ## Physical OK Selection Mode Request
 
