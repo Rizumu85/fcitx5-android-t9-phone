@@ -2,9 +2,85 @@
 
 ## Current Task
 
-Keep the in-IME status/settings option grid at five items per row, but constrain
-each option label so long text wraps inside its cell instead of visually
-crowding adjacent items.
+Revert the whitelist/send-fallback experiment and apply the TT9-style
+confirmation-key behavior.
+
+## Chat Return Key Behavior Request
+
+- User report: in Discord and QQ chat boxes, pressing the physical Enter key or
+  short `#` inserts a newline instead of sending the message.
+- User decision: revert the whitelist/forced-send approach and copy the TT9
+  confirmation-key strategy instead.
+- Original routing: short `#` in T9 mode eventually called
+  `handleReturnKey()`. Physical Enter can also be deferred through the physical
+  OK selection-mode path and then call `handleReturnKey()` on key-up. The
+  on-screen Return key also calls the same helper through the virtual Fcitx
+  Return event.
+- `handleReturnKey()` currently honors `IME_FLAG_NO_ENTER_ACTION` and
+  unspecified/no-action editors by sending a raw Enter key. That is correct for
+  ordinary multiline editors, but it makes chat apps that expose a multiline
+  message editor default to line breaks.
+- User testing found the package-agnostic `IME_ACTION_SEND` fallback can simply
+  hide the keyboard without sending. Do not run that fallback globally, and do
+  not keep the user-editable whitelist for it.
+- TT9 reference check: its OK key first performs the editor action selected
+  from `EditorInfo`. It treats `IME_ACTION_UNSPECIFIED` as a real action to
+  perform, matching the LatinIME/OpenBoard behavior noted in its source. If no
+  action applies, its on-screen OK key falls back to
+  `InputMethodService.sendDownUpKeyEvents(KEYCODE_ENTER)`.
+- Follow-up reference check: TT9's action selection does not directly perform
+  fields with an `actionLabel` or `actionId == IME_ACTION_DONE`; it maps those
+  to its internal Enter action. When its on-screen OK key cannot perform a real
+  editor action, it calls `InputMethodService.sendDownUpKeyEvents(ENTER)`.
+  Mirror that action-selection shape because QQ still inserts a newline with
+  the first approximation while Discord works.
+- User testing after that approximation: search/newline behavior remained OK,
+  but Discord regressed. Restore direct labeled/custom action handling, because
+  Discord needs that path. The remaining likely QQ issue is the old early
+  `IME_FLAG_NO_ENTER_ACTION` branch suppressing explicit or unspecified editor
+  actions before they can run.
+- User testing after restoring direct action handling and removing the
+  `IME_FLAG_NO_ENTER_ACTION` early branch: QQ and Discord both hide the IME,
+  while Search still works. That suggests `IME_ACTION_DONE` or an action masked
+  without considering `IME_FLAG_NO_ENTER_ACTION` is being performed and treated
+  as "close keyboard". Match TT9's standard-action mask with
+  `IME_FLAG_NO_ENTER_ACTION` so those cases fall through to Enter instead.
+- Logcat check from the device:
+  - Discord chat field: `inputType=147457`, `actionId=0`,
+    `actionLabel=null`, `imeOptions=1342177286` (`DONE` combined with
+    `NO_ENTER_ACTION` and `NO_EXTRACT_UI`).
+  - QQ chat field: `inputType=655361`, `actionId=0`, `actionLabel=null`,
+    `imeOptions=1073741830` (`DONE` combined with `NO_ENTER_ACTION`).
+  Therefore both apps hide the keyboard when Done is performed; they need the
+  TT9-style Enter fallback for `DONE | NO_ENTER_ACTION` instead.
+- The updated arm64 debug APK was built and installed on the test device after
+  this fix. Package inspection reported `lastUpdateTime=2026-04-29 00:12:31`,
+  so follow-up device testing should exercise the new return-key path.
+- Follow-up TT9 inspection found an important distinction: TT9's active OK path
+  sends the Enter down/up pair through `InputConnection.sendKeyEvent()` with a
+  simple `KeyEvent`, while the earlier local fallback used
+  `InputMethodService.sendDownUpKeyEvents()`. Prefer the InputConnection path
+  for the TT9-style Enter route and fall back to the service helper only if the
+  target connection rejects either event. The updated APK was installed with
+  `lastUpdateTime=2026-04-29 00:18:41`.
+- Follow-up logcat after user retest confirmed QQ enters `route=tt9Enter` and
+  accepts both Enter down/up events, but still does not send. A narrower
+  QQ/Discord `KeyEvent.FLAG_EDITOR_ACTION` experiment was installed with
+  `lastUpdateTime=2026-04-29 00:27:01`, but user testing found it moves focus
+  to another UI element. Remove that experiment and keep only the TT9-style
+  all-zero Enter path. Discord is expected to send on that path; QQ treats the
+  same accepted Enter event as newline by app design.
+- Search boxes and other editors with explicit IME actions should keep their
+  own action when short `#` is pressed.
+- Use the same shared Return helper for short `#`, physical Enter, and the
+  on-screen Return key. Use TT9's standard-action mask so actions combined with
+  `IME_FLAG_NO_ENTER_ACTION` are not performed as Done/Send and then interpreted
+  as "close keyboard". Keep custom/labeled actions out of direct `DONE`
+  execution for the same reason.
+- Success criteria: explicit search/send/done fields still perform their own
+  action except TT9-style labeled/Done fields that use the Enter route;
+  unspecified-action chat editors can send if the app handles its default
+  action; no-action text fields still receive an Enter key event.
 
 ## Virtual Keyboard Settings Follow-Up
 
@@ -762,6 +838,122 @@ Chinese input, pinyin prediction/filtering, and `#` mode switching.
   from occupying the T9 punctuation moment.
 - `T9PinyinUtils` lacks several common pinyin entries needed by the reported
   readings, including `jiang`, `liang`, `kuan`, and `kuang`.
+
+## Deep-Dive: TT9 OK Key vs Fcitx Return Key for QQ/Discord
+
+Full comparative analysis of the complete on-screen confirmation-key path
+in both codebases. Target apps: QQ (`com.tencent.mobileqq`) and Discord
+(`com.discord`).
+
+### EditorInfo Observed
+
+- QQ: `inputType=655361` (TYPE_CLASS_TEXT | TYPE_TEXT_VARIATION_WEB_EDIT_TEXT |
+  TYPE_TEXT_FLAG_MULTI_LINE), `actionId=0` (IME_ACTION_DONE),
+  `actionLabel=null`, `imeOptions=1073741830` (DONE | NO_ENTER_ACTION).
+- Discord: `inputType=147457` (TYPE_CLASS_TEXT | TYPE_TEXT_VARIATION_WEB_EDIT_TEXT |
+  TYPE_TEXT_FLAG_MULTI_LINE | TYPE_TEXT_FLAG_AUTO_CORRECT), `actionId=0` (IME_ACTION_DONE),
+  `actionLabel=null`, `imeOptions=1342177286` (DONE | NO_ENTER_ACTION | NO_EXTRACT_UI).
+
+### TT9 Complete OK Key Path
+
+1. **SoftKeyOk.handleRelease()** → calls `tt9.onOK()`.
+2. **HotkeyHandler.onOK()**:
+   - `suggestionOps.cancelDelayedAccept()`, `stopWaitingForSpaceTrimKey()`.
+   - No suggestions → `textField.getAction()` → returns `IME_ACTION_ENTER`
+     (because `actionId == IME_ACTION_DONE`).
+   - `action == IME_ACTION_ENTER` → enters `appHacks.onEnter()`.
+3. **AppHacks.onEnter()**:
+   - `isTermux()` → false for QQ/Discord.
+   - `isMultilineTextInNonSystemApp()` → **TRUE** for both QQ and Discord.
+     This ckecks `!packageName.contains("android") && isMultilineText()`.
+     QQ inputType=655361 has TYPE_TEXT_FLAG_MULTI_LINE set.
+   - Calls `textField.sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)` → returns true.
+4. **InputField.sendDownUpKeyEvents()**:
+   - Creates `new KeyEvent(0, 0, ACTION_DOWN, KEYCODE_ENTER, 0, 0)` — **all-zero**
+     downTime, eventTime, deviceId=VIRTUAL_KEYBOARD, scanCode=0, flags=0, source=0.
+   - Creates matching ACTION_UP event.
+   - Sends both via `InputConnection.sendKeyEvent()`.
+   - Returns `downSent && upSent`.
+5. `appHacks.onEnter()` returns true → `onOK()` returns true →
+   `SoftKeyOk.handleRelease()` **does NOT** call the framework
+   `InputMethodService.sendDownUpKeyEvents()`. The all-zero KeyEvent IS
+   the primary mechanism.
+
+### Fcitx Current Return Key Path
+
+1. **handleReturnKey()** → `commitT9PreviewPinyinFromReturn()` returns false
+   (no T9 preview text pending).
+2. `inputType & TYPE_MASK_CLASS != TYPE_NULL` → enters `getTt9StyleEditorAction()`.
+3. **getTt9StyleEditorAction()**:
+   - `actionId == IME_ACTION_DONE` → returns `tt9StyleEnterAction`.
+4. **sendTt9StyleDownUpKeyEvents()**:
+   - Creates all-zero Enter down/up events matching TT9's
+     `InputField.sendDownUpKeyEvents()`.
+   - Sends both through `InputConnection.sendKeyEvent()`.
+5. The removed `FLAG_EDITOR_ACTION` experiment is not part of the current path.
+
+### Key Differences Found
+
+1. **Routing via `isMultilineTextInNonSystemApp()`**: TT9 detects third-party
+   multiline fields before app-specific logic and sends raw Enter. Fcitx now
+   reaches the same raw Enter shape for `tt9StyleEnterAction`.
+
+2. **`sendTt9StyleDownUpKeyEvents` is structurally identical to TT9's
+   `InputField.sendDownUpKeyEvents()`**: both create `new KeyEvent(0, 0, ...)`
+   with all-zero parameters. However, Fcitx's version has a fallback to
+   `InputMethodService.sendDownUpKeyEvents()` that ONLY triggers when
+   `sendKeyEvent()` returns false. For QQ, both down and up return true,
+   so the framework fallback is NEVER reached.
+
+3. **No composing text handling before sending**: TT9's `onOK()` handles
+   suggestions (accepting current suggestion before Enter), but for the
+   no-suggestions case, there is no explicit `finishComposingText()` before
+   `sendDownUpKeyEvents`. Fcitx's `commitT9PreviewPinyinFromReturn()` only
+   handles T9 pinyin preview, not general fcitx composing text.
+
+4. **Two different `sendDownUpKeyEvents` in TT9**:
+   - `InputField.sendDownUpKeyEvents()`: all-zero KeyEvent (used for cursor
+     movement, multiline app Enter, undo/redo).
+   - `InputMethodService.sendDownUpKeyEvents()`: framework method with proper
+     timestamps, FLAG_SOFT_KEYBOARD | FLAG_KEEP_TOUCH_MODE (used as fallback
+     after `onOK()` returns false for non-multiline fields).
+
+### Open Question
+
+Whether TT9's on-screen OK key actually sends messages in QQ. If it does,
+the mechanism is `InputField.sendDownUpKeyEvents(KEYCODE_ENTER)` with an
+all-zero KeyEvent — structurally identical to Fcitx's
+`sendTt9StyleDownUpKeyEvents`. If Fcitx's equivalent produces
+`downSent=true, upSent=true` but QQ does not send, the difference is
+likely NOT in the KeyEvent construction but in:
+- InputConnection state (composing text, batch edit, selection).
+- Or TT9 also does not send in QQ with the on-screen OK key.
+
+### User Verification (2026-04-29)
+
+- **Discord**: TT9 on-screen OK key **does send** messages. Mechanism:
+  `isMultilineTextInNonSystemApp()` → all-zero ENTER KeyEvent → Discord
+  interprets Enter as send.
+- **QQ**: TT9 on-screen OK key **does NOT send** messages. Same all-zero
+  ENTER KeyEvent is accepted by QQ (`downSent=true, upSent=true`) but QQ
+  inserts a newline instead of sending. This is QQ's app design choice:
+  their chat input field is multiline, Enter=newline, and sending is
+  triggered only through the in-app send button. This behavior is
+  identical in both TT9 and Fcitx.
+
+### QQ Verdict
+
+QQ's `IME_ACTION_DONE | IME_FLAG_NO_ENTER_ACTION` EditorInfo combined
+with multiline input means QQ specifically designed Enter to produce
+newlines, not sends. Neither `IME_ACTION_SEND` via `performEditorAction`
+nor raw ENTER KeyEvents (all-zero or FLAG_SOFT_KEYBOARD) can override
+the app's own handling. QQ would need an in-app setting to change this
+behavior. This is NOT an IME-side fix.
+
+### FLAG_EDITOR_ACTION Verdict
+
+Confirmed broken: keydown focus moves to another UI element in QQ/Discord.
+This path should be removed entirely.
 
 ## Constraints
 

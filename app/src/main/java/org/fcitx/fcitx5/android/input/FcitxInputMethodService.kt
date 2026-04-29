@@ -657,23 +657,55 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return true
     }
 
+    private val tt9StyleEnterAction = EditorInfo.IME_MASK_ACTION + 1
+
+    private fun getTt9StyleEditorAction(): Int {
+        currentInputEditorInfo.run {
+            if (actionId == EditorInfo.IME_ACTION_DONE || actionLabel != null) {
+                return tt9StyleEnterAction
+            }
+            if (actionId > 0) return actionId
+
+            val standardAction = imeOptions and
+                (EditorInfo.IME_MASK_ACTION or EditorInfo.IME_FLAG_NO_ENTER_ACTION)
+            return when (standardAction) {
+                EditorInfo.IME_ACTION_DONE,
+                EditorInfo.IME_ACTION_GO,
+                EditorInfo.IME_ACTION_NEXT,
+                EditorInfo.IME_ACTION_PREVIOUS,
+                EditorInfo.IME_ACTION_SEARCH,
+                EditorInfo.IME_ACTION_SEND,
+                EditorInfo.IME_ACTION_UNSPECIFIED -> standardAction
+                else -> tt9StyleEnterAction
+            }
+        }
+    }
+
     private fun handleReturnKey() {
         if (commitT9PreviewPinyinFromReturn()) return
         currentInputEditorInfo.run {
-            if (inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_NULL ||
-                imeOptions.hasFlag(EditorInfo.IME_FLAG_NO_ENTER_ACTION)
-            ) {
-                sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
+            if (inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_NULL) {
+                sendTt9StyleDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
                 return
             }
-            if (actionLabel?.isNotEmpty() == true && actionId != EditorInfo.IME_ACTION_UNSPECIFIED) {
-                currentInputConnection.performEditorAction(actionId)
-                return
-            }
-            when (val action = imeOptions and EditorInfo.IME_MASK_ACTION) {
-                EditorInfo.IME_ACTION_UNSPECIFIED,
-                EditorInfo.IME_ACTION_NONE -> sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
-                else -> currentInputConnection.performEditorAction(action)
+            when (val action = getTt9StyleEditorAction()) {
+                tt9StyleEnterAction -> {
+                    Timber.d(
+                        "handleReturnKey: route=tt9Enter, package=${packageName}, " +
+                            "inputType=${inputType}, actionId=${actionId}, " +
+                            "actionLabel=${actionLabel}, imeOptions=${imeOptions}"
+                    )
+                    sendTt9StyleDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
+                }
+                else -> if (currentInputConnection?.performEditorAction(action) != true) {
+                    Timber.d(
+                        "handleReturnKey: route=actionFallback, action=${action}, " +
+                            "package=${packageName}, inputType=${inputType}, " +
+                            "actionId=${actionId}, actionLabel=${actionLabel}, " +
+                            "imeOptions=${imeOptions}"
+                    )
+                    sendTt9StyleDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
+                }
             }
         }
     }
@@ -759,6 +791,20 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 KeyEvent.FLAG_SOFT_KEYBOARD or KeyEvent.FLAG_KEEP_TOUCH_MODE
             )
         )
+    }
+
+    private fun sendTt9StyleDownUpKeyEvents(keyEventCode: Int, metaState: Int = 0): Boolean {
+        val ic = currentInputConnection ?: return false
+        val down = KeyEvent(0, 0, KeyEvent.ACTION_DOWN, keyEventCode, 0, metaState)
+        val up = KeyEvent(0, 0, KeyEvent.ACTION_UP, keyEventCode, 0, metaState)
+        val downSent = ic.sendKeyEvent(down)
+        val upSent = ic.sendKeyEvent(up)
+        Timber.d(
+            "sendTt9StyleDownUpKeyEvents: keyCode=${keyEventCode}, " +
+                "downSent=${downSent}, upSent=${upSent}"
+        )
+        if (!downSent || !upSent) sendDownUpKeyEvents(keyEventCode)
+        return downSent && upSent
     }
 
     fun deleteSelection() {
@@ -3293,7 +3339,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         capabilityFlags = flags
         // EditorInfo may change between onStartInput and onStartInputView
         inputDeviceMgr.notifyOnStartInput(attribute)
-        Timber.d("onStartInput: initialSel=${selection.current}, restarting=$restarting")
+        Timber.d(
+            "onStartInput: initialSel=${selection.current}, restarting=$restarting, " +
+                "package=${attribute.packageName}, inputType=${attribute.inputType}, " +
+                "actionId=${attribute.actionId}, actionLabel=${attribute.actionLabel}, " +
+                "imeOptions=${attribute.imeOptions}, privateImeOptions=${attribute.privateImeOptions}"
+        )
         val isNullType = attribute.isTypeNull()
         // wait until InputContext created/activated
         postFcitxJob {

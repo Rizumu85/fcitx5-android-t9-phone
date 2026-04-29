@@ -6,6 +6,27 @@ Rizum Guidelines are active for this project/thread until the user says otherwis
 
 ## Current Checklist
 
+- [x] Document the revert from whitelist/forced-send behavior to TT9-style confirmation.
+- [x] Remove the short-`#` whitelist preference and strings.
+- [x] Remove the short-`#`-only Return branch.
+- [x] Mirror TT9-style unspecified editor action handling in the shared Return helper.
+- [x] Use the platform Enter key-event fallback used by TT9's on-screen OK key.
+- [x] Match TT9's standard-action mask including `IME_FLAG_NO_ENTER_ACTION`.
+- [x] Avoid direct `IME_ACTION_DONE` execution that only hides the keyboard.
+- [x] Add a narrow EditorInfo debug log for future QQ diagnosis.
+- [x] Verify from logcat that Discord and QQ expose `DONE | NO_ENTER_ACTION`.
+- [x] Run a narrow Kotlin compile check once device debugging required it.
+- [x] Build and install the updated arm64 debug APK for device testing.
+- [x] Switch TT9-style Enter fallback to direct `InputConnection.sendKeyEvent`.
+- [x] Rebuild and reinstall the updated arm64 debug APK for retesting.
+- [x] Add a narrow QQ/Discord editor-action Enter experiment for accepted-but-unsent Enter events.
+- [x] Rebuild and reinstall the updated arm64 debug APK for the editor-action Enter test.
+- [x] Remove FLAG_EDITOR_ACTION, editorActionEnterPackages, and shouldSendEditorActionEnterKeyEvent
+- [x] Remove sendEditorActionEnterKeyEvents helper
+- [x] For tt9StyleEnterAction route, use sendTt9StyleDownUpKeyEvents(KEYCODE_ENTER) only
+- [x] Rebuild, reinstall, and reselect the debug IME after removing the editor-action experiment
+- [ ] Verify Discord sends and QQ does not regress
+
 - [x] Constrain in-IME status/settings labels to each grid cell width.
 - [x] Allow compact centered wrapping for crowded five-column labels.
 - [x] Run a narrow static diff check for the label wrapping tweak.

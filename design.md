@@ -8,8 +8,37 @@ controls, and a readable keyboard surface.
 
 ## Current Task Design
 
-Keep the in-IME status/settings grid at five columns while making option labels
-wrap within each grid cell.
+Revert the whitelist/send-fallback experiment and apply TT9-style confirmation
+key handling.
+
+## Chat Return Key Design
+
+Keep the change in `FcitxInputMethodService` and use one shared Return helper
+for short `#`, physical Enter, and the on-screen Return key.
+
+The helper should derive actions using TT9's standard-action mask:
+`imeOptions & (IME_MASK_ACTION | IME_FLAG_NO_ENTER_ACTION)`. This lets plain
+Search/Go/Send/Unspecified perform normally, while `NO_ENTER_ACTION`-combined
+variants fall through to Enter instead of being performed as Done/Send and
+hiding the keyboard. `IME_ACTION_DONE`, action labels, and Done action IDs also
+fall through to Enter.
+
+Device logs show both Discord and QQ chat editors expose `IME_ACTION_DONE`
+combined with `IME_FLAG_NO_ENTER_ACTION`, so that combined value must not be
+reduced back to plain Done before dispatch.
+
+If no usable action exists, or if a real editor action fails, send the Enter
+down/up pair through `InputConnection.sendKeyEvent()` with the same simple event
+shape used by TT9's active OK path. If the target connection rejects either
+event, fall back to `InputMethodService.sendDownUpKeyEvents(KEYCODE_ENTER)`.
+Do not keep the package whitelist, the forced `IME_ACTION_SEND` fallback, or
+any short-`#`-only Return branch.
+
+Do not send `KeyEvent.FLAG_EDITOR_ACTION` for these chat fields. Device testing
+showed that path can move focus to another UI element. Discord should use the
+TT9-style all-zero Enter event. QQ accepts the same Enter event but treats it as
+a newline by app design, so there is no IME-side send fix without an app-level
+setting or a separate explicit automation strategy.
 
 ## Virtual Keyboard Settings Design
 
