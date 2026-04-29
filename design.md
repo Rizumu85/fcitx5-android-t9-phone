@@ -8,8 +8,19 @@ controls, and a readable keyboard surface.
 
 ## Current Task Design
 
-Revert the whitelist/send-fallback experiment and apply TT9-style confirmation
-key handling.
+Prepare the 3.0.1 release after the accepted chat-return and dialer passthrough
+fixes.
+
+## 3.0.1 Release Design
+
+Use version name `3.0.1` with ABI-derived version codes based on
+`baseVersionCode = 13`. Keep the public GitHub release shape consistent with the
+previous release: Chinese release notes, four APK assets, and clear
+32-bit/64-bit installation guidance.
+
+The local Baidu Netdisk handoff directory should contain exactly the same four
+user-facing APK assets as the GitHub release so users do not have to choose from
+debug builds or emulator-only ABIs.
 
 ## Chat Return Key Design
 

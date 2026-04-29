@@ -1,0 +1,7 @@
+# 3.0.1 - Chat and Dialer Fixes
+
+## Bug fixes
+
+- Restore TT9-style raw Enter handling for chat confirmation keys.
+- Keep QQ chat behavior documented as app-controlled newline handling.
+- Let phone dialer fields receive physical keys directly without opening the IME keyboard.

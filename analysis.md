@@ -2,8 +2,21 @@
 
 ## Current Task
 
-Revert the whitelist/send-fallback experiment and apply the TT9-style
-confirmation-key behavior.
+Prepare the 3.0.1 release after the accepted chat-return and dialer passthrough
+fixes.
+
+## 3.0.1 Release Preparation
+
+- Bump the release version from 3.0.0 to 3.0.1 and advance the ABI-derived base
+  version code from 12 to 13.
+- Keep the GitHub release asset set aligned with the previous release pattern:
+  app APK plus Rime plugin APK for `arm64-v8a` and `armeabi-v7a`.
+- Preserve a local installer directory for manual Baidu Netdisk upload.
+- Install the new `arm64-v8a` release app and Rime plugin on the connected
+  phone, then select the release IME.
+- Success criteria: release APKs build, the connected device reports the
+  updated formal package installed, the GitHub tag/release points to the release
+  commit, and the local installer directory contains the four user-facing APKs.
 
 ## Chat Return Key Behavior Request
 
@@ -954,6 +967,71 @@ behavior. This is NOT an IME-side fix.
 
 Confirmed broken: keydown focus moves to another UI element in QQ/Discord.
 This path should be removed entirely.
+
+## Dialer Takeover Bug
+
+Report: when dialing (phone dialer app), the input method takes over and
+intercepts keys instead of passing them through to the dialer.
+
+### TT9 Behavior
+
+TT9's `InputType.isDumbPhoneDialer()` detects the dialer by package name:
+```java
+field.packageName.endsWith(".dialer") && !DeviceInfo.noKeyboard(context) && !isText()
+```
+This feeds into `isSpecialNumeric()` → `determineInputModes()` returns only
+`MODE_PASSTHROUGH` → `TraditionalT9.onStart()` calls `onStop()` to hide the
+keyboard, and `shouldBeOff()` returns true so all `onKeyDown()` return false,
+passing keys directly to the app.
+
+### Fcitx5 Behavior
+
+Fcitx5 treats `TYPE_CLASS_PHONE` identically to `TYPE_CLASS_NUMBER` in
+`KeyboardWindow.onStartInput()`: both select `NumberKeyboard`. There is no
+package-name-based dialer detection. The input view is started and all keys
+are intercepted by the IME engine.
+
+### Fix Applied
+
+1. Added `isPhoneDialer(info: EditorInfo)` in `InputDeviceManager`:
+   `packageName.endsWith(".dialer") && inputType_mask != TYPE_CLASS_TEXT`.
+2. `evaluateOnStartInputView()` sets `isDialerField = true`, skips
+   `startedInputView = true`, and returns false (no virtual keyboard).
+3. `evaluateOnKeyDown()` returns false immediately when `isDialerField` is
+   true, preventing `forceShowSelf()` from re-showing the keyboard.
+4. `onFinishInputView()` resets `isDialerField = false`.
+
+Result: dialer fields are treated as passthrough — the IME does not show
+the keyboard and all key events reach the dialer app directly.
+
+### Follow-Up Finding
+
+User testing showed the first pass was incomplete. Returning `false` from
+`evaluateOnKeyDown()` only prevents `forceShowSelf()`, but
+`FcitxInputMethodService.onKeyDown()` still continues into `forwardKeyEvent()`,
+which consumes hardware digit keys and sends them to Fcitx instead of the
+dialer. Also, dialer detection in `evaluateOnStartInputView()` happens after
+`onStartInput()` has already scheduled `focus(true)` for non-null fields.
+
+Device logcat confirmed the dialer package is `com.android.dialer`, with
+`inputType=0`, `inputType=3`, and later text-like `inputType=177` fields.
+The `.dialer` package-name detection matches the numeric dialer fields, but the
+service must respect the passthrough state before focusing Fcitx or forwarding
+keys.
+
+Second-pass fix:
+
+1. Move dialer detection into `notifyOnStartInput()` so `onStartInput()` can
+   skip `focus(true)` for passthrough fields.
+2. Expose `InputDeviceManager.isPassthroughInput` and check it at the very top
+   of `onKeyDown()` and `onKeyUp()`, returning `super` before any T9 panels,
+   remapping, or `forwardKeyEvent()`.
+3. Hide input and candidate views while passthrough is active, even when the T9
+   screen control bar would normally stay visible.
+4. Treat passthrough as no visible IME area in `onComputeInsets()`.
+5. Keep the dialer passthrough flag across `onFinishInputView()`, because
+   hiding the IME view can happen while the dialer field remains focused.
+   Reset it only on `onFinishInput()` or the next `onStartInput()`.
 
 ## Constraints
 

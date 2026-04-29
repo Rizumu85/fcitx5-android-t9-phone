@@ -1234,6 +1234,16 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var inputViewLocation = intArrayOf(0, 0)
 
     override fun onComputeInsets(outInsets: Insets) {
+        if (inputDeviceMgr.isPassthroughInput) {
+            val n = decorView.findViewById<View>(android.R.id.navigationBarBackground)?.height ?: 0
+            val h = decorView.height - n
+            outInsets.apply {
+                contentTopInsets = h
+                visibleTopInsets = h
+                touchableInsets = Insets.TOUCHABLE_INSETS_VISIBLE
+            }
+            return
+        }
         // When using virtual keyboard OR T9 input mode (physical T9 phone with on-screen control bar),
         // make the area of keyboardView touchable so it can receive tap events.
         if (inputDeviceMgr.isVirtualKeyboard || t9InputModeEnabled) {
@@ -2994,6 +3004,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (inputDeviceMgr.isPassthroughInput) {
+            return super.onKeyDown(keyCode, event)
+        }
         if (handleNumberTransientPanelKeyDown(keyCode, event)) {
             return true
         }
@@ -3103,6 +3116,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (inputDeviceMgr.isPassthroughInput) {
+            return super.onKeyUp(keyCode, event)
+        }
         if (handlePhysicalSelectionModeKeyUp(keyCode, event)) {
             return true
         }
@@ -3358,7 +3374,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             // especially in browsers
             setCapFlags(flags)
             // for hardware keyboard, focus to allow switching input methods before onStartInputView
-            if (!isNullType) {
+            if (!isNullType && !inputDeviceMgr.isPassthroughInput) {
                 focus(true)
             }
             enforceHalfWidthForT9()
@@ -3686,6 +3702,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     override fun onFinishInput() {
         Timber.d("onFinishInput")
         updateSelectionBackCallback(false)
+        inputDeviceMgr.onFinishInput()
         clearT9CompositionState()
         candidatesView?.clearTransientState()
         inputView?.clearTransientState()

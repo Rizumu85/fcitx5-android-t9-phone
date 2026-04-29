@@ -5,6 +5,7 @@
 
 package org.fcitx.fcitx5.android.input
 
+import android.text.InputType
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
@@ -22,6 +23,11 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
 
     private fun setupInputViewEvents(isVirtual: Boolean) {
         val iv = inputView ?: return
+        if (isDialerField) {
+            iv.handleEvents = false
+            iv.visibility = View.GONE
+            return
+        }
         // Enable InputView interaction when using virtual keyboard
         // OR when T9 input mode is enabled for physical keyboard users.
         val enableInputView = isVirtual || t9InputModeEnabled
@@ -31,6 +37,11 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
 
     private fun setupCandidatesViewEvents(isVirtual: Boolean) {
         val cv = candidatesView ?: return
+        if (isDialerField) {
+            cv.handleEvents = false
+            cv.visibility = View.GONE
+            return
+        }
         val useFloatingCandidates = !isVirtual || t9InputModeEnabled
         cv.handleEvents = useFloatingCandidates
         // hide CandidatesView when entering virtual keyboard mode,
@@ -69,20 +80,35 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
 
     private var startedInputView = false
     private var isNullInputType = true
+    private var isDialerField = false
 
     /** True when user is in an input field (input view has been started). Used for T9 key remapping. */
     val isInInputMode: Boolean get() = startedInputView
+    val isPassthroughInput: Boolean get() = isDialerField
 
     private var candidatesViewMode by AppPrefs.getInstance().candidates.mode
 
     fun notifyOnStartInput(attribute: EditorInfo) {
         isNullInputType = attribute.isTypeNull()
+        isDialerField = isPhoneDialer(attribute)
+        setupViewEvents(isVirtualKeyboard)
     }
 
     /**
      * @return should use virtual keyboard
      */
     fun evaluateOnStartInputView(info: EditorInfo, service: FcitxInputMethodService): Boolean {
+        // Dialer fields handle input themselves (numeric keys, *, #), so
+        // pass through all key events without intercepting them. The inputType
+        // is not always TYPE_CLASS_PHONE on all devices, so match by package name.
+        isDialerField = isPhoneDialer(info)
+        if (isDialerField) {
+            startedInputView = false
+            isNullInputType = info.isTypeNull()
+            setupViewEvents(isVirtualKeyboard)
+            service.requestHideSelf(0)
+            return false
+        }
         startedInputView = true
         isNullInputType = info.isTypeNull()
         isVirtualKeyboard = if (t9InputModeEnabled) false else when (candidatesViewMode) {
@@ -93,10 +119,18 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
         return isVirtualKeyboard
     }
 
+    private fun isPhoneDialer(info: EditorInfo): Boolean {
+        return info.packageName.endsWith(".dialer") &&
+            (info.inputType and InputType.TYPE_MASK_CLASS) != InputType.TYPE_CLASS_TEXT
+    }
+
     /**
      * @return should force show input views on hardware key down
      */
     fun evaluateOnKeyDown(e: KeyEvent, service: FcitxInputMethodService): Boolean {
+        // Never force-show the input view for dialer fields; they handle
+        // all key events themselves.
+        if (isDialerField) return false
         if (startedInputView) {
             // filter out back/home/volume buttons and combination keys
             if (e.unicodeChar != 0) {
@@ -155,5 +189,11 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
 
     fun onFinishInputView() {
         startedInputView = false
+        setupViewEvents(isVirtualKeyboard)
+    }
+
+    fun onFinishInput() {
+        isDialerField = false
+        setupViewEvents(isVirtualKeyboard)
     }
 }

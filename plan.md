@@ -6,6 +6,14 @@ Rizum Guidelines are active for this project/thread until the user says otherwis
 
 ## Current Checklist
 
+- [x] Connect the GitHub repository through the GitHub plugin.
+- [x] Bump app and Gradle version metadata to `3.0.1`.
+- [x] Add matching Play release notes for the new ABI-derived version code.
+- [x] Build release APKs for the app and Rime plugin.
+- [x] Copy the user-facing installer APKs into a Baidu Netdisk handoff directory.
+- [x] Install the new arm64 release app and Rime plugin on the connected phone.
+- [x] Commit, tag, push, and publish the `v3.0.1` GitHub release.
+
 - [x] Document the revert from whitelist/forced-send behavior to TT9-style confirmation.
 - [x] Remove the short-`#` whitelist preference and strings.
 - [x] Remove the short-`#`-only Return branch.
@@ -26,6 +34,16 @@ Rizum Guidelines are active for this project/thread until the user says otherwis
 - [x] For tt9StyleEnterAction route, use sendTt9StyleDownUpKeyEvents(KEYCODE_ENTER) only
 - [x] Rebuild, reinstall, and reselect the debug IME after removing the editor-action experiment
 - [ ] Verify Discord sends and QQ does not regress
+
+- [x] Add package-name-based dialer passthrough to InputDeviceManager
+- [x] Skip startedInputView and keyboard for fields whose package ends with .dialer
+- [x] Detect dialer passthrough during onStartInput, before Fcitx focus
+- [x] Bypass onKeyDown/onKeyUp forwarding while dialer passthrough is active
+- [x] Hide input/candidate views and IME insets while dialer passthrough is active
+- [x] Preserve dialer passthrough across input-view hiding until the input itself finishes
+- [x] Run narrow Kotlin compile check for the dialer passthrough fix
+- [x] Build, install, and select the updated debug IME for device retesting
+- [ ] Verify dial pad keys pass through to the dialer app and keyboard stays hidden
 
 - [x] Constrain in-IME status/settings labels to each grid cell width.
 - [x] Allow compact centered wrapping for crowded five-column labels.
