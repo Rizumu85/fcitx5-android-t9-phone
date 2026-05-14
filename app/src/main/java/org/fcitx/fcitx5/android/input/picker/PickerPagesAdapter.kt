@@ -107,13 +107,10 @@ class PickerPagesAdapter(
 
     override fun onViewAttachedToWindow(holder: ViewHolder) {
         holder.ui.keyActionListener = keyActionListener
+        holder.ui.popupActionListener = popupActionListener
         if (holder.bindingAdapterPosition == 0) {
-            // prevent popup on RecentlyUsed page
-            holder.ui.popupActionListener = null
             // RecentlyUsed content are already modified with skin tones
             holder.ui.setItems(recentlyUsed.items, withSkinTone = false)
-        } else {
-            holder.ui.popupActionListener = popupActionListener
         }
     }
 

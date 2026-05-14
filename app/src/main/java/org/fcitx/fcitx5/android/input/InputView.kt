@@ -7,6 +7,7 @@ package org.fcitx.fcitx5.android.input
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
+import android.graphics.Outline
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -16,6 +17,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewOutlineProvider
 import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InlineSuggestionsResponse
@@ -232,6 +234,13 @@ class InputView(
 
     val keyboardView: View
 
+    private val keyboardSurfaceOutlineProvider = object : ViewOutlineProvider() {
+        override fun getOutline(view: View, outline: Outline) {
+            val radius = view.inputPanelTopCornerRadiusPx()
+            outline.setRoundRect(0, 0, view.width, view.height + radius, radius.toFloat())
+        }
+    }
+
     init {
         // MUST call before any operation
         setupScope()
@@ -280,6 +289,8 @@ class InputView(
         customBackground.imageDrawable = theme.backgroundDrawable(keyBorder)
 
         keyboardView = constraintLayout {
+            clipToOutline = true
+            outlineProvider = keyboardSurfaceOutlineProvider
             // allow MotionEvent to be delivered to keyboard while pressing on padding views.
             // although it should be default for apps targeting Honeycomb (3.0, API 11) and higher,
             // but it's not the case on some devices ... just set it here
@@ -382,6 +393,7 @@ class InputView(
     }
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
+        keyboardView.invalidateOutline()
         bottomPaddingSpace.updateLayoutParams<LayoutParams> {
             bottomMargin = getNavBarBottomInset(insets)
         }
@@ -392,7 +404,7 @@ class InputView(
      * called when [InputView] is about to show, or restart
      */
     fun startInput(info: EditorInfo, capFlags: CapabilityFlags, restarting: Boolean = false) {
-        broadcaster.onStartInput(info, capFlags)
+        broadcaster.onStartInput(info, capFlags, restarting)
         returnKeyDrawable.updateDrawableOnEditorInfo(info)
         if (focusChangeResetKeyboard || !restarting) {
             windowManager.attachWindow(KeyboardWindow)
@@ -402,6 +414,18 @@ class InputView(
                 updateKeyboardSize()
             }
         }
+    }
+
+    fun isTemporaryTextKeyboardEnabled(): Boolean {
+        return keyboardWindow.isTemporaryTextKeyboardEnabled()
+    }
+
+    fun isTemporaryPasswordKeyboardVisible(): Boolean {
+        return keyboardWindow.isTemporaryPasswordKeyboardVisible()
+    }
+
+    fun shouldKeepTemporaryPasswordModeOnRestart(capFlags: CapabilityFlags): Boolean {
+        return keyboardWindow.shouldKeepTemporaryPasswordModeOnRestart(capFlags)
     }
 
     override fun onStartHandleFcitxEvent() {

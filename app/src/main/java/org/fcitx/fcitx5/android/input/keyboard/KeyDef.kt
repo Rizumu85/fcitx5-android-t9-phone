@@ -19,7 +19,8 @@ open class KeyDef(
         val border: Border,
         val margin: Boolean,
         val viewId: Int,
-        val soundEffect: InputFeedbacks.SoundEffect
+        val soundEffect: InputFeedbacks.SoundEffect,
+        val pressHighlight: Boolean
     ) {
         enum class Variant {
             Normal, AltForeground, Alternative, Accent
@@ -32,6 +33,8 @@ open class KeyDef(
         open class Text(
             val displayText: String,
             val textSize: Float,
+            val verticalBias: Float = 0.5f,
+            val horizontalBias: Float = 0.5f,
             /**
              * `Int` constants in [Typeface].
              * Can be `NORMAL`(default), `BOLD`, `ITALIC` or `BOLD_ITALIC`
@@ -42,13 +45,15 @@ open class KeyDef(
             border: Border = Border.Default,
             margin: Boolean = true,
             viewId: Int = -1,
-            soundEffect: InputFeedbacks.SoundEffect = InputFeedbacks.SoundEffect.Standard
-        ) : Appearance(percentWidth, variant, border, margin, viewId, soundEffect)
+            soundEffect: InputFeedbacks.SoundEffect = InputFeedbacks.SoundEffect.Standard,
+            pressHighlight: Boolean = false
+        ) : Appearance(percentWidth, variant, border, margin, viewId, soundEffect, pressHighlight)
 
         class AltText(
             displayText: String,
             val altText: String,
             textSize: Float,
+            val altTextSize: Float = 10.666667f,
             /**
              * `Int` constants in [Typeface].
              * Can be `NORMAL`(default), `BOLD`, `ITALIC` or `BOLD_ITALIC`
@@ -59,7 +64,18 @@ open class KeyDef(
             border: Border = Border.Default,
             margin: Boolean = true,
             viewId: Int = -1,
-        ) : Text(displayText, textSize, textStyle, percentWidth, variant, border, margin, viewId)
+            pressHighlight: Boolean = false
+        ) : Text(
+            displayText = displayText,
+            textSize = textSize,
+            textStyle = textStyle,
+            percentWidth = percentWidth,
+            variant = variant,
+            border = border,
+            margin = margin,
+            viewId = viewId,
+            pressHighlight = pressHighlight
+        )
 
         class Image(
             @DrawableRes
@@ -69,8 +85,9 @@ open class KeyDef(
             border: Border = Border.Default,
             margin: Boolean = true,
             viewId: Int = -1,
-            soundEffect: InputFeedbacks.SoundEffect = InputFeedbacks.SoundEffect.Standard
-        ) : Appearance(percentWidth, variant, border, margin, viewId, soundEffect)
+            soundEffect: InputFeedbacks.SoundEffect = InputFeedbacks.SoundEffect.Standard,
+            pressHighlight: Boolean = false
+        ) : Appearance(percentWidth, variant, border, margin, viewId, soundEffect, pressHighlight)
 
         class ImageText(
             displayText: String,
@@ -86,8 +103,19 @@ open class KeyDef(
             variant: Variant = Variant.Normal,
             border: Border = Border.Default,
             margin: Boolean = true,
-            viewId: Int = -1
-        ) : Text(displayText, textSize, textStyle, percentWidth, variant, border, margin, viewId)
+            viewId: Int = -1,
+            pressHighlight: Boolean = false
+        ) : Text(
+            displayText = displayText,
+            textSize = textSize,
+            textStyle = textStyle,
+            percentWidth = percentWidth,
+            variant = variant,
+            border = border,
+            margin = margin,
+            viewId = viewId,
+            pressHighlight = pressHighlight
+        )
     }
 
     sealed class Behavior {
@@ -113,11 +141,19 @@ open class KeyDef(
     }
 
     sealed class Popup {
-        open class Preview(val content: String) : Popup()
+        open class Preview(
+            val content: String,
+            @DrawableRes val icon: Int? = null,
+            val textSize: Float? = null
+        ) : Popup()
 
-        class AltPreview(content: String, val alternative: String) : Preview(content)
+        class AltPreview(
+            content: String,
+            val alternative: String,
+            textSize: Float? = null
+        ) : Preview(content, textSize = textSize)
 
-        class Keyboard(val label: String) : Popup()
+        class Keyboard(val label: String, val keys: Array<String>? = null) : Popup()
 
         class Menu(val items: Array<Item>) : Popup() {
             class Item(val label: String, @DrawableRes val icon: Int, val action: KeyAction)

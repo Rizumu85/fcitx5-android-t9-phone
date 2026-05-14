@@ -50,7 +50,7 @@ import splitties.views.dsl.core.matchParent
 class PickerPageUi(
     override val ctx: Context,
     theme: Theme,
-    density: Density,
+    private val density: Density,
     bordered: Boolean = false
 ) : Ui {
 
@@ -84,7 +84,8 @@ class PickerPageUi(
         displayText = "",
         textSize = density.textSize,
         variant = Variant.Normal,
-        border = if (bordered) Border.On else Border.Off
+        border = if (bordered) Border.On else Border.Off,
+        pressHighlight = false
     )
 
     private val keyViews = Array(density.pageSize) {
@@ -114,6 +115,30 @@ class PickerPageUi(
             setOnClickListener(listener)
             repeatEnabled = true
             onRepeatListener = action
+            swipeEnabled = true
+            onGestureListener = OnGestureListener { view, event ->
+                if (popupOnKeyPress) {
+                    view as KeyView
+                    when (event.type) {
+                        CustomGestureView.GestureType.Down -> {
+                            view.updateBounds()
+                            onPopupAction(
+                                PopupAction.PreviewAction(
+                                    view.id,
+                                    "",
+                                    view.bounds,
+                                    R.drawable.ic_baseline_backspace_24
+                                )
+                            )
+                        }
+                        CustomGestureView.GestureType.Up -> {
+                            onPopupAction(PopupAction.DismissAction(view.id))
+                        }
+                        else -> {}
+                    }
+                }
+                false
+            }
         }
     }
 
@@ -227,7 +252,12 @@ class PickerPageUi(
                                     // so update bounds when it's pressed
                                     view.updateBounds()
                                     onPopupAction(
-                                        PopupAction.PreviewAction(view.id, label, view.bounds)
+                                        PopupAction.PreviewAction(
+                                            view.id,
+                                            label,
+                                            view.bounds,
+                                            textSize = density.textSize
+                                        )
                                     )
                                 }
                                 false

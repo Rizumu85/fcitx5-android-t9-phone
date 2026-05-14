@@ -9,7 +9,6 @@ import android.content.Context
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.picker.PickerWindow
-import org.fcitx.fcitx5.android.input.popup.PopupAction
 import splitties.views.imageResource
 
 @SuppressLint("ViewConstructor")
@@ -61,11 +60,6 @@ class NumberKeyboard(
 
     override fun onReturnDrawableUpdate(returnDrawable: Int) {
         `return`.img.imageResource = returnDrawable
-    }
-
-    @SuppressLint("MissingSuperCall")
-    override fun onPopupAction(action: PopupAction) {
-        // leave empty on purpose to disable popup in NumberKeyboard
     }
 
 }

@@ -6,6 +6,161 @@ Rizum Guidelines are active for this project/thread until the user says otherwis
 
 ## Current Checklist
 
+- [x] Document the Rime status fallback and empty submenu-label issue.
+- [x] Rename the empty Rime status fallback to dictionary switching.
+- [x] Hide action-menu rows that do not have real Fcitx-provided text.
+- [x] Update installation README wording for the new status fallback.
+- [x] Run a narrow Kotlin compile check for the status menu change.
+- [x] Diagnose the dictionary-switch action menu returning to the keyboard.
+- [x] Add an extended-window title-back override for child menus.
+- [x] Return the dictionary-switch action menu to the three-dot status panel.
+- [x] Run a narrow Kotlin compile check for the title-back fix.
+
+- [x] Document the password-field QWERTY override and reuse decision.
+- [x] Force password fields to select the existing `TextKeyboard` without persisting the choice.
+- [x] Run narrow diagnostics/static checks for the touched Kotlin file.
+- [x] Document the password-field 26-key setting request.
+- [x] Add a default-on Virtual Keyboard setting below the T9 mode switch.
+- [x] Gate the password `TextKeyboard` override behind the new setting.
+- [x] Build and install the debug app for local device testing.
+- [x] Document that password auto-detection is unreliable and should be replaced.
+- [x] Add a status-area temporary full-keyboard shortcut.
+- [x] Route the shortcut to the existing 26-key keyboard and top number row.
+- [x] Remove the automatic password full-keyboard preference and trigger.
+- [x] Rebuild and install the updated debug app for testing.
+- [x] Diagnose temporary full-keyboard cancellation and stale number-row state.
+- [x] Make the number-row collapse gesture cancel temporary full-keyboard mode.
+- [x] Gate forced number-row visibility on the active keyboard window.
+- [x] Rebuild and install the corrected debug app for retesting.
+- [x] Reassess temporary full keyboard UX and identify the split-state design issue.
+- [x] Replace the patched KawaiiBar-number-row approach with a real keyboard layout.
+- [x] Keep KawaiiBar as the toolbar while temporary full keyboard is active.
+- [x] Add an explicit normal-layout/T9 exit key inside the temporary full keyboard.
+- [x] Rebuild and install the redesigned debug app for retesting.
+- [x] Make temporary full keyboard lowercase display ignore the regular uppercase-display preference.
+- [x] Remove comma, emoji, and Unicode shortcuts from the temporary full keyboard.
+- [x] Rebuild and install the tuned temporary full keyboard for retesting.
+- [x] Rename the status shortcut to password mode.
+- [x] Activate `keyboard-us` when entering password mode and restore the previous IM on exit when safe.
+- [x] Tune the password-mode bottom row spacing around T9, symbol, language, space, and return.
+- [x] Rebuild and install the password-mode update for retesting.
+- [x] Reduce password-mode letter and swipe-symbol label sizes to avoid overlap.
+- [x] Directly request `keyboard-us` activation when entering password mode.
+- [x] Rebuild and install the password-mode polish update for retesting.
+- [x] Retune password-mode alphabet labels to stay readable while avoiding overlap through spacing.
+- [x] Apply the password-mode alphabet key factory to the `zxcvbnm` row.
+- [x] Temporarily apply password capability flags so manual password mode can reach `keyboard-us` even when it is not enabled.
+- [x] Run narrow static/Kotlin checks for the password-mode follow-up.
+- [x] Inspect password-mode bottom row on the true device.
+- [x] Add lightweight key boundaries and wider cells for the password-mode `T9` and symbol commands.
+- [x] Rebuild, install, and screenshot-check the visual spacing tweak.
+- [x] Remove the mistaken key-boundary treatment from password-mode `T9` and symbol commands.
+- [x] Balance the `T9`, symbol, and language cell widths for equal perceived gaps.
+- [x] Rebuild, install, and screenshot-check the corrected visual spacing tweak.
+- [x] Tighten the password-mode `T9` to symbol gap by narrowing the `T9` cell.
+- [x] Rebuild and install the tightened spacing build.
+- [x] Compare the regular T9 and password-mode bottom rows on device.
+- [x] Add leading whitespace before password-mode `T9` without moving the symbol command.
+- [x] Rebuild, install, and screenshot-check against the T9 reference.
+- [x] Identify the money-symbol status shortcut as the Fcitx punctuation action.
+- [x] Hide the punctuation shortcut from the three-dot status panel.
+- [x] Keep only the effective Rime/plugin text match for the `¥ -> $` shortcut.
+- [x] Run a narrow Kotlin compile check for the status-panel change.
+- [x] Build, install, and select the updated debug IME for device retesting.
+- [x] Capture the current two-row status panel on device.
+- [x] Tune status-panel cell spacing and label margins.
+- [x] Rebuild, install, and screenshot-check the status-panel spacing.
+- [x] Change status-panel labels from centered to leading alignment.
+- [x] Rebuild, install, and screenshot-check leading label alignment.
+- [x] Restore centered labels and add rounded elevated option tiles.
+- [x] Rebuild, install, and screenshot-check elevated option tiles.
+- [x] Make elevated status option tiles square and tighten icon-label spacing.
+- [x] Add smaller adaptive label sizing for long status option labels.
+- [x] Try explicit rounded status option boxes without shadows.
+- [x] Remove status option boxes and switch labels to vertical text.
+- [x] Screenshot-check vertical status labels on the three-dot panel.
+- [ ] Add leading margin and tighten icon-label grouping in vertical status cells.
+- [ ] Remove status icons and emphasize active vertical labels directly.
+- [x] Change the status page to a horizontal two-row grid.
+- [x] Move input method settings to the last top-row position.
+- [x] Tighten horizontal status column width and top-align vertical labels.
+- [x] Rename the compact status theme shortcut to skin theme.
+- [x] Move vertical status labels slightly upward.
+- [ ] Rebuild, install, and screenshot-check the horizontal vertical-label status page.
+- [x] Restore the previous Fcitx input method when password mode is left through picker-to-keyboard transitions.
+- [x] Slightly reduce password-mode key label sizes.
+- [x] Rebuild and install for password-mode restore retesting.
+- [x] Keep password mode active when returning from symbol-number mode through `ABC`.
+- [x] Replace duplicate Q-row digit swipe labels with unused common symbols.
+- [x] Move only password-mode digit-row labels downward to reduce the visual digit-to-letter gap.
+- [x] Rebuild, install, and screenshot-check the password-mode spacing.
+- [x] Make password-mode Q-row long-press popups use the same symbols as display/swipe.
+- [x] Rebuild and install the popup correction for device testing.
+- [x] Match password-mode digit-row text size to the symbol picker digit size.
+- [x] Rebuild, install, and screenshot-check the digit transition.
+- [x] Nudge password-mode digit labels further downward to match the symbol picker baseline.
+- [x] Rebuild, install, and screenshot-check the adjusted digit baseline.
+- [x] Add top-left/top-right rounded corners to the KawaiiBar container.
+- [x] Run a narrow Kotlin compile check for the top-bar corner change.
+- [x] Clip the full IME panel so the top corners are visually exposed.
+- [x] Build, install, and screenshot-check the top-bar corner change.
+- [x] Keep IME panel clipping top-only so the lower keyboard edge stays square.
+- [x] Give recently used picker items the same popup preview behavior as other picker pages.
+- [x] Suppress pressed foreground highlights on preview-bubble keys.
+- [x] Keep password mode on `keyboard-us` after Return/editor updates while the temporary layout remains active.
+- [x] Move password-mode digits into the KawaiiBar area and restore a four-row keyboard body.
+- [x] Run a narrow Kotlin compile check for the password/UI polish changes.
+- [x] Build, install, and screenshot-check the updated keyboard surface on device.
+- [x] Restore the KawaiiBar number-row digit size to the previous password-mode scale.
+- [x] Prefer the device display rounded-corner radius for the IME top edge.
+- [x] Run a narrow Kotlin compile check for the digit/radius follow-up.
+- [x] Replace device-display top radius with a separate theme preference.
+- [x] Run a narrow Kotlin compile check for the input panel top-radius preference.
+- [x] Diagnose the Return-triggered temporary switch from password English back to Rime.
+- [x] Preserve manual password mode across same-editor restarts.
+- [x] Apply the password capability overlay before Fcitx refocuses during password-mode restarts.
+- [x] Review password-mode layout/input-method switching paths for fragile state coupling.
+- [x] Run a narrow Kotlin compile check for the restart fix.
+- [x] Fix leaked `keyboard-us` in ordinary T9 after leaving password mode.
+- [x] Remove the enabled-list guard from password-mode previous-IME restore.
+- [x] Add a non-password input-session recovery for leaked password fallback IME.
+- [x] Run a narrow Kotlin compile check for the leaked-IME fix.
+- [x] Fold the password-mode leading spacer into the `T9` exit key hit area.
+- [x] Keep the `T9` visual label position balanced after widening its key.
+- [x] Run a narrow Kotlin compile check for the bottom-row hit-area fix.
+- [x] Convert layout/picker switch keys from gray pressed feedback to preview bubbles.
+- [x] Give the password-mode `T9` exit key the same bubble-first press feedback.
+- [x] Run a narrow Kotlin compile check for the feedback change.
+- [x] Scope password-mode `keyboard-us` reassertion to the visible password keyboard.
+- [x] Convert remaining non-space/non-return keyboard keys to compact bubble feedback.
+- [x] Rebuild, install, and screenshot-check the compact popup feedback.
+- [ ] Give compact preview bubbles enough height to stay visible under a finger.
+- [ ] Separate short preview geometry from long-press popup keyboard positioning.
+- [ ] Route picker embedded-keyboard popup feedback for `ABC`, comma, period, and `123`.
+- [ ] Use icon preview bubbles for emoji/image keys where appropriate.
+- [x] Align preview icon/text content at the top and prevent `ABC` auto-scaling.
+- [x] Match compact preview label sizes to their source key labels.
+- [x] Enable compact preview bubbles for emoji, emoticon, and emoji-page backspace picker cells.
+- [x] Make compact preview bubble width adapt to its text/icon content.
+- [ ] Rebuild, install, and screenshot-check popup geometry and picker bottom-row feedback.
+- [x] Diagnose Chinese T9 first-input and final-delete floating candidate flicker.
+- [x] Stage floating T9 candidate visibility until layout and position are ready.
+- [x] Run a narrow Kotlin compile check for the floating candidate flicker fix.
+- [x] Add opportunistic auto-enable for password mode on password-capability fields.
+- [x] Keep manual password-mode toggle and same-session manual-off suppression.
+- [x] Run a narrow Kotlin compile check for password-mode auto-enable.
+- [x] Reproduce the WebView password-field auto-enable miss on the true device.
+- [x] Recompute view-stage capability flags before starting the keyboard UI.
+- [x] Start the input UI for password fields even in physical T9 mode.
+- [x] Run a narrow Kotlin compile check for the WebView password-field fix.
+- [x] Build, install, and screenshot-check automatic password mode on the true device.
+- [x] Review automatic password-mode exit paths for `keyboard-us` leakage.
+- [x] Restore or recover the input method when leaving password mode for a normal field.
+- [x] Make same-editor restart preservation source-aware for automatic password mode.
+- [x] Broadcast non-password start-input events when a visible password keyboard must be cleared.
+- [x] Run a narrow Kotlin compile check for the password-mode leak guard.
+- [x] Build, install, and verify password-to-normal-field restores Zhongzhouyun on device.
+
 - [x] Connect the GitHub repository through the GitHub plugin.
 - [x] Bump app and Gradle version metadata to `3.0.1`.
 - [x] Add matching Play release notes for the new ABI-derived version code.
@@ -366,3 +521,46 @@ Rizum Guidelines are active for this project/thread until the user says otherwis
 - [x] Removed the abandoned GitHub remote APK build workflow.
 - [x] Changed the T9 Hanzi candidate budget default from 12 to 10.
 - [x] Kept the Rime plugin on inherited shared versioning with no local override.
+
+## Status Action Menu Follow-up
+
+- [x] Document the `< >` fallback-icon problem and the status submenu mismatch.
+- [x] Add stable fallback labels for empty Fcitx/Rime status actions.
+- [x] Replace the status action platform popup menu with a themed in-IME menu.
+- [x] Update the README installation steps to use the current Rime text menu.
+- [x] Run a narrow Kotlin compile check for the status-menu changes.
+
+## Password Auto Mode T9 Exit Follow-up
+
+- [x] Document the automatic-password `T9` exit failure mode.
+- [x] Trace password-mode exit, auto-enable, and IME reassertion state.
+- [x] Make the `T9` exit key suppress automatic password re-entry for the current session.
+- [x] Run a narrow Kotlin compile check for the exit-state fix.
+
+## Chinese T9 Candidate Position Follow-up
+
+- [x] Re-audit the floating T9 candidate display and positioning paths.
+- [x] Identify height-dependent above/below placement as the remaining flicker cause.
+- [x] Pin Chinese T9 composition candidate placement above the cursor from the first frame.
+- [x] Run a narrow Kotlin compile check for the candidate-position fix.
+
+## Chinese T9 Candidate Staging Follow-up
+
+- [x] Re-audit the Chinese T9 local refresh and Fcitx candidate event sequence.
+- [x] Suppress preview-only/stale candidate frames while waiting for engine candidates.
+- [x] Run a narrow Kotlin compile check for the staging fix.
+- [x] Keep the already-visible complete candidate bubble while waiting for the next engine page.
+- [x] Run a narrow Kotlin compile check for the continuation smoothing fix.
+- [x] Delay the first visible pinyin chip row until RecyclerView completes its child layout.
+- [x] Run a narrow Kotlin compile check for the pinyin-row reveal fix.
+- [x] Defer first pinyin row reveal by one animation frame after RecyclerView pre-draw.
+- [x] Run a narrow Kotlin compile check for the frame-deferred reveal fix.
+- [x] Carry hidden pinyin adapter changes into the next delayed visible reveal.
+- [x] Run a narrow Kotlin compile check for the hidden-update reveal fix.
+- [x] Stop global-layout width sync from bypassing a pending delayed pinyin-row reveal.
+- [x] Run a narrow Kotlin compile check for the reveal-bypass fix.
+- [x] Restore first-row topReading behavior after rejecting the duplicate-preview hypothesis.
+- [x] Replace the pinyin chip RecyclerView with a synchronous horizontal chip row.
+- [x] Run a narrow Kotlin compile check for the pinyin-row replacement.
+- [x] Remove the old RecyclerView delayed reveal from the synchronous pinyin row.
+- [x] Run a narrow Kotlin compile check for the immediate pinyin-row reveal.

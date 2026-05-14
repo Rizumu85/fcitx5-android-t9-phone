@@ -84,14 +84,16 @@ class NumberRow(ctx: Context, theme: Theme) : BaseKeyboard(ctx, theme, Layout) {
                 KeyDef(
                     KeyDef.Appearance.Text(
                         displayText = digit,
-                        textSize = 21f,
+                        textSize = 19f,
+                        verticalBias = 0.80f,
                         border = KeyDef.Appearance.Border.Off,
-                        margin = false
+                        margin = false,
+                        pressHighlight = false
                     ),
                     setOf(
                         KeyDef.Behavior.Press(KeyAction.SymAction(KeySym(digit.codePointAt(0))))
                     ),
-                    arrayOf(KeyDef.Popup.Preview(digit))
+                    arrayOf(KeyDef.Popup.Preview(digit, textSize = 19f))
                 )
             }
         )

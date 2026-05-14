@@ -2,8 +2,368 @@
 
 ## Current Task
 
-Prepare the 3.0.1 release after the accepted chat-return and dialer passthrough
-fixes.
+Make password fields automatically show a password-friendly on-screen keyboard:
+the existing 26-key QWERTY layout, the existing top number row, and the existing
+letter-key swipe symbols.
+
+## Status Action Label Follow-Up
+
+- The compact status panel previously used `中州韵` / `Rime` as the fallback
+  label for the Rime status action when Fcitx did not provide visible action
+  text. On a fresh installation this is confusing because the user has not yet
+  deployed or selected a real Rime schema.
+- The friendly fallback should describe the user task: dictionary/schema
+  switching.
+- Rime action submenus should not reuse the top-level fallback. During redeploy
+  or schema transitions, some submenu actions can have empty display text; those
+  rows should be hidden instead of being rendered as the fallback label.
+- Success criteria: the top-level empty Rime status action shows the dictionary
+  switching fallback, while action-menu rows only appear when Fcitx provides a
+  real short or long label.
+- Follow-up bug: after opening the dictionary-switch action menu, the title-bar
+  back arrow returned directly to `KeyboardWindow`. This happens because
+  `KawaiiBarComponent` hard-codes every extended window's title back button to
+  the keyboard. The dictionary-switch action menu needs a parent-window return
+  path back to `StatusAreaWindow`.
+
+## Temporary Full Keyboard Mode
+
+- User testing found the password-field auto trigger unreliable: 1Password,
+  browser password fields, and app password fields did not consistently expose
+  capability flags that activated the automatic 26-key override.
+- User also wants the same full-keyboard surface for verification-code fields,
+  which are not necessarily password fields.
+- User decision: stop relying on automatic password detection. Add a temporary
+  full-keyboard toggle in the input method's three-dot/status shortcut area.
+- Reuse finding: `TextKeyboard` already provides the 26-key layout, with digit
+  alternatives on the top letter row and punctuation alternatives on other
+  letter keys.
+- Reuse finding: `AlphabetKey` plus `BaseKeyboard` already implement swipe
+  symbol input through `Behavior.Swipe` and `swipeSymbolDirection`.
+- Reuse finding: `NumberRow` already provides the top digit row, and
+  `KawaiiBarComponent` can show it above the keyboard.
+- Implementation finding: `KeyboardWindow.switchLayout()` normally remaps
+  `TextKeyboard` back to `T9Keyboard` while T9 mode is enabled. The temporary
+  full-keyboard mode needs a narrow bypass for that remap.
+- Success criteria: tapping the status shortcut toggles a temporary 26-key
+  layout with the top number row; tapping it again restores the normal T9/26-key
+  preference; ordinary input start resets the temporary mode so it is not a
+  persistent user setting.
+- Follow-up bug: once temporary full-keyboard mode shows the number row, the row
+  replaces the toolbar and hides the three-dot status shortcut, so the user has
+  no visible way to cancel the mode. Use the number-row collapse gesture as the
+  keyboard-surface cancellation path and switch back to the normal layout.
+- Follow-up bug: after opening symbol/emoji windows and returning, the keyboard
+  can leave a stale number row even though the current window is not the
+  temporary full keyboard. Number-row visibility must be tied to the active
+  keyboard window, not only the temporary flag.
+- UX review: the patched approach is still wrong because it combines one mode
+  across `StatusAreaWindow`, `KeyboardWindow`, and `KawaiiBarComponent`. The
+  entry point disappears after activation, cancellation depends on a hidden
+  number-row gesture, and picker windows can still expose mismatched state.
+- Redesign direction: make temporary full keyboard a real `KeyboardWindow`
+  layout. Its own keyboard body should contain the digit row, 26-key text rows,
+  swipe symbols, and an explicit key to return to the normal T9 layout. The
+  KawaiiBar should remain the toolbar/status surface and should not be replaced
+  by this mode's digit row.
+- Follow-up UX tuning: in this password/verification-code-focused layout,
+  lowercase state should display lowercase letters even if the regular keyboard
+  preference keeps letters uppercase. Remove comma, emoji, and Unicode shortcuts
+  from this layout; keep only the same symbol entry used by the T9 keyboard.
+- Follow-up behavior requirement: entering this mode should activate the Fcitx
+  `keyboard-us` input method, not the app's T9 English mode, so letters and
+  digits commit directly instead of feeding Rime/T9 pinyin. On exit, restore the
+  previous input method if the current method is still `keyboard-us`.
+- Rename the user-facing status entry from temporary full keyboard to password
+  mode because the feature is for passwords and verification codes.
+- Follow-up visual tuning: the password keyboard has five rows, so reusing the
+  regular text key label sizes makes the main letter and swipe-symbol labels
+  collide. Password-mode alphabet keys need smaller main and alt labels.
+- Follow-up activation bug: checking whether `keyboard-us` was enabled before
+  activation could skip the password-mode input-method switch on device. The
+  mode should directly request `keyboard-us` activation and let Fcitx handle the
+  known built-in input method.
+- Follow-up user testing: the password-mode alphabet labels were reduced too
+  aggressively for a small screen, and the `zxcvbnm` row did not use the tuned
+  password alphabet key at all because it still reused the regular
+  `TextKeyboard` third row.
+- Input-method activation finding: Fcitx's native password-field path can reach
+  `keyboard-us` even when the user removed it from the enabled input-method
+  group, because `CapabilityFlag.Password` bypasses the current group and falls
+  back to the default keyboard layout. Manual password mode should mimic that
+  capability for the current input context instead of mutating the user's
+  enabled input-method list.
+- Success criteria for this follow-up: all three alphabet rows use the same
+  password-mode label sizing, the labels are only slightly smaller than the
+  regular text keyboard, extra vertical room comes from password-key spacing,
+  and entering/exiting password mode temporarily applies/restores the original
+  capability flags so `keyboard-us` can be selected through the same path as
+  automatic password fields.
+- True-device screenshot finding: the password-mode bottom-left `T9`, `符号`,
+  and language keys should remain unframed controls, but their visual gaps must
+  read evenly. Balance the fixed widths so the glyph gap from `T9` to `符号`
+  matches the gap from `符号` to the language icon.
+- Follow-up visual correction: user testing still perceived `T9` as too far
+  ahead of the symbol command. Narrow the `T9` cell so the symbol command moves
+  left and the first two commands read as one tighter control cluster.
+- Follow-up reference comparison: after comparing the real T9 bottom row,
+  password mode needs leading whitespace before the first `T9` glyph, similar
+  to the natural leading whitespace before `符号` in the T9 layout. Add a narrow
+  spacer before `T9` and reduce the `T9` cell by the same total width so the
+  symbol command's position does not drift.
+- Status shortcut cleanup request: keep the emoji-face shortcut visible, but
+  hide the money-symbol shortcut from the Android three-dot status panel.
+  User testing confirmed the effective match is the Rime/Zhongzhouyun plugin
+  action text shown as `¥ -> $`, not the Chinese Addons icon name. Hide only
+  Fcitx status actions whose compact short text contains both a yen/yuan sign
+  and `$`, leaving the underlying plugin action available internally.
+- Status panel visual finding from device screenshot: with two rows and five
+  columns, the status panel reads crowded because the 48dp icon circles dominate
+  each cell, labels have little horizontal inset, and the first/last columns sit
+  close to the screen edges. Tune the cell geometry rather than changing the
+  feature set: slightly smaller icon circles, more label inset, and stable cell
+  height.
+- Follow-up visual direction: centered two-line labels still look visually
+  unstable in a compact tool grid because each wrapped label has a different
+  center. Align labels to the leading edge inside each cell so row text starts
+  consistently while remaining vertically centered.
+- Follow-up user decision: restore centered labels, but make each option a
+  rounded elevated tile. The tile should use soft shadow/elevation rather than
+  a stroke outline so the panel reads as grouped controls without adding hard
+  borders.
+- Device screenshot finding: letting the rounded tile fill the RecyclerView's
+  tall grid row makes each option look too heavy and pushes the second row to
+  the bottom edge. Keep the tile height compact and center it within the grid
+  row.
+- Follow-up user direction: keep the card treatment closer to the first elevated
+  version, but make each option a square tile. Tighten the distance between icon
+  and label, use a slightly smaller label, and center the compact content group
+  inside the square.
+- Follow-up square-card refinement: same-color elevated cards can visually merge
+  into a strip when the tiles are too wide and close together. Make the square
+  smaller than the column width so the shadows break between options. Keep the
+  default label size, but shrink labels whose text is longer than five code
+  points.
+- User rejected the shadow-only approach because it still does not show
+  independent boxes clearly enough. Switch from elevation separation to an
+  explicit rounded stroke box for each option.
+- Follow-up user decision: abandon boxed status options. Try vertical status
+  labels instead, because the compact five-column panel does not have enough
+  horizontal room for long Chinese labels. Place the icon and vertical label as
+  one compact group, without card backgrounds or strokes.
+- Follow-up visual issue: active entries still draw the icon circle background,
+  and that can be clipped in the dense vertical layout. Remove icons from the
+  status option cells entirely. For active entries, emphasize the vertical text
+  itself with the active background color and active foreground text color.
+  Replace right arrows with down arrows in vertical labels.
+- Follow-up layout direction: make the three-dot status page scroll
+  horizontally with two rows. Put the fixed Android settings on the top row of
+  the first page, with input method settings as the last top-row item. Fcitx
+  status actions fill the bottom row, and any later extra items continue to the
+  right in top/bottom pairs.
+- Password-mode font check: `TemporaryFullKeyboard` does not request bold text
+  for alphabet keys. It only sets a smaller password-mode alphabet size
+  (`21f`) and uses the regular `AlphabetKey`/`KeyTextStyle.Normal` path, so any
+  heavy appearance likely comes from the selected font face or the device's
+  rasterization at that size.
+- Follow-up status polish: the status-panel theme shortcut should read as
+  "skin theme" in Chinese to distinguish it from generic app themes. Move
+  vertical labels slightly upward so the lower row has more breathing room.
+- Password-mode restore bug: entering password mode stores the previous Fcitx
+  input method and activates `keyboard-us`. Opening the symbol picker keeps
+  `temporaryTextKeyboard` active because picker keys are not real keyboard
+  layouts. From that picker, switching to the numeric keyboard calls
+  `KeyboardWindow.switchLayout(NumberKeyboard.Name)`. The old code set
+  `temporaryTextKeyboard = false` for that real keyboard layout but did not call
+  `restoreInputMethodBeforeTemporary()`, so `keyboard-us` remained active. A
+  later return to T9 only changed the keyboard layout and no longer had a
+  temporary-mode transition to restore the previous IME.
+- Follow-up restore correction: the numeric keyboard is also reachable as a
+  temporary password-mode sublayout through the symbol picker. Treating every
+  real keyboard layout except `TemporaryFullKeyboard` as "leaving password
+  mode" makes the `ABC` key return to normal T9 instead of the password QWERTY
+  layout. Keep temporary mode active for `NumberKeyboard`; restore the previous
+  capability flags and input method only when switching to a real non-temporary
+  layout such as T9 or the normal text keyboard.
+- Password-mode visual finding: the top Q row repeated the dedicated digit row
+  by using `1` through `0` as swipe alternatives. Replace those alternatives
+  with common symbols that are not already used on the lower alphabet rows, so
+  the top digit row has a clear purpose and the Q row remains useful.
+- Follow-up spacing correction: the visual gap is between the dedicated digit
+  row text and the first alphabet row, not the alphabet label size. Keep the
+  password alphabet sizes readable and move only the password digit-row labels
+  slightly downward inside their cells.
+- Follow-up popup mismatch: letter long-press popups do not read the displayed
+  alt label. They use `PopupPreset` by the popup keyboard label, so `q` through
+  `p` still offered `1` through `0` even after password-mode display and swipe
+  symbols changed. Password-mode Q-row keys need custom popup keyboard entries
+  that match their password symbols, while the regular text keyboard should keep
+  the shared Latin popup preset.
+- Follow-up digit jump: the symbol picker uses `PickerPageUi.Density.High`
+  with `19f` text for its first-page digits, while password mode used `20f` for
+  its dedicated digit row. Switching from password mode to the symbol picker
+  therefore made the same `1` through `0` row visibly resize. Match only the
+  password digit-row size to the symbol picker; keep password alphabet labels at
+  their readable size.
+- Follow-up digit alignment: after matching the text size, the password digit
+  row still sits slightly higher than the symbol picker's first digit row during
+  the transition. Move the password digit-row labels a little further downward
+  without changing the alphabet rows.
+- Top bar polish request: the user wants the KawaiiBar/top control strip to
+  have rounded upper-left and upper-right corners. Apply the radius to the
+  KawaiiBar container background so idle, candidate, and title/status-extension
+  states share the same top-corner treatment.
+- Screenshot finding: rounding only the KawaiiBar background is not visually
+  sufficient because the full keyboard background sits behind it as a square
+  surface. Clip the whole IME panel container to a rounded outline so the upper
+  corners reveal the app behind the keyboard.
+- Follow-up corner correction: clipping the whole IME panel with a normal round
+  rectangle also rounds the bottom of the keyboard surface, but only the top
+  edge should be rounded. Keep the same top clipping while extending the outline
+  below the view so the bottom corner arcs fall outside the visible panel.
+- Popup-preview visual finding: keys that show a preview bubble also keep the
+  regular press foreground highlight, leaving a gray block visible under the
+  bubble. Preview-capable keys should keep the bubble feedback but skip the
+  underlying press tint.
+- Picker finding: recently used emoji/symbol cells did not receive the shared
+  popup action listener, so they lacked the same preview bubble behavior as the
+  other picker pages. The recent page should use the same preview listener.
+- Follow-up popup scale finding: compact preview bubbles used one fixed label
+  size, so smaller function keys such as `ABC` and `符号` looked enlarged in the
+  bubble. Preview labels should inherit the source key's display text size when
+  it is known, with a default only for generic picker cells.
+- Follow-up picker preview finding: emoji and emoticon picker windows still set
+  `popupPreview = false`, so `PickerWindow` filtered out the preview actions
+  emitted by their grid cells and by the emoji-page backspace key. Enable the
+  same compact preview path for these picker windows now that long-press
+  popups dismiss the short preview first.
+- Follow-up bubble-width finding: the compact preview width was widened as a
+  fixed visual compromise, but it should instead measure the pressed key
+  content and clamp to compact bounds so short labels do not create overly wide
+  bubbles.
+- Password auto-enable retry finding: Jelly/WebView password fields can expose
+  a different `EditorInfo` between `onStartInput` and `onStartInputView`. The
+  system dump showed the focused password field as `inputType=0xe1`, but the
+  UI still received the earlier non-password capability flags, so automatic
+  password mode did not activate. Recompute capability flags at
+  `onStartInputView` before broadcasting to the keyboard UI.
+- Follow-up auto-enable finding: in physical T9 mode,
+  `InputDeviceManager.evaluateOnStartInputView()` returns false because the IME
+  is not using the Android virtual-keyboard path. That skipped
+  `InputView.startInput()` entirely, leaving `KeyboardWindow` with no password
+  start-input broadcast even though the compact input view stayed visible. For
+  password fields, still start the input UI unless the field is dialer
+  passthrough.
+- Password-mode leak review finding: when automatic password mode enters a
+  password field, Fcitx may already have selected `keyboard-us` before
+  `KeyboardWindow` saves the previous input method. Leaving that password field
+  for a normal T9 field must therefore clear the temporary layout and stale
+  password capability state without losing the chance to recover from a leaked
+  `keyboard-us` input method.
+- WebView restart finding: switching from an automatic password field to a
+  normal text field in the same WebView can still arrive as `restarting=true`.
+  Restart preservation must distinguish manual password mode from automatic
+  password mode: manual mode may survive non-password restarts, but automatic
+  mode should survive only while the new capability flags still contain
+  `Password`.
+- Follow-up leak finding: `TYPE_TEXT_VARIATION_WEB_EDIT_TEXT` is correctly not
+  a password field, but physical T9 mode skips `InputView.startInput()` for
+  non-password fields. If the visible keyboard is still the temporary password
+  layout, the UI must still receive that non-password start-input event so it
+  can exit before `onImeUpdate` reasserts `keyboard-us`.
+- Chinese T9 floating-candidate flicker finding: the floating `CandidatesView`
+  can become `VISIBLE` before its T9 preedit/pinyin/candidate rows have
+  completed measurement and before the final above-cursor position has been
+  applied. On slower devices this exposes one frame at the lower anchor, then
+  the pre-draw reposition moves it to the correct upper position. Deleting the
+  final pinyin can similarly expose stale measured content for a frame before
+  the view is hidden.
+- Password-mode auto-enable retry: now that password mode is a self-contained
+  keyboard layout with an explicit `T9` exit key, password fields that do expose
+  `CapabilityFlag.Password` can automatically enter the same password mode.
+  Keep the three-dot manual toggle as the fallback for fields and WebViews that
+  still do not report password capability. If the user manually turns password
+  mode off inside a password field, suppress re-auto-enabling for that input
+  session so the manual decision sticks until a new field starts.
+- Password-mode regression: pressing Return can leave the temporary password
+  keyboard visible while Fcitx has switched away from `keyboard-us`. While the
+  temporary keyboard remains active, input-method updates should reassert
+  `keyboard-us` through the password capability path without overwriting the
+  original input method to restore later.
+- Password-mode layout finding: keeping a dedicated digit row inside the
+  keyboard body forces five rows into the same height as other keyboard
+  layouts, making the alphabet rows feel cramped. Since password mode now has
+  an explicit T9 exit key, the digit row can occupy the KawaiiBar area instead
+  of the keyboard body, preserving a stable total IME height while giving the
+  alphabet rows more usable space.
+- Mode-switch feedback finding: text and image keys that only switch layouts or
+  picker pages still use the generic pressed foreground, so `符号`, emoji, and
+  password-mode `T9` show a gray block while comparable text-entry keys use a
+  preview bubble. These navigation keys should use the popup preview as their
+  primary press feedback and opt out of the pressed foreground overlay.
+- Follow-up digit-size correction: after moving password-mode digits into the
+  KawaiiBar number-row surface, they inherited the shared toolbar number row's
+  larger `21f` label size. Password mode should keep the previous dedicated
+  digit-row scale, `19f`, with the same lower baseline bias.
+- Follow-up corner-radius request: the top IME panel should not follow the
+  device display rounded-corner value because some Android devices do not expose
+  a useful radius. Default the panel top radius to the same `4dp` scale as the
+  T9 pinyin/candidate chips, but keep it as a separate theme setting.
+- Follow-up password-mode restart bug: pressing Return can make the editor
+  restart the same input connection. `FcitxInputMethodService.onStartInput()`
+  then writes the original editor capability flags back to Fcitx before
+  `KeyboardWindow.onImeUpdate()` has a chance to reassert password mode, so
+  Fcitx briefly switches back to the user's Rime/T9 input method and only then
+  returns to `keyboard-us`. Same-editor restarts should keep the manual
+  password-mode capability overlay before Fcitx refocuses.
+- Switching-code review finding: `onStartInput()` did not distinguish a new
+  input session from a same-editor restart, even though the user-facing policy
+  is "reset password mode for new input fields, keep it for the active field."
+  Passing the `restarting` flag through the input broadcast lets
+  `KeyboardWindow` apply that policy explicitly.
+- Follow-up leak bug: after leaving password mode, ordinary T9 can show
+  `English（中）`. That means the visible layout and T9 mode returned to normal,
+  but Fcitx's active input method is still the password fallback
+  `keyboard-us`. The restore path was too conservative because it restored the
+  previous input method only when the current method was still `keyboard-us` and
+  the previous method appeared in `enabledIme()`. Rime/plugin methods may not
+  match that enabled-list check exactly, and a leaked `keyboard-us` can also be
+  present at a new non-password input start.
+- Follow-up bottom-row hit-area issue: password mode used a real `SpacerKey`
+  before the `T9` exit key to create visual leading whitespace. That spacer had
+  its own key view, so pressing the blank area could draw an independent press
+  highlight, while the actual `T9` key was only `0.08f` wide and felt too tight.
+  The leading whitespace should be part of the `T9` key's touch/highlight area
+  instead of a separate key.
+- Follow-up IME fallback bug: the password-mode reassert path only checked the
+  broad `temporaryTextKeyboard` flag. If that flag survived after the password
+  keyboard was no longer the visible foreground layout, a user switch back to
+  Zhongzhouyun could be immediately overwritten by `keyboard-us`, producing the
+  visible `English（中）` flash and trapping the user in the fallback input
+  method. Reassert `keyboard-us` only while the temporary password keyboard is
+  actually the visible keyboard window.
+- Follow-up key feedback request: all keyboard-surface keys except Space and
+  Return should use popup-bubble feedback instead of the gray pressed overlay.
+  The bubble should be shorter and use normal-size text so labels such as
+  `符号` are visible instead of being cropped.
+- Follow-up popup tuning: the first compact bubble was too short and could be
+  covered by the user's finger. It also reused the same height value as the
+  long-press popup keyboard offset, so shrinking the preview pulled long-press
+  multi-option popups too low and made the two popup surfaces conflict. Keep
+  separate preview and long-popup offset heights. When the long-popup opens,
+  remove the short preview bubble entirely; do not show both at once.
+- Follow-up missing-feedback finding: picker windows attach their embedded
+  bottom keyboard with only `keyActionListener`, not `popupActionListener`.
+  Therefore the symbol page's `ABC`, quick comma, period, and number-mode switch
+  did not show the new bubble feedback even though their key definitions had
+  preview popups.
+- Follow-up emoji preview request: icon keys such as emoji should show the same
+  vector icon inside the preview bubble, not a replacement emoji character.
+- Follow-up preview alignment finding: the icon preview was centered in the
+  whole taller bubble while text previews sit in the top key-height region, so
+  emoji looked too low. `ABC` also appeared enlarged because the preview used
+  `AutoScaleTextView`; use a normal `TextView` and put both text and icons in
+  the top preview region.
 
 ## 3.0.1 Release Preparation
 
@@ -1104,3 +1464,138 @@ Second-pass fix:
 - Removed the abandoned GitHub remote APK build workflow.
 - Changed the T9 Hanzi candidate budget default from 12 to 10.
 - Kept the Rime plugin on inherited shared versioning with no local override.
+
+## Status Action Menu Follow-up
+
+- The old README referred to the Rime status entry as the `< >` icon. That icon
+  is only the Android fallback for unknown Fcitx action icons; after the status
+  panel switched to text-only vertical labels, the user-facing anchor must be a
+  stable label instead of a fallback icon.
+- `StatusAreaEntry.fromAction()` currently uses `Action.shortText` directly.
+  Rime's main action usually returns the active schema name, but a not-yet-ready
+  or otherwise empty action can render as a blank cell in the text-only status
+  panel.
+- Status actions with submenus still use Android's platform `PopupMenu`. That
+  menu does not share the IME theme colors or input UI font, so the Rime deploy
+  and sync page feels inconsistent with the in-IME settings/status UI.
+- Success criteria: Fcitx actions have a readable fallback label, Rime-like
+  actions fall back to a localized Rime/Zhongzhouyun label, status submenus are
+  displayed inside the IME with the current theme and font, and the README
+  installation steps describe the current text UI instead of the removed `< >`
+  icon.
+
+## Password Auto Mode T9 Exit Bug
+
+- User report: focusing a password field opens password mode, then tapping the
+  in-layout `T9` exit key enters a strange state.
+- Likely risk area: automatic password mode is driven by password capability
+  flags, while `T9` is a user intent to leave password mode for the current
+  focused password field. If the exit key clears the temporary layout but does
+  not record a manual-off suppression, the same password-capability input
+  session can immediately re-enter or keep reasserting `keyboard-us`.
+- Success criteria: pressing `T9` from automatically entered password mode
+  disables password mode for the current password session, restores the normal
+  T9 layout/input method, and does not auto-reopen password mode until a fresh
+  non-restarting input session clears that suppression.
+- Device screenshot finding: before the fix, after password mode was exited and
+  focus moved to the normal field, the password digit row remained in the
+  KawaiiBar area while the normal T9/status controls were underneath it. This
+  was the visible "strange state": stale KawaiiBar password-number-row state,
+  not a missing keyboard layout attachment.
+- Verification screenshot after installing the fix: pressing `T9` in the
+  password field leaves only the normal toolbar/status rows, and moving focus to
+  the normal field no longer leaves the digit row behind.
+
+## Chinese T9 Candidate Position Flicker Follow-up
+
+- User report: in Chinese T9 pinyin input, the first keypress briefly shows the
+  pinyin preview and one pinyin-filter chip lower on screen, then the full
+  pinyin/candidate UI jumps upward. Deleting the last pinyin still makes the
+  Chinese candidate part flash lower before disappearing.
+- Code audit finding: `CandidatesView.updatePosition()` chooses below or above
+  the cursor based on the currently measured candidate bubble height. The first
+  local T9 render is short because it may contain only the top reading and
+  pinyin row before Rime/bulk Hanzi candidates arrive, so it can fit below the
+  cursor. When candidates arrive, the bubble height grows and the same logic
+  moves it above the cursor. Deletion can pass through the same intermediate
+  height/content states before the view is hidden.
+- Success criteria: while Chinese T9 composition or local punctuation candidate
+  UI is active, the floating candidate bubble should prefer the above-cursor
+  position from its first visible frame, so content changes do not move the
+  bubble between below-cursor and above-cursor positions.
+
+## Chinese T9 Candidate Staging Flicker Follow-up
+
+- User retest: the candidate bubble position is now stable, but the first
+  Chinese T9 keypress still shows an incomplete UI first, then the real Hanzi
+  candidates arrive later, making the input feel laggy.
+- Code audit finding: physical Chinese T9 key-down updates the local
+  `T9CompositionTracker` and immediately calls `CandidatesView.refreshT9Ui()`
+  before Fcitx/Rime has returned the matching paged candidates. That local
+  refresh can render only the pinyin preview and pinyin-filter row, or can reuse
+  the previous paged candidate data for the new local composition. A later
+  `PagedCandidateEvent` replaces it with the real candidate row.
+- Success criteria: during Chinese T9 composition, local key-down changes should
+  not display a half-populated candidate bubble. The UI should either stay
+  hidden or wait for the matching engine candidate page, then show the complete
+  top reading, pinyin row, and Hanzi row together.
+- User retest after the first staging fix: suppressing every local refresh while
+  waiting for engine candidates makes continuous typing feel worse, because the
+  already-visible candidate bubble disappears between pinyin updates and then
+  reappears with the next page.
+- Refined success criteria: suppress the incomplete frame only when there is no
+  complete candidate bubble visible yet. Once a complete Chinese T9 candidate
+  bubble is already visible, keep that stable frame on screen while waiting for
+  the next engine candidate page, then replace it directly with the updated
+  candidates.
+- User retest: first input no longer shows the lower/incomplete candidate
+  bubble, but the pinyin filter chips themselves appear one by one on the first
+  visible frame. Later pinyin updates appear together.
+- Code audit finding: `T9PinyinChipAdapter.submitList()` updates the
+  RecyclerView data at once, but `setPinyinRowVisible()` can make the
+  RecyclerView visible before its first child layout pass for the new adapter
+  contents. On a small device this exposes child attachment as a progressive
+  chip reveal.
+- Success criteria: the first visible pinyin filter row should stay invisible
+  through its first RecyclerView layout/pre-draw pass, then show all currently
+  laid-out chips together.
+- User retest: the first pinyin chip still appears immediately, then the next
+  two chips appear together. This suggests the row is still being revealed in
+  the same pre-draw cycle where RecyclerView has not completed a stable visible
+  child set.
+- Follow-up success criteria: after the first pre-draw, keep the pinyin row
+  invisible for one more frame and reveal it from a posted animation callback,
+  so the first visible draw sees the full row rather than the first attached
+  child.
+- User retest: the first chip still appears immediately. The likely missed
+  case is that the pinyin adapter list changes while the whole candidate view
+  is still hidden waiting for engine candidates. When the engine page arrives,
+  the list is unchanged, so the reveal path thinks no delayed first layout is
+  needed and shows the RecyclerView immediately.
+- Follow-up success criteria: remember adapter changes that happen while the
+  pinyin row is hidden, and force the next visible reveal through the delayed
+  RecyclerView layout path even if the adapter list is unchanged by then.
+- Code audit follow-up: `bubble2Wrapper` has an `OnGlobalLayoutListener` that
+  directly calls `showPinyinRowNow()` when the pinyin row is target-visible and
+  invisible. After the delayed pre-draw listener removes itself but before the
+  posted animation-frame reveal runs, that global-layout callback can still
+  reveal the row early and bypass the delayed path.
+- Success criteria: global-layout width synchronization must not reveal the
+  pinyin row while a delayed first reveal is pending.
+- Rejected hypothesis: the flicker was not caused by the first-row
+  `topReading`. Suppressing matching `topReading` disturbed the first-row
+  display and could expose raw digit fallback text. The user's issue is
+  specifically in the second-row pinyin chips.
+- Deeper root-cause finding: using `RecyclerView` for the pinyin chip row makes
+  first display depend on child attach/bind timing. The row contains only a
+  small number of chips, so virtualization is unnecessary and creates visible
+  staged rendering on the target device.
+- Success criteria: render the pinyin chips with a simple horizontal view group
+  that rebuilds all chip views synchronously before the row becomes visible.
+- User retest after replacing RecyclerView: pinyin chips now appear together,
+  but they still appear later than `topReading` and the Hanzi row. This is the
+  old RecyclerView reveal delay still being applied after the row no longer
+  uses RecyclerView.
+- Success criteria: remove the pinyin-row pre-draw/animation-frame delay so the
+  synchronous chip row is made visible in the same `updateUi()` pass as the
+  first row and Hanzi row.

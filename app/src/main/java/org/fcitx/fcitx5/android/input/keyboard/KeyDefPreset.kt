@@ -28,13 +28,14 @@ class SymbolKey(
         displayText = symbol,
         textSize = 23f,
         percentWidth = percentWidth,
-        variant = variant
+        variant = variant,
+        pressHighlight = false
     ),
     setOf(
         Behavior.Press(KeyAction.FcitxKeyAction(symbol))
     ),
     popup ?: arrayOf(
-        Popup.Preview(symbol),
+        Popup.Preview(symbol, textSize = 23f),
         Popup.Keyboard(symbol)
     )
 )
@@ -42,21 +43,29 @@ class SymbolKey(
 class AlphabetKey(
     val character: String,
     val punctuation: String,
+    textSize: Float = 23f,
+    altTextSize: Float = 10.666667f,
     variant: Variant = Variant.Normal,
+    border: Border = Border.Default,
+    margin: Boolean = true,
     popup: Array<Popup>? = null
 ) : KeyDef(
     Appearance.AltText(
         displayText = character,
         altText = punctuation,
-        textSize = 23f,
-        variant = variant
+        textSize = textSize,
+        altTextSize = altTextSize,
+        variant = variant,
+        border = border,
+        margin = margin,
+        pressHighlight = false
     ),
     setOf(
         Behavior.Press(KeyAction.FcitxKeyAction(character)),
         Behavior.Swipe(KeyAction.FcitxKeyAction(punctuation))
     ),
     popup ?: arrayOf(
-        Popup.AltPreview(character, punctuation),
+        Popup.AltPreview(character, punctuation, textSize = textSize),
         Popup.Keyboard(character)
     )
 )
@@ -70,14 +79,15 @@ class AlphabetDigitKey(
     Appearance.AltText(
         displayText = character,
         altText = altText,
-        textSize = 23f
+        textSize = 23f,
+        pressHighlight = false
     ),
     setOf(
         Behavior.Press(KeyAction.FcitxKeyAction(character)),
         Behavior.Swipe(KeyAction.SymAction(KeySym(sym), NumLockState))
     ),
     popup ?: arrayOf(
-        Popup.AltPreview(character, altText),
+        Popup.AltPreview(character, altText, textSize = 23f),
         Popup.Keyboard(character)
     )
 ) {
@@ -118,10 +128,14 @@ class LayoutSwitchKey(
         textSize = 16f,
         textStyle = Typeface.BOLD,
         percentWidth = percentWidth,
-        variant = variant
+        variant = variant,
+        pressHighlight = false
     ),
     setOf(
         Behavior.Press(KeyAction.LayoutSwitchAction(to))
+    ),
+    arrayOf(
+        Popup.Preview(displayText, textSize = 16f)
     )
 )
 
@@ -163,13 +177,14 @@ class CommaKey(
         textSize = 23f,
         percentWidth = percentWidth,
         variant = variant,
-        src = R.drawable.ic_baseline_tag_faces_24
+        src = R.drawable.ic_baseline_tag_faces_24,
+        pressHighlight = false
     ),
     setOf(
         Behavior.Press(KeyAction.FcitxKeyAction(","))
     ),
     arrayOf(
-        Popup.Preview(","),
+        Popup.Preview(",", textSize = 23f),
         Popup.Menu(
             arrayOf(
                 Popup.Menu.Item(
@@ -212,7 +227,8 @@ class SpaceKey(percentWidth: Float = 0f) : KeyDef(
         percentWidth = percentWidth,
         border = Border.Special,
         viewId = R.id.button_space,
-        soundEffect = InputFeedbacks.SoundEffect.SpaceBar
+        soundEffect = InputFeedbacks.SoundEffect.SpaceBar,
+        pressHighlight = true
     ),
     setOf(
         Behavior.Press(KeyAction.SymAction(KeySym(FcitxKeyMapping.FcitxKey_space))),
@@ -227,7 +243,8 @@ class ReturnKey(percentWidth: Float = 0.15f) : KeyDef(
         variant = Variant.Accent,
         border = Border.Special,
         viewId = R.id.button_return,
-        soundEffect = InputFeedbacks.SoundEffect.Return
+        soundEffect = InputFeedbacks.SoundEffect.Return,
+        pressHighlight = true
     ),
     setOf(
         Behavior.Press(KeyAction.SymAction(KeySym(FcitxKeyMapping.FcitxKey_Return)))
@@ -249,17 +266,20 @@ class ImageLayoutSwitchKey(
     to: String,
     percentWidth: Float = 0.1f,
     variant: Variant = Variant.AltForeground,
-    viewId: Int = -1
+    viewId: Int = -1,
+    previewText: String? = null
 ) : KeyDef(
     Appearance.Image(
         src = icon,
         percentWidth = percentWidth,
         variant = variant,
-        viewId = viewId
+        viewId = viewId,
+        pressHighlight = false
     ),
     setOf(
         Behavior.Press(KeyAction.LayoutSwitchAction(to))
-    )
+    ),
+    previewText?.let { arrayOf(Popup.Preview(it, textSize = 16f)) }
 )
 
 class ImagePickerSwitchKey(
@@ -268,16 +288,22 @@ class ImagePickerSwitchKey(
     to: PickerWindow.Key,
     percentWidth: Float = 0.1f,
     variant: Variant = Variant.AltForeground,
-    viewId: Int = -1
+    viewId: Int = -1,
+    previewText: String = "",
+    @DrawableRes previewIcon: Int? = icon
 ) : KeyDef(
     Appearance.Image(
         src = icon,
         percentWidth = percentWidth,
         variant = variant,
-        viewId = viewId
+        viewId = viewId,
+        pressHighlight = false
     ),
     setOf(
         Behavior.Press(KeyAction.PickerSwitchAction(to))
+    ),
+    arrayOf(
+        Popup.Preview(previewText, previewIcon, textSize = 16f)
     )
 )
 
@@ -294,10 +320,14 @@ class TextPickerSwitchKey(
         percentWidth = percentWidth,
         variant = variant,
         viewId = viewId,
-        textStyle = Typeface.BOLD
+        textStyle = Typeface.BOLD,
+        pressHighlight = false
     ),
     setOf(
         Behavior.Press(KeyAction.PickerSwitchAction(to))
+    ),
+    arrayOf(
+        Popup.Preview(text, textSize = 16f)
     )
 )
 
@@ -306,7 +336,8 @@ class MiniSpaceKey : KeyDef(
         src = R.drawable.ic_baseline_space_bar_24,
         percentWidth = 0.15f,
         variant = Variant.Alternative,
-        viewId = R.id.button_mini_space
+        viewId = R.id.button_mini_space,
+        pressHighlight = true
     ),
     setOf(
         Behavior.Press(KeyAction.SymAction(KeySym(FcitxKeyMapping.FcitxKey_space)))

@@ -104,10 +104,14 @@
     <string name="reload_config">重载配置</string>
     <string name="input_method_options">输入法设置</string>
     <string name="theme">主题</string>
+    <string name="status_area_theme">皮肤主题</string>
+    <string name="status_action">功能</string>
+    <string name="rime_status_menu">词库切换</string>
     <string name="key_ripple_effect">启用按键水波纹特效</string>
     <string name="key_border">启用按键边框</string>
     <string name="brightness">亮度</string>
     <string name="key_radius">按键圆角半径</string>
+    <string name="input_panel_top_radius">输入面板顶部圆角半径</string>
     <string name="text_editing_button_radius">文本编辑按钮圆角半径</string>
     <string name="clipboard_entry_radius">剪贴板条目圆角半径</string>
     <string name="key_horizontal_margin">按键横向边距</string>
@@ -206,6 +210,7 @@
     <string name="show_lang_switch_key">显示语言切换键</string>
     <string name="use_t9_keyboard_layout">启用T9输入模式</string>
     <string name="use_t9_keyboard_layout_summary">使用手机九键、候选栏和模式切换</string>
+    <string name="temporary_full_keyboard">密码模式</string>
     <string name="horizontal_candidate_style">横向候选词样式</string>
     <string name="horizontal_candidate_never_fill">从不填充宽度</string>
     <string name="horizontal_candidate_auto_fill">按需填充宽度</string>

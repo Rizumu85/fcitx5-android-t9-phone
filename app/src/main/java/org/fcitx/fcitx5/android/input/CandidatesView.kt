@@ -21,7 +21,6 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.annotation.Size
-import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.FcitxEvent
@@ -84,6 +83,9 @@ class CandidatesView(
     private val parentSize = floatArrayOf(0f, 0f)
 
     private var shouldUpdatePosition = false
+    private var showAfterPositioned = false
+    private var preferAboveCursorAnchor = false
+    private var waitingForT9EngineCandidates = false
 
     /**
      * layout update may or may not cause [CandidatesView]'s size [onSizeChanged],
@@ -99,7 +101,7 @@ class CandidatesView(
      * and before any actual drawing to avoid flicker
      */
     private val preDrawListener = OnPreDrawListener {
-        if (shouldUpdatePosition) {
+        if (shouldUpdatePosition || showAfterPositioned) {
             updatePosition()
         }
         true
@@ -198,6 +200,7 @@ class CandidatesView(
     /** T9 pinyin selection bar: row above candidates, replaces number row when visible. */
     private val pinyinBarAdapter by lazy {
         T9PinyinChipAdapter(
+            context = ctx,
             theme = theme,
             textSizeSp = compactTopRowFontSizeSp,
             horizontalPaddingPx = dpCandidates(itemPaddingHorizontal),
@@ -210,19 +213,13 @@ class CandidatesView(
             }
         )
     }
-    private val pinyinBarLayoutManager = LinearLayoutManager(ctx, RecyclerView.HORIZONTAL, false)
-    private val pinyinBarRecyclerView = RecyclerView(ctx).apply {
-        layoutManager = pinyinBarLayoutManager
-        adapter = pinyinBarAdapter
-        overScrollMode = View.OVER_SCROLL_NEVER
-        itemAnimator = null
-        isHorizontalScrollBarEnabled = false
+    private val pinyinBarView = pinyinBarAdapter.root.apply {
         visibility = View.GONE
     }
     private val pinyinRowWrapper = FrameLayout(ctx).apply {
         clipChildren = false
         clipToPadding = false
-        addView(pinyinBarRecyclerView, FrameLayout.LayoutParams(
+        addView(pinyinBarView, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             pinyinBarRowHeightPx
         ).apply {
@@ -327,6 +324,9 @@ class CandidatesView(
             }
             is FcitxEvent.PagedCandidateEvent -> {
                 paged = it.data
+                if (it.data.candidates.isNotEmpty() || service.getT9CompositionKeyCount() <= 0) {
+                    waitingForT9EngineCandidates = false
+                }
                 updateUi()
             }
             else -> {}
@@ -334,9 +334,11 @@ class CandidatesView(
     }
 
     fun clearTransientState() {
+        showAfterPositioned = false
         inputPanel = FcitxEvent.InputPanelEvent.Data()
         paged = FcitxEvent.PagedCandidateEvent.Data.Empty
         resetT9BulkFilterState()
+        waitingForT9EngineCandidates = false
         preeditUi.update(inputPanel)
         preeditUi.root.visibility = GONE
         setPinyinRowVisible(false)
@@ -362,6 +364,12 @@ class CandidatesView(
      * delete-reopen) that don't trigger a fcitx event and therefore wouldn't otherwise redraw.
      */
     fun refreshT9Ui() {
+        updateUi()
+    }
+
+    fun waitForT9EngineCandidatesThenRefresh() {
+        waitingForT9EngineCandidates = service.isChineseT9InputModeActive() &&
+            service.getT9CompositionKeyCount() > 0
         updateUi()
     }
 
@@ -394,7 +402,7 @@ class CandidatesView(
     fun moveHighlightedT9Pinyin(delta: Int): Boolean {
         val moved = pinyinBarAdapter.moveHighlightedIndex(delta)
         if (moved) {
-            pinyinBarRecyclerView.scrollToPosition(pinyinBarAdapter.highlightedIndex)
+            pinyinBarAdapter.scrollToHighlighted()
         }
         return moved
     }
@@ -493,17 +501,26 @@ class CandidatesView(
             buildT9PendingPunctuationPaged(it)
         }
         val pendingT9PinyinSelection = t9InputModeEnabled && service.hasPendingT9PinyinSelection()
+        val waitForChineseT9Candidates = t9InputModeEnabled &&
+            service.isChineseT9InputModeActive() &&
+            service.getT9CompositionKeyCount() > 0 &&
+            pendingPunctuationPaged == null &&
+            !pendingT9PinyinSelection &&
+            (waitingForT9EngineCandidates || paged.candidates.isEmpty())
+        if (waitForChineseT9Candidates && visibility == VISIBLE) {
+            return
+        }
         val suppressEmptyT9Candidates = t9InputModeEnabled &&
             pendingPunctuationPaged == null &&
             service.getT9CompositionKeyCount() <= 0
-        if (suppressEmptyT9Candidates || pendingT9PinyinSelection) {
+        if (suppressEmptyT9Candidates || pendingT9PinyinSelection || waitForChineseT9Candidates) {
             resetT9BulkFilterState()
         } else if (pendingPunctuationPaged == null) {
             requestT9BulkFilteredCandidatesIfNeeded(t9InputModeEnabled, t9FilterPrefixes)
         } else {
             resetT9BulkFilterState()
         }
-        val filteredPaged = if (suppressEmptyT9Candidates || pendingT9PinyinSelection) {
+        val filteredPaged = if (suppressEmptyT9Candidates || pendingT9PinyinSelection || waitForChineseT9Candidates) {
             FcitxEvent.PagedCandidateEvent.Data.Empty to null
         } else if (t9InputModeEnabled) {
             filterPagedByT9PinyinPrefixes(paged, t9FilterPrefixes)
@@ -516,7 +533,8 @@ class CandidatesView(
             pendingPunctuationPaged == null &&
             t9InputModeEnabled &&
             t9FilterPrefixes.isEmpty() &&
-            t9BulkFilteredPaged == null
+            t9BulkFilteredPaged == null &&
+            !waitForChineseT9Candidates
         ) {
             buildLocalBudgetedPagedFromCurrentPage(paged)
         } else {
@@ -533,7 +551,7 @@ class CandidatesView(
             else -> filteredPaged.first
         }
         val cursorContextSignature = buildT9CursorContextSignature(t9FilterPrefixes)
-        val effectivePaged = if (suppressEmptyT9Candidates || pendingT9PinyinSelection) {
+        val effectivePaged = if (suppressEmptyT9Candidates || pendingT9PinyinSelection || waitForChineseT9Candidates) {
             FcitxEvent.PagedCandidateEvent.Data.Empty
         } else if (pendingPunctuationBudgetedPaged != null) {
             pendingPunctuationBudgetedPaged
@@ -569,6 +587,14 @@ class CandidatesView(
         } else {
             null
         }
+        preferAboveCursorAnchor = t9InputModeEnabled &&
+            service.isChineseT9InputModeActive() &&
+            (
+                pendingPunctuationPaged != null ||
+                    service.getT9CompositionKeyCount() > 0 ||
+                    t9State?.topReading?.isNotEmpty() == true ||
+                    t9State?.pinyinRowVisible == true
+                )
         val panelToShow = if (suppressEmptyT9Candidates) {
             service.clearHiddenChineseT9CompositionIfCandidateUiSuppressed()
             FcitxEvent.InputPanelEvent.Data()
@@ -585,17 +611,18 @@ class CandidatesView(
             showShortcutLabels = shouldShowT9BottomShortcutLabels(effectivePaged)
         )
         syncPinyinRowWidthToCandidates()
-        updatePinyinBar(t9State?.pinyinOptions ?: emptyList(), t9InputModeEnabled)
+        val pinyinRowReady = updatePinyinBar(t9State?.pinyinOptions ?: emptyList(), t9InputModeEnabled)
         updateT9FocusIndicator()
-        if (!suppressEmptyT9Candidates && evaluateVisibility(
+        if (!suppressEmptyT9Candidates && !waitForChineseT9Candidates && evaluateVisibility(
                 t9State?.topReading,
                 t9State?.pinyinRowVisible == true,
                 effectivePaged.candidates.isNotEmpty()
             )
         ) {
-            visibility = VISIBLE
+            showWhenPositioned(pinyinRowReady)
         } else {
             // RecyclerView won't update its items when ancestor view is GONE
+            showAfterPositioned = false
             visibility = INVISIBLE
         }
     }
@@ -1019,35 +1046,44 @@ class CandidatesView(
         }
     }
 
-    private fun setPinyinRowVisible(visible: Boolean) {
+    private fun showPinyinRowNow() {
+        pinyinBarView.visibility = View.VISIBLE
+        pinyinRowWrapper.visibility = View.VISIBLE
+        if (showAfterPositioned) {
+            showWhenPositioned(true)
+        }
+    }
+
+    private fun setPinyinRowVisible(visible: Boolean): Boolean {
         pinyinRowTargetVisible = visible
-        pinyinBarRecyclerView.alpha = 1f
-        pinyinBarRecyclerView.scaleX = 1f
-        pinyinBarRecyclerView.translationY = 0f
+        pinyinBarView.alpha = 1f
+        pinyinBarView.scaleX = 1f
+        pinyinBarView.translationY = 0f
         if (visible) {
             val widthReady = syncPinyinRowWidthToCandidates()
             setPinyinRowHeight(pinyinBarRowHeightPx)
             if (widthReady) {
-                pinyinBarRecyclerView.visibility = View.VISIBLE
-                pinyinRowWrapper.visibility = View.VISIBLE
+                showPinyinRowNow()
+                return true
             } else {
-                pinyinBarRecyclerView.visibility = View.INVISIBLE
+                pinyinBarView.visibility = View.INVISIBLE
                 pinyinRowWrapper.visibility = View.INVISIBLE
                 pinyinRowWrapper.post {
                     if (!pinyinRowTargetVisible) return@post
                     if (syncPinyinRowWidthToCandidates()) {
-                        pinyinBarRecyclerView.visibility = View.VISIBLE
-                        pinyinRowWrapper.visibility = View.VISIBLE
+                        showPinyinRowNow()
                     }
                 }
+                return false
             }
         } else {
             service.moveT9CandidateFocus(FcitxInputMethodService.T9CandidateFocus.BOTTOM)
             pinyinBarAdapter.clear()
-            pinyinBarRecyclerView.scrollToPosition(0)
-            pinyinBarRecyclerView.visibility = View.GONE
+            pinyinBarAdapter.scrollToStart()
+            pinyinBarView.visibility = View.GONE
             pinyinRowWrapper.visibility = View.GONE
             setPinyinRowHeight(0)
+            return true
         }
     }
 
@@ -1099,20 +1135,19 @@ class CandidatesView(
         candidatesUi.root.measure(widthSpec, heightSpec)
     }
 
-    private fun updatePinyinBar(candidates: List<String>, useT9: Boolean) {
+    private fun updatePinyinBar(candidates: List<String>, useT9: Boolean): Boolean {
         if (!useT9) {
-            setPinyinRowVisible(false)
-            return
+            return setPinyinRowVisible(false)
         }
         if (candidates.isEmpty()) {
-            setPinyinRowVisible(false)
-            return
+            return setPinyinRowVisible(false)
         }
         val changed = pinyinBarAdapter.submitList(candidates)
-        setPinyinRowVisible(true)
+        val ready = setPinyinRowVisible(true)
         if (changed) {
-            pinyinBarRecyclerView.scrollToPosition(0)
+            pinyinBarAdapter.scrollToStart()
         }
+        return ready
     }
 
     private var bottomInsets = 0
@@ -1130,6 +1165,28 @@ class CandidatesView(
         super.onMeasure(constrainedSpec, heightMeasureSpec)
     }
 
+    private fun showWhenPositioned(contentReady: Boolean) {
+        if (!contentReady && visibility != VISIBLE) {
+            showAfterPositioned = true
+            shouldUpdatePosition = true
+            super.setVisibility(INVISIBLE)
+            requestLayout()
+            invalidate()
+            return
+        }
+        if (visibility == VISIBLE) {
+            shouldUpdatePosition = true
+            requestLayout()
+            invalidate()
+            return
+        }
+        showAfterPositioned = true
+        shouldUpdatePosition = true
+        super.setVisibility(INVISIBLE)
+        requestLayout()
+        invalidate()
+    }
+
     private fun updatePosition() {
         val (parentWidth, parentHeight) = parentSize
         val marginPx = horizontalMarginPx
@@ -1140,7 +1197,12 @@ class CandidatesView(
                 requestLayout()
             }
         }
-        if (visibility != VISIBLE) {
+        if (visibility != VISIBLE && !showAfterPositioned) {
+            return
+        }
+        if (showAfterPositioned && (width <= 0 || height <= 0)) {
+            shouldUpdatePosition = true
+            requestLayout()
             return
         }
         if (parentWidth <= 0 || parentHeight <= 0) {
@@ -1156,12 +1218,23 @@ class CandidatesView(
         val bottomLimit = parentHeight - bottomInsets
         val bottomSpace = bottomLimit - bottom
         // move CandidatesView above cursor anchor, only when
-        val tY: Float = if (
+        val tY: Float = if (preferAboveCursorAnchor) {
+            val maxY = (bottomLimit - selfHeight).coerceAtLeast(0f)
+            (top - selfHeight).coerceIn(0f, maxY)
+        } else if (
             bottom + selfHeight > bottomLimit   // bottom space is not enough
             && top > bottomSpace                // top space is larger than bottom
-        ) top - selfHeight else bottom
+        ) {
+            top - selfHeight
+        } else {
+            bottom
+        }
         translationX = tX
         translationY = tY
+        if (showAfterPositioned) {
+            showAfterPositioned = false
+            super.setVisibility(VISIBLE)
+        }
         touchEventReceiverWindow.showAt(tX.roundToInt(), tY.roundToInt(), w, h)
         shouldUpdatePosition = false
     }
@@ -1210,14 +1283,6 @@ class CandidatesView(
                 outRect.right = dp(candidateItemSpacing)
             }
         })
-        pinyinBarRecyclerView.addItemDecoration(object : RecyclerView.ItemDecoration() {
-            override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
-                if (parent.getChildAdapterPosition(view) != RecyclerView.NO_POSITION) {
-                    outRect.right = dp(itemPaddingHorizontal)
-                }
-            }
-        })
-
         // Bubble 1: width by pinyin content, left-aligned
         contentWrapper.addView(bubble1Wrapper, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -1249,8 +1314,7 @@ class CandidatesView(
                     pinyinRowTargetVisible &&
                     pinyinRowWrapper.visibility == View.INVISIBLE
                 ) {
-                    pinyinBarRecyclerView.visibility = View.VISIBLE
-                    pinyinRowWrapper.visibility = View.VISIBLE
+                    showPinyinRowNow()
                 }
             }
         })
@@ -1274,6 +1338,7 @@ class CandidatesView(
 
     override fun setVisibility(visibility: Int) {
         if (visibility != VISIBLE) {
+            showAfterPositioned = false
             touchEventReceiverWindow.dismiss()
         }
         super.setVisibility(visibility)

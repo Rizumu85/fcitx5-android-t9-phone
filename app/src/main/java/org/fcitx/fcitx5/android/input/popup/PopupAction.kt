@@ -5,6 +5,7 @@
 package org.fcitx.fcitx5.android.input.popup
 
 import android.graphics.Rect
+import androidx.annotation.DrawableRes
 import org.fcitx.fcitx5.android.input.keyboard.KeyAction
 import org.fcitx.fcitx5.android.input.keyboard.KeyDef
 
@@ -15,12 +16,16 @@ sealed class PopupAction {
     data class PreviewAction(
         override val viewId: Int,
         val content: String,
-        val bounds: Rect
+        val bounds: Rect,
+        @DrawableRes val icon: Int? = null,
+        val textSize: Float? = null
     ) : PopupAction()
 
     data class PreviewUpdateAction(
         override val viewId: Int,
         val content: String,
+        @DrawableRes val icon: Int? = null,
+        val textSize: Float? = null
     ) : PopupAction()
 
     data class DismissAction(

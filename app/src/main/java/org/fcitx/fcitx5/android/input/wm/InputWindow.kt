@@ -74,6 +74,10 @@ sealed class InputWindow : Dependent {
             return null
         }
 
+        open fun onTitleBackPressed(): Boolean {
+            return false
+        }
+
         override val type: KClass<out IUniqueComponent<*>> by lazy { defaultType() }
 
         override fun equals(other: Any?): Boolean = defaultEquals(other)

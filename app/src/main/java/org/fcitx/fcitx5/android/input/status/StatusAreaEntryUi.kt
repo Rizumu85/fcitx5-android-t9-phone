@@ -5,121 +5,112 @@
 package org.fcitx.fcitx5.android.input.status
 
 import android.content.Context
-import android.graphics.drawable.ShapeDrawable
-import android.graphics.drawable.shapes.OvalShape
+import android.graphics.drawable.GradientDrawable
 import android.icu.text.BreakIterator
 import android.os.Build
 import android.util.TypedValue
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageView
+import android.widget.FrameLayout
 import org.fcitx.fcitx5.android.data.theme.Theme
-import org.fcitx.fcitx5.android.input.AutoScaleTextView
 import org.fcitx.fcitx5.android.input.InputUiFont
 import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView
 import splitties.dimensions.dp
-import splitties.resources.drawable
-import splitties.views.dsl.constraintlayout.above
-import splitties.views.dsl.constraintlayout.below
-import splitties.views.dsl.constraintlayout.centerHorizontally
-import splitties.views.dsl.constraintlayout.centerOn
-import splitties.views.dsl.constraintlayout.constraintLayout
-import splitties.views.dsl.constraintlayout.endOfParent
-import splitties.views.dsl.constraintlayout.lParams
-import splitties.views.dsl.constraintlayout.startOfParent
-import splitties.views.dsl.constraintlayout.topOfParent
 import splitties.views.dsl.core.Ui
-import splitties.views.dsl.core.add
-import splitties.views.dsl.core.frameLayout
-import splitties.views.dsl.core.imageView
-import splitties.views.dsl.core.lParams
-import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.textView
-import splitties.views.dsl.core.view
 import splitties.views.dsl.core.wrapContent
 import splitties.views.gravityCenter
-import splitties.views.imageDrawable
 
 class StatusAreaEntryUi(override val ctx: Context, private val theme: Theme) : Ui {
 
-    private val bkgDrawable = ShapeDrawable(OvalShape())
+    private val defaultLabelSizeSp = 11f
+    private val longLabelSizeSp = 10f
 
-    val bkg = frameLayout {
-        background = bkgDrawable
-    }
-
-    val icon = imageView {
-        scaleType = ImageView.ScaleType.CENTER_INSIDE
-    }
-
-    val textIcon = view(::AutoScaleTextView) {
-        setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20f)
-        // 600 = Semi Bold, 700 = Bold which is too heavy
-        InputUiFont.applyWeightTo(this, 600)
+    private val activeLabelBackground = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = ctx.dp(7).toFloat()
     }
 
     val label = textView {
-        textSize = 12f
+        textSize = defaultLabelSizeSp
         InputUiFont.applyTo(this)
         gravity = gravityCenter
-        maxLines = 2
+        textAlignment = View.TEXT_ALIGNMENT_CENTER
+        includeFontPadding = false
+        setLineSpacing(0f, 0.86f)
+        maxLines = 6
         setTextColor(theme.keyTextColor)
     }
 
     override val root = object : CustomGestureView(ctx) {
-        val content = constraintLayout {
-            add(bkg, lParams(dp(48), dp(48)) {
-                topOfParent(dp(4))
-                centerHorizontally()
-                above(label)
-            })
-            add(icon, lParams {
-                centerOn(bkg)
-            })
-            add(textIcon, lParams(wrapContent, wrapContent) {
-                centerOn(bkg)
-            })
-            add(label, lParams(0, wrapContent) {
-                below(bkg, dp(6))
-                startOfParent(dp(2))
-                endOfParent(dp(2))
-            })
-        }
-
         init {
-            add(content, lParams(matchParent, matchParent))
-            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(96))
+            clipChildren = false
+            clipToPadding = false
+            addView(
+                label,
+                FrameLayout.LayoutParams(
+                    wrapContent,
+                    wrapContent,
+                    Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                ).apply {
+                    topMargin = ctx.dp(4)
+                }
+            )
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
         }
     }
 
     fun setEntry(entry: StatusAreaEntry) {
-        val contentColor =
-            if (entry.active) theme.genericActiveForegroundColor else theme.keyTextColor
-        if (entry.icon != 0) {
-            icon.visibility = View.VISIBLE
-            textIcon.visibility = View.GONE
-            icon.imageDrawable = ctx.drawable(entry.icon)!!.apply {
-                setTint(contentColor)
+        val compactLabel = normalizeVerticalLabel(entry.label)
+        val labelCodePoints = compactLabel.codePointCount(0, compactLabel.length)
+        label.setTextSize(
+            TypedValue.COMPLEX_UNIT_SP,
+            if (labelCodePoints > 5) longLabelSizeSp else defaultLabelSizeSp
+        )
+        label.setTextColor(if (entry.active) theme.genericActiveForegroundColor else theme.keyTextColor)
+        label.background = if (entry.active) {
+            activeLabelBackground.apply {
+                setColor(theme.genericActiveBackgroundColor)
             }
         } else {
-            icon.visibility = View.GONE
-            textIcon.visibility = View.VISIBLE
-            textIcon.text = getFirstCharacter(entry.label)
-            textIcon.setTextColor(contentColor)
+            null
         }
-        bkgDrawable.paint.color =
-            if (entry.active) theme.genericActiveBackgroundColor else theme.keyBackgroundColor
-        label.text = entry.label
+        label.setPadding(ctx.dp(5), ctx.dp(5), ctx.dp(5), ctx.dp(5))
+        label.text = toVerticalLabel(compactLabel)
     }
 
-    private fun getFirstCharacter(s: String): String {
-        if (s.isEmpty()) return ""
+    private fun normalizeVerticalLabel(s: String) =
+        s.filterNot { it.isWhitespace() }.replace('→', '↓')
+
+    private fun toVerticalLabel(s: String) = graphemeClusters(s).joinToString("\n")
+
+    private fun graphemeClusters(s: String): List<String> {
+        if (s.isEmpty()) return emptyList()
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             val iterator = BreakIterator.getCharacterInstance()
             iterator.setText(s)
-            s.substring(iterator.first(), iterator.next())
+            buildList {
+                var start = iterator.first()
+                var end = iterator.next()
+                while (end != BreakIterator.DONE) {
+                    add(s.substring(start, end))
+                    start = end
+                    end = iterator.next()
+                }
+            }
         } else {
-            s.substring(0, s.offsetByCodePoints(0, 1))
+            buildList {
+                var offset = 0
+                while (offset < s.length) {
+                    val next = s.offsetByCodePoints(offset, 1)
+                    add(s.substring(offset, next))
+                    offset = next
+                }
+            }
         }
     }
 }

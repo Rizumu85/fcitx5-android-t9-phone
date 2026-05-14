@@ -3,16 +3,20 @@
  */
 package org.fcitx.fcitx5.android.input.t9
 
+import android.content.Context
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
+import android.widget.HorizontalScrollView
+import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.recyclerview.widget.RecyclerView
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.InputUiFont
 
 class T9PinyinChipAdapter(
+    context: Context,
     private val theme: Theme,
     private val textSizeSp: Float,
     private val horizontalPaddingPx: Int,
@@ -20,23 +24,43 @@ class T9PinyinChipAdapter(
     private val rowHeightPx: Int,
     private val cornerRadiusPx: Float,
     private val onChipClick: (String) -> Unit
-) : RecyclerView.Adapter<T9PinyinChipAdapter.ViewHolder>() {
+) {
 
     private var pinyins: List<String> = emptyList()
     private var highlightActive = false
+    private val chips = mutableListOf<TextView>()
+    private val chipBackgrounds = mutableListOf<GradientDrawable>()
+
+    private val container = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL or Gravity.START
+        clipChildren = false
+        clipToPadding = false
+    }
+
+    val root: HorizontalScrollView = HorizontalScrollView(context).apply {
+        overScrollMode = View.OVER_SCROLL_NEVER
+        isHorizontalScrollBarEnabled = false
+        clipChildren = false
+        clipToPadding = false
+        addView(container, ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            rowHeightPx
+        ))
+    }
 
     var highlightedIndex: Int = 0
         private set
-
-    init {
-        setHasStableIds(true)
-    }
 
     fun submitList(newCandidates: List<String>): Boolean {
         val changed = pinyins != newCandidates
         pinyins = newCandidates
         highlightedIndex = highlightedIndex.coerceIn(0, (pinyins.lastIndex).coerceAtLeast(0))
-        notifyDataSetChanged()
+        if (changed) {
+            rebuildChips()
+        } else {
+            updateAllChips()
+        }
         return changed
     }
 
@@ -49,7 +73,7 @@ class T9PinyinChipAdapter(
     fun setHighlightActive(active: Boolean) {
         if (highlightActive == active) return
         highlightActive = active
-        notifyDataSetChanged()
+        updateAllChips()
     }
 
     fun moveHighlightedIndex(delta: Int): Boolean {
@@ -57,92 +81,85 @@ class T9PinyinChipAdapter(
         val newIndex = (highlightedIndex + delta).coerceIn(0, pinyins.lastIndex)
         if (newIndex == highlightedIndex) return false
         highlightedIndex = newIndex
-        notifyDataSetChanged()
+        updateAllChips()
         return true
     }
 
-    override fun getItemCount(): Int = pinyins.size
+    fun scrollToStart() {
+        root.scrollTo(0, 0)
+    }
 
-    override fun getItemId(position: Int): Long = pinyins[position].hashCode().toLong()
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val chip = TextView(parent.context).apply {
-            setTextColor(theme.candidateTextColor)
-            textSize = textSizeSp
-            InputUiFont.applyTo(this)
-            setPadding(horizontalPaddingPx, verticalPaddingPx, horizontalPaddingPx, verticalPaddingPx)
-            minHeight = rowHeightPx
-            gravity = Gravity.CENTER_VERTICAL or Gravity.START
-            includeFontPadding = false
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                setLineHeight(rowHeightPx)
+    fun scrollToHighlighted() {
+        val chip = chips.getOrNull(highlightedIndex) ?: return
+        root.post {
+            val chipStart = chip.left
+            val chipEnd = chip.right
+            val visibleStart = root.scrollX
+            val visibleEnd = visibleStart + root.width
+            when {
+                chipStart < visibleStart -> root.smoothScrollTo(chipStart, 0)
+                chipEnd > visibleEnd -> root.smoothScrollTo(chipEnd - root.width, 0)
             }
         }
-        chip.layoutParams = RecyclerView.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-        return ViewHolder(chip)
     }
 
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        val pinyin = pinyins[position]
-        holder.update(pinyin, active = highlightActive && position == highlightedIndex)
-        holder.chip.setOnClickListener { onChipClick(pinyin) }
-    }
-
-    override fun onViewRecycled(holder: ViewHolder) {
-        holder.chip.setOnClickListener(null)
-        super.onViewRecycled(holder)
-    }
-
-    inner class ViewHolder(val chip: TextView) : RecyclerView.ViewHolder(chip) {
-        private val activeBackground = GradientDrawable().apply {
-            setColor(theme.genericActiveBackgroundColor)
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = cornerRadiusPx
-            alpha = 0
-        }
-        private var lastActive = false
-        private var lastSignature = ""
-
-        init {
-            chip.background = activeBackground
-        }
-
-        fun update(pinyin: String, active: Boolean) {
-            val inactiveRow = !highlightActive
-            chip.text = pinyin
-            chip.setTextColor(when {
-                active -> theme.genericActiveForegroundColor
-                inactiveRow -> theme.candidateCommentColor
-                else -> theme.candidateTextColor
+    private fun rebuildChips() {
+        container.removeAllViews()
+        chips.clear()
+        chipBackgrounds.clear()
+        pinyins.forEachIndexed { index, pinyin ->
+            val chip = TextView(root.context).apply {
+                setTextColor(theme.candidateTextColor)
+                textSize = textSizeSp
+                InputUiFont.applyTo(this)
+                setPadding(horizontalPaddingPx, verticalPaddingPx, horizontalPaddingPx, verticalPaddingPx)
+                minHeight = rowHeightPx
+                gravity = Gravity.CENTER_VERTICAL or Gravity.START
+                includeFontPadding = false
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    setLineHeight(rowHeightPx)
+                }
+                text = pinyin
+                setOnClickListener { onChipClick(pinyin) }
+            }
+            val background = GradientDrawable().apply {
+                setColor(theme.genericActiveBackgroundColor)
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = cornerRadiusPx
+                alpha = 0
+            }
+            chip.background = background
+            chips += chip
+            chipBackgrounds += background
+            container.addView(chip, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                if (index != pinyins.lastIndex) {
+                    rightMargin = horizontalPaddingPx
+                }
             })
-            if (pinyin != lastSignature) {
-                lastSignature = pinyin
-                lastActive = active
-                activeBackground.alpha = if (active) 255 else 0
-                val scale = if (active) ACTIVE_HIGHLIGHT_SCALE else 1f
-                chip.scaleX = scale
-                chip.scaleY = scale
-                return
-            }
-            updateHighlight(active)
         }
+        updateAllChips()
+    }
 
-        private fun updateHighlight(active: Boolean) {
-            val targetAlpha = if (active) 255 else 0
-            val targetScale = if (active) ACTIVE_HIGHLIGHT_SCALE else 1f
-            if (lastActive == active && activeBackground.alpha == targetAlpha) {
-                chip.scaleX = targetScale
-                chip.scaleY = targetScale
-                return
-            }
-            lastActive = active
-            activeBackground.alpha = targetAlpha
-            chip.scaleX = targetScale
-            chip.scaleY = targetScale
+    private fun updateAllChips() {
+        chips.forEachIndexed { index, chip ->
+            updateChip(chip, chipBackgrounds[index], active = highlightActive && index == highlightedIndex)
         }
+    }
+
+    private fun updateChip(chip: TextView, background: GradientDrawable, active: Boolean) {
+        val inactiveRow = !highlightActive
+        chip.setTextColor(when {
+            active -> theme.genericActiveForegroundColor
+            inactiveRow -> theme.candidateCommentColor
+            else -> theme.candidateTextColor
+        })
+        background.alpha = if (active) 255 else 0
+        val scale = if (active) ACTIVE_HIGHLIGHT_SCALE else 1f
+        chip.scaleX = scale
+        chip.scaleY = scale
     }
 
     companion object {

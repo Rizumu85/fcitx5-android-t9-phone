@@ -52,6 +52,7 @@ import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.R
+import org.fcitx.fcitx5.android.core.CapabilityFlag
 import org.fcitx.fcitx5.android.core.CapabilityFlags
 import org.fcitx.fcitx5.android.core.FcitxAPI
 import org.fcitx.fcitx5.android.core.FcitxEvent
@@ -352,6 +353,17 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         navbarMgr.evaluate(window.window!!, inputDeviceMgr.isVirtualKeyboard)
         replaceInputView(theme)
         replaceCandidateView(theme)
+    }
+
+    private fun shouldKeepTemporaryPasswordModeOnRestart(
+        restarting: Boolean,
+        flags: CapabilityFlags
+    ): Boolean {
+        return restarting && inputView?.shouldKeepTemporaryPasswordModeOnRestart(flags) == true
+    }
+
+    private fun passwordModeCapabilityFlags(flags: CapabilityFlags): CapabilityFlags {
+        return CapabilityFlags(flags.flags or CapabilityFlag.Password.flag)
     }
 
     @Keep
@@ -2225,7 +2237,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                         t9CompositionTracker.appendDigit('0' + (event.keyCode - KeyEvent.KEYCODE_0))
                 }
                 updateT9CompositionModelFromTracker()
-                candidatesView?.refreshT9Ui()
+                candidatesView?.waitForT9EngineCandidatesThenRefresh()
             }
             val states = KeyStates.fromKeyEvent(event)
             val up = event.action == KeyEvent.ACTION_UP
@@ -3352,6 +3364,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         resetComposingState()
         resetPhysicalSelectionState()
         val flags = CapabilityFlags.fromEditorInfo(attribute)
+        val fcitxFlags = if (shouldKeepTemporaryPasswordModeOnRestart(restarting, flags)) {
+            passwordModeCapabilityFlags(flags)
+        } else {
+            flags
+        }
         capabilityFlags = flags
         // EditorInfo may change between onStartInput and onStartInputView
         inputDeviceMgr.notifyOnStartInput(attribute)
@@ -3372,7 +3389,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             }
             // EditorInfo can be different in onStartInput and onStartInputView,
             // especially in browsers
-            setCapFlags(flags)
+            setCapFlags(fcitxFlags)
             // for hardware keyboard, focus to allow switching input methods before onStartInputView
             if (!isNullType && !inputDeviceMgr.isPassthroughInput) {
                 focus(true)
@@ -3383,10 +3400,15 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         Timber.d("onStartInputView: restarting=$restarting")
+        capabilityFlags = CapabilityFlags.fromEditorInfo(info)
         postFcitxJob {
             focus(true)
         }
-        if (inputDeviceMgr.evaluateOnStartInputView(info, this)) {
+        val shouldStartInputView = inputDeviceMgr.evaluateOnStartInputView(info, this) ||
+            (!inputDeviceMgr.isPassthroughInput &&
+                (capabilityFlags.has(CapabilityFlag.Password) ||
+                    inputView?.isTemporaryPasswordKeyboardVisible() == true))
+        if (shouldStartInputView) {
             // because onStartInputView will always be called after onStartInput,
             // editorInfo and capFlags should be up-to-date
             inputView?.startInput(info, capabilityFlags, restarting)

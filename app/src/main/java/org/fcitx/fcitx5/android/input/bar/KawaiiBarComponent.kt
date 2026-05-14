@@ -4,12 +4,13 @@
  */
 package org.fcitx.fcitx5.android.input.bar
 
-import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.util.Size
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InlineSuggestion
 import android.view.inputmethod.InlineSuggestionsResponse
@@ -62,6 +63,7 @@ import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
 import org.fcitx.fcitx5.android.input.popup.PopupComponent
 import org.fcitx.fcitx5.android.input.status.StatusAreaWindow
+import org.fcitx.fcitx5.android.input.inputPanelTopCornerRadiusPx
 import org.fcitx.fcitx5.android.input.wm.InputWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
 import org.fcitx.fcitx5.android.utils.AppUtil
@@ -70,7 +72,6 @@ import org.mechdancer.dependency.DynamicScope
 import org.mechdancer.dependency.manager.must
 import splitties.bitflags.hasFlag
 import splitties.dimensions.dp
-import splitties.views.backgroundColor
 import splitties.views.dsl.core.add
 import splitties.views.dsl.core.lParams
 import splitties.views.dsl.core.matchParent
@@ -113,6 +114,8 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     private var isInlineSuggestionPresent: Boolean = false
     private var isCapabilityFlagsPassword: Boolean = false
     private var isKeyboardLayoutNumber: Boolean = false
+    private var isPasswordKeyboardLayout: Boolean = false
+    private var isKeyboardWindowAttached: Boolean = true
     private var isToolbarManuallyToggled: Boolean = false
 
     private enum class NumberRowState { Auto, ForceShow, ForceHide }
@@ -176,10 +179,11 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
 
     private fun evalIdleUiState(fromUser: Boolean = false) {
         val newState = when {
-            numberRowState == NumberRowState.ForceShow -> IdleUi.State.NumberRow
+            isPasswordKeyboardLayout && isKeyboardWindowAttached -> IdleUi.State.NumberRow
+            numberRowState == NumberRowState.ForceShow && isKeyboardWindowAttached && !isKeyboardLayoutNumber -> IdleUi.State.NumberRow
             isClipboardFresh -> IdleUi.State.Clipboard
             isInlineSuggestionPresent -> IdleUi.State.InlineSuggestion
-            isCapabilityFlagsPassword && !isKeyboardLayoutNumber && numberRowState != NumberRowState.ForceHide -> IdleUi.State.NumberRow
+            isCapabilityFlagsPassword && isKeyboardWindowAttached && !isKeyboardLayoutNumber && numberRowState != NumberRowState.ForceHide -> IdleUi.State.NumberRow
             /**
              * state matrix:
              *                               expandToolbarByDefault
@@ -417,14 +421,37 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         view.displayedChild = index
     }
 
+    private fun barBackground(radius: Float) = if (ThemeManager.prefs.keyBorder.getValue()) {
+        null
+    } else {
+        GradientDrawable().apply {
+            setColor(theme.barColor)
+            cornerRadii = floatArrayOf(
+                radius, radius,
+                radius, radius,
+                0f, 0f,
+                0f, 0f
+            )
+        }
+    }
+
+    private fun View.updateBarBackground() {
+        background = barBackground(inputPanelTopCornerRadiusPx().toFloat())
+    }
+
     override val view by lazy {
         ViewAnimator(context).apply {
-            backgroundColor =
-                if (ThemeManager.prefs.keyBorder.getValue()) Color.TRANSPARENT
-                else theme.barColor
+            updateBarBackground()
+            setOnApplyWindowInsetsListener { v, insets ->
+                v.updateBarBackground()
+                insets
+            }
             add(idleUi.root, lParams(matchParent, matchParent))
             add(candidateUi.root, lParams(matchParent, matchParent))
             add(titleUi.root, lParams(matchParent, matchParent))
+            post {
+                updateBarBackground()
+            }
         }
     }
 
@@ -441,7 +468,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         clipboardItemTimeout.registerOnChangeListener(onClipboardTimeoutUpdateListener)
     }
 
-    override fun onStartInput(info: EditorInfo, capFlags: CapabilityFlags) {
+    override fun onStartInput(info: EditorInfo, capFlags: CapabilityFlags, restarting: Boolean) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             idleUi.privateMode(info.imeOptions.hasFlag(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING))
         }
@@ -449,6 +476,9 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         // Always reset manual toolbar toggle when starting input, so that
         // the "expand toolbar by default" preference consistently controls
         // the initial state for each new input session.
+        if (!restarting) {
+            isPasswordKeyboardLayout = false
+        }
         isToolbarManuallyToggled = false
         isInlineSuggestionPresent = false
         numberRowState = NumberRowState.Auto
@@ -489,12 +519,16 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     }
 
     override fun onWindowAttached(window: InputWindow) {
+        isKeyboardWindowAttached = window is KeyboardWindow
+        evalIdleUiState()
         when (window) {
             is InputWindow.ExtendedInputWindow<*> -> {
                 titleUi.setTitle(window.title)
                 window.onCreateBarExtension()?.let { titleUi.addExtension(it, window.showTitle) }
                 titleUi.setReturnButtonOnClickListener {
-                    windowManager.attachWindow(KeyboardWindow)
+                    if (!window.onTitleBackPressed()) {
+                        windowManager.attachWindow(KeyboardWindow)
+                    }
                 }
                 barStateMachine.push(ExtendedWindowAttached)
             }
@@ -503,6 +537,10 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     }
 
     override fun onWindowDetached(window: InputWindow) {
+        if (window is KeyboardWindow) {
+            isKeyboardWindowAttached = false
+            evalIdleUiState()
+        }
         barStateMachine.push(WindowDetached)
     }
 
@@ -569,8 +607,15 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         const val HEIGHT = 40
     }
 
-    fun onKeyboardLayoutSwitched(isNumber: Boolean) {
+    fun onKeyboardLayoutSwitched(isNumber: Boolean, isPassword: Boolean) {
         isKeyboardLayoutNumber = isNumber
+        isPasswordKeyboardLayout = isPassword
+        evalIdleUiState()
+    }
+
+    fun onPasswordModeManuallyDisabled() {
+        isPasswordKeyboardLayout = false
+        numberRowState = NumberRowState.ForceHide
         evalIdleUiState()
     }
 

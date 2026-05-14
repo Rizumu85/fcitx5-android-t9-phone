@@ -20,10 +20,12 @@ import org.fcitx.fcitx5.android.input.popup.PopupAction
 import splitties.views.imageResource
 
 @SuppressLint("ViewConstructor")
-class TextKeyboard(
+open class TextKeyboard(
     context: Context,
-    theme: Theme
-) : BaseKeyboard(context, theme, Layout) {
+    theme: Theme,
+    layout: List<List<KeyDef>> = Layout,
+    private val respectKeepLettersUppercase: Boolean = true
+) : BaseKeyboard(context, theme, layout) {
 
     enum class CapsState { None, Once, Lock }
 
@@ -187,7 +189,12 @@ class TextKeyboard(
             is PopupAction.ShowKeyboardAction -> {
                 val label = action.keyboard.label
                 if (label.length == 1 && label[0].isLetter())
-                    action.copy(keyboard = KeyDef.Popup.Keyboard(transformAlphabet(label)))
+                    action.copy(
+                        keyboard = KeyDef.Popup.Keyboard(
+                            transformAlphabet(label),
+                            action.keyboard.keys
+                        )
+                    )
                 else action
             }
             else -> action
@@ -228,10 +235,10 @@ class TextKeyboard(
 
     private fun updateAlphabetKeys() {
         textKeys.forEach {
-            if (it.def !is KeyDef.Appearance.AltText) return
+            if (it.def !is KeyDef.Appearance.AltText) return@forEach
             it.mainText.text = it.def.displayText.let { str ->
                 if (str.length != 1 || !str[0].isLetter()) return@forEach
-                if (keepLettersUppercase) str.uppercase() else transformAlphabet(str)
+                if (respectKeepLettersUppercase && keepLettersUppercase) str.uppercase() else transformAlphabet(str)
             }
         }
     }

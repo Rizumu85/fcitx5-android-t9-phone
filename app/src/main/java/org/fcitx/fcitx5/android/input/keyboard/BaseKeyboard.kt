@@ -252,7 +252,8 @@ abstract class BaseKeyboard(
                     }
                 }
             }
-            def.popup?.forEach {
+            val popupDefinitions = def.popup ?: defaultPreviewPopup(def)
+            popupDefinitions?.forEach {
                 when (it) {
                     // TODO: gesture processing middleware
                     is KeyDef.Popup.Menu -> {
@@ -306,13 +307,23 @@ abstract class BaseKeyboard(
                             if (popupOnKeyPress) {
                                 when (event.type) {
                                     GestureType.Down -> onPopupAction(
-                                        PopupAction.PreviewAction(view.id, it.content, view.bounds)
+                                        PopupAction.PreviewAction(
+                                            view.id,
+                                            it.content,
+                                            view.bounds,
+                                            it.icon,
+                                            it.textSize
+                                        )
                                     )
                                     GestureType.Move -> {
                                         val triggered = swipeSymbolDirection.checkY(event.totalY)
                                         val text = if (triggered) it.alternative else it.content
                                         onPopupAction(
-                                            PopupAction.PreviewUpdateAction(view.id, text)
+                                            PopupAction.PreviewUpdateAction(
+                                                view.id,
+                                                text,
+                                                textSize = it.textSize
+                                            )
                                         )
                                     }
                                     GestureType.Up -> {
@@ -331,7 +342,13 @@ abstract class BaseKeyboard(
                             if (popupOnKeyPress) {
                                 when (event.type) {
                                     GestureType.Down -> onPopupAction(
-                                        PopupAction.PreviewAction(view.id, it.content, view.bounds)
+                                        PopupAction.PreviewAction(
+                                            view.id,
+                                            it.content,
+                                            view.bounds,
+                                            it.icon,
+                                            it.textSize
+                                        )
                                     )
                                     GestureType.Up -> {
                                         onPopupAction(PopupAction.DismissAction(view.id))
@@ -345,6 +362,16 @@ abstract class BaseKeyboard(
                     }
                 }
             }
+        }
+    }
+
+    private fun defaultPreviewPopup(def: KeyDef): Array<KeyDef.Popup>? {
+        if (def is SpaceKey || def is MiniSpaceKey || def is ReturnKey) return null
+        return when (val appearance = def.appearance) {
+            is KeyDef.Appearance.Text -> appearance.displayText
+                .takeIf { it.isNotBlank() }
+                ?.let { arrayOf(KeyDef.Popup.Preview(it, textSize = appearance.textSize)) }
+            is KeyDef.Appearance.Image -> arrayOf(KeyDef.Popup.Preview("", appearance.src))
         }
     }
 

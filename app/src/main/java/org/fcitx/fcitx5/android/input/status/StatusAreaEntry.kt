@@ -4,6 +4,7 @@
  */
 package org.fcitx.fcitx5.android.input.status
 
+import android.content.Context
 import androidx.annotation.DrawableRes
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.Action
@@ -14,13 +15,14 @@ sealed class StatusAreaEntry(
     val icon: Int,
     val active: Boolean
 ) {
-    class Android(label: String, icon: Int, val type: Type) :
-        StatusAreaEntry(label, icon, false) {
+    class Android(label: String, icon: Int, val type: Type, active: Boolean = false) :
+        StatusAreaEntry(label, icon, active) {
         enum class Type {
             InputMethod,
             ReloadConfig,
             Keyboard,
-            ThemeList
+            ThemeList,
+            TemporaryFullKeyboard
         }
     }
 
@@ -55,9 +57,41 @@ sealed class StatusAreaEntry(
             }
         }
 
-        fun fromAction(it: Action): Fcitx {
+        fun labelForAction(context: Context, action: Action): String {
+            val directLabel = action.shortText.trim().ifEmpty { action.longText.trim() }
+            if (directLabel.isNotEmpty()) return directLabel
+            if (action.isRimeAction()) return context.getString(R.string.rime_status_menu)
+            return action.name.trim().ifEmpty { context.getString(R.string.status_action) }
+        }
+
+        fun labelForActionMenuItem(action: Action): String? {
+            return action.shortText.trim()
+                .ifEmpty { action.longText.trim() }
+                .ifEmpty { null }
+        }
+
+        fun titleForActionMenu(context: Context, action: Action): String {
+            if (action.isRimeAction()) return context.getString(R.string.rime_status_menu)
+            return labelForAction(context, action)
+        }
+
+        fun fromAction(context: Context, it: Action): Fcitx {
             val active = it.icon.endsWith("-active") || it.isChecked
-            return Fcitx(it, it.shortText, drawableFromIconName(it.icon), active)
+            return Fcitx(it, labelForAction(context, it), drawableFromIconName(it.icon), active)
+        }
+
+        private fun Action.isRimeAction(): Boolean {
+            if (name.startsWith("fcitx-rime") || icon.startsWith("fcitx_rime")) {
+                return true
+            }
+            return menu?.any {
+                it.name.startsWith("fcitx-rime") ||
+                    it.icon.startsWith("fcitx_rime") ||
+                    it.shortText.equals("Deploy", ignoreCase = true) ||
+                    it.shortText.equals("Synchronize", ignoreCase = true) ||
+                    it.shortText == "重新部署" ||
+                    it.shortText == "同步"
+            } ?: false
         }
     }
 }

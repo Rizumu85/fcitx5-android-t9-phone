@@ -147,6 +147,10 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
     }
 
     private fun setupPressHighlight(mask: Drawable? = null) {
+        if (!def.pressHighlight) {
+            appearanceView.foreground = null
+            return
+        }
         appearanceView.foreground = if (rippled) {
             RippleDrawable(
                 ColorStateList.valueOf(theme.keyPressHighlightColor), null,
@@ -284,6 +288,8 @@ open class TextKeyView(ctx: Context, theme: Theme, def: KeyDef.Appearance.Text) 
         appearanceView.apply {
             add(mainText, lParams(wrapContent, wrapContent) {
                 centerInParent()
+                verticalBias = def.verticalBias
+                horizontalBias = def.horizontalBias
             })
         }
     }
@@ -295,8 +301,7 @@ class AltTextKeyView(ctx: Context, theme: Theme, def: KeyDef.Appearance.AltText)
     val altText = view(::AutoScaleTextView) {
         isClickable = false
         isFocusable = false
-        // TODO hardcoded alt text size
-        setTextSize(TypedValue.COMPLEX_UNIT_DIP, 10.666667f)
+        setTextSize(TypedValue.COMPLEX_UNIT_DIP, def.altTextSize)
         InputUiFont.applyTo(this, Typeface.BOLD)
         text = def.altText
         textDirection = View.TEXT_DIRECTION_FIRST_STRONG_LTR

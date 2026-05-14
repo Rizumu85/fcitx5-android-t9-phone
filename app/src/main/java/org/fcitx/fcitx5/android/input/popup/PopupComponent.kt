@@ -4,7 +4,9 @@
  */
 package org.fcitx.fcitx5.android.input.popup
 
+import android.graphics.Paint
 import android.graphics.Rect
+import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -29,6 +31,9 @@ import splitties.views.dsl.core.add
 import splitties.views.dsl.core.frameLayout
 import splitties.views.dsl.core.lParams
 import java.util.LinkedList
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 class PopupComponent :
     UniqueComponent<PopupComponent>(), Dependent, ManagedHandler by managedHandler() {
@@ -47,17 +52,32 @@ class PopupComponent :
     private val keyBottomMargin by lazy {
         context.dp(ThemeManager.prefs.keyVerticalMargin.getValue())
     }
-    private val popupWidth by lazy {
+    private val previewMinWidth by lazy {
         context.dp(38)
     }
+    private val previewMaxWidth by lazy {
+        context.dp(160)
+    }
+    private val previewHorizontalPadding by lazy {
+        context.dp(8)
+    }
+    private val longPopupKeyWidth by lazy {
+        context.dp(58)
+    }
     private val popupHeight by lazy {
-        context.dp(116)
+        context.dp(84)
     }
     private val popupKeyHeight by lazy {
-        context.dp(48)
+        context.dp(42)
+    }
+    private val longPopupOffsetHeight by lazy {
+        context.dp(116)
     }
     private val popupRadius by lazy {
         context.dp(ThemeManager.prefs.keyRadius.getValue()).toFloat()
+    }
+    private val previewTextPaint by lazy {
+        Paint(Paint.ANTI_ALIAS_FLAG)
     }
     private val hideThreshold = 100L
 
@@ -80,25 +100,62 @@ class PopupComponent :
         }
     }
 
-    private fun showPopup(viewId: Int, content: String, bounds: Rect) {
+    private fun previewWidth(content: String, icon: Int?, textSize: Float?): Int {
+        if (icon != null) return max(previewMinWidth, popupKeyHeight)
+        val textWidth = if (content.isBlank()) {
+            0
+        } else {
+            previewTextPaint.textSize = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                textSize ?: 18f,
+                context.resources.displayMetrics
+            )
+            previewTextPaint.measureText(content).roundToInt()
+        }
+        val maxWidth = max(
+            previewMinWidth,
+            if (root.width > 0) min(previewMaxWidth, root.width) else previewMaxWidth
+        )
+        return (textWidth + previewHorizontalPadding * 2).coerceIn(previewMinWidth, maxWidth)
+    }
+
+    private fun popupLeftMargin(bounds: Rect, width: Int): Int {
+        val centered = (bounds.left + bounds.right - width) / 2
+        val rootWidth = root.width
+        if (rootWidth <= 0 || width >= rootWidth) return centered
+        return centered.coerceIn(0, rootWidth - width)
+    }
+
+    private fun applyPopupLayout(popup: PopupEntryUi, bounds: Rect, width: Int) {
+        popup.root.layoutParams = FrameLayout.LayoutParams(width, popupHeight).apply {
+            // align popup bottom with key border bottom [^1]
+            topMargin = bounds.bottom - popupHeight - keyBottomMargin
+            leftMargin = popupLeftMargin(bounds, width)
+        }
+    }
+
+    private fun showPopup(
+        viewId: Int,
+        content: String,
+        bounds: Rect,
+        icon: Int? = null,
+        textSize: Float? = null
+    ) {
         showingEntryUi[viewId]?.apply {
             dismissJobs[viewId]?.also {
                 dismissJobs.remove(viewId)?.cancel()
             }
             lastShowTime = System.currentTimeMillis()
-            setText(content)
+            setContent(content, icon, textSize)
+            applyPopupLayout(this, bounds, previewWidth(content, icon, textSize))
             return
         }
         val popup = (freeEntryUi.poll()
             ?: PopupEntryUi(context, theme, popupKeyHeight, popupRadius)).apply {
             lastShowTime = System.currentTimeMillis()
-            setText(content)
+            setContent(content, icon, textSize)
         }
-        popup.root.layoutParams = FrameLayout.LayoutParams(popupWidth, popupHeight).apply {
-            // align popup bottom with key border bottom [^1]
-            topMargin = bounds.bottom - popupHeight - keyBottomMargin
-            leftMargin = (bounds.left + bounds.right - popupWidth) / 2
-        }
+        applyPopupLayout(popup, bounds, previewWidth(content, icon, textSize))
         // make sure that popup.root does not have parent view before adding it under root container
         // it's wired that on some devices it would have a parent view despite it was newly created
         // or just polled from freeEntryUi
@@ -111,16 +168,23 @@ class PopupComponent :
         showingEntryUi[viewId] = popup
     }
 
-    private fun updatePopup(viewId: Int, content: String) {
-        showingEntryUi[viewId]?.setText(content)
+    private fun updatePopup(
+        viewId: Int,
+        content: String,
+        icon: Int? = null,
+        textSize: Float? = null
+    ) {
+        showingEntryUi[viewId]?.setContent(content, icon, textSize)
     }
 
     private fun showKeyboard(viewId: Int, keyboard: KeyDef.Popup.Keyboard, bounds: Rect) {
-        val keys = PopupPreset[keyboard.label]
+        val keys = keyboard.keys
+            ?: PopupPreset[keyboard.label]
             ?: EmojiModifier.produceSkinTones(keyboard.label)
             ?: return
-        // clear popup preview text         OR create empty popup preview
-        showingEntryUi[viewId]?.setText("") ?: showPopup(viewId, "", bounds)
+        showingEntryUi[viewId]?.let {
+            dismissPopupEntry(viewId, it)
+        }
         reallyShowKeyboard(viewId, keys, bounds)
     }
 
@@ -135,10 +199,10 @@ class PopupComponent :
             bounds,
             { dismissPopup(viewId) },
             popupRadius,
-            popupWidth,
+            longPopupKeyWidth,
             popupKeyHeight,
             // position popup keyboard higher, because of [^1]
-            popupHeight + keyBottomMargin,
+            longPopupOffsetHeight + keyBottomMargin,
             keys,
             labels
         )
@@ -231,8 +295,8 @@ class PopupComponent :
             when (this) {
                 is PopupAction.ChangeFocusAction -> outResult = changeFocus(viewId, x, y)
                 is PopupAction.DismissAction -> dismissPopup(viewId)
-                is PopupAction.PreviewAction -> showPopup(viewId, content, bounds)
-                is PopupAction.PreviewUpdateAction -> updatePopup(viewId, content)
+                is PopupAction.PreviewAction -> showPopup(viewId, content, bounds, icon, textSize)
+                is PopupAction.PreviewUpdateAction -> updatePopup(viewId, content, icon, textSize)
                 is PopupAction.ShowKeyboardAction -> showKeyboard(viewId, keyboard, bounds)
                 is PopupAction.ShowMenuAction -> showMenu(viewId, menu, bounds)
                 is PopupAction.TriggerAction -> outAction = triggerFocused(viewId)
