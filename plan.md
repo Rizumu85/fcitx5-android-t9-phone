@@ -6,6 +6,15 @@ Rizum Guidelines are active for this project/thread until the user says otherwis
 
 ## Current Checklist
 
+- [x] Reproduce KawaiiBar button highlight after physical DPAD navigation.
+- [x] Remove KawaiiBar `ToolButton` views from DPAD focus navigation.
+- [x] Run a narrow Kotlin compile check for the focus fix.
+- [x] Install debug APK, switch to the debug IME component, and screenshot-check DPAD navigation.
+- [x] Reproduce DPAD focus moving to the on-screen `符号` key.
+- [x] Move the no-DPAD-focus rule to `CustomGestureView`.
+- [x] Run a narrow Kotlin compile check for the broader focus fix.
+- [x] Install debug APK, switch to the debug IME component, and screenshot-check toolbar plus keyboard DPAD navigation.
+
 - [x] Diagnose the Chinese T9 top-reading/lower-candidate shadow overlap.
 - [x] Lighten the top-reading bubble shadow while keeping the lower candidate shadow.
 - [x] Run a narrow Kotlin compile check for the shadow tuning.

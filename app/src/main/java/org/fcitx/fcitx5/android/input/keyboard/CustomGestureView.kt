@@ -6,6 +6,7 @@ package org.fcitx.fcitx5.android.input.keyboard
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.os.Build
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
@@ -97,6 +98,12 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
         // disable system sound effect and haptic feedback
         isSoundEffectsEnabled = false
         isHapticFeedbackEnabled = false
+        isFocusable = false
+        isFocusableInTouchMode = false
+        descendantFocusability = FOCUS_BLOCK_DESCENDANTS
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            defaultFocusHighlightEnabled = false
+        }
     }
 
     override fun setEnabled(enabled: Boolean) {

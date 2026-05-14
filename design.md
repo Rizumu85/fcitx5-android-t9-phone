@@ -8,6 +8,14 @@ controls, and a readable keyboard surface.
 
 ## Current Task Design
 
+Keep IME-local touch controls touch-clickable but remove them from Android's
+DPAD focus navigation. The IME already handles physical arrow keys at the
+service level for cursor and candidate movement, so `CustomGestureView`
+instances should not become keyboard focus targets or show default focus
+highlights.
+
+## Previous Task Design
+
 Tune Chinese T9 floating candidate shadows so the compact top-reading bubble
 does not create a dark seam against the lower pinyin/Hanzi bubble.
 

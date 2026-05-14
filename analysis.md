@@ -2,6 +2,27 @@
 
 ## Current Task
 
+Prevent physical DPAD arrow keys from focusing KawaiiBar tool buttons.
+
+## KawaiiBar DPAD Focus Bug
+
+- Reproduced on device by sending DPAD left/right/up/down while the toolbar is
+  visible. Android moves focus into the KawaiiBar and the left toolbar toggle
+  button receives the system focus/ripple highlight.
+- The highlighted state is not a KawaiiBar state-machine state; it is View
+  focus navigation treating clickable `ToolButton` views as DPAD focus targets.
+- Follow-up: after removing `ToolButton` from focus navigation, the same DPAD
+  focus highlight moved to the on-screen `符号` key. That key is a `KeyView`,
+  and `KeyView` also inherits from `CustomGestureView`.
+- Root cause: all IME-local touch controls built on `CustomGestureView` should
+  be touch targets, not Android DPAD focus targets. The fix belongs in
+  `CustomGestureView`, not only in KawaiiBar's `ToolButton`.
+- Success criteria: physical arrow keys should keep moving text/candidate focus
+  only, and no KawaiiBar tool button should remain visually highlighted unless
+  it is actually touched.
+
+## Previous Task
+
 Reduce Chinese T9 floating candidate shadow overlap between the top-reading
 bubble and the lower pinyin/Hanzi bubble.
 
