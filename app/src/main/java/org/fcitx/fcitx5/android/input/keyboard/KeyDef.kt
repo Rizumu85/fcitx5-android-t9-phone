@@ -138,6 +138,11 @@ open class KeyDef(
         class DoubleTap(
             val action: KeyAction
         ) : Behavior()
+
+        class Hold(
+            val downAction: KeyAction,
+            val upAction: KeyAction
+        ) : Behavior()
     }
 
     sealed class Popup {

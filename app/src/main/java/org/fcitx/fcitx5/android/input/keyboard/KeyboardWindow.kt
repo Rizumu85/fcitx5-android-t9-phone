@@ -66,6 +66,7 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
             nextWindow !is PickerWindow
         }
 
+    private lateinit var rootView: FrameLayout
     private lateinit var keyboardView: FrameLayout
 
     private val keyboards: HashMap<String, BaseKeyboard> by lazy {
@@ -80,18 +81,21 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
     private var lastSymbolType: String by AppPrefs.getInstance().internal.lastSymbolLayout
 
     var onLayoutChanged: ((String) -> Unit)? = null
+    var onHeightChanged: (() -> Unit)? = null
 
     private val currentKeyboard: BaseKeyboard? get() = keyboards[currentKeyboardName]
 
     private val keyActionListener = KeyActionListener { it, source ->
-        if (it is KeyAction.LayoutSwitchAction) {
-            if (it.act == TemporaryFullKeyboard.ExitTarget) {
-                disableTemporaryTextKeyboardForCurrentSession()
-            } else {
-                switchLayout(it.act)
+        when (it) {
+            is KeyAction.LayoutSwitchAction -> {
+                if (it.act == TemporaryFullKeyboard.ExitTarget) {
+                    disableTemporaryTextKeyboardForCurrentSession()
+                } else {
+                    switchLayout(it.act)
+                }
             }
-        } else {
-            commonKeyActionListener.listener.onKeyAction(it, source)
+            is KeyAction.PasswordPeekAction -> setPasswordPeekMode(it.enabled)
+            else -> commonKeyActionListener.listener.onKeyAction(it, source)
         }
     }
 
@@ -101,10 +105,15 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
 
     // This will be called EXACTLY ONCE
     override fun onCreateView(): View {
+        rootView = context.frameLayout()
         keyboardView = context.frameLayout(R.id.keyboard_view)
+        rootView.apply {
+            add(keyboardView, lParams(matchParent, matchParent))
+        }
         val initialLayout = if (useT9KeyboardLayout) T9Keyboard.Name else TextKeyboard.Name
         attachLayout(initialLayout)
-        return keyboardView
+        updatePasswordPeekViews()
+        return rootView
     }
 
     private fun detachCurrentLayout() {
@@ -118,17 +127,51 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
 
     private fun attachLayout(target: String) {
         currentKeyboardName = target
+        if (target != TemporaryFullKeyboard.Name) {
+            setPasswordPeekMode(false)
+        }
         currentKeyboard?.let {
             it.keyActionListener = keyActionListener
             it.popupActionListener = popupActionListener
             keyboardView.apply { add(it, lParams(matchParent, matchParent)) }
             it.onAttach()
             it.onReturnDrawableUpdate(returnKeyDrawable.resourceId)
-            it.onInputMethodUpdate(fcitx.runImmediately { inputMethodEntryCached })
+            val pendingInputMethod = pendingInputMethodDisplayAfterTemporary
+            val cachedInputMethod = fcitx.runImmediately { inputMethodEntryCached }
+            val displayInputMethod = pendingInputMethod
+                ?: displayInputMethodForLayout(cachedInputMethod, target)?.takeUnless {
+                    suppressPasswordInputMethodDisplayAfterTemporary &&
+                        it.uniqueName == PasswordInputMethod &&
+                        target != TemporaryFullKeyboard.Name
+                }
+            displayInputMethod?.let(it::onInputMethodUpdate)
+            if (pendingInputMethod != null && target != TemporaryFullKeyboard.Name) {
+                pendingInputMethodDisplayAttached = true
+            }
             (it as? T9Keyboard)?.updateT9ModeLabel(service.getCurrentT9ModeLabel())
         }
         onLayoutChanged?.invoke(target)
     }
+
+    private var passwordPeekMode = false
+
+    private fun updatePasswordPeekViews() {
+        if (!::keyboardView.isInitialized) return
+        keyboardView.visibility = View.VISIBLE
+        (keyboards[TemporaryFullKeyboard.Name] as? TemporaryFullKeyboard)?.setPeekMode(passwordPeekMode)
+    }
+
+    private fun setPasswordPeekMode(enabled: Boolean) {
+        val newValue = enabled &&
+            temporaryTextKeyboard &&
+            currentKeyboardName == TemporaryFullKeyboard.Name
+        if (passwordPeekMode == newValue) return
+        passwordPeekMode = newValue
+        updatePasswordPeekViews()
+        onHeightChanged?.invoke()
+    }
+
+    fun isPasswordPeekMode(): Boolean = passwordPeekMode
 
     fun switchLayout(
         to: String,
@@ -152,7 +195,11 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
                 target != TemporaryFullKeyboard.Name &&
                 target != NumberKeyboard.Name
         if (leavingTemporaryTextKeyboard) {
+            setPasswordPeekMode(false)
+            service.clearPasswordInputPreview()
             temporaryTextKeyboard = false
+            temporaryTextKeyboardSource = null
+            bar.onPasswordModeExited()
             restoreInputMethodBeforeTemporary()
         }
         val resolvedTarget = if (target == TextKeyboard.Name && useT9KeyboardLayout && !allowTextKeyboardInT9Mode) {
@@ -190,8 +237,50 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
     private var temporaryTextKeyboardSource: TemporaryTextKeyboardSource? = null
     private var suppressAutomaticPasswordKeyboardForSession = false
     private var imeBeforeTemporaryTextKeyboard: String? = null
+    private var imeEntryBeforeTemporaryTextKeyboard: InputMethodEntry? = null
+    private var pendingInputMethodDisplayAfterTemporary: InputMethodEntry? = null
+    private var pendingInputMethodDisplayAttached = false
+    private var suppressPasswordInputMethodDisplayAfterTemporary = false
+    private var lastNonPasswordInputMethod: String? = null
+    private var lastNonPasswordInputMethodEntry: InputMethodEntry? = null
     private var currentCapabilityFlags = CapabilityFlags.DefaultFlags
     private var capabilityFlagsBeforeTemporaryTextKeyboard: CapabilityFlags? = null
+
+    private fun CapabilityFlags.withoutPassword() =
+        CapabilityFlags(flags and CapabilityFlag.Password.flag.inv())
+
+    private fun rememberNonPasswordInputMethod(ime: InputMethodEntry?) {
+        if (ime == null || ime.uniqueName == PasswordInputMethod) return
+        lastNonPasswordInputMethod = ime.uniqueName
+        lastNonPasswordInputMethodEntry = ime
+    }
+
+    private fun firstEnabledNonPasswordInputMethodNow(): InputMethodEntry? {
+        return runCatching {
+            fcitx.runImmediately {
+                enabledIme().firstOrNull { it.uniqueName != PasswordInputMethod }
+            }
+        }.getOrNull()
+    }
+
+    private fun displayInputMethodForLayout(
+        ime: InputMethodEntry,
+        targetLayout: String
+    ): InputMethodEntry? {
+        if (targetLayout == TemporaryFullKeyboard.Name || ime.uniqueName != PasswordInputMethod) {
+            return ime
+        }
+        val enabledInputMethods = runCatching {
+            fcitx.runImmediately {
+                enabledIme().toList()
+            }
+        }.getOrNull()
+        if (enabledInputMethods?.any { it.uniqueName == PasswordInputMethod } == true) {
+            return ime
+        }
+        return lastNonPasswordInputMethodEntry
+            ?: enabledInputMethods?.firstOrNull { it.uniqueName != PasswordInputMethod }
+    }
 
     fun isTemporaryTextKeyboardEnabled(): Boolean = temporaryTextKeyboard
 
@@ -223,24 +312,42 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
     }
 
     private fun disableTemporaryTextKeyboardForCurrentSession() {
-        if (currentCapabilityFlags.has(CapabilityFlag.Password)) {
+        val suppressAutomaticPasswordKeyboard = currentCapabilityFlags.has(CapabilityFlag.Password)
+        if (suppressAutomaticPasswordKeyboard) {
             suppressAutomaticPasswordKeyboardForSession = true
+        }
+        setTemporaryTextKeyboard(
+            false,
+            restoreCapabilityFlags = if (suppressAutomaticPasswordKeyboard) {
+                currentCapabilityFlags.withoutPassword()
+            } else {
+                null
+            }
+        )
+        if (suppressAutomaticPasswordKeyboard) {
             bar.onPasswordModeManuallyDisabled()
         }
-        setTemporaryTextKeyboard(false)
     }
 
     private fun setTemporaryTextKeyboard(
         enabled: Boolean,
-        source: TemporaryTextKeyboardSource? = null
+        source: TemporaryTextKeyboardSource? = null,
+        restoreCapabilityFlags: CapabilityFlags? = null
     ) {
         val wasEnabled = temporaryTextKeyboard
         temporaryTextKeyboard = enabled
         temporaryTextKeyboardSource = source.takeIf { enabled }
         if (enabled && !wasEnabled) {
+            pendingInputMethodDisplayAfterTemporary = null
+            pendingInputMethodDisplayAttached = false
+            suppressPasswordInputMethodDisplayAfterTemporary = false
+            setPasswordPeekMode(false)
             activatePasswordInputMethod()
         } else if (!enabled && wasEnabled) {
-            restoreInputMethodBeforeTemporary()
+            setPasswordPeekMode(false)
+            service.clearPasswordInputPreview()
+            bar.onPasswordModeExited()
+            restoreInputMethodBeforeTemporary(restoreCapabilityFlags)
         }
         val targetLayout = if (enabled) {
             TemporaryFullKeyboard.Name
@@ -259,12 +366,16 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
         val capabilityFlagsBeforeTemporary = currentCapabilityFlags
         capabilityFlagsBeforeTemporaryTextKeyboard = capabilityFlagsBeforeTemporary
         service.postFcitxJob {
-            val currentIme = inputMethodEntryCached.uniqueName
-            if (currentIme != PasswordInputMethod) {
-                imeBeforeTemporaryTextKeyboard = currentIme
+            val currentIme = inputMethodEntryCached
+            val previousIme = if (currentIme.uniqueName != PasswordInputMethod) {
+                currentIme
             } else {
-                imeBeforeTemporaryTextKeyboard = null
-            }
+                lastNonPasswordInputMethodEntry
+                    ?: enabledIme().firstOrNull { it.uniqueName != PasswordInputMethod }
+            }?.takeIf { it.uniqueName != PasswordInputMethod }
+            rememberNonPasswordInputMethod(previousIme)
+            imeEntryBeforeTemporaryTextKeyboard = previousIme
+            imeBeforeTemporaryTextKeyboard = previousIme?.uniqueName
             setCapFlags(
                 CapabilityFlags(
                     capabilityFlagsBeforeTemporary.flags or CapabilityFlag.Password.flag
@@ -289,14 +400,23 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
         }
     }
 
-    private fun restoreInputMethodBeforeTemporary() {
-        val previousCapabilityFlags = capabilityFlagsBeforeTemporaryTextKeyboard
+    private fun restoreInputMethodBeforeTemporary(restoreCapabilityFlags: CapabilityFlags? = null) {
+        val previousCapabilityFlags =
+            restoreCapabilityFlags ?: capabilityFlagsBeforeTemporaryTextKeyboard
         capabilityFlagsBeforeTemporaryTextKeyboard = null
         previousCapabilityFlags?.let {
             currentCapabilityFlags = it
         }
         val previousIme = imeBeforeTemporaryTextKeyboard
+        val previousImeEntry = imeEntryBeforeTemporaryTextKeyboard
+            ?: lastNonPasswordInputMethodEntry
+            ?: firstEnabledNonPasswordInputMethodNow()
+        rememberNonPasswordInputMethod(previousImeEntry)
         imeBeforeTemporaryTextKeyboard = null
+        imeEntryBeforeTemporaryTextKeyboard = null
+        pendingInputMethodDisplayAfterTemporary = previousImeEntry
+        pendingInputMethodDisplayAttached = false
+        suppressPasswordInputMethodDisplayAfterTemporary = true
         service.postFcitxJob {
             previousCapabilityFlags?.let {
                 setCapFlags(it)
@@ -305,6 +425,30 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
                 inputMethodEntryCached.uniqueName == PasswordInputMethod
             ) {
                 activateIme(previousIme)
+            }
+        }
+    }
+
+    private fun keepPasswordModeManuallyDisabled(capFlags: CapabilityFlags) {
+        val effectiveCapFlags = capFlags.withoutPassword()
+        currentCapabilityFlags = effectiveCapFlags
+        bar.onPasswordModeManuallyDisabled()
+        service.postFcitxJob {
+            setCapFlags(effectiveCapFlags)
+            if (inputMethodEntryCached.uniqueName != PasswordInputMethod) return@postFcitxJob
+            val restoreIme = lastNonPasswordInputMethod?.takeIf { it != PasswordInputMethod }
+            if (restoreIme != null) {
+                activateIme(restoreIme)
+                return@postFcitxJob
+            }
+            val enabledInputMethods = enabledIme()
+            enabledInputMethods.firstOrNull { it.uniqueName != PasswordInputMethod }?.let {
+                lastNonPasswordInputMethod = it.uniqueName
+                lastNonPasswordInputMethodEntry = it
+                pendingInputMethodDisplayAfterTemporary = it
+                pendingInputMethodDisplayAttached = false
+                suppressPasswordInputMethodDisplayAfterTemporary = true
+                activateIme(it.uniqueName)
             }
         }
     }
@@ -321,15 +465,24 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
         service.postFcitxJob {
             if (inputMethodEntryCached.uniqueName != PasswordInputMethod) return@postFcitxJob
             setCapFlags(capFlags)
-            if (previousIme != null) {
-                activateIme(previousIme)
+            val restoreIme = previousIme
+                ?.takeIf { it != PasswordInputMethod }
+                ?: lastNonPasswordInputMethod?.takeIf { it != PasswordInputMethod }
+            if (restoreIme != null) {
+                pendingInputMethodDisplayAfterTemporary = lastNonPasswordInputMethodEntry
+                    ?.takeIf { it.uniqueName == restoreIme }
+                pendingInputMethodDisplayAttached = false
+                suppressPasswordInputMethodDisplayAfterTemporary = true
+                activateIme(restoreIme)
                 return@postFcitxJob
             }
             val enabledInputMethods = enabledIme()
-            if (enabledInputMethods.any { it.uniqueName == PasswordInputMethod }) {
-                return@postFcitxJob
-            }
-            enabledInputMethods.firstOrNull()?.let {
+            enabledInputMethods.firstOrNull { it.uniqueName != PasswordInputMethod }?.let {
+                lastNonPasswordInputMethod = it.uniqueName
+                lastNonPasswordInputMethodEntry = it
+                pendingInputMethodDisplayAfterTemporary = it
+                pendingInputMethodDisplayAttached = false
+                suppressPasswordInputMethodDisplayAfterTemporary = true
                 activateIme(it.uniqueName)
             }
         }
@@ -350,9 +503,13 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
             } else {
                 val previousIme = imeBeforeTemporaryTextKeyboard
                 imeBeforeTemporaryTextKeyboard = null
+                imeEntryBeforeTemporaryTextKeyboard = null
                 capabilityFlagsBeforeTemporaryTextKeyboard = null
+                setPasswordPeekMode(false)
+                service.clearPasswordInputPreview()
                 temporaryTextKeyboard = false
                 temporaryTextKeyboardSource = null
+                bar.onPasswordModeExited()
                 if (!capFlags.has(CapabilityFlag.Password)) {
                     restorePasswordInputMethodAfterTemporary(previousIme, capFlags)
                 }
@@ -360,8 +517,12 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
         } else {
             temporaryTextKeyboardSource = null
             imeBeforeTemporaryTextKeyboard = null
+            imeEntryBeforeTemporaryTextKeyboard = null
             capabilityFlagsBeforeTemporaryTextKeyboard = null
             restoreLeakedPasswordInputMethod(capFlags)
+        }
+        if (capFlags.has(CapabilityFlag.Password) && suppressAutomaticPasswordKeyboardForSession) {
+            keepPasswordModeManuallyDisabled(capFlags)
         }
         if (capFlags.has(CapabilityFlag.Password) && !suppressAutomaticPasswordKeyboardForSession) {
             setTemporaryTextKeyboard(
@@ -383,10 +544,29 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
     }
 
     override fun onImeUpdate(ime: InputMethodEntry) {
+        if (!temporaryTextKeyboard && !currentCapabilityFlags.has(CapabilityFlag.Password)) {
+            rememberNonPasswordInputMethod(ime)
+        }
+        pendingInputMethodDisplayAfterTemporary?.let {
+            if (ime.uniqueName == PasswordInputMethod) {
+                return
+            }
+            if (currentKeyboardName != TemporaryFullKeyboard.Name && pendingInputMethodDisplayAttached) {
+                pendingInputMethodDisplayAfterTemporary = null
+                pendingInputMethodDisplayAttached = false
+            }
+        }
+        if (suppressPasswordInputMethodDisplayAfterTemporary) {
+            if (ime.uniqueName == PasswordInputMethod) {
+                return
+            }
+            suppressPasswordInputMethodDisplayAfterTemporary = false
+        }
         if (isTemporaryPasswordKeyboardVisible() && ime.uniqueName != PasswordInputMethod) {
             ensurePasswordInputMethod()
         }
-        currentKeyboard?.onInputMethodUpdate(ime)
+        val displayIme = displayInputMethodForLayout(ime, currentKeyboardName)
+        displayIme?.let { currentKeyboard?.onInputMethodUpdate(it) }
         (currentKeyboard as? T9Keyboard)?.updateT9ModeLabel(service.getCurrentT9ModeLabel())
     }
 
@@ -408,6 +588,7 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
             it.popupActionListener = popupActionListener
             it.onAttach()
         }
+        updatePasswordPeekViews()
         onLayoutChanged?.invoke(currentKeyboardName)
         notifyBarLayoutChanged()
     }

@@ -273,7 +273,7 @@ class CandidatesView(
         orientation = LinearLayout.VERTICAL
         clipChildren = false
         clipToPadding = false
-        setPadding(0, 0, 0, dp(8))
+        setPadding(0, 0, 0, dp(12))
     }
 
     private fun makeBubbleBackground() = GradientDrawable().apply {
@@ -282,12 +282,12 @@ class CandidatesView(
         cornerRadius = dp(windowRadius).toFloat()
     }
 
-    private fun View.applyLowOpacityBubbleShadow() {
-        elevation = dp(4).toFloat()
+    private fun View.applyCandidateBubbleShadow() {
+        elevation = dp(7).toFloat()
         translationZ = 0f
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            outlineAmbientShadowColor = Color.argb(30, 0, 0, 0)
-            outlineSpotShadowColor = Color.argb(48, 0, 0, 0)
+            outlineAmbientShadowColor = Color.argb(54, 0, 0, 0)
+            outlineSpotShadowColor = Color.argb(78, 0, 0, 0)
         }
     }
 
@@ -297,6 +297,7 @@ class CandidatesView(
         background = makeBubbleBackground()
         clipToOutline = true
         outlineProvider = ViewOutlineProvider.BACKGROUND
+        applyCandidateBubbleShadow()
     }
 
     /** Bubble 2: second + third rows; width = max of those rows. */
@@ -308,7 +309,7 @@ class CandidatesView(
         outlineProvider = ViewOutlineProvider.BACKGROUND
         clipChildren = false
         clipToPadding = false
-        applyLowOpacityBubbleShadow()
+        applyCandidateBubbleShadow()
     }
 
     override fun onStartHandleFcitxEvent() {

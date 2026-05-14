@@ -144,6 +144,13 @@ abstract class BaseKeyboard(
         spaceSwipeMoveCursor.registerOnChangeListener(spaceSwipeChangeListener)
     }
 
+    protected fun showOnlyLastRow(showOnlyLast: Boolean) {
+        val lastIndex = keyRows.lastIndex
+        keyRows.forEachIndexed { index, row ->
+            row.visibility = if (!showOnlyLast || index == lastIndex) View.VISIBLE else View.GONE
+        }
+    }
+
     private fun createKeyView(def: KeyDef): KeyView {
         return when (def.appearance) {
             is KeyDef.Appearance.AltText -> AltTextKeyView(context, theme, def.appearance)
@@ -248,6 +255,22 @@ abstract class BaseKeyboard(
                         doubleTapEnabled = true
                         onDoubleTapListener = { _ ->
                             onAction(it.action)
+                        }
+                    }
+                    is KeyDef.Behavior.Hold -> {
+                        val oldOnGestureListener = onGestureListener ?: OnGestureListener.Empty
+                        onGestureListener = OnGestureListener { view, event ->
+                            when (event.type) {
+                                GestureType.Down -> {
+                                    onAction(it.downAction)
+                                    true
+                                }
+                                GestureType.Up -> {
+                                    onAction(it.upAction)
+                                    true
+                                }
+                                else -> false
+                            } || oldOnGestureListener.onGesture(view, event)
                         }
                     }
                 }

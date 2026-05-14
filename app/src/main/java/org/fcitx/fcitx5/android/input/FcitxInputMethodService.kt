@@ -115,6 +115,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private lateinit var contentView: FrameLayout
     private var inputView: InputView? = null
     private var candidatesView: CandidatesView? = null
+    private val passwordInputPreviewBuffer = StringBuilder()
+    private var passwordInputPreviewCursor = 0
     private val numberModeController = NumberModeController(
         commitText = { text -> currentInputConnection?.commitText(text, 1) },
         getTextBeforeCursor = {
@@ -127,6 +129,64 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         showEqualsChoice = { prefix, result -> inputView?.showNumberEqualsChoice(prefix, result) },
         hideEqualsChoice = { inputView?.hideNumberEqualsChoice() }
     )
+
+    private fun isPasswordInputPreviewActive(): Boolean =
+        inputView?.isTemporaryPasswordKeyboardVisible() == true
+
+    fun clearPasswordInputPreview() {
+        if (passwordInputPreviewBuffer.isNotEmpty()) {
+            passwordInputPreviewBuffer.clear()
+        }
+        passwordInputPreviewCursor = 0
+        inputView?.setPasswordInputPreview("", 0, hasContent = false)
+    }
+
+    private fun updatePasswordInputPreviewView() {
+        val textLength = passwordInputPreviewBuffer.length
+        passwordInputPreviewCursor = passwordInputPreviewCursor.coerceIn(0, textLength)
+        if (textLength == 0) {
+            inputView?.setPasswordInputPreview("", 0, hasContent = false)
+            return
+        }
+        inputView?.setPasswordInputPreview(
+            passwordInputPreviewBuffer.toString(),
+            passwordInputPreviewCursor,
+            hasContent = true
+        )
+    }
+
+    private fun recordPasswordInputPreviewCommit(text: String) {
+        if (!isPasswordInputPreviewActive() || text.isEmpty()) return
+        passwordInputPreviewBuffer.insert(passwordInputPreviewCursor, text)
+        passwordInputPreviewCursor += text.length
+        updatePasswordInputPreviewView()
+    }
+
+    private fun recordPasswordInputPreviewBackspace(selectionDeleted: Boolean) {
+        if (!isPasswordInputPreviewActive()) return
+        if (selectionDeleted) {
+            clearPasswordInputPreview()
+            return
+        }
+        if (passwordInputPreviewBuffer.isEmpty() || passwordInputPreviewCursor <= 0) return
+        val lastCodePointStart =
+            passwordInputPreviewBuffer.offsetByCodePoints(passwordInputPreviewCursor, -1)
+        passwordInputPreviewBuffer.delete(lastCodePointStart, passwordInputPreviewCursor)
+        passwordInputPreviewCursor = lastCodePointStart
+        updatePasswordInputPreviewView()
+    }
+
+    private fun movePasswordInputPreviewCursor(offset: Int) {
+        if (!isPasswordInputPreviewActive() || passwordInputPreviewBuffer.isEmpty()) return
+        passwordInputPreviewCursor = when {
+            offset < 0 && passwordInputPreviewCursor > 0 ->
+                passwordInputPreviewBuffer.offsetByCodePoints(passwordInputPreviewCursor, -1)
+            offset > 0 && passwordInputPreviewCursor < passwordInputPreviewBuffer.length ->
+                passwordInputPreviewBuffer.offsetByCodePoints(passwordInputPreviewCursor, 1)
+            else -> passwordInputPreviewCursor
+        }
+        updatePasswordInputPreviewView()
+    }
 
     private val navbarMgr = NavigationBarManager()
     private val inputDeviceMgr = InputDeviceManager { isVirtualKeyboard ->
@@ -553,6 +613,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             updateT9CompositionModelFromTracker()
         }
         val lastSelection = selection.latest
+        recordPasswordInputPreviewBackspace(selectionDeleted = lastSelection.isNotEmpty())
         if (lastSelection.isNotEmpty()) {
             selection.predict(lastSelection.start)
         } else if (lastSelection.start > 0) {
@@ -695,6 +756,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     private fun handleReturnKey() {
         if (commitT9PreviewPinyinFromReturn()) return
+        if (isPasswordInputPreviewActive()) {
+            clearPasswordInputPreview()
+        }
         currentInputEditorInfo.run {
             if (inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_NULL) {
                 sendTt9StyleDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
@@ -735,6 +799,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             else -> return
         }
         currentInputConnection.setSelection(target, target)
+        when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_LEFT -> movePasswordInputPreviewCursor(-1)
+            KeyEvent.KEYCODE_DPAD_RIGHT -> movePasswordInputPreviewCursor(1)
+        }
     }
 
     fun commitText(text: String, cursor: Int = -1) {
@@ -763,6 +831,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (cursor == -1) {
             selection.predict(start + text.length)
             ic.commitText(text, 1)
+            recordPasswordInputPreviewCommit(text)
         } else {
             val target = start + cursor
             selection.predict(target)
@@ -770,6 +839,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 commitText(text, 1)
                 setSelection(target, target)
             }
+            recordPasswordInputPreviewCommit(text)
         }
     }
 
@@ -1243,6 +1313,15 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         win.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
     }
 
+    fun requestImeInsetsRefresh() {
+        inputView?.keyboardView?.requestLayout()
+        inputView?.requestLayout()
+        decorView.requestLayout()
+        decorView.invalidate()
+        decorView.requestApplyInsets()
+        updateInputViewShown()
+    }
+
     private var inputViewLocation = intArrayOf(0, 0)
 
     override fun onComputeInsets(outInsets: Insets) {
@@ -1258,7 +1337,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
         // When using virtual keyboard OR T9 input mode (physical T9 phone with on-screen control bar),
         // make the area of keyboardView touchable so it can receive tap events.
-        if (inputDeviceMgr.isVirtualKeyboard || t9InputModeEnabled) {
+        if (
+            inputDeviceMgr.isVirtualKeyboard ||
+            t9InputModeEnabled ||
+            inputView?.isTemporaryPasswordKeyboardVisible() == true
+        ) {
             inputView?.keyboardView?.getLocationInWindow(inputViewLocation)
             outInsets.apply {
                 contentTopInsets = inputViewLocation[1]
@@ -3025,6 +3108,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (handlePhysicalSelectionActionPanelKeyDown(keyCode, event)) {
             return true
         }
+        if (event.action == KeyEvent.ACTION_DOWN &&
+            isPasswordInputPreviewActive() &&
+            keyCode in t9FocusLeftKeyCodes + t9FocusRightKeyCodes
+        ) {
+            handleArrowKey(keyCode)
+            t9ConsumedNavigationKeyUp = keyCode
+            return true
+        }
 
         if (event.action == KeyEvent.ACTION_DOWN &&
             t9PendingPunctuation.isPending &&
@@ -3355,6 +3446,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     override fun onStartInput(attribute: EditorInfo, restarting: Boolean) {
+        clearPasswordInputPreview()
         // update selection as soon as possible
         // sometimes when restarting input, onUpdateSelection happens before onStartInput, and
         // initialSel{Start,End} is outdated. but it's the client app's responsibility to send
@@ -3715,6 +3807,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         resetComposingState()
         candidatesView?.clearTransientState()
         inputView?.clearTransientState()
+        clearPasswordInputPreview()
         postFcitxJob {
             focusOutIn()
         }
@@ -3728,6 +3821,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         clearT9CompositionState()
         candidatesView?.clearTransientState()
         inputView?.clearTransientState()
+        clearPasswordInputPreview()
         postFcitxJob {
             focus(false)
         }

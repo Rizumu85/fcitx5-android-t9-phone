@@ -18,9 +18,19 @@ class TemporaryFullKeyboard(
     theme: Theme
 ) : TextKeyboard(context, theme, Layout, respectKeepLettersUppercase = false) {
 
+    fun setPeekMode(enabled: Boolean) {
+        showOnlyLastRow(enabled)
+    }
+
+    override fun onDetach() {
+        setPeekMode(false)
+        super.onDetach()
+    }
+
     companion object {
         const val Name = "TemporaryFull"
         const val ExitTarget = "TemporaryFullExit"
+        const val RowCount = 4
         private const val PasswordMainTextSize = 20f
         private const val PasswordAltTextSize = 9f
 
@@ -69,6 +79,24 @@ class TemporaryFullKeyboard(
             )
         )
 
+        private class PeekKey : KeyDef(
+            Appearance.Image(
+                src = R.drawable.ic_baseline_visibility_24,
+                percentWidth = 0.10f,
+                variant = Appearance.Variant.Alternative,
+                pressHighlight = false
+            ),
+            setOf(
+                Behavior.Hold(
+                    KeyAction.PasswordPeekAction(true),
+                    KeyAction.PasswordPeekAction(false)
+                )
+            ),
+            arrayOf(
+                Popup.Preview("", icon = R.drawable.ic_baseline_visibility_24)
+            )
+        )
+
         val Layout: List<List<KeyDef>> = listOf(
             listOf(
                 PasswordAlphabetKey("Q", "_", overridePopupKeyboard = true),
@@ -113,7 +141,8 @@ class TemporaryFullKeyboard(
                     KeyDef.Appearance.Variant.Alternative
                 ),
                 LanguageKey(0.12f),
-                SpaceKey(),
+                SpaceKey(0.0f),
+                PeekKey(),
                 SimpleReturnKey()
             )
         )

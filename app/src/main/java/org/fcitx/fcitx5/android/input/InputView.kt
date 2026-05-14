@@ -7,12 +7,16 @@ package org.fcitx.fcitx5.android.input
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
-import android.graphics.Outline
+import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.TextUtils
+import android.text.style.ForegroundColorSpan
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
@@ -21,7 +25,9 @@ import android.view.ViewOutlineProvider
 import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InlineSuggestionsResponse
+import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.TextView
 import androidx.annotation.Keep
 import androidx.annotation.RequiresApi
 import androidx.core.view.updateLayoutParams
@@ -30,6 +36,7 @@ import org.fcitx.fcitx5.android.core.CapabilityFlags
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.daemon.FcitxConnection
 import org.fcitx.fcitx5.android.daemon.launchOnReady
+import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreferenceProvider
 import org.fcitx.fcitx5.android.data.theme.Theme
@@ -43,6 +50,7 @@ import org.fcitx.fcitx5.android.input.candidates.horizontal.HorizontalCandidateC
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
 import org.fcitx.fcitx5.android.input.keyboard.T9Keyboard
+import org.fcitx.fcitx5.android.input.keyboard.TemporaryFullKeyboard
 import org.fcitx.fcitx5.android.input.picker.emojiPicker
 import org.fcitx.fcitx5.android.input.picker.emoticonPicker
 import org.fcitx.fcitx5.android.input.picker.symbolPicker
@@ -131,6 +139,51 @@ class InputView(
         }
         elevation = dp(8).toFloat()
     }
+    private var passwordInputPreviewValue = ""
+    private var passwordInputPreviewCursor = 0
+    private var passwordInputPreviewCursorVisible = true
+    private val passwordInputPreviewBlinkHandler = Handler(Looper.getMainLooper())
+    private val passwordInputPreviewBlinkRunnable = object : Runnable {
+        override fun run() {
+            if (passwordInputPreview.visibility != VISIBLE || passwordInputPreviewValue.isEmpty()) return
+            passwordInputPreviewCursorVisible = !passwordInputPreviewCursorVisible
+            renderPasswordInputPreview()
+            passwordInputPreviewBlinkHandler.postDelayed(this, PasswordInputPreviewBlinkInterval)
+        }
+    }
+    private val passwordInputPreviewBackground = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        setColor(theme.keyboardColor)
+    }
+    private val passwordInputPreviewText = view(::TextView) {
+        gravity = Gravity.CENTER_VERTICAL
+        setSingleLine(true)
+        ellipsize = TextUtils.TruncateAt.START
+        setPadding(dp(10), 0, dp(10), 0)
+        setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15f)
+        InputUiFont.applyTo(this, Typeface.NORMAL)
+        setTextColor(theme.keyTextColor)
+        background = passwordInputPreviewBackground
+        clipToOutline = true
+        outlineProvider = ViewOutlineProvider.BACKGROUND
+        elevation = dp(7).toFloat()
+        translationZ = 0f
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            outlineAmbientShadowColor = Color.argb(54, 0, 0, 0)
+            outlineSpotShadowColor = Color.argb(78, 0, 0, 0)
+        }
+    }
+    private val passwordInputPreview = view(::FrameLayout) {
+        visibility = GONE
+        isClickable = false
+        isFocusable = false
+        clipChildren = false
+        clipToPadding = false
+        addView(
+            passwordInputPreviewText,
+            FrameLayout.LayoutParams(matchParent, dp(30), Gravity.CENTER)
+        )
+    }
 
     private val scope = DynamicScope()
     private val themedContext = context.withTheme(R.style.Theme_InputViewTheme)
@@ -196,6 +249,15 @@ class InputView(
 
     private val keyboardHeightPx: Int
         get() {
+            val height = fullKeyboardHeightPx
+            if (keyboardWindow.isPasswordPeekMode()) {
+                return height / TemporaryFullKeyboard.RowCount
+            }
+            return height
+        }
+
+    private val fullKeyboardHeightPx: Int
+        get() {
             val percent = when (resources.configuration.orientation) {
                 Configuration.ORIENTATION_LANDSCAPE ->
                     if (isT9KeyboardActive) t9KeyboardHeightPercentLandscape
@@ -232,13 +294,19 @@ class InputView(
         }
     }
 
-    val keyboardView: View
+    val keyboardView: TopRoundedClipLayout
 
-    private val keyboardSurfaceOutlineProvider = object : ViewOutlineProvider() {
-        override fun getOutline(view: View, outline: Outline) {
-            val radius = view.inputPanelTopCornerRadiusPx()
-            outline.setRoundRect(0, 0, view.width, view.height + radius, radius.toFloat())
-        }
+    @Keep
+    private val inputPanelTopRadiusChangeListener = ManagedPreference.OnChangeListener<Int> { _, _ ->
+        updateInputPanelTopCornerRadius()
+    }
+
+    private fun updateInputPanelTopCornerRadius() {
+        val radius = keyboardView.inputPanelTopCornerRadiusPx()
+        keyboardView.topCornerRadiusPx = radius
+        passwordInputPreviewBackground.cornerRadius = radius.toFloat()
+        passwordInputPreviewText.invalidateOutline()
+        kawaiiBar.updateTopCornerRadius()
     }
 
     init {
@@ -267,6 +335,12 @@ class InputView(
                 isT9KeyboardActive = shouldBeT9
                 updateKeyboardSize()
             }
+            updatePasswordInputPreviewChrome()
+        }
+        keyboardWindow.onHeightChanged = {
+            updatePasswordPeekChrome()
+            updateKeyboardSize()
+            updatePasswordInputPreviewChrome()
         }
         windowManager.onActiveWindowChanged = { oldWindow, newWindow ->
             if (oldWindow === keyboardWindow && isT9KeyboardActive) {
@@ -288,14 +362,13 @@ class InputView(
 
         customBackground.imageDrawable = theme.backgroundDrawable(keyBorder)
 
-        keyboardView = constraintLayout {
-            clipToOutline = true
-            outlineProvider = keyboardSurfaceOutlineProvider
+        keyboardView = TopRoundedClipLayout(themedContext).apply {
+            topCornerRadiusPx = inputPanelTopCornerRadiusPx()
             // allow MotionEvent to be delivered to keyboard while pressing on padding views.
             // although it should be default for apps targeting Honeycomb (3.0, API 11) and higher,
             // but it's not the case on some devices ... just set it here
             isMotionEventSplittingEnabled = true
-            add(customBackground, lParams {
+            add(customBackground, lParams(matchParent, matchParent) {
                 centerVertically()
                 centerHorizontally()
             })
@@ -329,6 +402,10 @@ class InputView(
 
         // 3. Add views to layout
         add(preedit.ui.root, lParams(matchParent, wrapContent) {
+            above(passwordInputPreview)
+            centerHorizontally()
+        })
+        add(passwordInputPreview, lParams(matchParent, dp(36)) {
             above(keyboardView)
             centerHorizontally()
         })
@@ -348,9 +425,12 @@ class InputView(
         numberOperatorPanel.addTo(this)
 
         // 4. updateKeyboardSize() after all add() so layoutParams exist (avoids NPE / wrong height)
+        updateInputPanelTopCornerRadius()
+        updatePasswordPeekChrome()
         updateKeyboardSize()
 
         keyboardPrefs.registerOnChangeListener(onKeyboardSizeChangeListener)
+        ThemeManager.prefs.inputPanelTopRadius.registerOnChangeListener(inputPanelTopRadiusChangeListener)
     }
 
     private fun updateKeyboardSize() {
@@ -390,10 +470,30 @@ class InputView(
         }
         preedit.ui.root.setPadding(sidePadding, 0, sidePadding, 0)
         kawaiiBar.view.setPadding(sidePadding, 0, sidePadding, 0)
+        passwordInputPreview.setPadding(sidePadding + dp(8), 0, sidePadding + dp(8), dp(6))
+        keyboardView.post {
+            service.requestImeInsetsRefresh()
+        }
+    }
+
+    private fun updatePasswordPeekChrome() {
+        kawaiiBar.view.visibility = if (keyboardWindow.isPasswordPeekMode()) GONE else VISIBLE
+    }
+
+    private fun updatePasswordInputPreviewChrome() {
+        val visible = passwordInputPreviewValue.isNotEmpty() &&
+            keyboardWindow.isTemporaryPasswordKeyboardVisible() &&
+            !keyboardWindow.isPasswordPeekMode()
+        passwordInputPreview.visibility = if (visible) VISIBLE else GONE
+        if (visible) {
+            startPasswordInputPreviewBlink()
+        } else {
+            stopPasswordInputPreviewBlink()
+        }
     }
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
-        keyboardView.invalidateOutline()
+        updateInputPanelTopCornerRadius()
         bottomPaddingSpace.updateLayoutParams<LayoutParams> {
             bottomMargin = getNavBarBottomInset(insets)
         }
@@ -473,6 +573,63 @@ class InputView(
         kawaiiBar.clearTransientState()
     }
 
+    private fun renderPasswordInputPreview() {
+        val text = passwordInputPreviewValue
+        if (text.isEmpty()) {
+            passwordInputPreviewText.text = ""
+            return
+        }
+        val cursor = passwordInputPreviewCursor.coerceIn(0, text.length)
+        val displayText = StringBuilder(text)
+            .insert(cursor, PasswordInputPreviewCursor)
+            .toString()
+        val styled = SpannableString(displayText).apply {
+            setSpan(
+                ForegroundColorSpan(
+                    if (passwordInputPreviewCursorVisible) {
+                        theme.accentKeyBackgroundColor
+                    } else {
+                        Color.TRANSPARENT
+                    }
+                ),
+                cursor,
+                cursor + PasswordInputPreviewCursor.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+        passwordInputPreviewText.text = styled
+    }
+
+    private fun startPasswordInputPreviewBlink() {
+        passwordInputPreviewBlinkHandler.removeCallbacks(passwordInputPreviewBlinkRunnable)
+        passwordInputPreviewBlinkHandler.postDelayed(
+            passwordInputPreviewBlinkRunnable,
+            PasswordInputPreviewBlinkInterval
+        )
+    }
+
+    private fun stopPasswordInputPreviewBlink() {
+        passwordInputPreviewBlinkHandler.removeCallbacks(passwordInputPreviewBlinkRunnable)
+        passwordInputPreviewCursorVisible = true
+        renderPasswordInputPreview()
+    }
+
+    fun setPasswordInputPreview(text: String, cursor: Int, hasContent: Boolean) {
+        passwordInputPreviewValue = if (hasContent) text else ""
+        passwordInputPreviewCursor = cursor.coerceIn(0, passwordInputPreviewValue.length)
+        passwordInputPreviewCursorVisible = true
+        renderPasswordInputPreview()
+        updatePasswordInputPreviewChrome()
+    }
+
+    fun setPasswordInputPreview(text: String) {
+        passwordInputPreviewValue = text
+        passwordInputPreviewCursor = text.length
+        passwordInputPreviewCursorVisible = true
+        renderPasswordInputPreview()
+        updatePasswordInputPreviewChrome()
+    }
+
     fun showModeIndicatorBadge(label: String) {
         modeSwitchIndicatorHandler.removeCallbacks(modeSwitchIndicatorHideRunnable)
         modeSwitchIndicator.animate().cancel()
@@ -536,12 +693,18 @@ class InputView(
 
     override fun onDetachedFromWindow() {
         modeSwitchIndicatorHandler.removeCallbacks(modeSwitchIndicatorHideRunnable)
+        passwordInputPreviewBlinkHandler.removeCallbacks(passwordInputPreviewBlinkRunnable)
         modeSwitchIndicator.animate().cancel()
         keyboardWindow.onLayoutChanged = null
+        keyboardWindow.onHeightChanged = null
         windowManager.onActiveWindowChanged = null
         keyboardPrefs.unregisterOnChangeListener(onKeyboardSizeChangeListener)
+        ThemeManager.prefs.inputPanelTopRadius.unregisterOnChangeListener(inputPanelTopRadiusChangeListener)
         scope.clear()
         super.onDetachedFromWindow()
     }
 
 }
+
+private const val PasswordInputPreviewCursor = "|"
+private const val PasswordInputPreviewBlinkInterval = 520L

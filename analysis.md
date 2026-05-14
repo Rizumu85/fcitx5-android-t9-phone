@@ -25,6 +25,101 @@ letter-key swipe symbols.
   `KawaiiBarComponent` hard-codes every extended window's title back button to
   the keyboard. The dictionary-switch action menu needs a parent-window return
   path back to `StatusAreaWindow`.
+- Top-corner follow-up: the input panel top radius is already a theme setting,
+  but the visible effect is fragile. The panel relied on `ViewOutlineProvider`
+  with a round rect taller than the view to fake top-only rounded corners, while
+  the KawaiiBar also drew its own rounded background. On some devices or during
+  state changes, this can expose square corners. The input panel should own a
+  direct top-only clip path and keep the panel background filling the whole
+  clipped surface.
+- Chinese T9 candidate shadow follow-up: the floating candidate bubbles can
+  blend into white app backgrounds because only the lower pinyin/Hanzi bubble
+  had a very low-opacity elevation shadow, and the top-reading bubble had none.
+  Apply the same stronger soft shadow to both bubbles and reserve enough bottom
+  padding so the platform shadow is not clipped.
+- Device check correction: replacing the top panel outline with a path clip made
+  the bottom input panel read as square on the test phone. Keep the dedicated
+  layout and runtime setting refresh, but use Android outline clipping again
+  with an extended-below rounded rect so the visible top corners return.
+- Password-mode residual-state audit: switching between normal text fields and
+  password fields can leave two independent stale states. The KawaiiBar keeps
+  `isPasswordKeyboardLayout` during restarting input sessions, so the number row
+  can remain visible even after the keyboard layout/input method has returned
+  to Zhongzhouyun. Separately, Fcitx may switch to `keyboard-us` through its
+  native password fallback before `KeyboardWindow` saves the previous IME, so
+  `imeBeforeTemporaryTextKeyboard` can be null and normal fields can stay on
+  the English fallback.
+- Root cause: manual password-mode disable only suppressed the Android layout
+  auto-enable path. It restored Fcitx capability flags with the original
+  `Password` flag still set, so Fcitx's native password fallback was free to
+  switch back to `keyboard-us` even though the user had explicitly exited
+  password mode for the current password field.
+- Success criteria: while the user has manually disabled password mode for the
+  current password field, the keyboard should stay in the normal T9 layout, the
+  toolbar number row should remain hidden, and Fcitx should use the previous
+  non-password input method instead of `keyboard-us`. Focusing a different
+  non-password field should still restore normal Rime/T9 behavior.
+- Manual password-mode follow-up: after entering password mode from the
+  three-dot status panel and returning to T9, the KawaiiBar number row can cover
+  the toolbar even when a normal text field has focus. This happens because
+  exiting the temporary password layout clears `isPasswordKeyboardLayout`, but
+  can leave the KawaiiBar's cached password-capability state true until Android
+  sends a clean non-password input-start callback. The exit path should clear
+  both password-layout state and password-capability number-row state.
+- Password peek follow-up: on small screens, the password QWERTY layout can
+  hide the password field or captcha image. A manual peek control should be
+  available directly inside password mode because KawaiiBar is occupied by the
+  digit row. The bottom-row space key can give up a small amount of width for an
+  eye icon. Pressing it should temporarily collapse the keyboard body to a
+  narrow restore bar while keeping password mode active.
+- Visual follow-up: the eye key reads better to the right of the password-mode
+  space bar, as an auxiliary control before Return, rather than between the
+  language key and space bar.
+- Interaction follow-up: the peek key should behave as a press-and-hold
+  affordance. Pressing the eye should immediately collapse the keyboard, and
+  releasing or canceling the press should immediately restore it.
+- Momentary peek follow-up: because release now restores the keyboard, the
+  restore button and password digit row are not useful during peek. The peek
+  state should keep only the password keyboard's bottom command row visible,
+  hiding the KawaiiBar number row and the letter/digit rows until the key is
+  released.
+- Peek polish finding: removing the eye key preview also removed visible press
+  feedback. The preview should return, but only as key feedback, not as a
+  persistent restore affordance. The bottom row shifted because peek used a
+  fixed `48dp` keyboard body instead of the password keyboard's real per-row
+  height; the held peek height should match one normal password keyboard row.
+- Password-mode viewport follow-up: the manual peek key is a useful escape
+  hatch, but the normal full password keyboard should still participate in
+  Android's IME avoidance path. The service reports IME insets from
+  `InputView.keyboardView` through `onComputeInsets()`. Two fragile points can
+  make host text fields stay behind the keyboard: switching into password mode
+  dynamically changes the keyboard height without explicitly asking the IME
+  window to recompute insets, and `onComputeInsets()` only treats virtual
+  keyboard or T9 mode as visible keyboard cases instead of recognizing the
+  visible password keyboard directly.
+- Same-password-field T9-exit root cause: `InputView` can be created or restart
+  Fcitx event handling while Fcitx's cached IME is the native password fallback
+  `keyboard-us`, before `KeyboardWindow.onStartInput()` receives the password
+  `EditorInfo` and enables the temporary password layout. During that gap the
+  normal T9 keyboard is attached and receives cached `keyboard-us`, so the space
+  label flashes `English`. Autofill/1Password inline suggestions do not directly
+  switch the input method, but they can make password-field input view restarts
+  more common, which exposes this cached fallback path. Treat `keyboard-us` as a
+  display-only password fallback on non-password layouts unless the user has
+  explicitly enabled `keyboard-us` in the enabled input-method list.
+- Cleanup finding: temporary debugging pages and rejected password-mode
+  restoration hypotheses should not remain in project docs or source after the
+  final root cause is known.
+- Password preview follow-up: some apps and WebViews do not move their password
+  field above the IME even after the keyboard reports correct insets. Password
+  mode needs an IME-local preview that shows what the user typed through this
+  keyboard session. It should not read the target app's password text or mirror
+  Autofill/1Password-filled content. Clear it when password input starts,
+  finishes, exits password mode, or Return is pressed.
+- Password preview polish: the preview should look like the existing input UI,
+  not a separate card. Reuse the input panel radius and the Chinese candidate
+  bubble shadow. The local preview also needs a cursor; left/right cursor
+  movement should update both the target editor and the local preview cursor.
 
 ## Temporary Full Keyboard Mode
 

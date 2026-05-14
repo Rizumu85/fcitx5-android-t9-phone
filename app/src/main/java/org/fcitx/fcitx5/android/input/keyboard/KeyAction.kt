@@ -40,4 +40,6 @@ sealed class KeyAction {
     data class PickerSwitchAction(val key: PickerWindow.Key? = null) : KeyAction()
 
     data object SpaceLongPressAction : KeyAction()
+
+    data class PasswordPeekAction(val enabled: Boolean) : KeyAction()
 }

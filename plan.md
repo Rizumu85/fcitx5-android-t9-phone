@@ -15,6 +15,21 @@ Rizum Guidelines are active for this project/thread until the user says otherwis
 - [x] Add an extended-window title-back override for child menus.
 - [x] Return the dictionary-switch action menu to the three-dot status panel.
 - [x] Run a narrow Kotlin compile check for the title-back fix.
+- [x] Diagnose the input-panel top radius setting and intermittent square-corner issue.
+- [x] Replace outline-based top-corner clipping with explicit top-only clipping.
+- [x] Keep KawaiiBar and full-panel background radius in sync with the setting.
+- [x] Run a narrow Kotlin compile check for the top-corner clipping fix.
+- [x] Inspect Chinese T9 floating candidate shadow rendering.
+- [x] Add clearer soft shadows under topReading, pinyin filter, and Hanzi bubbles.
+- [x] Build and install the debug app onto the connected device.
+- [x] Capture the device state showing the input panel top corners are missing.
+- [x] Restore outline-based clipping inside the dedicated top-rounded layout.
+- [x] Rebuild and reinstall the rounded-corner correction.
+- [x] Audit password-mode layout, number-row, and IME restoration paths.
+- [x] Clear KawaiiBar password number-row state on every non-password input start.
+- [x] Remember and prefer the last non-password Fcitx IME when leaving password mode.
+- [x] Run a narrow Kotlin compile check for the password-state fix.
+- [x] Remove temporary password-mode debugging/test artifacts after the root cause was identified.
 
 - [x] Document the password-field QWERTY override and reuse decision.
 - [x] Force password fields to select the existing `TextKeyboard` without persisting the choice.
@@ -160,6 +175,46 @@ Rizum Guidelines are active for this project/thread until the user says otherwis
 - [x] Broadcast non-password start-input events when a visible password keyboard must be cleared.
 - [x] Run a narrow Kotlin compile check for the password-mode leak guard.
 - [x] Build, install, and verify password-to-normal-field restores Zhongzhouyun on device.
+- [x] Reproduce the same-password-field `T9` exit leaving Fcitx on `English (中)`.
+- [x] Strip the effective Fcitx password capability after manual password-mode disable.
+- [x] Rebuild, install, and screenshot-check same-field `T9` exit plus normal-field restore.
+- [x] Reproduce manual password-mode exit leaving the KawaiiBar number row over a normal field.
+- [x] Clear cached KawaiiBar password-capability state when password mode exits.
+- [x] Run a narrow Kotlin compile check and screenshot-check the manual path.
+- [x] Add a password-mode eye key by narrowing the bottom-row space key.
+- [x] Collapse password mode to a thin restore bar without leaving password mode.
+- [x] Run a narrow Kotlin compile check and device screenshot-check the peek flow.
+- [x] Move the password-mode eye key to the right side of the space bar.
+- [x] Run a narrow Kotlin compile check for the bottom-row reorder.
+- [x] Add hold-style key behavior for momentary password peek.
+- [x] Change the eye key to collapse on press and restore on release.
+- [x] Hide the restore bar and digit row during held password peek.
+- [x] Run a narrow Kotlin compile check and device-check the hold gesture.
+- [x] Restore eye-key preview feedback in held peek mode.
+- [x] Match held peek height to one normal password-keyboard row.
+- [x] Run a narrow Kotlin compile check and device screenshot-check the peek polish.
+- [x] Re-audit password-mode IME inset reporting.
+- [x] Refresh IME layout/insets after password keyboard height changes.
+- [x] Count visible password mode as an on-screen keyboard in `onComputeInsets`.
+- [x] Run a narrow Kotlin compile check and device smoke-check the viewport adjustment.
+- [x] Diagnose the same-password-field `T9` exit English-label flash.
+- [x] Cache the full restore target IME entry for password-mode exit.
+- [x] Suppress transitional `keyboard-us` UI updates while the restore target is pending.
+- [x] Run a narrow Kotlin compile check and install the flash fix for device testing.
+- [x] Keep the pending restore display target until a normal layout consumes it.
+- [x] Run a narrow Kotlin compile check and reinstall the second-cycle flash fix.
+- [x] Suppress transitional `keyboard-us` UI updates even when no restore target was captured.
+- [x] Run a narrow Kotlin compile check and reinstall the first-cycle flash fix.
+- [x] Derive a concrete non-password restore entry before reattaching T9.
+- [x] Run a narrow Kotlin compile check and reinstall the concrete-restore fix.
+- [x] Filter native password fallback display on non-password layouts.
+- [x] Keep only the final password-mode restoration logic and remove rejected debugging paths.
+- [x] Add an IME-local typed-text preview for password mode.
+- [x] Track only text committed through the keyboard and clear it on password-mode boundaries.
+- [x] Run a narrow Kotlin compile check for the password preview change.
+- [x] Match password preview radius/shadow to the existing input and candidate UI.
+- [x] Add a local preview cursor that follows left/right movement.
+- [x] Run a narrow Kotlin compile check for the password preview polish.
 
 - [x] Connect the GitHub repository through the GitHub plugin.
 - [x] Bump app and Gradle version metadata to `3.0.1`.

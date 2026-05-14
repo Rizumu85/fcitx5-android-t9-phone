@@ -86,6 +86,97 @@ removed `keyboard-us` from the enabled input-method group. On exit, restore the
 capability flags from the current input session and then restore the previous
 enabled input method when that is still safe.
 
+When a password field auto-enters password mode and the user presses the
+in-layout `T9` exit key, that manual choice applies to the current password
+field session. The Android `EditorInfo` still reports a password field, but the
+effective Fcitx capability flags should temporarily remove `Password` so the
+native fallback cannot immediately reactivate `keyboard-us`. The original
+EditorInfo-derived flags remain the source of truth for future input starts;
+the stripped flags are only an effective runtime override for the manually
+disabled session.
+
+The KawaiiBar number row has two password-related triggers: the visible
+temporary password keyboard layout and the current input field's password
+capability. Leaving password mode is an explicit UI transition, so it should
+clear both triggers locally. Do not wait for a later `onStartInput` callback to
+clear the cached password capability, because WebView/browser focus changes can
+reuse the same input connection and leave the toolbar under the number row.
+
+Password mode needs a manual peek affordance for small screens and captcha
+forms. Add a compact eye key to the password keyboard bottom row by narrowing
+the space key. The peek action should not exit password mode or restore the
+previous Fcitx input method.
+
+Place the peek key on the right side of the space bar, just before Return, so
+the primary navigation cluster remains on the left and the auxiliary peek action
+reads as part of the right-side command area.
+
+The peek key should be momentary rather than toggled. Model it as a key hold
+behavior: down sends `PasswordPeekAction(true)`, while up or cancel sends
+`PasswordPeekAction(false)`. This keeps the user in direct control and avoids a
+stuck collapsed state after a quick glance.
+
+While the eye key is held, keep only the password keyboard's bottom command row
+visible. Do not show a restore bar, because releasing the hold already restores
+the keyboard. Also hide the KawaiiBar digit row during the held peek state,
+because the user cannot practically press digits before release and the extra
+row reduces the visible page area.
+
+The held peek row should keep the same visual row height as the normal password
+keyboard bottom row. Derive the peek body height from the current keyboard
+height divided by the password keyboard row count instead of using a fixed
+small value, so icon baselines do not jump when the body collapses. Keep the
+eye key's compact preview bubble enabled as normal press feedback.
+
+Password mode should rely on Android's standard IME avoidance behavior before
+falling back to manual peek. Whenever the keyboard body height changes because
+password mode enters, exits, or collapses, request a new layout/insets pass so
+`FcitxInputMethodService.onComputeInsets()` can publish the new top edge to the
+host app. The inset computation should treat a visible password keyboard as a
+real on-screen keyboard even if the global virtual-keyboard or T9-layout flags
+would otherwise skip the keyboard surface.
+
+Leaving password mode should also avoid showing native input-method transition
+states in the keyboard UI. Track the full `InputMethodEntry` that password mode
+will restore, not only its unique name. While the restore job is pending,
+newly-attached normal keyboards should render that target entry immediately,
+and transitional `keyboard-us` IME updates should not be forwarded to the
+visible T9/Text keyboard after password mode has been disabled. Keep this
+pending display entry alive until a normal keyboard layout has attached and
+used it; Fcitx restore events can arrive before layout attachment, and clearing
+the pending entry too early exposes the cached `keyboard-us` label again.
+The suppression must not depend on the pending entry being non-null: if the
+previous method was not captured, the normal keyboard should keep its existing
+space-label state and ignore `keyboard-us` until the first non-password IME
+event arrives.
+Because keyboard view instances are reused, keeping the existing label is only
+safe when that existing label is known to be non-password. If the previous IME
+was not captured, synchronously derive a fallback non-`keyboard-us`
+`InputMethodEntry` from the enabled input-method list before the normal layout
+attaches, and use that entry as the pending display target.
+Also filter the display side of every IME update by active keyboard layout. When
+the active layout is not `TemporaryFullKeyboard`, `keyboard-us` should be shown
+only if it is actually present in the user's enabled input-method list. If it is
+not enabled, it is the native password fallback and should render as the most
+recent or first enabled non-password IME instead. The temporary password layout
+still renders `keyboard-us` normally.
+
+Password mode should provide a local typed-text preview for apps that do not
+move their password field above the IME. The preview belongs to the IME, not to
+the target app: it records text committed through the keyboard while the
+temporary password layout is visible, updates on Backspace, and clears on
+Return, input restart, finish, or password-mode exit. Do not query the password
+field contents through `InputConnection`, and do not mirror Autofill or
+1Password inline suggestion content. Place the preview above the keyboard panel
+rather than inside KawaiiBar so it does not compete with the digit row or inline
+Autofill chips.
+Style the preview as part of the input surface: use the same top-corner radius
+setting as the IME panel and the same soft elevation/shadow parameters as the
+Chinese T9 candidate bubbles. Track a local cursor in the preview buffer.
+Left/right cursor movement should first move the target editor cursor through
+the normal `InputConnection` path, then move the preview cursor by one code
+point so later commits and Backspace operate at the same local position.
+
 The bottom-row `T9`, symbol, and language commands should stay visually
 unframed, like the regular compact control row. Tune their fixed cell widths so
 the perceived gaps between the three glyph groups are even. Prefer a slightly
@@ -160,6 +251,34 @@ but allow an extended window to consume the back click. The Rime dictionary
 switch action menu should consume it and attach `StatusAreaWindow`, because that
 menu is a child of the three-dot status panel rather than a peer of the
 keyboard.
+
+The input panel top radius should be controlled by the theme setting
+`inputPanelTopRadius`, but the clipping should not depend on Android outline
+behavior. Use a top-only path clip on the full input panel container so every
+KawaiiBar state and every keyboard/window surface is clipped consistently. Keep
+the KawaiiBar background using the same radius for color continuity, and make
+the panel background child fill the full panel before clipping.
+
+Floating Chinese T9 candidate bubbles should separate from white app surfaces
+without becoming heavy cards. Use a modestly stronger platform elevation shadow
+on both the top-reading bubble and the combined pinyin/Hanzi bubble, with
+slightly darker ambient/spot shadow colors on Android P and newer. Keep extra
+bottom padding in the wrapper so the blurred shadow remains visible below the
+candidate UI.
+
+If the path-clipped input panel does not render rounded top corners reliably on
+device, prefer outline clipping with an extended-below rounded rectangle. The
+dedicated panel layout still owns the radius setting and invalidation, while
+the platform outline renderer handles the actual clipping.
+
+Password-mode exit should clear both visible UI state and Fcitx IME state as one
+transition. KawaiiBar must not preserve password-layout number-row state when a
+new non-password input session starts, even if Android marks it as a restarting
+session. `KeyboardWindow` should also remember the most recent non-`keyboard-us`
+Fcitx input method from IME updates, because automatic password fields can make
+Fcitx select `keyboard-us` before password mode has a chance to save the
+previous method. On restore, prefer the saved previous IME, then the remembered
+non-password IME, then the first enabled IME that is not `keyboard-us`.
 
 Password-mode IME restoration must be tied to leaving the temporary mode, not
 only to pressing the explicit T9 exit key. Picker windows can keep temporary

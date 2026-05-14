@@ -439,6 +439,10 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         background = barBackground(inputPanelTopCornerRadiusPx().toFloat())
     }
 
+    fun updateTopCornerRadius() {
+        view.updateBarBackground()
+    }
+
     override val view by lazy {
         ViewAnimator(context).apply {
             updateBarBackground()
@@ -476,7 +480,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         // Always reset manual toolbar toggle when starting input, so that
         // the "expand toolbar by default" preference consistently controls
         // the initial state for each new input session.
-        if (!restarting) {
+        if (!restarting || !capFlags.has(CapabilityFlag.Password)) {
             isPasswordKeyboardLayout = false
         }
         isToolbarManuallyToggled = false
@@ -614,8 +618,16 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     }
 
     fun onPasswordModeManuallyDisabled() {
+        isCapabilityFlagsPassword = false
         isPasswordKeyboardLayout = false
         numberRowState = NumberRowState.ForceHide
+        evalIdleUiState()
+    }
+
+    fun onPasswordModeExited() {
+        isCapabilityFlagsPassword = false
+        isPasswordKeyboardLayout = false
+        numberRowState = NumberRowState.Auto
         evalIdleUiState()
     }
 
