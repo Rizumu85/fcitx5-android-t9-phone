@@ -2,7 +2,40 @@
 
 ## Current Task
 
-Prevent physical DPAD arrow keys from focusing KawaiiBar tool buttons.
+Build, install, stage, and publish the signed 4.0.0 formal release packages.
+
+## 4.0.0 Formal Release
+
+- Build signed release APKs with the keystore at
+  `/Users/rizum/StudioProjects/fcitx5-android-t9-phone.jks`.
+- Publish only the ARM artifacts, matching the previous release format:
+  app and Rime plugin, each for `arm64-v8a` and `armeabi-v7a`. Do not include
+  `x86` or `x86_64` APKs in the GitHub release or Baidu staging folder.
+- Install the formal app and formal Rime plugin on the connected phone after
+  the build, then switch the active IME to the formal package.
+- Create a new GitHub release for `v4.0.0` in
+  `Rizumu85/fcitx5-android-t9-phone`, named `安装包下载v4.0.0`, using the
+  existing tutorial-style body format from `v3.0.1`.
+- Stage the same four APKs in `release-baidu/v4.0.0` so they can be uploaded
+  elsewhere.
+- Update the Baidu-side installation help files so their feature introduction
+  matches the README and mentions the 4.0.0 password mode and key-sound
+  changes.
+- Signing credentials are not stored in the repository. If the local Gradle or
+  shell environment does not provide the keystore password and alias, they must
+  be supplied before a real signed release can be built.
+
+## Current Success Criteria
+
+- Four signed APKs exist for version `4.0.0`: app/plugin Rime times
+  `arm64-v8a`/`armeabi-v7a`.
+- No x86 APK is uploaded or staged.
+- The connected phone has the formal app and formal Rime plugin installed, and
+  the active IME is the formal component.
+- GitHub release `v4.0.0` contains the four expected assets and the new feature
+  notes.
+- `release-baidu/v4.0.0` contains the same four APKs, and the Baidu install
+  help text describes the current installation flow and user-visible features.
 
 ## KawaiiBar DPAD Focus Bug
 

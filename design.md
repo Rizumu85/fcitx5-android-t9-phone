@@ -8,11 +8,19 @@ controls, and a readable keyboard surface.
 
 ## Current Task Design
 
-Keep IME-local touch controls touch-clickable but remove them from Android's
-DPAD focus navigation. The IME already handles physical arrow keys at the
-service level for cursor and candidate movement, so `CustomGestureView`
-instances should not become keyboard focus targets or show default focus
-highlights.
+Use the existing Gradle release pipeline and signing convention to build the
+formal 4.0.0 app and Rime plugin packages. Scope the ABI build to
+`arm64-v8a,armeabi-v7a` so generated release assets match the previous public
+release shape and avoid x86 artifacts.
+
+Publish the GitHub release with the same user-facing structure as `v3.0.1`:
+short update bullets first, then the reusable installation tutorial that tells
+users to pick either the 32-bit or 64-bit app/plugin pair. The release title and
+asset filenames should use `4.0.0`.
+
+Keep Baidu staging separate from Gradle output. Copy the exact four release
+APKs into `release-baidu/v4.0.0`, and update the Baidu-side installation guide
+to describe the current feature set and dictionary-switch workflow.
 
 ## Previous Task Design
 
