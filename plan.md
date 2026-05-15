@@ -4,6 +4,33 @@
 
 Rizum Guidelines are active for this project/thread until the user says otherwise.
 
+## InkPink Candidate Focus Checklist
+
+- [x] Re-scope the gray background issue from release/debug to InkPink theme.
+- [x] Incorporate the direction-key hover hypothesis.
+- [x] Disable Android DPAD focus highlights on floating Hanzi candidates and
+  pinyin chips.
+- [x] Run a narrow Kotlin compile check.
+- [x] Install and screenshot-check the InkPink candidate area after direction
+  key use.
+- [x] Build signed formal app APKs with the InkPink candidate focus fix.
+- [x] Replace the updated app APKs in `release-baidu/v4.0.0`.
+- [x] Replace the updated app APKs in GitHub release `v4.0.0`.
+
+## Formal Pinyin Filter Color Checklist
+
+- [x] Document the reported release-build pinyin filter color issue.
+- [x] Capture or reproduce the formal IME pinyin filter appearance on device.
+- [x] Inspect candidate/pinyin filter theme color sources and release/debug
+  preference differences.
+- [x] Apply the smallest fix if the cause is code rather than package-local
+  settings.
+- [x] Run a narrow compile check and install/check the affected build if code
+  changes are needed.
+- [x] Rebuild signed formal app APKs for both ARM ABIs after user confirmation.
+- [x] Replace the app APKs in `release-baidu/v4.0.0`.
+- [x] Replace the app APKs in GitHub release `v4.0.0`.
+
 ## 4.0.0 Release Publishing Checklist
 
 - [x] Document the formal release scope and success criteria.
@@ -16,6 +43,17 @@ Rizum Guidelines are active for this project/thread until the user says otherwis
 - [x] Stage the four APKs under `release-baidu/v4.0.0`.
 - [x] Create or update GitHub release `v4.0.0` with the four expected assets.
 - [x] Verify the published release body and asset list.
+
+## Final 4.0.0 Key-Sound Release Checklist
+
+- [x] Document the final key-sound release scope: built-in fallback sound plus
+  manual Baidu Input Android `.bds` import.
+- [x] Update README and Baidu install/help files with the final key-sound
+  behavior.
+- [ ] Build signed ARM release APKs for the app and Rime plugin.
+- [ ] Install the signed `arm64-v8a` app and Rime plugin on the connected phone.
+- [ ] Copy the four signed APKs into `release-baidu/v4.0.0`.
+- [ ] Replace GitHub release `v4.0.0` assets and notes with the final build.
 
 ## Current Checklist
 
@@ -736,6 +774,41 @@ Rizum Guidelines are active for this project/thread until the user says otherwis
 - [x] Cache screen-key long-press delay for touch handling.
 - [x] Skip gesture-event allocation when no gesture listener is installed.
 - [x] Cache the T9-layout flag used by floating candidate refresh.
+
+## User-Imported Key Sounds
+
+- [x] Document the licensing-driven replacement for bundled BDS-derived sounds.
+- [x] Remove bundled BDS-derived sound styles from runtime playback.
+- [x] Add app-private storage and extraction for user-imported `.bds`
+  sound packs.
+- [x] Add keyboard settings UI to name and import a user sound pack.
+- [x] Route preview and keypress playback through the imported sample files.
+- [x] Run a narrow Kotlin compile check for the key-sound import changes.
+- [x] Change import flow to select one `.bds` before editing the
+  prefilled display name.
+- [x] Run a narrow Kotlin compile check for the revised import flow.
+- [x] Stop encrypted-package scanning at the end of ZIP local file headers.
+- [x] Prefer `.ogg` BDS samples when duplicate `aj*` audio entries exist.
+- [x] Rebuild, reinstall, and smoke-test importing one Android `.bds` package
+  on the connected phone.
+- [x] Limit user-facing import compatibility to Android `.bds` packages.
+- [x] Replace the single imported-pack slot with a retained local pack library.
+- [x] Add pack switching and deletion controls in keyboard settings.
+- [x] Use Android built-in keypress sounds as the default key-sound option.
+- [x] Fix the import-name dialog baseline/underline overlap.
+- [x] Run a narrow Kotlin compile check for the pack-library changes.
+- [x] Make long pack names more readable in the pack manager dialog.
+- [x] Clarify that imports are key sounds from Baidu Input Android `.bds`
+  skins.
+- [x] Run a narrow Kotlin compile check for the UI/string tweaks.
+- [x] Add a rename action for imported key-sound packs.
+- [x] Run a narrow Kotlin compile check for key-sound pack renaming.
+- [x] Try loading Android system sound effects for the default key-sound option.
+- [x] Run a narrow Kotlin compile check for Android default sound playback.
+- [x] Replace Android system default sounds with app-owned synthesized fallback samples.
+- [x] Run a narrow Kotlin compile check for built-in default sounds.
+- [x] Remove obsolete single-pack migration code and stale iOS-package wording.
+- [x] Run a narrow Kotlin compile check for the cleanup.
 - [x] Run a narrow Kotlin compile check for the third performance pass.
 - [x] Document the physical digit long-press flag storage optimization.
 - [x] Replace physical digit long-press flag map with primitive indexed storage.
@@ -783,3 +856,15 @@ Rizum Guidelines are active for this project/thread until the user says otherwis
 - [x] Document why physical Backspace can miss the local password preview.
 - [x] Route physical password Backspace/Delete through preview-aware deletion.
 - [x] Run a narrow Kotlin compile check for the physical password Backspace change.
+- [x] Document the password preview miss from auxiliary symbol/number commit paths.
+- [x] Route password number-row and number-mode text commits through the service commit helper.
+- [x] Keep password preview active across auxiliary picker windows.
+- [x] Run a narrow Kotlin compile check for the indirect commit fix.
+- [x] Install debug APK and smoke-test password preview with auxiliary UI on the connected phone.
+
+## Chinese T9 Punctuation Commit Follow-up
+
+- [x] Document the red-underline report and likely local-commit risk.
+- [x] Route Chinese T9 local punctuation/literal commits through the service commit helper.
+- [x] Run a narrow Kotlin compile check for the local commit cleanup.
+- [x] Build and install the updated debug APK for user retesting.

@@ -284,6 +284,8 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
 
     fun isTemporaryTextKeyboardEnabled(): Boolean = temporaryTextKeyboard
 
+    fun isTemporaryPasswordInputSessionActive(): Boolean = temporaryTextKeyboard
+
     fun isTemporaryPasswordKeyboardVisible(): Boolean {
         return temporaryTextKeyboard &&
             currentKeyboardName == TemporaryFullKeyboard.Name &&

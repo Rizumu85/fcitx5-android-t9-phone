@@ -482,7 +482,7 @@ class InputView(
 
     private fun updatePasswordInputPreviewChrome() {
         val visible = passwordInputPreviewValue.isNotEmpty() &&
-            keyboardWindow.isTemporaryPasswordKeyboardVisible() &&
+            keyboardWindow.isTemporaryPasswordInputSessionActive() &&
             !keyboardWindow.isPasswordPeekMode()
         passwordInputPreview.visibility = if (visible) VISIBLE else GONE
         if (visible) {
@@ -522,6 +522,10 @@ class InputView(
 
     fun isTemporaryPasswordKeyboardVisible(): Boolean {
         return keyboardWindow.isTemporaryPasswordKeyboardVisible()
+    }
+
+    fun isTemporaryPasswordInputSessionActive(): Boolean {
+        return keyboardWindow.isTemporaryPasswordInputSessionActive()
     }
 
     fun shouldKeepTemporaryPasswordModeOnRestart(capFlags: CapabilityFlags): Boolean {

@@ -239,10 +239,15 @@ class CandidatesView(
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.START
         })
-        elevation = 1f
         setOnClickListener {
             service.moveT9CandidateFocus(FcitxInputMethodService.T9CandidateFocus.TOP)
             updateT9FocusIndicator()
+        }
+        isFocusable = false
+        isFocusableInTouchMode = false
+        descendantFocusability = FOCUS_BLOCK_DESCENDANTS
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            defaultFocusHighlightEnabled = false
         }
         visibility = View.GONE
     }
@@ -256,6 +261,12 @@ class CandidatesView(
         setOnClickListener {
             service.moveT9CandidateFocus(FcitxInputMethodService.T9CandidateFocus.BOTTOM)
             updateT9FocusIndicator()
+        }
+        isFocusable = false
+        isFocusableInTouchMode = false
+        descendantFocusability = FOCUS_BLOCK_DESCENDANTS
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            defaultFocusHighlightEnabled = false
         }
     }
 

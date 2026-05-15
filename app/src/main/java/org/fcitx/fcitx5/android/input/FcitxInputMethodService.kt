@@ -118,7 +118,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private val passwordInputPreviewBuffer = StringBuilder()
     private var passwordInputPreviewCursor = 0
     private val numberModeController = NumberModeController(
-        commitText = { text -> currentInputConnection?.commitText(text, 1) },
+        commitText = { text -> commitText(text) },
         getTextBeforeCursor = {
             currentInputConnection
                 ?.getTextBeforeCursor(96, 0)
@@ -134,7 +134,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         inputView?.isTemporaryPasswordKeyboardVisible() == true
 
     private fun isPasswordInputPreviewActive(): Boolean =
-        passwordInputPreviewEnabled && isTemporaryPasswordKeyboardVisible()
+        passwordInputPreviewEnabled &&
+            inputView?.isTemporaryPasswordInputSessionActive() == true
 
     fun clearPasswordInputPreview() {
         if (passwordInputPreviewBuffer.isNotEmpty()) {
@@ -1903,7 +1904,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         multiTapHandler.removeCallbacks(t9PunctuationTimeoutRunnable)
         val punctuation = t9PendingPunctuation.text ?: return false
         t9PendingPunctuation = T9PendingPunctuationState()
-        currentInputConnection?.commitText(punctuation, 1)
+        commitText(punctuation)
         candidatesView?.refreshT9Ui()
         return true
     }
@@ -2109,7 +2110,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                         digitLongPressFlags[keyCode] = true
                         if (commitPendingT9PunctuationShortcut(keyCode)) return true
                         cancelPendingT9Punctuation()
-                        currentInputConnection?.commitText("0", 1)
+                        commitText("0")
                     }
                     return true
                 }
@@ -2231,37 +2232,37 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                     if (event.repeatCount == 0) {
                         digitLongPressFlags[keyCode] = false
                         return handleMultiTapKey(keyCode)
-                    } else if (event.repeatCount == 1) {
-                        // Long press: cancel the pending letter and output digit
-                        digitLongPressFlags[keyCode] = true
-                        cancelMultiTapChar()
-                        currentInputConnection?.commitText(DIGIT_TEXTS[digit], 1)
-                        return true
-                    }
+                } else if (event.repeatCount == 1) {
+                    // Long press: cancel the pending letter and output digit
+                    digitLongPressFlags[keyCode] = true
+                    cancelMultiTapChar()
+                    commitText(DIGIT_TEXTS[digit])
+                    return true
+                }
                     return true
                 } else if (keyCode == KeyEvent.KEYCODE_0) {
                     // 0 key: short press = space, long press = 0
                     if (event.repeatCount == 0) {
                         digitLongPressFlags[keyCode] = false
                         return true
-                    } else if (event.repeatCount == 1) {
-                        digitLongPressFlags[keyCode] = true
-                        cancelMultiTapChar()
-                        currentInputConnection?.commitText("0", 1)
-                        return true
-                    }
+                } else if (event.repeatCount == 1) {
+                    digitLongPressFlags[keyCode] = true
+                    cancelMultiTapChar()
+                    commitText("0")
+                    return true
+                }
                     return true
                 } else if (keyCode == KeyEvent.KEYCODE_1) {
                     // 1 key: short press = punctuation multi-tap, long press = 1
                     if (event.repeatCount == 0) {
                         digitLongPressFlags[keyCode] = false
                         return handleMultiTapKey(keyCode)  // Use multi-tap for English punctuation
-                    } else if (event.repeatCount == 1) {
-                        digitLongPressFlags[keyCode] = true
-                        cancelMultiTapChar()
-                        currentInputConnection?.commitText("1", 1)
-                        return true
-                    }
+                } else if (event.repeatCount == 1) {
+                    digitLongPressFlags[keyCode] = true
+                    cancelMultiTapChar()
+                    commitText("1")
+                    return true
+                }
                     return true
                 }
                 return false
@@ -2296,7 +2297,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 if (getT9CompositionKeyCount() > 0) {
                     commitT9HanziShortcutFromLongPress(keyCode)
                 } else {
-                    currentInputConnection?.commitText(DIGIT_TEXTS[digit], 1)
+                    commitText(DIGIT_TEXTS[digit])
                 }
             }
             return true
@@ -2332,7 +2333,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 return true
             } else if (event.repeatCount == 1) {
                 digitLongPressFlags[keyCode] = true
-                currentInputConnection?.commitText("0", 1)
+                commitText("0")
                 return true
             }
             return true
@@ -2346,7 +2347,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 digitLongPressFlags[keyCode] = true
                 t9PendingPunctuation = t9PendingPunctuation.copy(oneKeyDeferred = false)
                 cancelPendingT9Punctuation()
-                currentInputConnection?.commitText("1", 1)
+                commitText("1")
                 return true
             }
             return true
@@ -2357,7 +2358,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 return false // Pass to Rime for T9 input
             } else if (event.repeatCount == 1) {
                 digitLongPressFlags[keyCode] = true
-                currentInputConnection?.commitText(DIGIT_TEXTS[digit], 1)
+                commitText(DIGIT_TEXTS[digit])
                 return true
             }
             return true
@@ -2372,10 +2373,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return when (keyCode) {
             KeyEvent.KEYCODE_0 -> {
                 if (t9PendingPunctuation.isPending) {
-                    if (digitLongPressFlags[keyCode] != true) {
-                        commitPendingT9Punctuation()
-                        currentInputConnection?.commitText(" ", 1)
-                    }
+                if (digitLongPressFlags[keyCode] != true) {
+                    commitPendingT9Punctuation()
+                    commitText(" ")
+                }
                     digitLongPressFlags[keyCode] = false
                     true
                 } else if (digitLongPressFlags[keyCode] == true) {
@@ -2387,7 +2388,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                     if (digitLongPressFlags[keyCode] != true) {
                         commitMultiTapChar()
                         commitPendingT9Punctuation()
-                        currentInputConnection?.commitText(" ", 1)
+                        commitText(" ")
                     }
                     digitLongPressFlags[keyCode] = false
                     true
@@ -2423,7 +2424,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 if (t9PendingPunctuation.isPending) {
                     if (digitLongPressFlags[keyCode] != true) {
                         commitPendingT9Punctuation()
-                        currentInputConnection?.commitText(DIGIT_TEXTS[keyCode - KeyEvent.KEYCODE_0], 1)
+                        commitText(DIGIT_TEXTS[keyCode - KeyEvent.KEYCODE_0])
                     }
                     digitLongPressFlags[keyCode] = false
                     true

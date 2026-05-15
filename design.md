@@ -8,6 +8,25 @@ controls, and a readable keyboard surface.
 
 ## Current Task Design
 
+Treat the InkPink gray candidate surface as a DPAD/focus hygiene issue first,
+because the user can correlate it with physical direction keys and the affected
+candidate/pinyin-chip controls are not `CustomGestureView`. Candidate controls
+inside the IME should be touch targets and app-level logical selection targets,
+but they should not participate in Android's generic DPAD focus highlight. Keep
+the existing pink active-candidate/chip highlight controlled by the T9 state
+machine.
+
+## Previous Task Design
+
+Treat the release color issue as a theme-source diagnosis before changing UI
+code. The candidate UI should not special-case release builds; if the formal
+package looks different, the cause should be either independent release-package
+preferences or a view reading the wrong theme attribute. Any fix should keep
+the pinyin filter visually tied to the same candidate bubble surface/shadow
+model as the top-reading and Hanzi candidate rows.
+
+## Previous Task Design
+
 Use the existing Gradle release pipeline and signing convention to build the
 formal 4.0.0 app and Rime plugin packages. Scope the ABI build to
 `arm64-v8a,armeabi-v7a` so generated release assets match the previous public
@@ -21,6 +40,14 @@ asset filenames should use `4.0.0`.
 Keep Baidu staging separate from Gradle output. Copy the exact four release
 APKs into `release-baidu/v4.0.0`, and update the Baidu-side installation guide
 to describe the current feature set and dictionary-switch workflow.
+
+For key sounds, public release text should avoid suggesting that Baidu-derived
+sounds are bundled. The app owns only a generated built-in fallback sound. Any
+Baidu skin sound comes from a user-selected Android `.bds` skin, imported
+through the system file picker and copied into app-private storage. The README,
+GitHub release body, and Baidu install notes should use the same wording:
+manual `.bds` import, editable name, switch/rename/delete management, and clear
+failure for encrypted or unsupported skins.
 
 ## Previous Task Design
 
@@ -58,7 +85,8 @@ can perceive:
 - Password mode from the three-dot panel and automatic password-field entry.
 - Local password input preview, physical-key sync, and hold-to-peek.
 - Improved Chinese T9 candidate display and physical-key shortcuts.
-- Key-sound styles, physical-key sound control, and sound preview.
+- Built-in fallback key sound, physical-key sound control, manual Baidu Input
+  Android `.bds` key-sound import, package management, and sound preview.
 - Theme/UI polish such as input panel top radius, clearer shadows, and the
   dictionary-switch status entry.
 
@@ -298,15 +326,39 @@ Keep the preview action directly below the key-sound style row by assigning
 explicit preference order values rather than relying on add/remove order. Render
 the preview dialog as themed selectable list rows with standard text
 appearances and tinted icons, matching the rest of the settings UI.
-Additional purchased skin sounds should be added as distinct `KeySoundStyle`
-entries with skin-specific names instead of reusing generic `Crisp` or
-`Muffled`. This keeps persisted preferences unambiguous and lets users compare
-old and new sound packs directly.
+The earlier idea of adding purchased skin sounds as bundled styles is
+superseded by user-imported sound packs. Persist only the user's local pack
+name and extracted private sample files, not app-shipped skin assets.
 For BDS sound packs that use numbered style classes instead of the older
 `aj/ajgn/ajhc` names, keep the original class mapping when it is explicit in
 the skin CSS/config. For the black/white filter packs, use `349 -> aj1` for
 ordinary keys, `350 -> aj2` for Space/function keys, and `351 -> aj3` for
 Delete/Return/emphasis keys.
+
+User-imported key sounds replace packaged skin samples. The app should expose a
+local key-sound pack library in keyboard settings. Import is a guided flow:
+launch the system file picker for one Android `.bds` package, prefill the
+display name from the selected package filename, then let the user edit and
+confirm that name. Store the original file and the three extracted sound
+samples under app-private files so users provide their own licensed assets and
+the APK remains redistributable. Users can switch between imported packs or
+rename or delete imported packs. A default option uses Android's built-in
+keypress sound effects and does not require bundled audio assets.
+
+Playback continues to use `SoundPool` for imported packs, but loads sample file
+paths from the active imported pack instead of `res/raw`. Treat Return as the
+Delete/emphasis sample to preserve the existing three-class BDS model. If the
+BDS local entry header marks any entry as encrypted, abort the import and tell
+the user encrypted sound packs cannot be used. If a pack lacks all required
+sound classes, abort with a missing-sound error. The importer only accepts
+Android `.bds` skins.
+
+The default option is not an imported pack and should not depend on Android
+system keypress effects, because some target devices expose those APIs but play
+nothing. Ship app-owned synthesized default samples instead. They should be
+short, neutral sonification assets generated for this project, loaded through
+the same `SoundPool` path as imported packs, and used for both preview and
+keypress playback.
 
 Performance work should focus only on no-behavior-change hot-path reductions.
 Cache rarely changing keyboard and feedback preferences in memory and update
@@ -1324,6 +1376,16 @@ for the current focused password session. New non-restarting input sessions
 clear it, and the user can still turn password mode back on manually from the
 status panel.
 
+## Password Preview Session Design
+
+Password preview ownership follows the temporary password input session, not
+only the currently attached keyboard window. This distinction matters when the
+user opens symbol or number picker surfaces: the full password keyboard view is
+temporarily replaced, but the password session and its local preview buffer are
+still active. Commit and delete paths that originate from those auxiliary
+surfaces should keep updating the same preview until password mode exits or
+input focus finishes.
+
 ## Chinese T9 Candidate Position Design
 
 The floating candidate window's automatic above/below placement works for
@@ -1386,3 +1448,13 @@ After the pinyin row becomes a synchronous horizontal container, remove the
 RecyclerView-specific delayed reveal path. The row should show immediately once
 its width can be synchronized with the Hanzi row; delaying by pre-draw or
 animation frame makes the row feel slower than the other candidate surfaces.
+
+## Chinese T9 Local Commit Design
+
+Local Chinese T9 punctuation is IME-owned text, but it still needs to behave
+like any other commit into the target editor. Route local punctuation and the
+literal characters emitted immediately after it through the service-level
+commit helper instead of calling `InputConnection.commitText` directly. This
+keeps composing-range cleanup, selection prediction, and editor-facing commit
+behavior consistent with Rime candidate commits without disabling host-app
+spellcheck for normal text fields.

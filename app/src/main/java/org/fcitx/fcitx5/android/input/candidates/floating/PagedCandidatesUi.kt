@@ -7,6 +7,7 @@ package org.fcitx.fcitx5.android.input.candidates.floating
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.os.Build
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -139,6 +140,11 @@ class PagedCandidatesUi(
 
     override val root = recyclerView {
         isFocusable = false
+        isFocusableInTouchMode = false
+        descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            defaultFocusHighlightEnabled = false
+        }
         adapter = candidatesAdapter
         layoutManager = candidatesLayoutManager
         overScrollMode = View.OVER_SCROLL_NEVER

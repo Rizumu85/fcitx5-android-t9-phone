@@ -2,6 +2,75 @@
 
 ## Current Task
 
+Diagnose the intermittent gray candidate background seen with the InkPink
+theme, especially in Google Keep title editing.
+
+## InkPink T9 Candidate Surface
+
+- User clarified that the issue is not a release-vs-debug difference. It is
+  theme-specific to InkPink and appears intermittently after editing in Google
+  Keep's title field.
+- The gray region is not limited to the pinyin filter row; the Hanzi candidate
+  row can also show the same gray-looking background.
+- InkPink uses a white keyboard/candidate surface over a gray outer keyboard
+  background. Any transparent gap inside the floating candidate rows is much
+  more visible than in themes where the two colors are closer.
+- The candidate popup has an outer rounded bubble background, but the pinyin
+  row and Hanzi row contain scroll/recycler children with transparent padding
+  and overflow space. In app-specific editor paths and during popup reuse or
+  measurement, those transparent areas can visually expose the gray outer
+  background or shadow instead of the intended white candidate surface.
+- User observed that physical direction-key hover may be involved. This is
+  plausible because the previous DPAD focus fix covered `CustomGestureView`
+  keyboard/bar controls, while floating Hanzi candidates and pinyin chips are
+  plain clickable `TextView` instances. Clickable text views can still enter
+  Android's focus/highlight chain when DPAD navigation is used.
+- Success criteria: both T9 pinyin filter row and Hanzi candidate row should
+  always render on the same candidate bubble surface color, independent of the
+  selected app/editor and without changing the active pink highlight. Physical
+  direction keys should not leave Android system focus/hover highlights on
+  pinyin chips, Hanzi candidates, or their scroll/recycler containers.
+
+## Previous Task
+
+Diagnose why the formal release build shows a strange/different background
+color behind the pinyin filter UI.
+
+## Formal Build Pinyin Filter Background
+
+- User reports that the formal release build's pinyin filter background color
+  looks different from the expected/debug appearance.
+- Need reproduce on the device with the formal IME selected, then compare the
+  candidate/top-reading/pinyin-filter UI color sources with debug behavior.
+- First hypotheses to check:
+  - Release and debug packages have independent shared preferences, so the
+    formal build may be using a different skin/theme than the debug package.
+  - The pinyin filter row may still read a semantic theme color that differs
+    between selected skin variants, instead of the same candidate bubble
+    surface/background used elsewhere.
+  - The apparent color may be an overlay/shadow/pressed/focus state from the
+    candidate popup rather than the real background color.
+- Success criteria: identify whether this is a data/theme mismatch or a code
+  bug, and if it is code, make the release and debug pinyin filter backgrounds
+  use the same intended surface color without changing unrelated keyboard
+  theming.
+- Device screenshot with the formal IME showed the pinyin-filter row sitting on
+  a gray-looking rectangular strip inside the lower candidate bubble. The active
+  pinyin chip and active Hanzi candidate both used the same pink theme active
+  color, so the mismatch was not the selected-chip color.
+- Root cause: `pinyinRowWrapper` had its own `elevation = 1f` while being
+  embedded inside `bubble2Wrapper`, which already owns the candidate bubble
+  background and shadow. On the light/pink formal theme this internal elevation
+  reads as a separate gray background behind the pinyin filter row.
+- Device check after removing the internal elevation still showed the gray
+  strip. The remaining cause is the `HorizontalScrollView`/container used by
+  `T9PinyinChipAdapter`: in the input-view themed context it can draw a default
+  row background instead of staying transparent. The pinyin chip scroller and
+  its child container should explicitly be transparent so the shared lower
+  candidate bubble surface is the only background.
+
+## Previous Task
+
 Build, install, stage, and publish the signed 4.0.0 formal release packages.
 
 ## 4.0.0 Formal Release
@@ -19,11 +88,22 @@ Build, install, stage, and publish the signed 4.0.0 formal release packages.
 - Stage the same four APKs in `release-baidu/v4.0.0` so they can be uploaded
   elsewhere.
 - Update the Baidu-side installation help files so their feature introduction
-  matches the README and mentions the 4.0.0 password mode and key-sound
-  changes.
+  matches the README and mentions the 4.0.0 password mode and current
+  key-sound behavior.
+- The public key-sound explanation must state that 4.0.0 does not ship
+  third-party Baidu skin sounds. It ships a built-in fallback sound and lets
+  users manually import Baidu Input Android `.bds` skins from the system file
+  picker. Imported samples are copied into app-private storage, so the original
+  downloaded `.bds` file can be deleted after import. Encrypted or unsupported
+  `.bds` skins cannot be used.
 - Signing credentials are not stored in the repository. If the local Gradle or
   shell environment does not provide the keystore password and alias, they must
   be supplied before a real signed release can be built.
+- Current blocker: the local release build accepts
+  `fcitx5-android-t9-phone.jks`, but `:plugin:rime:packageRelease` fails because
+  the signing config has no `storePassword`. The active shell/local Gradle
+  files do not expose `SIGN_KEY_PWD` or `signKeyPwd`, so the keystore password
+  is needed before signed APKs can be rebuilt and published.
 
 ## Current Success Criteria
 
@@ -36,6 +116,8 @@ Build, install, stage, and publish the signed 4.0.0 formal release packages.
   notes.
 - `release-baidu/v4.0.0` contains the same four APKs, and the Baidu install
   help text describes the current installation flow and user-visible features.
+- README, GitHub release notes, and Baidu help files all describe manual
+  `.bds` key-sound import rather than bundled key-sound styles.
 
 ## KawaiiBar DPAD Focus Bug
 
@@ -192,6 +274,21 @@ letter-key swipe symbols.
   Backspace/Delete should delete from the target editor and update the local
   password preview in the same key-down pass, including repeated deletes and
   selected-text deletion.
+- Password preview indirect-commit follow-up: the IME-local password preview is
+  still updated only through the service-level `commitText()` wrapper. Auxiliary
+  UI paths are riskier because they can commit literals without using that
+  wrapper. The password digit row uses `SymAction`, and `NumberModeController`
+  was given a lambda that directly calls `currentInputConnection.commitText()`.
+- Device retest finding: routing those paths through `commitText()` fixed the
+  visible password digit row, but picker-window characters still missed the
+  preview. Opening a picker detaches the keyboard window, so checks based on
+  "temporary password keyboard is visible" become false even though the
+  temporary password input session is still active.
+- Success criteria: while the temporary password keyboard is visible, text
+  inserted from auxiliary symbol/number UI should reach the target editor and
+  update the local password preview through the same service commit path. When
+  a picker window replaces the keyboard surface, preview recording and preview
+  chrome should stay active until the temporary password input session exits.
 - Password peek follow-up: on small screens, the password QWERTY layout can
   hide the password field or captcha image. A manual peek control should be
   available directly inside password mode because KawaiiBar is occupied by the
@@ -316,8 +413,8 @@ letter-key swipe symbols.
 - Black/white filter sound finding: the purchased Android BDS packages
   `可爱1`, `脆1`, and `闷1` are extractable and use `SOUND_STYLE=349/350/351`
   with files `aj1/aj2/aj3`. These map cleanly to ordinary, function/space, and
-  emphasis/delete classes. Add them as distinct `KeySoundStyle` entries named
-  black/white cute, black/white crisp, and black/white muffled.
+  emphasis/delete classes. The earlier plan to add them as bundled sound styles
+  is superseded by the user-imported sound-pack design.
 - Key-sound preview follow-up: choosing between imported sound styles is hard
   from names alone. The keyboard settings page should provide a quick local
   preview for the three sound classes used by every style: ordinary keys,
@@ -362,6 +459,60 @@ letter-key swipe symbols.
   safe field references, and skip gesture-event allocation when there is no
   listener, without changing long-press timing, double-tap timing, swipe
   behavior, or T9 candidate visibility.
+
+## User-Imported Key Sounds
+
+- User report: the bundled Baidu-derived key-sound samples cannot be safely
+  shipped in an open-source APK because their license only allows commercial
+  use and does not grant redistribution as open-source assets.
+- Replace the 4.0.0 key-sound implementation so the app no longer packages
+  those samples. Users should import one `.bds` file, then confirm or
+  edit a display name prefilled from the selected package name. Keep the copied
+  file and extracted samples inside the app's private storage on the phone.
+- Import should reject encrypted packs with a clear message. The BDS local ZIP
+  entry encryption flag is enough to identify packs the app cannot decode.
+- Runtime playback should keep the existing three sound classes: ordinary
+  keys, Space/function keys, and Delete/Return keys. Supported BDS layouts are
+  the older `aj`/`ajgn`/`ajhc` names and numbered `aj1`/`aj2`/`aj3` names.
+- Success criteria: no bundled Baidu sample resources remain in the app, the
+  settings UI lets users pick a package before naming it, preview and keypress
+  playback use the imported samples, and encrypted or incomplete packs report
+  an actionable error.
+- Device smoke test finding: an Android `.bds` selection correctly opens the
+  app's name dialog with the package-name-derived default, but the encrypted-pack
+  scanner kept reading past the ZIP local file headers into the central
+  directory. That can surface an internal `EOFException` before normal
+  extraction runs.
+- Follow-up device finding: some BDS packages contain both `.aiff` and `.ogg`
+  entries with the same `aj*` base names. Taking the first matching entry can
+  save AIFF bytes under the app's `.ogg` sample filenames, which makes
+  `SoundPool` fail to load the imported samples. The importer should choose the
+  OGG entries that Android can play directly.
+- The import flow only supports Android `.bds` skin packages. The earlier iOS
+  package compatibility path was removed so the UI and code do not imply
+  support for iOS packages.
+- Refined storage requirement: imported packs are retained as a local library.
+  Users can switch between imported packs, delete packs they no longer like,
+  and fall back to a default option that uses Android's built-in keypress sound
+  effects without shipping additional audio files.
+- UI bug: the import-name dialog's single-line `EditText` text collides with
+  the underline on the device. The name field needs enough vertical padding or
+  a wrapper layout so the baseline clears the underline.
+- Follow-up UI requirement: long Baidu Android `.bds` skin names should remain
+  readable in the local pack manager, and the import summary should say these
+  are key sounds extracted from Baidu Input Android `.bds` skins.
+- Follow-up management requirement: imported key-sound packs should support
+  renaming after import. The existing local pack name is stored in each pack's
+  `name.txt`, so renaming can update only that metadata file without touching
+  extracted samples or the original imported `.bds`.
+- Device/user follow-up: the Android default key-sound option is still silent on
+  the target phone even after explicitly loading Android system sound effects.
+  Replace that fallback with app-owned synthesized default samples so the
+  default option is asset-clean, redistributable, and independent from device
+  system sound-effect behavior.
+- Cleanup requirement: remove obsolete single-pack directory migration code and
+  stale iOS-package compatibility wording now that the pack library only accepts
+  Android `.bds` skins.
 - Fourth performance audit finding: physical T9 digit and star long-press
   tracking uses a `MutableMap<Int, Boolean>` even though key codes are small,
   fixed integer values. This adds hashing/boxing overhead in the physical-key
@@ -1980,3 +2131,23 @@ Second-pass fix:
 - Success criteria: remove the pinyin-row pre-draw/animation-frame delay so the
   synchronous chip row is made visible in the same `updateUi()` pass as the
   first row and Hanzi row.
+
+## Chinese T9 Punctuation Spellcheck Underline Follow-up
+
+- User report: while Chinese input is active, after entering punctuation the
+  whole sentence in the target text field can become red-underlined.
+- Red underlines are usually drawn by the target editor or Android spell
+  checker, but the IME can trigger them by leaving composing state inconsistent
+  or by committing local text outside the same cleanup path used for ordinary
+  commits.
+- Code audit finding: the Chinese T9 local punctuation path and several
+  punctuation-following literal commits call `currentInputConnection.commitText`
+  directly. Those calls bypass the service-level `commitText()` wrapper, which
+  clears IME composing state, predicts selection, and handles the existing
+  composing range before committing.
+- Success criteria: local Chinese T9 punctuation, punctuation-following spaces,
+  and literal digits inserted from the Chinese T9 special-key paths should use
+  the same service commit helper as ordinary committed text. If the red
+  underline is system spellcheck, this will not disable spellcheck globally,
+  but it should stop the IME from contributing stale composing state around the
+  punctuation commit.

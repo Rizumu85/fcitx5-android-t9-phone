@@ -12,7 +12,6 @@ import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.InputFeedbacks.InputFeedbackMode
-import org.fcitx.fcitx5.android.data.InputFeedbacks.KeySoundStyle
 import org.fcitx.fcitx5.android.input.InputUiFont
 import org.fcitx.fcitx5.android.input.candidates.expanded.ExpandedCandidateStyle
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesMode
@@ -127,13 +126,6 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             100,
             "%",
             defaultLabel = R.string.system_default
-        ) {
-            soundOnKeyPress.getValue() != InputFeedbackMode.Disabled
-        }
-        val keySoundStyle = enumList(
-            R.string.key_sound_style,
-            "key_sound_style",
-            KeySoundStyle.Muffled
         ) {
             soundOnKeyPress.getValue() != InputFeedbackMode.Disabled
         }

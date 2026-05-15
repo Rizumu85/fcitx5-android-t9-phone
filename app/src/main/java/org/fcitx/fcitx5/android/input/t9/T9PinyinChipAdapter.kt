@@ -4,6 +4,7 @@
 package org.fcitx.fcitx5.android.input.t9
 
 import android.content.Context
+import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.view.Gravity
@@ -36,6 +37,13 @@ class T9PinyinChipAdapter(
         gravity = Gravity.CENTER_VERTICAL or Gravity.START
         clipChildren = false
         clipToPadding = false
+        descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        isFocusable = false
+        isFocusableInTouchMode = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            defaultFocusHighlightEnabled = false
+        }
+        setBackgroundColor(Color.TRANSPARENT)
     }
 
     val root: HorizontalScrollView = HorizontalScrollView(context).apply {
@@ -43,6 +51,13 @@ class T9PinyinChipAdapter(
         isHorizontalScrollBarEnabled = false
         clipChildren = false
         clipToPadding = false
+        descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        isFocusable = false
+        isFocusableInTouchMode = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            defaultFocusHighlightEnabled = false
+        }
+        setBackgroundColor(Color.TRANSPARENT)
         addView(container, ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
             rowHeightPx
@@ -121,6 +136,11 @@ class T9PinyinChipAdapter(
                 }
                 text = pinyin
                 setOnClickListener { onChipClick(pinyin) }
+                isFocusable = false
+                isFocusableInTouchMode = false
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    defaultFocusHighlightEnabled = false
+                }
             }
             val background = GradientDrawable().apply {
                 setColor(theme.genericActiveBackgroundColor)

@@ -5,7 +5,6 @@
 package org.fcitx.fcitx5.android.data
 
 import android.media.AudioAttributes
-import android.media.AudioManager
 import android.media.SoundPool
 import android.os.Build
 import android.os.VibrationEffect
@@ -17,7 +16,6 @@ import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreferenceEnum
 import org.fcitx.fcitx5.android.utils.appContext
-import org.fcitx.fcitx5.android.utils.audioManager
 import org.fcitx.fcitx5.android.utils.getSystemSettings
 import org.fcitx.fcitx5.android.utils.vibrator
 
@@ -27,17 +25,6 @@ object InputFeedbacks {
         FollowingSystem(R.string.following_system_settings),
         Enabled(R.string.enabled),
         Disabled(R.string.disabled);
-    }
-
-    enum class KeySoundStyle(override val stringRes: Int) : ManagedPreferenceEnum {
-        Muffled(R.string.key_sound_style_muffled),
-        Mechanical(R.string.key_sound_style_mechanical),
-        Crisp(R.string.key_sound_style_crisp),
-        MeowMuffled(R.string.key_sound_style_meow_muffled),
-        MeowCrisp(R.string.key_sound_style_meow_crisp),
-        BlackWhiteCute(R.string.key_sound_style_black_white_cute),
-        BlackWhiteCrisp(R.string.key_sound_style_black_white_crisp),
-        BlackWhiteMuffled(R.string.key_sound_style_black_white_muffled);
     }
 
     private var systemSoundEffects = false
@@ -59,9 +46,6 @@ object InputFeedbacks {
 
     @Volatile
     private var soundOnKeyPressVolume = keyboardPrefs.soundOnKeyPressVolume.getValue()
-
-    @Volatile
-    private var keySoundStyle = keyboardPrefs.keySoundStyle.getValue()
 
     @Volatile
     private var hapticOnKeyPress = keyboardPrefs.hapticOnKeyPress.getValue()
@@ -93,11 +77,6 @@ object InputFeedbacks {
         ManagedPreference.OnChangeListener<Int> { _, value ->
             soundOnKeyPressVolume = value
         }
-    private val keySoundStyleChangeListener =
-        ManagedPreference.OnChangeListener<KeySoundStyle> { _, value ->
-            keySoundStyle = value
-            preloadAppSounds(value)
-        }
     private val hapticOnKeyPressChangeListener =
         ManagedPreference.OnChangeListener<InputFeedbackMode> { _, value ->
             hapticOnKeyPress = value
@@ -128,7 +107,6 @@ object InputFeedbacks {
         keyboardPrefs.soundOnKeyPressVolume.registerOnChangeListener(
             soundOnKeyPressVolumeChangeListener
         )
-        keyboardPrefs.keySoundStyle.registerOnChangeListener(keySoundStyleChangeListener)
         keyboardPrefs.hapticOnKeyPress.registerOnChangeListener(hapticOnKeyPressChangeListener)
         keyboardPrefs.hapticOnKeyUp.registerOnChangeListener(hapticOnKeyUpChangeListener)
         keyboardPrefs.buttonPressVibrationMilliseconds.registerOnChangeListener(
@@ -205,12 +183,11 @@ object InputFeedbacks {
         Standard, SpaceBar, Delete, Return
     }
 
-    private val audioManager = appContext.audioManager
-
     private val appSoundLock = Any()
-    private val appSoundIds = Array(KeySoundStyle.entries.size) { IntArray(3) }
+    private val appSoundIds = IntArray(3)
     private val loadedAppSoundIds = mutableSetOf<Int>()
     private val pendingAppSoundGains = mutableMapOf<Int, Float>()
+    private var appSoundPackVersion = -1L
 
     private fun sampleSoundEffect(effect: SoundEffect): SoundEffect =
         if (effect == SoundEffect.Return) SoundEffect.Delete else effect
@@ -250,78 +227,61 @@ object InputFeedbacks {
             }
     }
 
-    private fun appSoundResId(style: KeySoundStyle, effect: SoundEffect): Int {
-        return when (style) {
-            KeySoundStyle.Muffled -> when (effect) {
-                SoundEffect.Standard -> R.raw.key_muffled_standard
-                SoundEffect.SpaceBar -> R.raw.key_muffled_space
-                SoundEffect.Delete, SoundEffect.Return -> R.raw.key_muffled_delete
-            }
-            KeySoundStyle.Mechanical -> when (effect) {
-                SoundEffect.Standard -> R.raw.key_mechanical_standard
-                SoundEffect.SpaceBar -> R.raw.key_mechanical_space
-                SoundEffect.Delete, SoundEffect.Return -> R.raw.key_mechanical_delete
-            }
-            KeySoundStyle.Crisp -> when (effect) {
-                SoundEffect.Standard -> R.raw.key_crisp_standard
-                SoundEffect.SpaceBar -> R.raw.key_crisp_space
-                SoundEffect.Delete, SoundEffect.Return -> R.raw.key_crisp_delete
-            }
-            KeySoundStyle.MeowMuffled -> when (effect) {
-                SoundEffect.Standard -> R.raw.key_meow_muffled_standard
-                SoundEffect.SpaceBar -> R.raw.key_meow_muffled_space
-                SoundEffect.Delete, SoundEffect.Return -> R.raw.key_meow_muffled_delete
-            }
-            KeySoundStyle.MeowCrisp -> when (effect) {
-                SoundEffect.Standard -> R.raw.key_meow_crisp_standard
-                SoundEffect.SpaceBar -> R.raw.key_meow_crisp_space
-                SoundEffect.Delete, SoundEffect.Return -> R.raw.key_meow_crisp_delete
-            }
-            KeySoundStyle.BlackWhiteCute -> when (effect) {
-                SoundEffect.Standard -> R.raw.key_bw_cute_standard
-                SoundEffect.SpaceBar -> R.raw.key_bw_cute_space
-                SoundEffect.Delete, SoundEffect.Return -> R.raw.key_bw_cute_delete
-            }
-            KeySoundStyle.BlackWhiteCrisp -> when (effect) {
-                SoundEffect.Standard -> R.raw.key_bw_crisp_standard
-                SoundEffect.SpaceBar -> R.raw.key_bw_crisp_space
-                SoundEffect.Delete, SoundEffect.Return -> R.raw.key_bw_crisp_delete
-            }
-            KeySoundStyle.BlackWhiteMuffled -> when (effect) {
-                SoundEffect.Standard -> R.raw.key_bw_muffled_standard
-                SoundEffect.SpaceBar -> R.raw.key_bw_muffled_space
-                SoundEffect.Delete, SoundEffect.Return -> R.raw.key_bw_muffled_delete
-            }
+    private fun appSoundFile(effect: SoundEffect) = when (effect) {
+        SoundEffect.Standard -> UserKeySoundPack.sampleFile(UserKeySoundPack.Sample.Standard)
+        SoundEffect.SpaceBar -> UserKeySoundPack.sampleFile(UserKeySoundPack.Sample.Space)
+        SoundEffect.Delete, SoundEffect.Return -> UserKeySoundPack.sampleFile(UserKeySoundPack.Sample.Delete)
+    }
+
+    private fun builtInDefaultSoundResource(effect: SoundEffect): Int {
+        return when (sampleSoundEffect(effect)) {
+            SoundEffect.Standard -> R.raw.key_default_standard
+            SoundEffect.SpaceBar -> R.raw.key_default_space
+            SoundEffect.Delete, SoundEffect.Return -> R.raw.key_default_delete
         }
     }
 
-    private fun appSoundId(style: KeySoundStyle, effect: SoundEffect): Int {
+    private fun refreshAppSoundCacheIfNeeded() {
+        val version = UserKeySoundPack.version
+        if (appSoundPackVersion == version) return
+        appSoundIds.forEach { id ->
+            if (id != 0) appSoundPool.unload(id)
+        }
+        appSoundIds.fill(0)
+        loadedAppSoundIds.clear()
+        pendingAppSoundGains.clear()
+        appSoundPackVersion = version
+    }
+
+    private fun appSoundId(effect: SoundEffect): Int {
+        refreshAppSoundCacheIfNeeded()
         val sampleEffect = sampleSoundEffect(effect)
         val column = sampleSoundIndex(sampleEffect)
-        val current = appSoundIds[style.ordinal][column]
+        val current = appSoundIds[column]
         if (current != 0) return current
-        val id = appSoundPool.load(appContext, appSoundResId(style, sampleEffect), 1)
-        appSoundIds[style.ordinal][column] = id
+        val id = if (UserKeySoundPack.usesBuiltInDefaultSounds) {
+            appSoundPool.load(appContext, builtInDefaultSoundResource(sampleEffect), 1)
+        } else {
+            val file = appSoundFile(sampleEffect)
+            if (!file.isFile) return 0
+            appSoundPool.load(file.absolutePath, 1)
+        }
+        appSoundIds[column] = id
         return id
     }
 
     private fun preloadAppSounds() {
-        preloadAppSounds(keySoundStyle)
-    }
-
-    private fun preloadAppSounds(style: KeySoundStyle) {
         synchronized(appSoundLock) {
-            appSoundId(style, SoundEffect.Standard)
-            appSoundId(style, SoundEffect.SpaceBar)
-            appSoundId(style, SoundEffect.Delete)
+            appSoundId(SoundEffect.Standard)
+            appSoundId(SoundEffect.SpaceBar)
+            appSoundId(SoundEffect.Delete)
         }
     }
 
     private fun playAppSoundEffect(effect: SoundEffect, volume: Int) {
         val gain = (volume.coerceIn(0, 100) / 100f).takeIf { it > 0f } ?: 0.5f
-        val style = keySoundStyle
         val soundId = synchronized(appSoundLock) {
-            val id = appSoundId(style, effect)
+            val id = appSoundId(effect)
             when {
                 id == 0 -> 0
                 id in loadedAppSoundIds -> id
@@ -346,18 +306,7 @@ object InputFeedbacks {
             InputFeedbackMode.Disabled -> return
             InputFeedbackMode.FollowingSystem -> if (!systemSoundEffects) return
         }
-        val fx = when (effect) {
-            SoundEffect.Standard -> AudioManager.FX_KEYPRESS_STANDARD
-            SoundEffect.SpaceBar -> AudioManager.FX_KEYPRESS_SPACEBAR
-            SoundEffect.Delete -> AudioManager.FX_KEYPRESS_DELETE
-            SoundEffect.Return -> AudioManager.FX_KEYPRESS_RETURN
-        }
-        val volume = soundOnKeyPressVolume
-        if (volume == 0) {
-            audioManager.playSoundEffect(fx, -1f)
-        } else {
-            audioManager.playSoundEffect(fx, volume / 100f)
-        }
+        playAppSoundEffect(effect, soundOnKeyPressVolume)
     }
 
     fun previewSoundEffect(effect: SoundEffect) {

@@ -8,6 +8,7 @@ package org.fcitx.fcitx5.android.input.candidates.floating
 import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.text.Spanned
 import android.text.style.RelativeSizeSpan
 import android.text.style.SubscriptSpan
@@ -41,6 +42,11 @@ class LabeledCandidateItemUi(
     override val root = textView {
         setupTextView(this)
         background = activeBackground
+        isFocusable = false
+        isFocusableInTouchMode = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            defaultFocusHighlightEnabled = false
+        }
     }
 
     fun update(
