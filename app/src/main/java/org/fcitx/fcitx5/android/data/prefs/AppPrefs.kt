@@ -199,6 +199,10 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         // the whole T9 input mode, not only the visual keyboard layout.
         val useT9KeyboardLayout =
             switch(R.string.use_t9_keyboard_layout, "use_t9_keyboard_layout", true)
+        val smartEnglishT9 =
+            switch(R.string.smart_english_t9, "smart_english_t9", false) {
+                useT9KeyboardLayout.getValue()
+            }
 
         val t9KeyboardHeightPercent: ManagedPreference.PInt
         val t9KeyboardHeightPercentLandscape: ManagedPreference.PInt

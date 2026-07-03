@@ -73,8 +73,11 @@ import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.cursor.CursorRange
 import org.fcitx.fcitx5.android.input.cursor.CursorTracker
+import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHandler
+import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
 import org.fcitx.fcitx5.android.input.t9.T9CompositionModel
 import org.fcitx.fcitx5.android.input.t9.T9CompositionTracker
+import org.fcitx.fcitx5.android.input.t9.T9EnglishDictionary
 import org.fcitx.fcitx5.android.input.t9.T9PendingSelection
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
 import org.fcitx.fcitx5.android.input.t9.T9PinyinUtils
@@ -129,6 +132,132 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         showEqualsChoice = { prefix, result -> inputView?.showNumberEqualsChoice(prefix, result) },
         hideEqualsChoice = { inputView?.hideNumberEqualsChoice() }
     )
+    private val physicalT9KeyHandler = PhysicalT9KeyHandler(object : PhysicalT9KeyHandler.Host {
+        override val isInInputMode: Boolean
+            get() = inputDeviceMgr.isInInputMode
+        override val mode: PhysicalT9KeyHandler.Mode
+            get() = when (currentT9Mode) {
+                T9InputMode.CHINESE -> PhysicalT9KeyHandler.Mode.CHINESE
+                T9InputMode.ENGLISH -> PhysicalT9KeyHandler.Mode.ENGLISH
+                T9InputMode.NUMBER -> PhysicalT9KeyHandler.Mode.NUMBER
+            }
+        override val isSmartEnglishActive: Boolean
+            get() = isSmartEnglishT9Active()
+        override val chineseComposing: Boolean
+            get() = getT9InputState() == T9InputState.CHINESE_COMPOSING
+        override val compositionKeyCount: Int
+            get() = getT9CompositionKeyCount()
+        override val hasPendingPunctuation: Boolean
+            get() = t9PendingPunctuation.isPending
+        override val pendingPunctuationOneKeyDeferred: Boolean
+            get() = t9PendingPunctuation.oneKeyDeferred
+        override val pendingPunctuationSet: PhysicalT9KeyHandler.PunctuationSet
+            get() = when (t9PendingPunctuation.set) {
+                T9PunctuationSet.CHINESE -> PhysicalT9KeyHandler.PunctuationSet.CHINESE
+                T9PunctuationSet.ENGLISH -> PhysicalT9KeyHandler.PunctuationSet.ENGLISH
+            }
+        override val hasSmartEnglishDigits: Boolean
+            get() = smartEnglishDigits.isNotEmpty()
+        override val hasMultiTapPendingChar: Boolean
+            get() = multiTapPendingChar != null
+        override val hasTopPinyinCandidates: Boolean
+            get() = getT9PinyinCandidates().isNotEmpty()
+        override val candidateFocus: PhysicalT9KeyHandler.CandidateFocus
+            get() = when (getT9CandidateFocus()) {
+                T9CandidateFocus.TOP -> PhysicalT9KeyHandler.CandidateFocus.TOP
+                T9CandidateFocus.BOTTOM -> PhysicalT9KeyHandler.CandidateFocus.BOTTOM
+            }
+
+        override fun keyHeldPastLongPressDelay(input: PhysicalT9KeyHandler.KeyInput): Boolean =
+            input.repeatCount > 0 &&
+                input.eventTime - input.downTime >= physicalLongPressDelay.toLong()
+
+        override fun setPendingPunctuationOneKeyDeferred(value: Boolean) {
+            t9PendingPunctuation = t9PendingPunctuation.copy(oneKeyDeferred = value)
+        }
+
+        override fun commitPendingPunctuationShortcut(keyCode: Int): Boolean =
+            commitPendingT9PunctuationShortcut(keyCode)
+
+        override fun commitHanziShortcut(keyCode: Int): Boolean =
+            commitT9HanziShortcutFromLongPress(keyCode)
+
+        override fun commitSmartEnglishShortcut(keyCode: Int): Boolean =
+            commitSmartEnglishShortcutFromLongPress(keyCode)
+
+        override fun commitPendingPunctuation(): Boolean = commitPendingT9Punctuation()
+        override fun cancelPendingPunctuation(): Boolean = cancelPendingT9Punctuation()
+        override fun handleChinesePunctuationKey(): Boolean =
+            this@FcitxInputMethodService.handleChinesePunctuationKey()
+
+        override fun togglePendingPunctuationSet(): Boolean =
+            this@FcitxInputMethodService.togglePendingT9PunctuationSet()
+        override fun switchToNextMode() = switchToNextT9Mode()
+        override fun commitText(text: String) = this@FcitxInputMethodService.commitText(text)
+
+        override fun commitNumberOperatorForKey(keyCode: Int, fallbackDigit: Int): Boolean {
+            val operator = numberModeController.operatorForKey(keyCode) ?: DIGIT_TEXTS[fallbackDigit]
+            return commitNumberModeOperator(operator)
+        }
+
+        override fun showNumberOperatorHintPanel() = this@FcitxInputMethodService.showNumberOperatorHintPanel()
+        override fun commitLiteralStarInCurrentChineseState() = commitLiteralT9Star(getT9InputState())
+        override fun handleEnglishStarShortPress() = this@FcitxInputMethodService.handleEnglishStarShortPress()
+        override fun handleEnglishStarLongPress() = this@FcitxInputMethodService.handleEnglishStarLongPress()
+        override fun handleMultiTapKey(keyCode: Int): Boolean = this@FcitxInputMethodService.handleMultiTapKey(keyCode)
+        override fun commitMultiTapChar(): Boolean = this@FcitxInputMethodService.commitMultiTapChar()
+        override fun cancelMultiTapChar() = this@FcitxInputMethodService.cancelMultiTapChar()
+        override fun deferSmartEnglishPunctuationKey() = this@FcitxInputMethodService.deferSmartEnglishPunctuationKey()
+        override fun showSmartEnglishPunctuationCandidates() =
+            this@FcitxInputMethodService.showSmartEnglishPunctuationCandidates()
+
+        override fun appendSmartEnglishDigit(digit: Int) {
+            smartEnglishDigits.append(DIGIT_TEXTS[digit])
+            smartEnglishCursorIndex = 0
+            candidatesView?.refreshT9Ui()
+        }
+
+        override fun resetSmartEnglishT9() = this@FcitxInputMethodService.resetSmartEnglishT9()
+        override fun commitSmartEnglishCandidate(): Boolean =
+            this@FcitxInputMethodService.commitSmartEnglishCandidate()
+
+        override fun moveSmartEnglishCandidate(delta: Int): Boolean =
+            this@FcitxInputMethodService.moveSmartEnglishCandidate(delta)
+
+        override fun smartEnglishBackspace(): Boolean = handleSmartEnglishBackspace()
+        override fun flushEnglishLearningWord() = this@FcitxInputMethodService.flushEnglishLearningWord()
+        override fun handleReturnKey() = this@FcitxInputMethodService.handleReturnKey()
+        override fun forwardChineseT9KeyShortPress(
+            keyCode: Int,
+            input: PhysicalT9KeyHandler.KeyInput
+        ): Boolean =
+            this@FcitxInputMethodService.forwardChineseT9KeyShortPress(keyCode, input)
+
+        override fun forwardChineseT9SeparatorShortPress(): Boolean =
+            this@FcitxInputMethodService.forwardChineseT9SeparatorShortPress()
+
+        override fun moveCandidateFocus(focus: PhysicalT9KeyHandler.CandidateFocus) {
+            moveT9CandidateFocus(
+                when (focus) {
+                    PhysicalT9KeyHandler.CandidateFocus.TOP -> T9CandidateFocus.TOP
+                    PhysicalT9KeyHandler.CandidateFocus.BOTTOM -> T9CandidateFocus.BOTTOM
+                }
+            )
+        }
+
+        override fun moveHighlightedPinyin(delta: Int): Boolean =
+            candidatesView?.moveHighlightedT9Pinyin(delta) == true
+
+        override fun moveHighlightedHanzi(delta: Int): Boolean =
+            candidatesView?.moveHighlightedT9HanziCandidate(delta) == true
+
+        override fun offsetHanziPage(delta: Int): Boolean =
+            candidatesView?.offsetT9HanziCandidatePage(delta) == true
+
+        override fun commitHighlightedPinyin(): Boolean = commitHighlightedT9Pinyin()
+        override fun commitHighlightedHanzi(): Boolean =
+            candidatesView?.commitHighlightedT9HanziCandidate() == true
+    })
 
     private fun isTemporaryPasswordKeyboardVisible(): Boolean =
         inputView?.isTemporaryPasswordKeyboardVisible() == true
@@ -196,14 +325,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (!isTemporaryPasswordKeyboardVisible() || event.action != KeyEvent.ACTION_DOWN) {
             return false
         }
-        val text = when (keyCode) {
-            in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 ->
-                DIGIT_TEXTS[keyCode - KeyEvent.KEYCODE_0]
-            in KeyEvent.KEYCODE_NUMPAD_0..KeyEvent.KEYCODE_NUMPAD_9 ->
-                DIGIT_TEXTS[keyCode - KeyEvent.KEYCODE_NUMPAD_0]
-            KeyEvent.KEYCODE_STAR,
-            KeyEvent.KEYCODE_NUMPAD_MULTIPLY -> "*"
-            KeyEvent.KEYCODE_POUND -> "#"
+        val decimalDigit = PhysicalT9KeyPolicy.decimalDigit(keyCode)
+        val text = when {
+            decimalDigit != null -> DIGIT_TEXTS[decimalDigit]
+            keyCode == KeyEvent.KEYCODE_STAR ||
+                keyCode == KeyEvent.KEYCODE_NUMPAD_MULTIPLY -> "*"
+            keyCode == KeyEvent.KEYCODE_POUND -> "#"
             else -> return false
         }
         commitText(text)
@@ -215,7 +342,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (!isTemporaryPasswordKeyboardVisible() || event.action != KeyEvent.ACTION_DOWN) {
             return false
         }
-        if (!isBackspaceKey(keyCode)) return false
+        if (!PhysicalT9KeyPolicy.isDeleteKey(keyCode)) return false
         val lastSelection = selection.latest
         if (!deleteBeforeCursorDirectly()) return false
         recordPasswordInputPreviewBackspace(selectionDeleted = lastSelection.isNotEmpty())
@@ -429,6 +556,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var t9InputModeEnabled = keyboardPrefs.useT9KeyboardLayout.getValue()
 
     @Volatile
+    private var smartEnglishT9 = keyboardPrefs.smartEnglishT9.getValue()
+
+    @Volatile
+    private var physicalLongPressDelay = keyboardPrefs.longPressDelay.getValue()
+
+    @Volatile
     private var ignoreSystemCursor = prefs.advanced.ignoreSystemCursor.getValue()
 
     private val inlineSuggestionsChangeListener =
@@ -446,6 +579,15 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private val t9InputModeEnabledChangeListener =
         ManagedPreference.OnChangeListener<Boolean> { _, value ->
             t9InputModeEnabled = value
+        }
+    private val smartEnglishT9ChangeListener =
+        ManagedPreference.OnChangeListener<Boolean> { _, value ->
+            smartEnglishT9 = value
+            resetSmartEnglishT9()
+        }
+    private val physicalLongPressDelayChangeListener =
+        ManagedPreference.OnChangeListener<Int> { _, value ->
+            physicalLongPressDelay = value
         }
     private val ignoreSystemCursorChangeListener =
         ManagedPreference.OnChangeListener<Boolean> { _, value ->
@@ -555,6 +697,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         )
         keyboardPrefs.physicalKeySound.registerOnChangeListener(physicalKeySoundChangeListener)
         keyboardPrefs.useT9KeyboardLayout.registerOnChangeListener(t9InputModeEnabledChangeListener)
+        keyboardPrefs.smartEnglishT9.registerOnChangeListener(smartEnglishT9ChangeListener)
+        keyboardPrefs.longPressDelay.registerOnChangeListener(physicalLongPressDelayChangeListener)
         prefs.advanced.ignoreSystemCursor.registerOnChangeListener(ignoreSystemCursorChangeListener)
         prefs.keyboard.inputUiFont.registerOnChangeListener(recreateInputViewsListener)
         keyboardPrefs.passwordInputPreview.registerOnChangeListener(passwordInputPreviewChangeListener)
@@ -1280,7 +1424,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             return true
         }
         if (pendingPhysicalSelectionOkKeyCode == keyCode) {
-            if (event.repeatCount == 1) {
+            if (!physicalSelectionOkLongPressTriggered &&
+                keyHeldPastPhysicalLongPressDelay(event)
+            ) {
                 enterPhysicalSelectionMode()
                 physicalSelectionOkLongPressTriggered = true
             }
@@ -1511,52 +1657,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         BOTTOM
     }
 
-    private fun isT9FocusUpKey(keyCode: Int): Boolean =
-        keyCode == KeyEvent.KEYCODE_DPAD_UP
-
-    private fun isT9FocusDownKey(keyCode: Int): Boolean =
-        keyCode == KeyEvent.KEYCODE_DPAD_DOWN
-
-    private fun isT9FocusOkKey(keyCode: Int): Boolean = when (keyCode) {
-        KeyEvent.KEYCODE_DPAD_CENTER,
-        KeyEvent.KEYCODE_ENTER -> true
-        else -> false
-    }
-
-    private fun isT9FocusLeftKey(keyCode: Int): Boolean =
-        keyCode == KeyEvent.KEYCODE_DPAD_LEFT
-
-    private fun isT9FocusRightKey(keyCode: Int): Boolean =
-        keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
-
-    private fun isBackspaceKey(keyCode: Int): Boolean = when (keyCode) {
-        KeyEvent.KEYCODE_DEL,
-        KeyEvent.KEYCODE_BACK,
-        KeyEvent.KEYCODE_FORWARD_DEL -> true
-        else -> false
-    }
-
-    private fun isT9HorizontalFocusKey(keyCode: Int): Boolean = when (keyCode) {
-        KeyEvent.KEYCODE_DPAD_LEFT,
-        KeyEvent.KEYCODE_DPAD_RIGHT -> true
-        else -> false
-    }
-
-    private fun isPendingT9PunctuationControlKey(keyCode: Int): Boolean = when (keyCode) {
-        in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9,
-        KeyEvent.KEYCODE_STAR,
-        KeyEvent.KEYCODE_POUND,
-        KeyEvent.KEYCODE_DEL,
-        KeyEvent.KEYCODE_BACK,
-        KeyEvent.KEYCODE_DPAD_UP,
-        KeyEvent.KEYCODE_DPAD_DOWN,
-        KeyEvent.KEYCODE_DPAD_LEFT,
-        KeyEvent.KEYCODE_DPAD_RIGHT,
-        KeyEvent.KEYCODE_DPAD_CENTER,
-        KeyEvent.KEYCODE_ENTER -> true
-        else -> false
-    }
-
     private enum class T9EnglishCaseState {
         OFF,
         SHIFT_ONCE,
@@ -1574,35 +1674,19 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var physicalSelectionFocus = -1
     private var physicalSelectionRangeActive = false
 
-    /**
-     * Track if a long press action was triggered for # key.
-     * This prevents short press action from firing on KEY_UP after a long press.
-     */
-    private var t9PoundLongPressTriggered = false
-
-    /**
-     * Track long press for digit keys (0-9)
-     */
-    private class KeyCodeFlags(maxKeyCode: Int) {
-        private val flags = BooleanArray(maxKeyCode + 1)
-
-        operator fun get(keyCode: Int): Boolean? =
-            flags.getOrNull(keyCode)
-
-        operator fun set(keyCode: Int, value: Boolean) {
-            if (keyCode in flags.indices) {
-                flags[keyCode] = value
-            }
-        }
-    }
-
-    private val digitLongPressFlags = KeyCodeFlags(KeyEvent.KEYCODE_STAR)
+    private fun keyHeldPastPhysicalLongPressDelay(event: KeyEvent): Boolean =
+        event.repeatCount > 0 &&
+            event.eventTime - event.downTime >= physicalLongPressDelay.toLong()
 
     // ===== Multi-tap state for English mode =====
     private var multiTapLastKey = -1
     private var multiTapLastTime = 0L
     private var multiTapIndex = 0
     private var multiTapPendingChar: Char? = null
+    private val englishDictionary = T9EnglishDictionary()
+    private val smartEnglishDigits = StringBuilder()
+    private var smartEnglishCursorIndex = 0
+    private val englishLearningWord = StringBuilder()
     private val MULTITAP_TIMEOUT = 1200L  // Increased from 500ms for easier typing
 
     private enum class T9PunctuationSet {
@@ -1738,46 +1822,48 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     fun getT9CandidateFocusIndicatorColor(): Int = highlightColor
 
-    private fun t9ShortcutIndexForDigitKey(keyCode: Int): Int? = when (keyCode) {
-        in KeyEvent.KEYCODE_1..KeyEvent.KEYCODE_9 -> keyCode - KeyEvent.KEYCODE_1
-        KeyEvent.KEYCODE_0 -> 9
-        else -> null
-    }
-
     private fun commitPendingT9PunctuationShortcut(keyCode: Int): Boolean {
-        val index = t9ShortcutIndexForDigitKey(keyCode) ?: return false
+        val index = PhysicalT9KeyPolicy.candidateShortcutIndex(keyCode) ?: return false
         return candidatesView?.commitT9PendingPunctuationShortcut(index) == true
     }
 
     private fun commitT9HanziShortcutFromLongPress(keyCode: Int): Boolean {
-        val index = t9ShortcutIndexForDigitKey(keyCode) ?: return false
+        val index = PhysicalT9KeyPolicy.candidateShortcutIndex(keyCode) ?: return false
         return candidatesView?.commitT9HanziShortcut(index) == true
     }
 
-    private fun forwardChineseT9KeyShortPress(keyCode: Int, event: KeyEvent): Boolean {
+    private fun commitSmartEnglishShortcutFromLongPress(keyCode: Int): Boolean {
+        val index = PhysicalT9KeyPolicy.candidateShortcutIndex(keyCode) ?: return false
+        return candidatesView?.commitSmartEnglishShortcut(index) == true
+    }
+
+    private fun forwardChineseT9KeyShortPress(
+        keyCode: Int,
+        input: PhysicalT9KeyHandler.KeyInput
+    ): Boolean {
         val down = KeyEvent(
-            event.downTime,
-            event.eventTime,
+            input.downTime,
+            input.eventTime,
             KeyEvent.ACTION_DOWN,
             keyCode,
             0,
-            event.metaState,
-            event.deviceId,
-            event.scanCode,
-            event.flags,
-            event.source
+            input.metaState,
+            input.deviceId,
+            input.scanCode,
+            input.flags,
+            input.source
         )
         val up = KeyEvent(
-            event.downTime,
-            event.eventTime,
+            input.downTime,
+            input.eventTime,
             KeyEvent.ACTION_UP,
             keyCode,
             0,
-            event.metaState,
-            event.deviceId,
-            event.scanCode,
-            event.flags,
-            event.source
+            input.metaState,
+            input.deviceId,
+            input.scanCode,
+            input.flags,
+            input.source
         )
         val sentDown = forwardKeyEvent(down)
         val sentUp = forwardKeyEvent(up)
@@ -1835,6 +1921,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         clearTransientInputUiState()
         candidatesView?.refreshT9Ui()
         multiTapHandler.removeCallbacks(t9PunctuationTimeoutRunnable)
+    }
+
+    private fun deferSmartEnglishPunctuationKey() {
+        t9PendingPunctuation = T9PendingPunctuationState(
+            set = T9PunctuationSet.ENGLISH,
+            oneKeyDeferred = true
+        )
+    }
+
+    private fun showSmartEnglishPunctuationCandidates() {
+        t9PendingPunctuation = T9PendingPunctuationState(set = T9PunctuationSet.ENGLISH)
+        showPendingT9Punctuation()
     }
 
     fun getPendingT9PunctuationPaged(): FcitxEvent.PagedCandidateEvent.Data? {
@@ -1926,14 +2024,161 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         val hadPendingChar = multiTapPendingChar != null
         multiTapPendingChar?.let {
             val char = applyEnglishCase(it)
-            // Just commit the text - setComposingText will be replaced by this
-            currentInputConnection?.commitText(char.toString(), 1)
+            commitText(char.toString())
+            recordEnglishLearningChar(char)
             multiTapPendingChar = null
             consumeEnglishShiftOnce()
         }
         multiTapLastKey = -1
         multiTapIndex = 0
         return hadPendingChar
+    }
+
+    private fun isSmartEnglishT9Active(): Boolean =
+        t9InputModeEnabled && currentT9Mode == T9InputMode.ENGLISH && smartEnglishT9
+
+    fun isSmartEnglishT9InputModeActive(): Boolean = isSmartEnglishT9Active()
+
+    fun isSmartEnglishT9Enabled(): Boolean = smartEnglishT9
+
+    fun toggleSmartEnglishT9() {
+        smartEnglishT9 = !smartEnglishT9
+        keyboardPrefs.smartEnglishT9.setValue(smartEnglishT9)
+        resetSmartEnglishT9()
+        inputView?.showModeIndicatorBadge(if (smartEnglishT9) "T9" else "abc")
+    }
+
+    private fun resetSmartEnglishT9() {
+        physicalT9KeyHandler.resetSmartEnglishPendingDigit()
+        smartEnglishDigits.clear()
+        smartEnglishCursorIndex = 0
+        candidatesView?.refreshT9Ui()
+    }
+
+    private fun smartEnglishCandidates(): List<String> =
+        englishDictionary.candidatesFor(smartEnglishDigits.toString(), SmartEnglishCandidateLimit)
+
+    private fun smartEnglishVisibleCandidates(): List<String> {
+        val words = smartEnglishCandidates().map(::applyEnglishCaseToWord)
+        return words.ifEmpty { listOf(SmartEnglishNoMatchText) }
+    }
+
+    private fun smartEnglishInputPreviewText(candidates: List<String>): String {
+        val typedLength = smartEnglishDigits.length
+        val selectedPrefix = candidates
+            .getOrNull(smartEnglishCursorIndex)
+            ?: candidates.firstOrNull()
+        val preview = selectedPrefix
+            ?.take(typedLength)
+            ?.takeIf { it.isNotEmpty() }
+            ?: buildSmartEnglishDigitSkeleton()
+        return applyEnglishCaseToWord(preview)
+    }
+
+    private fun buildSmartEnglishDigitSkeleton(): String =
+        buildString(smartEnglishDigits.length) {
+            smartEnglishDigits.forEach { digit ->
+                append(
+                    when (digit) {
+                        '2' -> 'a'
+                        '3' -> 'd'
+                        '4' -> 'g'
+                        '5' -> 'j'
+                        '6' -> 'm'
+                        '7' -> 'p'
+                        '8' -> 't'
+                        '9' -> 'w'
+                        else -> digit
+                    }
+                )
+            }
+        }
+
+    fun getSmartEnglishT9Paged(): FcitxEvent.PagedCandidateEvent.Data? {
+        if (!isSmartEnglishT9Active() || smartEnglishDigits.isEmpty()) return null
+        val shown = smartEnglishVisibleCandidates().map {
+            FcitxEvent.Candidate(label = "", text = it, comment = "")
+        }
+        val cursor = smartEnglishCursorIndex.coerceIn(shown.indices)
+        return FcitxEvent.PagedCandidateEvent.Data(
+            candidates = shown.toTypedArray(),
+            cursorIndex = cursor,
+            layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
+            hasPrev = false,
+            hasNext = false
+        )
+    }
+
+    fun getSmartEnglishT9Presentation(): T9PresentationState? {
+        if (!isSmartEnglishT9Active() || smartEnglishDigits.isEmpty()) return null
+        val candidates = smartEnglishCandidates()
+        return T9PresentationState(
+            topReading = formattedT9Text(smartEnglishInputPreviewText(candidates)),
+            pinyinOptions = emptyList()
+        )
+    }
+
+    fun moveSmartEnglishCandidate(delta: Int): Boolean {
+        if (!isSmartEnglishT9Active()) return false
+        val size = smartEnglishVisibleCandidates().size
+        if (size <= 0) return false
+        smartEnglishCursorIndex = (smartEnglishCursorIndex + delta).coerceIn(0, size - 1)
+        candidatesView?.refreshT9Ui()
+        return true
+    }
+
+    fun setSmartEnglishCandidateIndex(index: Int): Boolean {
+        if (!isSmartEnglishT9Active()) return false
+        if (index !in smartEnglishVisibleCandidates().indices) return false
+        smartEnglishCursorIndex = index
+        candidatesView?.refreshT9Ui()
+        return true
+    }
+
+    fun commitSmartEnglishCandidate(index: Int? = null): Boolean {
+        if (!isSmartEnglishT9Active() || smartEnglishDigits.isEmpty()) return false
+        val candidates = smartEnglishCandidates()
+        val selected = candidates.getOrNull(index ?: smartEnglishCursorIndex) ?: run {
+            resetSmartEnglishT9()
+            return true
+        }
+        val committed = applyEnglishCaseToWord(selected)
+        commitText(committed)
+        englishDictionary.learn(selected)
+        resetSmartEnglishT9()
+        consumeEnglishShiftOnce()
+        return true
+    }
+
+    private fun applyEnglishCaseToWord(word: String): String = when (t9EnglishCaseState) {
+        T9EnglishCaseState.OFF -> word
+        T9EnglishCaseState.SHIFT_ONCE -> word.replaceFirstChar {
+            if (it.isLowerCase()) it.titlecase() else it.toString()
+        }
+        T9EnglishCaseState.CAPS -> word.uppercase()
+    }
+
+    private fun recordEnglishLearningChar(char: Char) {
+        if (char in 'a'..'z' || char in 'A'..'Z') {
+            englishLearningWord.append(char.lowercaseChar())
+        } else {
+            flushEnglishLearningWord()
+        }
+    }
+
+    private fun flushEnglishLearningWord() {
+        if (englishLearningWord.isNotEmpty()) {
+            englishDictionary.learn(englishLearningWord.toString())
+            englishLearningWord.clear()
+        }
+    }
+
+    private fun handleSmartEnglishBackspace(): Boolean {
+        if (!isSmartEnglishT9Active() || smartEnglishDigits.isEmpty()) return false
+        smartEnglishDigits.deleteAt(smartEnglishDigits.lastIndex)
+        smartEnglishCursorIndex = 0
+        candidatesView?.refreshT9Ui()
+        return true
     }
 
     /**
@@ -2020,6 +2265,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun switchToNextT9Mode() {
         // Clear any pending multi-tap state before switching
         resetMultiTapState()
+        resetSmartEnglishT9()
+        flushEnglishLearningWord()
         
         currentT9Mode = when (currentT9Mode) {
             T9InputMode.CHINESE -> T9InputMode.ENGLISH
@@ -2067,379 +2314,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return result.handled
     }
 
-    /**
-     * Handle T9 special keys with state-aware behavior.
-     * Returns true if the key was handled, false to pass through to default handling.
-     * 
-     * Arrow keys are NOT handled here - they are passed through to Rime/system:
-     * - When composing: Rime's key_binder handles candidate navigation
-     * - When not composing: System handles cursor movement
-     */
-    private fun handleT9SpecialKey(keyCode: Int, event: KeyEvent): Boolean {
-        if (!inputDeviceMgr.isInInputMode) return false
-        if (event.action != KeyEvent.ACTION_DOWN) return false
-
-        if (currentT9Mode == T9InputMode.CHINESE && t9PendingPunctuation.isPending) {
-            when (keyCode) {
-                KeyEvent.KEYCODE_1 -> {
-                    if (event.repeatCount == 0) {
-                        digitLongPressFlags[keyCode] = false
-                        t9PendingPunctuation = t9PendingPunctuation.copy(oneKeyDeferred = true)
-                    } else if (event.repeatCount == 1) {
-                        digitLongPressFlags[keyCode] = true
-                        t9PendingPunctuation = t9PendingPunctuation.copy(oneKeyDeferred = false)
-                        commitPendingT9PunctuationShortcut(keyCode)
-                    }
-                    return true
-                }
-                KeyEvent.KEYCODE_STAR -> return true
-                KeyEvent.KEYCODE_POUND -> {
-                    if (event.repeatCount == 0) {
-                        t9PoundLongPressTriggered = false
-                    } else if (event.repeatCount == 1) {
-                        t9PoundLongPressTriggered = true
-                        commitPendingT9Punctuation()
-                        switchToNextT9Mode()
-                    }
-                    return true
-                }
-                KeyEvent.KEYCODE_0 -> {
-                    if (event.repeatCount == 0) {
-                        digitLongPressFlags[keyCode] = false
-                    } else if (event.repeatCount == 1) {
-                        digitLongPressFlags[keyCode] = true
-                        if (commitPendingT9PunctuationShortcut(keyCode)) return true
-                        cancelPendingT9Punctuation()
-                        commitText("0")
-                    }
-                    return true
-                }
-                in KeyEvent.KEYCODE_2..KeyEvent.KEYCODE_9 -> {
-                    if (event.repeatCount == 0) {
-                        digitLongPressFlags[keyCode] = false
-                    } else if (event.repeatCount == 1) {
-                        digitLongPressFlags[keyCode] = true
-                        commitPendingT9PunctuationShortcut(keyCode)
-                    }
-                    return true
-                }
-            }
-        }
-
-        val chineseState = getT9InputState()
-
-        return when (keyCode) {
-            // # key: short press = enter (+ commit pending char), long press = switch input mode
-            KeyEvent.KEYCODE_POUND -> {
-                if (currentT9Mode == T9InputMode.CHINESE && chineseState == T9InputState.CHINESE_COMPOSING) {
-                    false // Pass through to Rime when composing Chinese
-                } else {
-                    if (event.repeatCount == 0) {
-                        t9PoundLongPressTriggered = false
-                        true
-                    } else if (event.repeatCount == 1) {
-                        t9PoundLongPressTriggered = true
-                        switchToNextT9Mode()
-                        true
-                    } else {
-                        true
-                    }
-                }
-            }
-
-            // 0-9 keys: long press outputs digit
-            in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> {
-                handleDigitKey(keyCode, event, chineseState)
-            }
-
-            // * key: English mode - short press = shift, long press = caps lock
-            KeyEvent.KEYCODE_STAR -> {
-                when (currentT9Mode) {
-                    T9InputMode.ENGLISH -> {
-                        if (event.repeatCount == 0) {
-                            digitLongPressFlags[keyCode] = false
-                            true
-                        } else if (event.repeatCount == 1) {
-                            digitLongPressFlags[keyCode] = true
-                            handleEnglishStarLongPress()
-                            true
-                        } else {
-                            true
-                        }
-                    }
-                    T9InputMode.CHINESE -> {
-                        if (t9PendingPunctuation.isPending) {
-                            true
-                        } else if (event.repeatCount == 0) {
-                            commitLiteralT9Star(chineseState)
-                            true
-                        } else {
-                            true
-                        }
-                    }
-                    T9InputMode.NUMBER -> {
-                        if (event.repeatCount == 0) {
-                            digitLongPressFlags[keyCode] = false
-                        } else if (event.repeatCount == 1) {
-                            digitLongPressFlags[keyCode] = true
-                            showNumberOperatorHintPanel()
-                        }
-                        true
-                    }
-                }
-            }
-
-            // Confirm key: commit pending multi-tap char in English mode
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                if (currentT9Mode == T9InputMode.ENGLISH && multiTapPendingChar != null) {
-                    if (event.repeatCount == 0) {
-                        commitMultiTapChar()
-                        true
-                    } else {
-                        true
-                    }
-                } else {
-                    false // Pass through
-                }
-            }
-
-            else -> false
-        }
-    }
-
-    /**
-     * Handle digit key (0-9) based on current mode
-     */
-    private fun handleDigitKey(keyCode: Int, event: KeyEvent, chineseState: T9InputState): Boolean {
-        val digit = keyCode - KeyEvent.KEYCODE_0
-
-        when (currentT9Mode) {
-            T9InputMode.NUMBER -> {
-                if (event.repeatCount == 0) {
-                    digitLongPressFlags[keyCode] = false
-                    return true
-                } else if (event.repeatCount == 1) {
-                    digitLongPressFlags[keyCode] = true
-                    val operator = numberModeController.operatorForKey(keyCode) ?: DIGIT_TEXTS[digit]
-                    return commitNumberModeOperator(operator)
-                }
-                return true
-            }
-
-            T9InputMode.ENGLISH -> {
-                // English mode: short press = multi-tap, long press = digit
-                if (keyCode in KeyEvent.KEYCODE_2..KeyEvent.KEYCODE_9) {
-                    if (event.repeatCount == 0) {
-                        digitLongPressFlags[keyCode] = false
-                        return handleMultiTapKey(keyCode)
-                } else if (event.repeatCount == 1) {
-                    // Long press: cancel the pending letter and output digit
-                    digitLongPressFlags[keyCode] = true
-                    cancelMultiTapChar()
-                    commitText(DIGIT_TEXTS[digit])
-                    return true
-                }
-                    return true
-                } else if (keyCode == KeyEvent.KEYCODE_0) {
-                    // 0 key: short press = space, long press = 0
-                    if (event.repeatCount == 0) {
-                        digitLongPressFlags[keyCode] = false
-                        return true
-                } else if (event.repeatCount == 1) {
-                    digitLongPressFlags[keyCode] = true
-                    cancelMultiTapChar()
-                    commitText("0")
-                    return true
-                }
-                    return true
-                } else if (keyCode == KeyEvent.KEYCODE_1) {
-                    // 1 key: short press = punctuation multi-tap, long press = 1
-                    if (event.repeatCount == 0) {
-                        digitLongPressFlags[keyCode] = false
-                        return handleMultiTapKey(keyCode)  // Use multi-tap for English punctuation
-                } else if (event.repeatCount == 1) {
-                    digitLongPressFlags[keyCode] = true
-                    cancelMultiTapChar()
-                    commitText("1")
-                    return true
-                }
-                    return true
-                }
-                return false
-            }
-
-            T9InputMode.CHINESE -> {
-                return handleChineseDigitKeyDown(keyCode, event, chineseState, digit)
-            }
-        }
-    }
-
-    private fun handleChineseDigitKeyDown(
-        keyCode: Int,
-        event: KeyEvent,
-        chineseState: T9InputState,
-        digit: Int
-    ): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_1 && getT9CompositionKeyCount() > 0) {
-            if (event.repeatCount == 0) {
-                digitLongPressFlags[keyCode] = false
-            } else if (event.repeatCount == 1) {
-                digitLongPressFlags[keyCode] = true
-                commitT9HanziShortcutFromLongPress(keyCode)
-            }
-            return true
-        }
-        if (keyCode in KeyEvent.KEYCODE_2..KeyEvent.KEYCODE_9) {
-            if (event.repeatCount == 0) {
-                digitLongPressFlags[keyCode] = false
-            } else if (event.repeatCount == 1) {
-                digitLongPressFlags[keyCode] = true
-                if (getT9CompositionKeyCount() > 0) {
-                    commitT9HanziShortcutFromLongPress(keyCode)
-                } else {
-                    commitText(DIGIT_TEXTS[digit])
-                }
-            }
-            return true
-        }
-        if (keyCode == KeyEvent.KEYCODE_0 && getT9CompositionKeyCount() > 0) {
-            if (event.repeatCount == 0) {
-                digitLongPressFlags[keyCode] = false
-            } else if (event.repeatCount == 1) {
-                digitLongPressFlags[keyCode] = true
-                commitT9HanziShortcutFromLongPress(keyCode)
-            }
-            return true
-        }
-        // Chinese mode: short press = Rime T9, long press = digit
-        if (
-            keyCode == KeyEvent.KEYCODE_1 &&
-            event.repeatCount == 0 &&
-            !t9PendingPunctuation.isPending &&
-            getT9CompositionKeyCount() > 0
-        ) {
-            digitLongPressFlags[keyCode] = false
-            return true
-        }
-        if (chineseState == T9InputState.CHINESE_COMPOSING) {
-            // When composing, pass all digits to Rime
-            return false
-        }
-        // Not composing: long press outputs digit
-        if (keyCode == KeyEvent.KEYCODE_0) {
-            // 0 key special: short press = space, long press = 0
-            if (event.repeatCount == 0) {
-                digitLongPressFlags[keyCode] = false
-                return true
-            } else if (event.repeatCount == 1) {
-                digitLongPressFlags[keyCode] = true
-                commitText("0")
-                return true
-            }
-            return true
-        } else if (keyCode == KeyEvent.KEYCODE_1) {
-            // 1 key special: short press = local punctuation, long press = 1
-            if (event.repeatCount == 0) {
-                digitLongPressFlags[keyCode] = false
-                t9PendingPunctuation = t9PendingPunctuation.copy(oneKeyDeferred = true)
-                return true
-            } else if (event.repeatCount == 1) {
-                digitLongPressFlags[keyCode] = true
-                t9PendingPunctuation = t9PendingPunctuation.copy(oneKeyDeferred = false)
-                cancelPendingT9Punctuation()
-                commitText("1")
-                return true
-            }
-            return true
-        } else {
-            // 1-9 keys: short press = Rime, long press = digit
-            if (event.repeatCount == 0) {
-                digitLongPressFlags[keyCode] = false
-                return false // Pass to Rime for T9 input
-            } else if (event.repeatCount == 1) {
-                digitLongPressFlags[keyCode] = true
-                commitText(DIGIT_TEXTS[digit])
-                return true
-            }
-            return true
-        }
-    }
-
-    private fun handleChineseDigitKeyUp(
-        keyCode: Int,
-        event: KeyEvent,
-        chineseState: T9InputState
-    ): Boolean {
-        return when (keyCode) {
-            KeyEvent.KEYCODE_0 -> {
-                if (t9PendingPunctuation.isPending) {
-                if (digitLongPressFlags[keyCode] != true) {
-                    commitPendingT9Punctuation()
-                    commitText(" ")
-                }
-                    digitLongPressFlags[keyCode] = false
-                    true
-                } else if (digitLongPressFlags[keyCode] == true) {
-                    digitLongPressFlags[keyCode] = false
-                    true
-                } else if (chineseState == T9InputState.CHINESE_COMPOSING) {
-                    false
-                } else {
-                    if (digitLongPressFlags[keyCode] != true) {
-                        commitMultiTapChar()
-                        commitPendingT9Punctuation()
-                        commitText(" ")
-                    }
-                    digitLongPressFlags[keyCode] = false
-                    true
-                }
-            }
-            KeyEvent.KEYCODE_1 -> {
-                if (t9PendingPunctuation.isPending) {
-                    if (
-                        digitLongPressFlags[keyCode] != true &&
-                        t9PendingPunctuation.oneKeyDeferred
-                    ) {
-                        handleChinesePunctuationKey()
-                    }
-                    digitLongPressFlags[keyCode] = false
-                    t9PendingPunctuation = t9PendingPunctuation.copy(oneKeyDeferred = false)
-                    true
-                } else if (digitLongPressFlags[keyCode] == true) {
-                    digitLongPressFlags[keyCode] = false
-                    true
-                } else if (getT9CompositionKeyCount() > 0) {
-                    forwardChineseT9SeparatorShortPress()
-                    true
-                } else if (t9PendingPunctuation.oneKeyDeferred) {
-                    handleChinesePunctuationKey()
-                    digitLongPressFlags[keyCode] = false
-                    t9PendingPunctuation = t9PendingPunctuation.copy(oneKeyDeferred = false)
-                    true
-                } else {
-                    true
-                }
-            }
-            in KeyEvent.KEYCODE_2..KeyEvent.KEYCODE_9 -> {
-                if (t9PendingPunctuation.isPending) {
-                    if (digitLongPressFlags[keyCode] != true) {
-                        commitPendingT9Punctuation()
-                        commitText(DIGIT_TEXTS[keyCode - KeyEvent.KEYCODE_0])
-                    }
-                    digitLongPressFlags[keyCode] = false
-                    true
-                } else if (digitLongPressFlags[keyCode] == true) {
-                    digitLongPressFlags[keyCode] = false
-                    true // Long press already handled
-                } else {
-                    forwardChineseT9KeyShortPress(keyCode, event)
-                    true
-                }
-            }
-            else -> false
-        }
-    }
-
     private fun forwardKeyEvent(event: KeyEvent): Boolean {
         // reason to use a self increment index rather than timestamp:
         // KeyUp and KeyDown events actually can happen on the same time
@@ -2451,8 +2325,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 when (event.keyCode) {
                     KeyEvent.KEYCODE_DEL -> t9CompositionTracker.backspace()
                     KeyEvent.KEYCODE_1 -> t9CompositionTracker.appendApostrophe()
-                    in KeyEvent.KEYCODE_2..KeyEvent.KEYCODE_9 ->
-                        t9CompositionTracker.appendDigit('0' + (event.keyCode - KeyEvent.KEYCODE_0))
+                    else -> PhysicalT9KeyPolicy.t9Digit(event.keyCode)
+                        ?.takeIf { it in 2..9 }
+                        ?.let { t9CompositionTracker.appendDigit('0' + it) }
                 }
                 updateT9CompositionModelFromTracker()
                 candidatesView?.waitForT9EngineCandidatesThenRefresh()
@@ -3186,53 +3061,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return commitT9PinyinSelection(pinyin)
     }
 
-    private fun handleT9CandidateFocusNavigation(keyCode: Int, event: KeyEvent): Boolean {
-        if (!t9InputModeEnabled || currentT9Mode != T9InputMode.CHINESE) return false
-        if (event.action != KeyEvent.ACTION_DOWN) return false
-        val topRowVisible = getT9PinyinCandidates().isNotEmpty()
-        val focus = getT9CandidateFocus()
-        val pendingPunctuation = t9PendingPunctuation.isPending
-        val handled = when {
-            isT9FocusUpKey(keyCode) && topRowVisible -> {
-                moveT9CandidateFocus(T9CandidateFocus.TOP)
-                true
-            }
-            isT9FocusUpKey(keyCode) && focus == T9CandidateFocus.BOTTOM -> {
-                candidatesView?.offsetT9HanziCandidatePage(-1) == true || pendingPunctuation
-            }
-            isT9FocusDownKey(keyCode) && focus == T9CandidateFocus.TOP -> {
-                moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
-                true
-            }
-            isT9FocusDownKey(keyCode) && focus == T9CandidateFocus.BOTTOM -> {
-                candidatesView?.offsetT9HanziCandidatePage(1) == true || pendingPunctuation
-            }
-            isT9FocusLeftKey(keyCode) && focus == T9CandidateFocus.TOP -> {
-                candidatesView?.moveHighlightedT9Pinyin(-1) == true
-            }
-            isT9FocusRightKey(keyCode) && focus == T9CandidateFocus.TOP -> {
-                candidatesView?.moveHighlightedT9Pinyin(1) == true
-            }
-            isT9FocusLeftKey(keyCode) && focus == T9CandidateFocus.BOTTOM -> {
-                candidatesView?.moveHighlightedT9HanziCandidate(-1) == true || pendingPunctuation
-            }
-            isT9FocusRightKey(keyCode) && focus == T9CandidateFocus.BOTTOM -> {
-                candidatesView?.moveHighlightedT9HanziCandidate(1) == true || pendingPunctuation
-            }
-            isT9FocusOkKey(keyCode) && focus == T9CandidateFocus.TOP -> {
-                commitHighlightedT9Pinyin()
-            }
-            isT9FocusOkKey(keyCode) && focus == T9CandidateFocus.BOTTOM -> {
-                candidatesView?.commitHighlightedT9HanziCandidate() == true || pendingPunctuation
-            }
-            else -> false
-        }
-        if (handled) {
-            t9ConsumedNavigationKeyUp = keyCode
-        }
-        return handled
-    }
-
     private fun playPhysicalKeySound(keyCode: Int, event: KeyEvent) {
         if (!physicalKeySound) return
         if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount != 0) return
@@ -3247,7 +3075,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (inputDeviceMgr.isPassthroughInput) {
+        if (inputDeviceMgr.shouldPassThroughHardwareKeys) {
             return super.onKeyDown(keyCode, event)
         }
         playPhysicalKeySound(keyCode, event)
@@ -3259,7 +3087,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
         if (event.action == KeyEvent.ACTION_DOWN &&
             isTemporaryPasswordKeyboardVisible() &&
-            isT9HorizontalFocusKey(keyCode)
+            PhysicalT9KeyPolicy.isHorizontalFocusKey(keyCode)
         ) {
             handleArrowKey(keyCode)
             t9ConsumedNavigationKeyUp = keyCode
@@ -3272,47 +3100,21 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             return true
         }
 
-        if (event.action == KeyEvent.ACTION_DOWN &&
-            t9PendingPunctuation.isPending &&
-            !isPendingT9PunctuationControlKey(keyCode)
-        ) {
-            commitPendingT9Punctuation()
-        }
-
         // When selection mode is already active, let it consume selection controls
         // or exit before T9 special keys commit replacement text.
         if (physicalSelectionMode && handlePhysicalSelectionModeKeyDown(keyCode, event)) {
             return true
         }
 
-        // Handle T9 special keys first
-        if (handleT9SpecialKey(keyCode, event)) {
+        val physicalT9Result = physicalT9KeyHandler.handleKeyDown(keyCode, event)
+        physicalT9Result.consumedKeyUp?.let {
+            t9ConsumedNavigationKeyUp = it
+        }
+        if (physicalT9Result.handled) {
             return true
         }
+
         if (handlePhysicalSelectionModeKeyDown(keyCode, event)) {
-            return true
-        }
-
-        // In English T9 mode, if there is a pending multi-tap character,
-        // the first backspace should only cancel that pending char (and its composing)
-        // instead of also deleting the previous committed character.
-        if (currentT9Mode == T9InputMode.ENGLISH &&
-            event.action == KeyEvent.ACTION_DOWN &&
-            multiTapPendingChar != null &&
-            (keyCode == KeyEvent.KEYCODE_DEL || keyCode == KeyEvent.KEYCODE_BACK)
-        ) {
-            cancelMultiTapChar()
-            return true
-        }
-        if (event.action == KeyEvent.ACTION_DOWN &&
-            t9PendingPunctuation.isPending &&
-            (keyCode == KeyEvent.KEYCODE_DEL || keyCode == KeyEvent.KEYCODE_BACK)
-        ) {
-            cancelPendingT9Punctuation()
-            return true
-        }
-
-        if (handleT9CandidateFocusNavigation(keyCode, event)) {
             return true
         }
 
@@ -3363,7 +3165,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
-        if (inputDeviceMgr.isPassthroughInput) {
+        if (inputDeviceMgr.shouldPassThroughHardwareKeys) {
             return super.onKeyUp(keyCode, event)
         }
         if (handlePhysicalSelectionModeKeyUp(keyCode, event)) {
@@ -3373,148 +3175,16 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             t9ConsumedNavigationKeyUp = null
             return true
         }
-        // For T9 special keys that were handled in onKeyDown, consume the key up too
-        if (handleT9SpecialKeyUp(keyCode, event)) {
+        val physicalT9Result = physicalT9KeyHandler.handleKeyUp(keyCode, event)
+        physicalT9Result.consumedKeyUp?.let {
+            t9ConsumedNavigationKeyUp = it
+        }
+        if (physicalT9Result.handled) {
             return true
         }
 
         val (mappedKeyCode, mappedEvent) = mapKeyEvent(keyCode, event)
         return forwardKeyEvent(mappedEvent) || super.onKeyUp(mappedKeyCode, mappedEvent)
-    }
-
-    /**
-     * Handle key up events for T9 special keys.
-     * Short press actions are executed here after confirming it wasn't a long press.
-     */
-    private fun handleT9SpecialKeyUp(keyCode: Int, event: KeyEvent): Boolean {
-        if (!inputDeviceMgr.isInInputMode) return false
-        val chineseState = getT9InputState()
-
-        return when (keyCode) {
-            // # key: short press = confirm pending char OR enter (if no pending)
-            KeyEvent.KEYCODE_POUND -> {
-                if (currentT9Mode == T9InputMode.CHINESE && t9PendingPunctuation.isPending) {
-                    if (!t9PoundLongPressTriggered) {
-                        commitPendingT9Punctuation()
-                    }
-                    t9PoundLongPressTriggered = false
-                    true
-                } else if (currentT9Mode == T9InputMode.CHINESE && chineseState == T9InputState.CHINESE_COMPOSING) {
-                    false
-                } else {
-                    if (!t9PoundLongPressTriggered) {
-                        // If there was a pending char, just confirm it (no enter)
-                        // If no pending char, perform enter/return (respects IME action: search, go, etc.)
-                        val hadPendingChar = commitMultiTapChar() || commitPendingT9Punctuation()
-                        if (!hadPendingChar) {
-                            handleReturnKey()
-                        }
-                    }
-                    t9PoundLongPressTriggered = false
-                    true
-                }
-            }
-
-            // 0 key: short press = space (+ commit pending multi-tap char)
-            KeyEvent.KEYCODE_0 -> {
-                if (currentT9Mode == T9InputMode.CHINESE) {
-                    handleChineseDigitKeyUp(keyCode, event, chineseState)
-                } else if (currentT9Mode == T9InputMode.NUMBER) {
-                    if (digitLongPressFlags[keyCode] != true) {
-                        currentInputConnection?.commitText("0", 1)
-                    }
-                    digitLongPressFlags[keyCode] = false
-                    true
-                } else {
-                    if (digitLongPressFlags[keyCode] != true) {
-                        commitMultiTapChar()
-                        commitPendingT9Punctuation()
-                        currentInputConnection?.commitText(" ", 1)
-                    }
-                    digitLongPressFlags[keyCode] = false
-                    true
-                }
-            }
-
-            // 2-9 keys: in English mode, commit composing text on key up if it's not a long press
-            in KeyEvent.KEYCODE_2..KeyEvent.KEYCODE_9 -> {
-                when (currentT9Mode) {
-                    T9InputMode.ENGLISH -> {
-                        // Multi-tap handled in KEY_DOWN, just consume KEY_UP
-                        // Don't commit here - wait for timeout or different key
-                        true
-                    }
-                    T9InputMode.CHINESE -> {
-                        handleChineseDigitKeyUp(keyCode, event, chineseState)
-                    }
-                    T9InputMode.NUMBER -> {
-                        if (digitLongPressFlags[keyCode] != true) {
-                            currentInputConnection?.commitText(DIGIT_TEXTS[keyCode - KeyEvent.KEYCODE_0], 1)
-                        }
-                        digitLongPressFlags[keyCode] = false
-                        true
-                    }
-                }
-            }
-
-            // 1 key
-            KeyEvent.KEYCODE_1 -> {
-                when (currentT9Mode) {
-                    T9InputMode.ENGLISH -> {
-                        // Multi-tap handled in KEY_DOWN, just consume KEY_UP
-                        true
-                    }
-                    T9InputMode.CHINESE -> {
-                        handleChineseDigitKeyUp(keyCode, event, chineseState)
-                    }
-                    T9InputMode.NUMBER -> {
-                        if (digitLongPressFlags[keyCode] == true) {
-                            digitLongPressFlags[keyCode] = false
-                            true
-                        } else {
-                            currentInputConnection?.commitText("1", 1)
-                            digitLongPressFlags[keyCode] = false
-                            true
-                        }
-                    }
-                }
-            }
-
-            // * key: short press = shift in English mode, punctuation-set switch while Chinese punctuation is pending
-            KeyEvent.KEYCODE_STAR -> {
-                when (currentT9Mode) {
-                    T9InputMode.ENGLISH -> {
-                        if (digitLongPressFlags[keyCode] != true) {
-                            handleEnglishStarShortPress()
-                        }
-                        digitLongPressFlags[keyCode] = false
-                        true
-                    }
-                    T9InputMode.CHINESE -> {
-                        togglePendingT9PunctuationSet()
-                        true
-                    }
-                    T9InputMode.NUMBER -> {
-                        if (digitLongPressFlags[keyCode] != true) {
-                            commitLiteralT9Star(chineseState)
-                        }
-                        digitLongPressFlags[keyCode] = false
-                        true
-                    }
-                }
-            }
-
-            // Confirm key: already handled in KEY_DOWN
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                if (currentT9Mode == T9InputMode.ENGLISH) {
-                    true // Consume to prevent double action
-                } else {
-                    false
-                }
-            }
-
-            else -> false
-        }
     }
 
     // Added in API level 14, deprecated in 29
@@ -3949,6 +3619,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             monitorCursorAnchor(false)
         }
         resetComposingState()
+        resetSmartEnglishT9()
+        flushEnglishLearningWord()
         candidatesView?.clearTransientState()
         inputView?.clearTransientState()
         clearPasswordInputPreview()
@@ -3963,6 +3635,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         updateSelectionBackCallback(false)
         inputDeviceMgr.onFinishInput()
         clearT9CompositionState()
+        resetSmartEnglishT9()
+        flushEnglishLearningWord()
         candidatesView?.clearTransientState()
         inputView?.clearTransientState()
         clearPasswordInputPreview()
@@ -3995,6 +3669,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         )
         keyboardPrefs.physicalKeySound.unregisterOnChangeListener(physicalKeySoundChangeListener)
         keyboardPrefs.useT9KeyboardLayout.unregisterOnChangeListener(t9InputModeEnabledChangeListener)
+        keyboardPrefs.smartEnglishT9.unregisterOnChangeListener(smartEnglishT9ChangeListener)
+        keyboardPrefs.longPressDelay.unregisterOnChangeListener(physicalLongPressDelayChangeListener)
         prefs.advanced.ignoreSystemCursor.unregisterOnChangeListener(ignoreSystemCursorChangeListener)
         prefs.keyboard.inputUiFont.unregisterOnChangeListener(recreateInputViewsListener)
         keyboardPrefs.passwordInputPreview.unregisterOnChangeListener(passwordInputPreviewChangeListener)
@@ -4032,6 +3708,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         private const val EDITOR_TOUCH_SELECTION_CANCEL_WINDOW_MS = 300L
         private const val EXPLICIT_SELECTION_DELETE_WINDOW_MS = 500L
         private const val SELECTION_REPLACEMENT_KEY_WINDOW_MS = 300L
+        private const val SmartEnglishCandidateLimit = 80
+        private const val SmartEnglishNoMatchText = "No match"
         private val DIGIT_TEXTS = arrayOf("0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
     }
 }

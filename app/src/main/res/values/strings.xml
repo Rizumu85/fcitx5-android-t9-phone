@@ -211,6 +211,8 @@
     <string name="show_lang_switch_key">Show language switch key</string>
     <string name="use_t9_keyboard_layout">Enable T9 input mode</string>
     <string name="use_t9_keyboard_layout_summary">Use phone-style T9 keys, candidates, and mode switching</string>
+    <string name="smart_english_t9">智能英语</string>
+    <string name="smart_english_t9_summary">Predict English words from number-key sequences and learn selected words</string>
     <string name="temporary_full_keyboard">Password mode</string>
     <string name="horizontal_candidate_style">Horizontal candidate style</string>
     <string name="horizontal_candidate_never_fill">Never fill width</string>

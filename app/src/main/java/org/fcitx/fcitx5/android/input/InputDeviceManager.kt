@@ -103,16 +103,20 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
     }
 
     private var startedInputView = false
+    private var startedInputSession = false
     private var isNullInputType = true
     private var isDialerField = false
 
-    /** True when user is in an input field (input view has been started). Used for T9 key remapping. */
-    val isInInputMode: Boolean get() = startedInputView
+    /** True when user is in an input field. Used for T9 key remapping. */
+    val isInInputMode: Boolean get() = startedInputSession || startedInputView
     val isPassthroughInput: Boolean get() = isDialerField
+    val shouldPassThroughHardwareKeys: Boolean
+        get() = isDialerField || (!isInInputMode && isNullInputType)
 
     fun notifyOnStartInput(attribute: EditorInfo) {
         isNullInputType = attribute.isTypeNull()
         isDialerField = isPhoneDialer(attribute)
+        startedInputSession = !isDialerField && !isNullInputType
         setupViewEvents(isVirtualKeyboard)
     }
 
@@ -126,12 +130,14 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
         isDialerField = isPhoneDialer(info)
         if (isDialerField) {
             startedInputView = false
+            startedInputSession = false
             isNullInputType = info.isTypeNull()
             setupViewEvents(isVirtualKeyboard)
             service.requestHideSelf(0)
             return false
         }
         startedInputView = true
+        startedInputSession = true
         isNullInputType = info.isTypeNull()
         isVirtualKeyboard = if (t9InputModeEnabled) false else when (candidatesViewMode) {
             FloatingCandidatesMode.SystemDefault -> service.superEvaluateInputViewShown()
@@ -215,6 +221,7 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
     }
 
     fun onFinishInput() {
+        startedInputSession = false
         isDialerField = false
         setupViewEvents(isVirtualKeyboard)
     }

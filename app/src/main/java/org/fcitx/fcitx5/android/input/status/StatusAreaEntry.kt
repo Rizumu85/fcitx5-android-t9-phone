@@ -22,7 +22,8 @@ sealed class StatusAreaEntry(
             ReloadConfig,
             Keyboard,
             ThemeList,
-            TemporaryFullKeyboard
+            TemporaryFullKeyboard,
+            SmartEnglishT9
         }
     }
 

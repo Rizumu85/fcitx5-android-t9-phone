@@ -29,6 +29,7 @@ import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.InputMethod
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.Keyboard
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.ReloadConfig
+import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.SmartEnglishT9
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.TemporaryFullKeyboard
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.ThemeList
 import org.fcitx.fcitx5.android.input.wm.InputWindow
@@ -81,6 +82,12 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
                 R.drawable.ic_baseline_keyboard_24,
                 TemporaryFullKeyboard,
                 keyboardWindow.isTemporaryTextKeyboardEnabled()
+            ),
+            StatusAreaEntry.Android(
+                context.getString(R.string.smart_english_t9),
+                R.drawable.ic_baseline_auto_awesome_24,
+                SmartEnglishT9,
+                service.isSmartEnglishT9Enabled()
             ),
             StatusAreaEntry.Android(
                 context.getString(R.string.input_method_options),
@@ -158,6 +165,11 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
                 ThemeList -> AppUtil.launchMainToThemeList(context)
                 TemporaryFullKeyboard -> {
                     keyboardWindow.toggleTemporaryTextKeyboard()
+                    refreshEntries()
+                    windowManager.attachWindow(KeyboardWindow)
+                }
+                SmartEnglishT9 -> {
+                    service.toggleSmartEnglishT9()
                     refreshEntries()
                     windowManager.attachWindow(KeyboardWindow)
                 }

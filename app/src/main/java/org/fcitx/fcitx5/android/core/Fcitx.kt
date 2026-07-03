@@ -77,7 +77,11 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
     override fun translate(str: String, domain: String) = getFcitxTranslation(domain, str)
 
     override suspend fun save() = withFcitxContext { saveFcitxState() }
-    override suspend fun reloadConfig() = withFcitxContext { reloadFcitxConfig() }
+    override suspend fun reloadConfig() = withFcitxContext {
+        reloadFcitxConfig()
+        inputMethodStatus()?.let { inputMethodEntryCached = it }
+        statusAreaActionsCached = getFcitxStatusAreaActions() ?: emptyArray()
+    }
 
     override suspend fun sendKey(
         key: String,

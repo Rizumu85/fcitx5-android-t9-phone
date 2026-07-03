@@ -6,6 +6,7 @@
 package org.fcitx.fcitx5.android.input
 
 import android.view.KeyEvent
+import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
 import java.util.Locale
 
 class NumberModeController(
@@ -101,7 +102,7 @@ class NumberModeController(
     }
 
     private fun handleOperatorHintPanelKeyDown(keyCode: Int): KeyResult {
-        if (keyCode in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9) {
+        if (PhysicalT9KeyPolicy.t9Digit(keyCode) != null) {
             val operator = operatorMap[keyCode] ?: return KeyResult(handled = true)
             commitOperator(operator)
             return KeyResult(handled = true, consumedKeyUp = keyCode)
@@ -115,7 +116,8 @@ class NumberModeController(
             KeyEvent.KEYCODE_DPAD_CENTER,
             KeyEvent.KEYCODE_ENTER,
             KeyEvent.KEYCODE_DEL,
-            KeyEvent.KEYCODE_BACK -> {
+            KeyEvent.KEYCODE_BACK,
+            KeyEvent.KEYCODE_FORWARD_DEL -> {
                 dismissTransientPanel()
                 KeyResult(handled = true, consumedKeyUp = keyCode)
             }
@@ -132,7 +134,9 @@ class NumberModeController(
                 commitEqualsResult()
                 KeyResult(handled = true, consumedKeyUp = keyCode)
             }
-            KeyEvent.KEYCODE_DEL, KeyEvent.KEYCODE_BACK -> {
+            KeyEvent.KEYCODE_DEL,
+            KeyEvent.KEYCODE_BACK,
+            KeyEvent.KEYCODE_FORWARD_DEL -> {
                 dismissTransientPanel()
                 KeyResult(handled = true, consumedKeyUp = keyCode)
             }
