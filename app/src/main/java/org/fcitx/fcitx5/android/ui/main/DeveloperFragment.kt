@@ -19,6 +19,7 @@ import org.fcitx.fcitx5.android.core.data.DataManager
 import org.fcitx.fcitx5.android.daemon.FcitxDaemon
 import org.fcitx.fcitx5.android.data.clipboard.ClipboardManager
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
+import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
 import org.fcitx.fcitx5.android.ui.common.PaddingPreferenceFragment
 import org.fcitx.fcitx5.android.ui.main.modified.MySwitchPreference
 import org.fcitx.fcitx5.android.utils.addPreference
@@ -79,6 +80,18 @@ class DeveloperFragment : PaddingPreferenceFragment() {
                 setDefaultValue(false)
                 isIconSpaceReserved = false
                 isSingleLineTitle = false
+            })
+            addPreference(MySwitchPreference(context).apply {
+                key = AppPrefs.getInstance().internal.t9ResponsivenessTrace.key
+                setTitle(R.string.t9_responsiveness_trace)
+                setSummary(R.string.t9_responsiveness_trace_summary)
+                setDefaultValue(false)
+                isIconSpaceReserved = false
+                isSingleLineTitle = false
+                setOnPreferenceChangeListener { _, newValue ->
+                    T9ResponsivenessTrace.configure(enabled = (newValue as? Boolean) == true)
+                    true
+                }
             })
             addPreference(R.string.restart_fcitx_instance) {
                 AlertDialog.Builder(context)

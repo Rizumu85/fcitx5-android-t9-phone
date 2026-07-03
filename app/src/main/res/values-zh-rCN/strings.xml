@@ -89,6 +89,8 @@
     <string name="crash_logs">崩溃日志</string>
     <string name="verbose_log">详细记录日志</string>
     <string name="verbose_log_summary">需要重启</string>
+    <string name="t9_responsiveness_trace">跟踪 T9 响应速度</string>
+    <string name="t9_responsiveness_trace_summary">输出聚合后的 T9 耗时摘要，方便调试卡顿</string>
     <string name="removed_x">已移除 %1$s</string>
     <string name="added_x">已添加 %1$s</string>
     <string name="edited_x">已编辑 %1$s</string>

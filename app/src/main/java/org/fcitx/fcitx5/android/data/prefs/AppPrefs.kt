@@ -35,6 +35,7 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         val verboseLog = bool("verbose_log", false)
         val pid = int("pid", 0)
         val editorInfoInspector = bool("editor_info_inspector", false)
+        val t9ResponsivenessTrace = bool("t9_responsiveness_trace", false)
         val needNotifications = bool("need_notifications", true)
     }
 

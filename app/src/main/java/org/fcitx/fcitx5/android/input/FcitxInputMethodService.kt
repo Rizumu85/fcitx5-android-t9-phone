@@ -82,6 +82,7 @@ import org.fcitx.fcitx5.android.input.t9.T9EnglishDictionary
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
 import org.fcitx.fcitx5.android.input.t9.T9PinyinUtils
 import org.fcitx.fcitx5.android.input.t9.T9ResolvedSegment
+import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
 import org.fcitx.fcitx5.android.utils.InputMethodUtil
 import org.fcitx.fcitx5.android.utils.alpha
 import org.fcitx.fcitx5.android.utils.forceShowSelf
@@ -553,6 +554,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         ManagedPreference.OnChangeListener<Boolean> { _, value ->
             ignoreSystemCursor = value
         }
+    private val t9ResponsivenessTraceChangeListener =
+        ManagedPreference.OnChangeListener<Boolean> { _, value ->
+            T9ResponsivenessTrace.configure(enabled = value)
+        }
 
     private val recreateInputViewPrefs: Array<ManagedPreference<*>> = arrayOf(
         prefs.keyboard.expandKeypressArea,
@@ -648,6 +653,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             }
         }
         pkgNameCache = PackageNameCache(this)
+        T9ResponsivenessTrace.configure(enabled = prefs.internal.t9ResponsivenessTrace.getValue())
         recreateInputViewPrefs.forEach {
             it.registerOnChangeListener(recreateInputViewListener)
         }
@@ -660,6 +666,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         keyboardPrefs.smartEnglishT9.registerOnChangeListener(smartEnglishT9ChangeListener)
         keyboardPrefs.longPressDelay.registerOnChangeListener(physicalLongPressDelayChangeListener)
         prefs.advanced.ignoreSystemCursor.registerOnChangeListener(ignoreSystemCursorChangeListener)
+        prefs.internal.t9ResponsivenessTrace.registerOnChangeListener(t9ResponsivenessTraceChangeListener)
         prefs.keyboard.inputUiFont.registerOnChangeListener(recreateInputViewsListener)
         keyboardPrefs.passwordInputPreview.registerOnChangeListener(passwordInputPreviewChangeListener)
         prefs.candidates.registerOnChangeListener(recreateCandidatesViewListener)
@@ -3438,6 +3445,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         keyboardPrefs.smartEnglishT9.unregisterOnChangeListener(smartEnglishT9ChangeListener)
         keyboardPrefs.longPressDelay.unregisterOnChangeListener(physicalLongPressDelayChangeListener)
         prefs.advanced.ignoreSystemCursor.unregisterOnChangeListener(ignoreSystemCursorChangeListener)
+        prefs.internal.t9ResponsivenessTrace.unregisterOnChangeListener(t9ResponsivenessTraceChangeListener)
         prefs.keyboard.inputUiFont.unregisterOnChangeListener(recreateInputViewsListener)
         keyboardPrefs.passwordInputPreview.unregisterOnChangeListener(passwordInputPreviewChangeListener)
         prefs.candidates.unregisterOnChangeListener(recreateCandidatesViewListener)
