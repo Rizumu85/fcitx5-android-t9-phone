@@ -43,7 +43,8 @@ class T9EnglishDictionary {
     }
 
     @Synchronized
-    fun candidatesFor(digits: String, limit: Int = 10): List<String> {
+    fun candidatesFor(digits: String, limit: Int = 10): List<String> =
+        T9ResponsivenessTrace.measure("T9EnglishDictionary.candidatesFor") {
         if (digits.isEmpty()) return emptyList()
         reloadLearnedWordsIfChanged()
         val cacheKey = "$digits|$limit"

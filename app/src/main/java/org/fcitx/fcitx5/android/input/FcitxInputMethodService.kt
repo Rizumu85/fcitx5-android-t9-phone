@@ -73,13 +73,11 @@ import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.cursor.CursorRange
 import org.fcitx.fcitx5.android.input.cursor.CursorTracker
+import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionSession
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHandler
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9Session
-import org.fcitx.fcitx5.android.input.t9.T9CompositionModel
-import org.fcitx.fcitx5.android.input.t9.T9CompositionTracker
 import org.fcitx.fcitx5.android.input.t9.T9EnglishDictionary
-import org.fcitx.fcitx5.android.input.t9.T9PendingSelection
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
 import org.fcitx.fcitx5.android.input.t9.T9PinyinUtils
 import org.fcitx.fcitx5.android.input.t9.T9ResolvedSegment
@@ -372,14 +370,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var composingText = FormattedText.Empty
 
     private fun clearT9CompositionState() {
-        t9CompositionTracker.clear()
-        t9CompositionModel = T9CompositionModel()
-        t9ObservedNonEmptyPreedit = false
-        t9IgnoreEmptyPreeditUntilReplay = false
+        chineseT9Session.clear()
     }
 
     private fun hasT9CompositionState(): Boolean =
-        !t9CompositionTracker.isEmpty() || t9CompositionModel != T9CompositionModel()
+        chineseT9Session.hasState()
 
     private fun clearTransientInputUiState() {
         candidatesView?.clearTransientState()
@@ -420,8 +415,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             if (consumed) refreshT9UiOnMain()
             return consumed
         }
-        t9CompositionTracker.backspace()
-        updateT9CompositionModelFromTracker()
+        chineseT9Session.backspace()
         refreshT9UiOnMain()
         return false
     }
@@ -434,7 +428,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun shouldReopenLastResolvedSegment(): Boolean =
         t9InputModeEnabled &&
             currentT9Mode == T9InputMode.CHINESE &&
-            t9CompositionModel.resolvedSegments.isNotEmpty()
+            chineseT9Session.shouldReopenLastResolvedSegment()
 
     /**
      * Undo the last pinyin selection by prepending its source digits to the unresolved suffix.
@@ -442,24 +436,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
      * same state as the Kotlin presentation model.
      */
     private suspend fun popLastResolvedSegment(fcitx: FcitxAPI): Boolean {
-        val segments = t9CompositionModel.resolvedSegments
-        val last = segments.lastOrNull() ?: return false
-        val newResolved = segments.dropLast(1)
-        val previousUnresolved = t9CompositionModel.unresolvedDigits
-        val restoredUnresolved = last.sourceDigits + t9CompositionModel.unresolvedDigits
-        val restoredRawPreedit = t9CompositionModel.rawPreedit
-            .takeIf { it.contains('\'') }
-            ?: newResolved.joinToString("") { it.sourceDigits } + restoredUnresolved
-        val fallbackRawPreedit = restoredRawPreedit
-        t9CompositionTracker.replace(restoredRawPreedit)
-        t9CompositionModel = T9CompositionModel(
-            resolvedSegments = newResolved,
-            unresolvedDigits = restoredUnresolved,
-            rawPreedit = restoredRawPreedit,
-            pendingSelection = null,
-        )
-        if (last.engineBacked) {
-            restoreT9ResolvedSegmentInEngine(fcitx, last, previousUnresolved, fallbackRawPreedit)
+        val popped = chineseT9Session.popLastResolvedSegment() ?: return false
+        if (popped.segment.engineBacked) {
+            restoreT9ResolvedSegmentInEngine(
+                fcitx,
+                popped.segment,
+                popped.previousUnresolved,
+                popped.fallbackRawPreedit
+            )
         }
         return true
     }
@@ -494,12 +478,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                     fcitx.sendKey(ch)
                 }
             }
-            t9CompositionModel = t9CompositionModel.copy(
-                resolvedSegments = t9CompositionModel.resolvedSegments.map {
-                    it.copy(engineBacked = false)
-                },
-                rawPreedit = fallbackRawPreedit
-            )
+            chineseT9Session.markAllResolvedSegmentsEngineUnbacked(fallbackRawPreedit)
         }
     }
 
@@ -835,8 +814,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     private fun handleBackspaceKey() {
         if (t9InputModeEnabled && currentT9Mode == T9InputMode.CHINESE) {
-            t9CompositionTracker.backspace()
-            updateT9CompositionModelFromTracker()
+            chineseT9Session.backspace()
         }
         val lastSelection = selection.latest
         recordPasswordInputPreviewBackspace(selectionDeleted = lastSelection.isNotEmpty())
@@ -1714,38 +1692,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     )
     private var t9PendingPunctuation = T9PendingPunctuationState()
 
-    /** T9 composition tracker for pinyin selection bar (digit sequence for current segment). */
-    private val t9CompositionTracker = T9CompositionTracker()
-    private var t9CompositionModel = T9CompositionModel()
-    private var t9ObservedNonEmptyPreedit = false
-    private var t9IgnoreEmptyPreeditUntilReplay = false
-
-    private fun updateT9CompositionModelFromTracker(preserveResolved: Boolean = t9CompositionModel.hasResolvedSegments) {
-        val unresolvedDigits = t9CompositionTracker.getCurrentSegment()
-        t9CompositionModel = if (preserveResolved) {
-            val resolvedSource = t9CompositionModel.resolvedSegments.joinToString("") { it.sourceDigits }
-            val rawPreedit = if (
-                resolvedSource.isNotEmpty() &&
-                t9CompositionModel.rawPreedit.startsWith("$resolvedSource'")
-            ) {
-                "$resolvedSource'${t9CompositionTracker.getFullComposition()}"
-            } else {
-                resolvedSource + t9CompositionTracker.getFullComposition()
-            }
-            t9CompositionModel.copy(
-                unresolvedDigits = unresolvedDigits,
-                rawPreedit = rawPreedit,
-                pendingSelection = t9CompositionModel.pendingSelection?.takeIf {
-                    it.remainingDigits == unresolvedDigits
-                }
-            )
-        } else {
-            T9CompositionModel(
-                unresolvedDigits = unresolvedDigits,
-                rawPreedit = t9CompositionTracker.getFullComposition()
-            )
-        }
-    }
+    private val chineseT9Session = ChineseT9CompositionSession()
 
     private val multiTapMap = mapOf(
         KeyEvent.KEYCODE_1 to ",.?!'\"-@/:",  // English punctuation (comma first)
@@ -1869,8 +1816,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun forwardChineseT9SeparatorShortPress(): Boolean {
-        t9CompositionTracker.appendApostrophe()
-        updateT9CompositionModelFromTracker()
+        chineseT9Session.appendSeparator()
         candidatesView?.refreshT9Ui()
         postFcitxJob {
             val input = getRimeInput()
@@ -2310,13 +2256,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (sym != null) {
             if (t9InputModeEnabled && currentT9Mode == T9InputMode.CHINESE && event.action == KeyEvent.ACTION_DOWN) {
                 when (event.keyCode) {
-                    KeyEvent.KEYCODE_DEL -> t9CompositionTracker.backspace()
-                    KeyEvent.KEYCODE_1 -> t9CompositionTracker.appendApostrophe()
+                    KeyEvent.KEYCODE_DEL -> chineseT9Session.backspace()
+                    KeyEvent.KEYCODE_1 -> chineseT9Session.appendSeparator()
                     else -> PhysicalT9KeyPolicy.t9Digit(event.keyCode)
                         ?.takeIf { it in 2..9 }
-                        ?.let { t9CompositionTracker.appendDigit('0' + it) }
+                        ?.let { chineseT9Session.appendDigit('0' + it) }
                 }
-                updateT9CompositionModelFromTracker()
                 candidatesView?.waitForT9EngineCandidatesThenRefresh()
             }
             val states = KeyStates.fromKeyEvent(event)
@@ -2334,19 +2279,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     /** Current T9 segment (digits 2-9 after last apostrophe) for pinyin candidates. */
     fun getCurrentT9Segment(): String =
-        if (t9CompositionModel.rawPreedit.contains('\'')) {
-            getFirstUnresolvedRawT9Segment(
-                getT9CompositionRawSequence(),
-                t9CompositionModel.resolvedSegments
-            )
-        } else if (t9CompositionModel.hasResolvedSegments) {
-            getFirstUnresolvedRawT9Segment(
-                getT9CompositionRawSequence(),
-                t9CompositionModel.resolvedSegments
-            ).ifEmpty { t9CompositionModel.unresolvedDigits }
-        } else {
-            t9CompositionTracker.getSelectableSegment()
-        }
+        chineseT9Session.currentSegment(::getFirstUnresolvedRawT9Segment)
 
     /**
      * Keep the Kotlin-side T9 model in sync with Rime's composing state.
@@ -2362,44 +2295,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
      */
     fun syncT9CompositionWithInputPanel(data: FcitxEvent.InputPanelEvent.Data) {
         if (!t9InputModeEnabled || currentT9Mode != T9InputMode.CHINESE) return
-        val rawPreedit = data.preedit.toString()
-        if (rawPreedit.isEmpty()) {
-            if (t9IgnoreEmptyPreeditUntilReplay) {
-                return
-            }
-            if (t9ObservedNonEmptyPreedit &&
-                (!t9CompositionTracker.isEmpty() || t9CompositionModel != T9CompositionModel())
-            ) {
-                clearT9CompositionState()
-            }
-            return
-        }
-        t9IgnoreEmptyPreeditUntilReplay = false
-        t9ObservedNonEmptyPreedit = true
-        if (t9CompositionTracker.isEmpty() &&
-            !t9CompositionModel.hasResolvedSegments &&
-            t9CompositionModel.rawPreedit.isEmpty()
-        ) {
-            t9CompositionModel = t9CompositionModel.copy(rawPreedit = rawPreedit)
-        }
+        chineseT9Session.syncFromPreedit(data.preedit.toString())
     }
 
     /** Total number of digit keys (2-9) in current composition, for truncating first-row pinyin. */
     fun getT9CompositionKeyCount(): Int =
-        getT9CompositionRawSequence().count { it in '2'..'9' }
+        chineseT9Session.keyCount()
 
     private fun getT9CompositionDigitSequence(): String =
-        getT9CompositionRawSequence().filter { it in '2'..'9' }
+        chineseT9Session.digitSequence()
 
     private fun getT9CompositionRawSequence(): String =
-        if (t9CompositionModel.rawPreedit.any { it in '2'..'9' || it == '\'' }) {
-            t9CompositionModel.rawPreedit.filter { it in '2'..'9' || it == '\'' }
-        } else if (!t9CompositionTracker.isEmpty()) {
-            t9CompositionTracker.getFullComposition()
-        } else {
-            t9CompositionModel.resolvedSegments.joinToString("") { it.sourceDigits } +
-                t9CompositionModel.unresolvedDigits
-        }
+        chineseT9Session.rawSequence()
 
     private fun getFirstUnresolvedRawT9Segment(
         raw: String,
@@ -2486,20 +2393,21 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun buildT9CompositionModelDisplay(): FormattedText? {
-        if (!t9CompositionModel.hasResolvedSegments && t9CompositionModel.unresolvedDigits.isEmpty()) {
+        val model = chineseT9Session.model
+        if (!model.hasResolvedSegments && model.unresolvedDigits.isEmpty()) {
             return null
         }
-        if (t9CompositionModel.rawPreedit.contains('\'')) {
-            var rawDisplay = t9CompositionModel.rawPreedit
-            t9CompositionModel.resolvedSegments.forEach { segment ->
+        if (model.rawPreedit.contains('\'')) {
+            var rawDisplay = model.rawPreedit
+            model.resolvedSegments.forEach { segment ->
                 rawDisplay = rawDisplay.replaceFirst(segment.sourceDigits, segment.pinyin)
             }
             return buildT9PreeditDisplay(rawDisplay)
         }
-        val parts = t9CompositionModel.resolvedSegments.map { it.pinyin }.toMutableList()
-        if (t9CompositionModel.unresolvedDigits.isNotEmpty()) {
-            parts += T9PinyinUtils.t9KeyToPinyin(t9CompositionModel.unresolvedDigits).firstOrNull()
-                ?: t9CompositionModel.unresolvedDigits
+        val parts = model.resolvedSegments.map { it.pinyin }.toMutableList()
+        if (model.unresolvedDigits.isNotEmpty()) {
+            parts += T9PinyinUtils.t9KeyToPinyin(model.unresolvedDigits).firstOrNull()
+                ?: model.unresolvedDigits
         }
         return formattedT9Text(parts.joinToString(" "))
     }
@@ -2510,8 +2418,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return when (currentT9Mode) {
             T9InputMode.CHINESE -> {
                 if (rawComposition != null) buildT9PreeditDisplay(rawComposition)
-                else if (t9CompositionModel.hasResolvedSegments) buildT9CompositionModelDisplay()
-                else buildT9PreeditDisplay(t9CompositionTracker.getFullComposition())
+                else if (chineseT9Session.hasResolvedSegments) buildT9CompositionModelDisplay()
+                else buildT9PreeditDisplay(chineseT9Session.fullComposition())
             }
             T9InputMode.ENGLISH -> {
                 multiTapPendingChar?.let { pending ->
@@ -2542,7 +2450,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             ?.let { formattedT9Text(it) }
         val localPreeditReading = getT9PreeditDisplay()
         val rawEndsWithSeparator = getT9CompositionRawSequence().lastOrNull() == '\''
-        val topReading = if (t9CompositionModel.hasResolvedSegments) {
+        val model = chineseT9Session.model
+        val topReading = if (model.hasResolvedSegments) {
             // The user picked a pinyin prefix; the top row must reflect their selection,
             // not whatever Rime's first unfiltered candidate happens to read.
             if (rawEndsWithSeparator) {
@@ -2557,7 +2466,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             } else {
                 candidateReading ?: localPreeditReading
             }
-                ?: getT9PreeditDisplay(t9CompositionModel.rawPreedit.takeIf { it.isNotEmpty() })
+                ?: getT9PreeditDisplay(model.rawPreedit.takeIf { it.isNotEmpty() })
                 ?: getT9PreeditDisplay(inputPanel.preedit.toString().takeIf { it.isNotEmpty() })
         }
         return T9PresentationState(
@@ -2602,7 +2511,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     fun getT9ResolvedPinyinPrefix(): String? {
         if (!t9InputModeEnabled || currentT9Mode != T9InputMode.CHINESE) return null
-        val resolved = t9CompositionModel.resolvedSegments
+        val resolved = chineseT9Session.resolvedSegments
         if (resolved.isEmpty()) return null
         return resolved.joinToString(" ") { it.pinyin }
     }
@@ -2610,14 +2519,15 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun hasPendingT9PinyinSelection(): Boolean {
         return t9InputModeEnabled &&
             currentT9Mode == T9InputMode.CHINESE &&
-            t9CompositionModel.pendingSelection != null
+            chineseT9Session.pendingSelection != null
     }
 
     fun getT9ResolvedPinyinFilterPrefixes(): List<String> {
-        val resolved = t9CompositionModel.resolvedSegments.map { it.pinyin }
+        val resolvedSegments = chineseT9Session.resolvedSegments
+        val resolved = resolvedSegments.map { it.pinyin }
         if (resolved.isEmpty()) return emptyList()
-        if (t9CompositionModel.pendingSelection != null ||
-            t9CompositionModel.resolvedSegments.all { it.engineBacked }
+        if (chineseT9Session.pendingSelection != null ||
+            resolvedSegments.all { it.engineBacked }
         ) {
             return emptyList()
         }
@@ -2637,36 +2547,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     ): Boolean {
         if (isT9PartialResolvedPinyinPrefix(prefix)) return true
         if (prefix != getT9ResolvedPinyinPrefix()) return false
-        if (t9CompositionModel.unresolvedDigits.isEmpty()) return false
+        if (chineseT9Session.unresolvedDigits.isEmpty()) return false
         return normalizeT9CandidateComment(candidate.comment) == prefix
     }
 
     fun consumeT9ResolvedPinyinPrefix(prefix: String): Boolean {
         if (!t9InputModeEnabled || currentT9Mode != T9InputMode.CHINESE) return false
-        val resolved = t9CompositionModel.resolvedSegments
-        if (resolved.isEmpty()) return false
-        var matchedCount = 0
-        for (count in 1..resolved.size) {
-            if (resolved.take(count).joinToString(" ") { it.pinyin } == prefix) {
-                matchedCount = count
-                break
-            }
-        }
-        if (matchedCount <= 0) return false
-        val consumedResolved = resolved.take(matchedCount)
-        val remainingResolved = resolved.drop(matchedCount)
-        val rawPreedit = removeResolvedPrefixFromRawT9Source(
-            getT9CompositionRawSequence(),
-            consumedResolved
+        val rawPreedit = chineseT9Session.consumeResolvedPrefix(
+            prefix = prefix,
+            removeResolvedPrefixFromRawSource = ::removeResolvedPrefixFromRawT9Source,
+            firstUnresolvedRawSegment = ::getFirstUnresolvedRawT9Segment
         )
-        val remainingUnresolvedDigits = getFirstUnresolvedRawT9Segment(rawPreedit, remainingResolved)
-        t9CompositionTracker.replace(rawPreedit)
-        t9CompositionModel = t9CompositionModel.copy(
-            resolvedSegments = remainingResolved,
-            unresolvedDigits = remainingUnresolvedDigits,
-            rawPreedit = rawPreedit,
-            pendingSelection = null
-        )
+            ?: return false
         candidatesView?.prepareForT9CompositionReplay()
         inputView?.clearTransientState()
         replayT9RawComposition(rawPreedit)
@@ -2674,7 +2566,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun replayT9RawComposition(rawPreedit: String) {
-        t9IgnoreEmptyPreeditUntilReplay = rawPreedit.isNotEmpty()
+        chineseT9Session.prepareReplay(rawPreedit)
         postFcitxJob {
             setCandidatePagingMode(candidatePagingModeForCurrentInputDevice())
             reset()
@@ -2779,7 +2671,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         var resolvedIndex = 0
         val parts = typedSegments.map { digits ->
             if (digits.isEmpty()) return@map ""
-            val resolved = t9CompositionModel.resolvedSegments.getOrNull(resolvedIndex)
+            val resolved = chineseT9Session.resolvedSegments.getOrNull(resolvedIndex)
                 ?.takeIf { digits.startsWith(it.sourceDigits) }
             val resolvedDisplay = resolved?.pinyin.orEmpty()
             var remainingDigits = digits
@@ -2874,7 +2766,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun resolvedSegmentsForT9FilterPrefix(prefix: String): List<T9ResolvedSegment>? {
-        val resolved = t9CompositionModel.resolvedSegments
+        val resolved = chineseT9Session.resolvedSegments
         for (count in 1..resolved.size) {
             val segments = resolved.take(count)
             if (segments.joinToString(" ") { it.pinyin } == prefix) {
@@ -2894,40 +2786,17 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     /**
      * Record the user's pinyin choice and try to narrow Rime itself by replacing the matching
-     * T9 digit span with "pinyin'". If the bridge replacement fails, the unresolved model stays
-     * on the previous client-side filtering path as a fallback.
+     * T9 digit span with "pinyin'". The composition session owns the Kotlin-side state; this
+     * adapter only mirrors that selection into Rime.
      */
     fun selectT9Pinyin(pinyin: String) {
-        val segment = getCurrentT9Segment()
-        if (segment.isEmpty() || pinyin.isEmpty()) return
-        val matchedPrefixLength = T9PinyinUtils.matchedPrefixLength(segment, pinyin)
-        if (matchedPrefixLength <= 0) return
-        val selectedDigits = segment.take(matchedPrefixLength)
-        val remainingDigits = segment.drop(matchedPrefixLength)
-        val selectedSegment = T9ResolvedSegment(pinyin, selectedDigits)
-        val rawBeforeSelection = getT9CompositionRawSequence()
-        val hadManualSeparator = !t9CompositionModel.hasResolvedSegments &&
-            t9CompositionTracker.hasManualSeparator()
-        if (hadManualSeparator) {
-            t9CompositionTracker.replaceSelectableSegmentThroughFirstSeparator(remainingDigits)
-        } else {
-            t9CompositionTracker.replaceCurrentSegment(remainingDigits)
-        }
-        val unresolvedDigits = t9CompositionTracker.getCurrentSegment()
-        val newResolved = t9CompositionModel.resolvedSegments + selectedSegment
-        t9CompositionModel = t9CompositionModel.copy(
-            resolvedSegments = newResolved,
-            unresolvedDigits = unresolvedDigits,
-            rawPreedit = rawBeforeSelection.takeIf { hadManualSeparator }
-                ?: newResolved.joinToString("") { it.sourceDigits } + unresolvedDigits,
-            pendingSelection = T9PendingSelection(selectedSegment, unresolvedDigits)
-        )
+        val selection = chineseT9Session.selectPinyin(pinyin) ?: return
         replaceT9SelectedDigitsInEngine(
-            selectedSegment,
-            segment,
-            unresolvedDigits,
-            consumeExplicitSeparator = hadManualSeparator,
-            replaceFromStart = hadManualSeparator
+            selection.selectedSegment,
+            selection.originalSegment,
+            selection.remainingDigits,
+            consumeExplicitSeparator = selection.consumeExplicitSeparator,
+            replaceFromStart = selection.replaceFromStart
         )
     }
 
@@ -2956,50 +2825,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                     replacementCaret
                 )
             if (replaced) {
-                markT9SelectionEngineBacked(selectedSegment, remainingDigits)
+                chineseT9Session.markSelectionEngineBacked(selectedSegment, remainingDigits)
             } else {
-                clearPendingT9Selection(selectedSegment, remainingDigits)
+                chineseT9Session.clearPendingSelection(selectedSegment, remainingDigits)
             }
             this@FcitxInputMethodService.lifecycleScope.launch {
                 candidatesView?.refreshT9Ui()
             }
-        }
-    }
-
-    private fun markT9SelectionEngineBacked(
-        selectedSegment: T9ResolvedSegment,
-        remainingDigits: String
-    ) {
-        val resolved = t9CompositionModel.resolvedSegments.toMutableList()
-        val index = resolved.indexOfFirst {
-            it.pinyin == selectedSegment.pinyin &&
-                it.sourceDigits == selectedSegment.sourceDigits &&
-                !it.engineBacked
-        }
-        if (index < 0) return
-        resolved[index] = resolved[index].copy(engineBacked = true)
-        val pending = t9CompositionModel.pendingSelection
-        val nextPending = pending?.takeUnless {
-            it.segment.pinyin == selectedSegment.pinyin &&
-                it.segment.sourceDigits == selectedSegment.sourceDigits &&
-                it.remainingDigits == remainingDigits
-        }
-        t9CompositionModel = t9CompositionModel.copy(
-            resolvedSegments = resolved,
-            pendingSelection = nextPending
-        )
-    }
-
-    private fun clearPendingT9Selection(
-        selectedSegment: T9ResolvedSegment,
-        remainingDigits: String
-    ) {
-        val pending = t9CompositionModel.pendingSelection ?: return
-        if (pending.segment.pinyin == selectedSegment.pinyin &&
-            pending.segment.sourceDigits == selectedSegment.sourceDigits &&
-            pending.remainingDigits == remainingDigits
-        ) {
-            t9CompositionModel = t9CompositionModel.copy(pendingSelection = null)
         }
     }
 
@@ -3013,32 +2845,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     fun consumeT9PinyinFromSelectedCandidate(candidate: FcitxEvent.Candidate): Boolean {
         if (!t9InputModeEnabled || currentT9Mode != T9InputMode.CHINESE) return false
-        if (t9CompositionModel.hasResolvedSegments) return false
-        val rawDigits = t9CompositionTracker.getFullComposition().filter { it in '2'..'9' }
-        if (rawDigits.isEmpty()) return false
         val commentSegments = normalizeT9CandidateComment(candidate.comment)
             .split(' ')
             .filter { it.isNotEmpty() }
-        if (commentSegments.isEmpty()) return false
-        var consumedDigits = ""
-        for (segment in commentSegments) {
-            val segmentDigits = T9PinyinUtils.pinyinToT9Keys(segment)
-            if (segmentDigits.isEmpty()) break
-            val nextConsumed = consumedDigits + segmentDigits
-            if (!rawDigits.startsWith(nextConsumed)) break
-            consumedDigits = nextConsumed
-        }
-        if (consumedDigits.isEmpty()) return false
-        val remainingDigits = rawDigits.drop(consumedDigits.length)
-        if (remainingDigits.isEmpty()) {
-            clearT9CompositionState()
-        } else {
-            t9CompositionTracker.replace(remainingDigits)
-            t9CompositionModel = T9CompositionModel(
-                unresolvedDigits = remainingDigits,
-                rawPreedit = remainingDigits
-            )
-        }
+        if (!chineseT9Session.consumeSelectedCandidateReading(commentSegments)) return false
         candidatesView?.refreshT9Ui()
         return true
     }

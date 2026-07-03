@@ -32,8 +32,10 @@ import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.candidates.floating.PagedCandidatesUi
 import org.fcitx.fcitx5.android.input.preedit.PreeditUi
+import org.fcitx.fcitx5.android.input.t9.T9CandidatePresentationPlanner
 import org.fcitx.fcitx5.android.input.t9.T9CandidatePager
 import org.fcitx.fcitx5.android.input.t9.T9PinyinChipAdapter
+import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
 import splitties.dimensions.dp
 import splitties.views.dsl.constraintlayout.below
 import splitties.views.dsl.constraintlayout.bottomOfParent
@@ -527,7 +529,7 @@ class CandidatesView(
         candidatesUi.setHighlightActive(!topFocused)
     }
 
-    private fun updateUi() {
+    private fun updateUi() = T9ResponsivenessTrace.measure("CandidatesView.updateUi") {
         if (t9InputModeEnabled) {
             service.syncT9CompositionWithInputPanel(inputPanel)
         }
@@ -587,52 +589,48 @@ class CandidatesView(
             resetT9LocalBudgetState()
             null
         }
-        val useBulkFiltered = chineseT9Active && t9BulkFilteredPaged != null && !t9BulkFilterPending
-        val usePendingBulkDisplay = chineseT9Active && t9BulkFilteredPaged != null && t9BulkFilterPending
-        val useLocalBudget = !useBulkFiltered && !usePendingBulkDisplay && localBudgetedPaged != null
-        val candidateSource = when {
-            pendingPunctuationBudgetedPaged != null -> pendingPunctuationBudgetedPaged
-            smartEnglishPaged != null -> smartEnglishPaged
-            useBulkFiltered || usePendingBulkDisplay -> requireNotNull(t9BulkFilteredPaged)
-            localBudgetedPaged != null -> localBudgetedPaged
-            else -> filteredPaged.first
-        }
+        val presentationPlan = T9CandidatePresentationPlanner.plan(
+            T9CandidatePresentationPlanner.Input(
+                rawPaged = paged,
+                filteredPaged = filteredPaged.first,
+                filteredMatchedPrefix = filteredPaged.second,
+                smartEnglishPaged = smartEnglishPaged,
+                pendingPunctuationPaged = pendingPunctuationBudgetedPaged,
+                localBudgetedPaged = localBudgetedPaged,
+                bulkFilteredPaged = t9BulkFilteredPaged,
+                bulkFilteredMatchedPrefix = t9BulkFilteredMatchedPrefix,
+                bulkFilterPending = t9BulkFilterPending,
+                chineseT9Active = chineseT9Active,
+                suppressEmptyCandidates = suppressEmptyT9Candidates,
+                pendingPinyinSelection = pendingT9PinyinSelection,
+                waitForChineseCandidates = waitForChineseT9Candidates
+            )
+        )
         val cursorContextSignature = buildT9CursorContextSignature(t9FilterPrefixes)
-        val effectivePaged = if (pendingPunctuationBudgetedPaged != null) {
-            pendingPunctuationBudgetedPaged
-        } else if (smartEnglishPaged != null) {
-            smartEnglishPaged
-        } else if (suppressEmptyT9Candidates || pendingT9PinyinSelection || waitForChineseT9Candidates) {
-            FcitxEvent.PagedCandidateEvent.Data.Empty
-        } else if (chineseT9Active) {
-            applyT9HanziCursor(candidateSource, cursorContextSignature)
+        val effectivePaged = if (presentationPlan.applyChineseCursor) {
+            applyT9HanziCursor(presentationPlan.cursorSource, cursorContextSignature)
         } else {
-            paged
+            presentationPlan.cursorSource
         }
         t9ShownPaged = effectivePaged
-        t9ShownUsesSmartEnglish = smartEnglishPaged != null && pendingPunctuationBudgetedPaged == null
-        t9ShownUsesPendingPunctuation = pendingPunctuationPaged != null
-        t9ShownUsesBulkSelection = pendingPunctuationPaged == null && useBulkFiltered
-        t9ShownUsesLocalBudget = pendingPunctuationPaged == null && useLocalBudget
-        t9ShownMatchedPrefix = if (pendingPunctuationPaged != null) {
-            null
-        } else if (useBulkFiltered) {
-            t9BulkFilteredMatchedPrefix
-        } else {
-            filteredPaged.second
-        }
-        t9ShownOriginalIndices = if (pendingPunctuationPaged != null) {
-            buildOriginalIndicesForPendingPunctuation(effectivePaged)
-        } else if (smartEnglishPaged != null) {
-            buildOriginalIndicesForSmartEnglish(effectivePaged)
-        } else if (useBulkFiltered) {
-            t9BulkFilteredOriginalIndices
-        } else if (usePendingBulkDisplay) {
-            IntArray(effectivePaged.candidates.size) { -1 }
-        } else if (localBudgetedPaged != null) {
-            buildOriginalIndicesForPaged(localBudgetedPaged)
-        } else {
-            buildOriginalIndicesForPaged(effectivePaged)
+        t9ShownUsesSmartEnglish = presentationPlan.usesSmartEnglish
+        t9ShownUsesPendingPunctuation = presentationPlan.usesPendingPunctuation
+        t9ShownUsesBulkSelection = presentationPlan.usesBulkSelection
+        t9ShownUsesLocalBudget = presentationPlan.usesLocalBudget
+        t9ShownMatchedPrefix = presentationPlan.matchedPrefix
+        t9ShownOriginalIndices = when (presentationPlan.originalIndexSource) {
+            T9CandidatePresentationPlanner.OriginalIndexSource.PENDING_PUNCTUATION ->
+                buildOriginalIndicesForPendingPunctuation(effectivePaged)
+            T9CandidatePresentationPlanner.OriginalIndexSource.SMART_ENGLISH ->
+                buildOriginalIndicesForSmartEnglish(effectivePaged)
+            T9CandidatePresentationPlanner.OriginalIndexSource.BULK_FILTERED ->
+                t9BulkFilteredOriginalIndices
+            T9CandidatePresentationPlanner.OriginalIndexSource.PENDING_BULK_DISPLAY ->
+                IntArray(effectivePaged.candidates.size) { -1 }
+            T9CandidatePresentationPlanner.OriginalIndexSource.LOCAL_BUDGET ->
+                buildOriginalIndicesForPaged(presentationPlan.candidateSource)
+            T9CandidatePresentationPlanner.OriginalIndexSource.PAGED ->
+                buildOriginalIndicesForPaged(effectivePaged)
         }
         val t9State = service.getSmartEnglishT9Presentation() ?: if (chineseT9Active) {
             service.getT9PresentationState(inputPanel, effectivePaged)

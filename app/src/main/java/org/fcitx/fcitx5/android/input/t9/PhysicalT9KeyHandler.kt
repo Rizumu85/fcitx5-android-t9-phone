@@ -132,7 +132,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
     fun handleKeyDown(keyCode: Int, event: KeyEvent): KeyResult =
         handleKeyDown(KeyInput.from(keyCode, event))
 
-    fun handleKeyDown(input: KeyInput): KeyResult {
+    fun handleKeyDown(input: KeyInput): KeyResult = T9ResponsivenessTrace.measure("PhysicalT9KeyHandler.keyDown") {
         val keyCode = input.keyCode
         if (!host.isInInputMode) return KeyResult(handled = false)
         if (input.action != KeyEvent.ACTION_DOWN) return KeyResult(handled = false)
@@ -153,7 +153,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
     fun handleKeyUp(keyCode: Int, event: KeyEvent): KeyResult =
         handleKeyUp(KeyInput.from(keyCode, event))
 
-    fun handleKeyUp(input: KeyInput): KeyResult {
+    fun handleKeyUp(input: KeyInput): KeyResult = T9ResponsivenessTrace.measure("PhysicalT9KeyHandler.keyUp") {
         if (!host.isInInputMode) return KeyResult(handled = false)
         return handleT9SpecialKeyUp(input.keyCode, input)
     }
