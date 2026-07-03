@@ -68,6 +68,14 @@ confirm/space/enter commits the selected word. Simple multi-tap remains the
 fallback path for unknown words. Words typed in simple mode are learned when a
 delimiter is committed.
 
+Learning-management follow-up: the original "learn from real input" wording was
+too vague for users, and learned words had no management UI. Learning is now
+documented as a concrete flow: turn off Smart English, type a continuous word in
+ordinary English multi-tap, then commit a delimiter such as space, punctuation,
+or enter. The learned-word file can be managed from the top-level Dictionary
+Management settings area. Password fields and editors that request no
+personalized learning do not record words.
+
 Candidate interaction follow-up: smart English should match the Chinese T9
 candidate surface. The visible English candidate page uses the same T9
 candidate budget setting as Chinese, shows numeric shortcut labels, supports

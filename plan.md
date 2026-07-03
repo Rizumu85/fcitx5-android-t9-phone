@@ -44,6 +44,14 @@ otherwise.
 - [x] Move physical T9 decision/execution routing into tested
   `PhysicalT9KeyHandler` and leave `FcitxInputMethodService` as the host
   adapter instead of a duplicate key-state machine.
+- [x] Document the exact Smart English learning flow in README, release notes,
+  and Baidu release readmes.
+- [x] Add a top-level Dictionary Management entry for the Smart English learned
+  word list.
+- [x] Allow adding, editing, and deleting Smart English learned words from
+  settings.
+- [x] Disable Smart English learning in password/no-personalized-learning
+  editor contexts.
 
 ## User Retest Checklist
 

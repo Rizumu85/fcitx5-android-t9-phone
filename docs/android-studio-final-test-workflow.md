@@ -77,3 +77,6 @@
 - Rime 插件 APK
 - `rime-ice-t9-phone` 的 Rime 数据包
 - 简短安装说明：先安装本体，再安装插件，然后部署并同步 Rime 数据
+
+正式发布前还需要按 `docs/release-runbook.md` 检查版本号、README /
+Release Notes / 百度盘文案分工、签名参数、APK 签名验证和上传清单。

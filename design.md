@@ -34,6 +34,17 @@ commits a delimiter such as space. This gives users a way to introduce special
 names or technical terms without adding a full dictionary-management UI in this
 pass.
 
+Learned words are now treated as a small user dictionary. The settings home has
+a Dictionary Management entry, with a Smart English learned-word list where
+users can add, edit, and delete words. The runtime dictionary reloads the file
+when it changes so edits made from settings affect later Smart English
+candidates without restarting the app.
+
+Learning avoids sensitive contexts. It is disabled for password variations and
+editors that set `IME_FLAG_NO_PERSONALIZED_LEARNING`, so verification codes or
+private fields are less likely to enter the learned dictionary. If an unwanted
+word is still learned, the user can remove it from Dictionary Management.
+
 ## Smart English Display Design
 
 Smart English does not expose the raw digit buffer as the main visible
