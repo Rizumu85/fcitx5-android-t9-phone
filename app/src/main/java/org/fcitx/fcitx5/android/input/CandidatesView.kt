@@ -32,6 +32,7 @@ import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.candidates.floating.PagedCandidatesUi
 import org.fcitx.fcitx5.android.input.preedit.PreeditUi
+import org.fcitx.fcitx5.android.input.t9.T9BulkCandidateLoader
 import org.fcitx.fcitx5.android.input.t9.T9CandidatePresentationPlanner
 import org.fcitx.fcitx5.android.input.t9.T9CandidatePager
 import org.fcitx.fcitx5.android.input.t9.T9PinyinChipAdapter
@@ -173,13 +174,15 @@ class CandidatesView(
     private var t9ShownMatchedPrefix: String? = null
     private var t9ShownUsesPendingPunctuation = false
     private val t9PendingPunctuationPager = T9CandidatePager()
-    private var t9BulkFilterRequestSignature = ""
-    private var t9BulkFilterPrefixSignature = ""
-    private var t9BulkFilterPending = false
     private var t9BulkFilteredPaged: FcitxEvent.PagedCandidateEvent.Data? = null
     private var t9BulkFilteredOriginalIndices = intArrayOf()
     private var t9BulkFilteredMatchedPrefix: String? = null
-    private val t9BulkFilteredPager = T9CandidatePager()
+    private val t9BulkCandidateLoader = T9BulkCandidateLoader(
+        characterBudget = { t9HanziCharacterBudget },
+        candidateMatchesPrefix = { candidate, prefix ->
+            service.candidateMatchesT9ResolvedPrefix(candidate, prefix)
+        }
+    )
     private val t9LocalBudgetPager = T9CandidatePager()
     private var t9ShownUsesLocalBudget = false
     private var t9ShownUsesSmartEnglish = false
@@ -490,7 +493,7 @@ class CandidatesView(
         if (t9ShownUsesPendingPunctuation && t9PendingPunctuationPager.hasCandidates) {
             if (offsetT9PendingPunctuationCandidatePage(delta)) return true
         }
-        if (t9ShownUsesBulkSelection && t9BulkFilteredPager.hasCandidates) {
+        if (t9ShownUsesBulkSelection && t9BulkCandidateLoader.hasCandidates) {
             if (offsetT9BulkFilteredCandidatePage(delta)) return true
         }
         if (t9ShownUsesLocalBudget && t9LocalBudgetPager.hasCandidates) {
@@ -599,7 +602,7 @@ class CandidatesView(
                 localBudgetedPaged = localBudgetedPaged,
                 bulkFilteredPaged = t9BulkFilteredPaged,
                 bulkFilteredMatchedPrefix = t9BulkFilteredMatchedPrefix,
-                bulkFilterPending = t9BulkFilterPending,
+                bulkFilterPending = t9BulkCandidateLoader.pending,
                 chineseT9Active = chineseT9Active,
                 suppressEmptyCandidates = suppressEmptyT9Candidates,
                 pendingPinyinSelection = pendingT9PinyinSelection,
@@ -817,7 +820,7 @@ class CandidatesView(
     }
 
     private fun offsetT9BulkFilteredCandidatePage(delta: Int): Boolean {
-        val page = t9BulkFilteredPager.offset(delta) ?: return false
+        val page = t9BulkCandidateLoader.offset(delta) ?: return false
         applyT9BulkFilteredPage(page)
         refreshT9Ui()
         return true
@@ -850,22 +853,15 @@ class CandidatesView(
         candidates: List<IndexedValue<FcitxEvent.Candidate>>,
         prefixes: List<String>
     ): T9MatchedCandidates {
-        prefixes.forEach { prefix ->
-            val matches = dedupeT9DisplayCandidates(candidates.filter {
-                service.candidateMatchesT9ResolvedPrefix(it.value, prefix)
-            })
-            if (matches.isNotEmpty()) {
-                return T9MatchedCandidates(prefix, matches)
-            }
-        }
-        return T9MatchedCandidates(null, emptyList())
+        val result = t9BulkCandidateLoader.matchCandidates(candidates, prefixes)
+        return T9MatchedCandidates(result.prefix, result.candidates)
     }
 
     private fun buildLocalBudgetedPagedFromCurrentPage(
         data: FcitxEvent.PagedCandidateEvent.Data
     ): FcitxEvent.PagedCandidateEvent.Data? {
         if (data.candidates.isEmpty()) return null
-        val indexedCandidates = dedupeT9DisplayCandidates(data.candidates.withIndex().toList())
+        val indexedCandidates = t9BulkCandidateLoader.dedupeDisplayCandidates(data.candidates.withIndex().toList())
         val signature = buildT9CandidateSignature(data)
         t9LocalBudgetPager.update(signature, indexedCandidates, t9HanziCharacterBudget)
         val page = t9LocalBudgetPager.currentPage() ?: return null
@@ -984,53 +980,31 @@ class CandidatesView(
             resetT9BulkFilterState()
             return
         }
-        val prefixSignature = prefixes.joinToString(separator = "/")
-        val signature = buildString {
-            append(prefixSignature).append('|')
-            append(t9HanziCharacterBudget).append('|')
-            append(inputPanel.preedit).append('|')
-            append(paged.candidates.joinToString(separator = "\n") { "${it.text}|${it.comment}" })
-        }
-        if (signature == t9BulkFilterRequestSignature) return
-        val prefixChanged = prefixSignature != t9BulkFilterPrefixSignature
-        t9BulkFilterPrefixSignature = prefixSignature
-        t9BulkFilterRequestSignature = signature
-        t9BulkFilterPending = true
+        val signature = t9BulkCandidateLoader.requestSignature(prefixes, inputPanel.preedit.toString(), paged.candidates)
+        if (!t9BulkCandidateLoader.shouldRequest(signature)) return
+        val prefixChanged = t9BulkCandidateLoader.startRequest(prefixes, signature)
         if (prefixChanged) {
             t9BulkFilteredPaged = null
         }
         t9BulkFilteredOriginalIndices = intArrayOf()
         t9BulkFilteredMatchedPrefix = null
-        t9BulkFilteredPager.reset()
         fcitx.launchOnReady { api ->
-            val parsedCandidates = api.getCandidates(0, T9_BULK_FILTER_LIMIT)
-                .mapIndexedNotNull { index, raw ->
-                    parseBulkCandidate(raw)?.let { IndexedValue(index, it) }
-                }
-            val filtered = if (prefixes.isEmpty()) {
-                T9MatchedCandidates(null, dedupeT9DisplayCandidates(parsedCandidates))
-            } else {
-                matchT9Candidates(parsedCandidates, prefixes)
-            }
+            val rawCandidates = api.getCandidates(0, T9_BULK_FILTER_LIMIT)
             post {
-                if (signature != t9BulkFilterRequestSignature) return@post
-                t9BulkFilteredMatchedPrefix = filtered.prefix
-                t9BulkFilterPending = false
-                t9BulkFilteredPager.update(signature, filtered.candidates, t9HanziCharacterBudget)
-                t9BulkFilteredPager.currentPage()?.let(::applyT9BulkFilteredPage)
+                val result = t9BulkCandidateLoader.finishRequest(signature, rawCandidates.toList(), prefixes)
+                    ?: return@post
+                t9BulkFilteredMatchedPrefix = result.matchedPrefix
+                result.page?.let(::applyT9BulkFilteredPage)
                 refreshT9Ui()
             }
         }
     }
 
     private fun resetT9BulkFilterState() {
-        t9BulkFilterRequestSignature = ""
-        t9BulkFilterPrefixSignature = ""
-        t9BulkFilterPending = false
         t9BulkFilteredPaged = null
         t9BulkFilteredOriginalIndices = intArrayOf()
         t9BulkFilteredMatchedPrefix = null
-        t9BulkFilteredPager.reset()
+        t9BulkCandidateLoader.reset()
         resetT9LocalBudgetState()
         t9ShownOriginalIndices = intArrayOf()
         t9ShownUsesBulkSelection = false
@@ -1041,31 +1015,6 @@ class CandidatesView(
     private fun resetT9LocalBudgetState() {
         t9LocalBudgetPager.reset()
         t9ShownUsesLocalBudget = false
-    }
-
-    private fun dedupeT9DisplayCandidates(
-        candidates: List<IndexedValue<FcitxEvent.Candidate>>
-    ): List<IndexedValue<FcitxEvent.Candidate>> {
-        if (candidates.size < 2) return candidates
-        val seen = HashSet<String>(candidates.size)
-        return candidates.filter { (_, candidate) ->
-            seen.add(candidate.text)
-        }
-    }
-
-    private fun parseBulkCandidate(raw: String): FcitxEvent.Candidate? {
-        val trimmed = raw.trim()
-        if (trimmed.isEmpty()) return null
-        val splitAt = trimmed.indexOf(' ')
-        return if (splitAt < 0) {
-            FcitxEvent.Candidate("", trimmed, "")
-        } else {
-            FcitxEvent.Candidate(
-                label = "",
-                text = trimmed.substring(0, splitAt),
-                comment = trimmed.substring(splitAt + 1).trim()
-            )
-        }
     }
 
     private fun showPinyinRowNow() {
