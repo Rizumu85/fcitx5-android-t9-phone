@@ -74,6 +74,7 @@ import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.cursor.CursorRange
 import org.fcitx.fcitx5.android.input.cursor.CursorTracker
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionSession
+import org.fcitx.fcitx5.android.input.t9.ChineseT9RimeBridge
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHandler
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9Session
@@ -448,38 +449,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return true
     }
 
-    private fun t9EngineReplacementText(pinyin: String): String = "${pinyin.lowercase()}'"
-
     private suspend fun restoreT9ResolvedSegmentInEngine(
         fcitx: FcitxAPI,
         segment: T9ResolvedSegment,
         previousUnresolved: String,
         fallbackRawPreedit: String
     ) {
-        val selectedInput = t9EngineReplacementText(segment.pinyin)
-        val restoreReplacement = if (fallbackRawPreedit.contains("${segment.sourceDigits}'")) {
-            "${segment.sourceDigits}'"
-        } else {
-            segment.sourceDigits
-        }
-        val input = fcitx.getRimeInput()
-        val expectedStart = input.length - previousUnresolved.length - selectedInput.length
-        val start = expectedStart.takeIf {
-            it >= 0 && input.regionMatches(it, selectedInput, 0, selectedInput.length)
-        } ?: input.lastIndexOf(selectedInput).takeIf { it >= 0 }
-        val caretPos = input.length - selectedInput.length + restoreReplacement.length
-        val restored = start != null &&
-            fcitx.replaceRimeInput(start, selectedInput.length, restoreReplacement, caretPos)
-        if (!restored) {
-            fcitx.setCandidatePagingMode(candidatePagingModeForCurrentInputDevice())
-            fcitx.reset()
-            fallbackRawPreedit.forEach { ch ->
-                if (ch in '2'..'9' || ch == '\'') {
-                    fcitx.sendKey(ch)
-                }
-            }
-            chineseT9Session.markAllResolvedSegmentsEngineUnbacked(fallbackRawPreedit)
-        }
+        ChineseT9RimeBridge.from(chineseT9Session, fcitx).restoreResolvedSegment(
+            segment = segment,
+            previousUnresolved = previousUnresolved,
+            fallbackRawPreedit = fallbackRawPreedit,
+            candidatePagingMode = candidatePagingModeForCurrentInputDevice()
+        )
     }
 
     fun clearHiddenChineseT9CompositionIfCandidateUiSuppressed() {
@@ -2807,28 +2788,15 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         consumeExplicitSeparator: Boolean = false,
         replaceFromStart: Boolean = false
     ) {
-        val replacement = t9EngineReplacementText(selectedSegment.pinyin)
+        val request = ChineseT9CompositionSession.PinyinSelectionRequest(
+            selectedSegment = selectedSegment,
+            originalSegment = originalSegment,
+            remainingDigits = remainingDigits,
+            consumeExplicitSeparator = consumeExplicitSeparator,
+            replaceFromStart = replaceFromStart
+        )
         postFcitxJob {
-            val input = getRimeInput()
-            val separatorLength = if (consumeExplicitSeparator) 1 else 0
-            val originalLength = originalSegment.length + separatorLength
-            val start = if (replaceFromStart) 0 else input.length - originalLength
-            val replacementLength = selectedSegment.sourceDigits.length + separatorLength
-            val replacementCaret = input.length - replacementLength + replacement.length
-            val canReplace = start >= 0 &&
-                input.regionMatches(start, selectedSegment.sourceDigits, 0, selectedSegment.sourceDigits.length)
-            val replaced = canReplace &&
-                replaceRimeInput(
-                    start,
-                    replacementLength,
-                    replacement,
-                    replacementCaret
-                )
-            if (replaced) {
-                chineseT9Session.markSelectionEngineBacked(selectedSegment, remainingDigits)
-            } else {
-                chineseT9Session.clearPendingSelection(selectedSegment, remainingDigits)
-            }
+            ChineseT9RimeBridge.from(chineseT9Session, this).mirrorPinyinSelection(request)
             this@FcitxInputMethodService.lifecycleScope.launch {
                 candidatesView?.refreshT9Ui()
             }
