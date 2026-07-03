@@ -73,7 +73,77 @@ class PhysicalT9KeyHandlerTest {
 
         assertTrue(result.handled)
         assertEquals(KeyEvent.KEYCODE_DPAD_UP, result.consumedKeyUp)
-        assertEquals(listOf(-1), host.hanziPageOffsets)
+        assertEquals(listOf(-1), host.bottomCandidatePageOffsets)
+    }
+
+    @Test
+    fun smartEnglishConfirmKeyCommitsCurrentCandidate() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.ENGLISH,
+            isSmartEnglishActive = true,
+            hasSmartEnglishDigits = true
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        val down = handler.handleKeyDown(
+            keyInput(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.ACTION_DOWN)
+        )
+
+        assertTrue(down.handled)
+        assertEquals(KeyEvent.KEYCODE_DPAD_CENTER, down.consumedKeyUp)
+        assertEquals(1, host.commitSmartEnglishCandidateCount)
+    }
+
+    @Test
+    fun smartEnglishButtonSelectKeyCommitsCurrentCandidate() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.ENGLISH,
+            isSmartEnglishActive = true,
+            hasSmartEnglishDigits = true
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        val down = handler.handleKeyDown(
+            keyInput(KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.ACTION_DOWN)
+        )
+
+        assertTrue(down.handled)
+        assertEquals(KeyEvent.KEYCODE_BUTTON_SELECT, down.consumedKeyUp)
+        assertEquals(1, host.commitSmartEnglishCandidateCount)
+    }
+
+    @Test
+    fun smartEnglishSpaceConfirmKeyCommitsCurrentCandidate() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.ENGLISH,
+            isSmartEnglishActive = true,
+            hasSmartEnglishDigits = true
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        val down = handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_SPACE, KeyEvent.ACTION_DOWN))
+
+        assertTrue(down.handled)
+        assertEquals(KeyEvent.KEYCODE_SPACE, down.consumedKeyUp)
+        assertEquals(1, host.commitSmartEnglishCandidateCount)
+    }
+
+    @Test
+    fun chineseZeroShortPressCommitsHighlightedHanziWithoutSpace() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            chineseComposing = true,
+            compositionKeyCount = 2,
+            candidateFocus = PhysicalT9KeyHandler.CandidateFocus.BOTTOM,
+            commitHighlightedBottomCandidateResult = true
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN)).handled)
+        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_0, KeyEvent.ACTION_UP)).handled)
+
+        assertEquals(1, host.commitHighlightedBottomCandidateCount)
+        assertEquals(emptyList<String>(), host.committedTexts)
     }
 
     @Test
@@ -117,13 +187,16 @@ class PhysicalT9KeyHandlerTest {
         override var hasMultiTapPendingChar: Boolean = false,
         override var hasTopPinyinCandidates: Boolean = false,
         override var candidateFocus: PhysicalT9KeyHandler.CandidateFocus =
-            PhysicalT9KeyHandler.CandidateFocus.BOTTOM
+            PhysicalT9KeyHandler.CandidateFocus.BOTTOM,
+        private val commitHighlightedBottomCandidateResult: Boolean = false
     ) : PhysicalT9KeyHandler.Host {
         val committedTexts = mutableListOf<String>()
         val appendedSmartEnglishDigits = mutableListOf<Int>()
-        val hanziPageOffsets = mutableListOf<Int>()
+        val bottomCandidatePageOffsets = mutableListOf<Int>()
         var resetSmartEnglishCount = 0
         var flushEnglishLearningCount = 0
+        var commitSmartEnglishCandidateCount = 0
+        var commitHighlightedBottomCandidateCount = 0
         override val pendingPunctuationOneKeyDeferred: Boolean
             get() = pendingPunctuationOneKeyDeferredState
 
@@ -168,7 +241,12 @@ class PhysicalT9KeyHandlerTest {
             hasSmartEnglishDigits = false
         }
 
-        override fun commitSmartEnglishCandidate(): Boolean = false
+        override fun commitSmartEnglishCandidate(): Boolean {
+            commitSmartEnglishCandidateCount += 1
+            hasSmartEnglishDigits = false
+            return true
+        }
+
         override fun moveSmartEnglishCandidate(delta: Int): Boolean = false
         override fun smartEnglishBackspace(): Boolean = false
 
@@ -188,14 +266,18 @@ class PhysicalT9KeyHandlerTest {
         }
 
         override fun moveHighlightedPinyin(delta: Int): Boolean = false
-        override fun moveHighlightedHanzi(delta: Int): Boolean = false
+        override fun moveHighlightedBottomCandidate(delta: Int): Boolean = false
 
-        override fun offsetHanziPage(delta: Int): Boolean {
-            hanziPageOffsets += delta
+        override fun offsetBottomCandidatePage(delta: Int): Boolean {
+            bottomCandidatePageOffsets += delta
             return false
         }
 
         override fun commitHighlightedPinyin(): Boolean = false
-        override fun commitHighlightedHanzi(): Boolean = false
+
+        override fun commitHighlightedBottomCandidate(): Boolean {
+            commitHighlightedBottomCandidateCount += 1
+            return commitHighlightedBottomCandidateResult
+        }
     }
 }

@@ -29,6 +29,7 @@ import org.fcitx.fcitx5.android.ui.main.settings.behavior.AdvancedSettingsFragme
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.CandidatesSettingsFragment
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.ClipboardSettingsFragment
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.KeyboardSettingsFragment
+import org.fcitx.fcitx5.android.ui.main.settings.behavior.SmartEnglishLearnedWordsFragment
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.SymbolSettingsFragment
 import org.fcitx.fcitx5.android.ui.main.settings.global.GlobalConfigFragment
 import org.fcitx.fcitx5.android.ui.main.settings.im.InputMethodConfigFragment
@@ -56,6 +57,9 @@ sealed class SettingsRoute : Parcelable {
 
     @Serializable
     data class InputMethodConfig(val name: String, val uniqueName: String) : SettingsRoute()
+
+    @Serializable
+    data object DictionaryManagement : SettingsRoute()
 
     @Serializable
     data object AddonList : SettingsRoute()
@@ -94,6 +98,9 @@ sealed class SettingsRoute : Parcelable {
 
     @Serializable
     data object About : SettingsRoute()
+
+    @Serializable
+    data object SmartEnglishLearnedWords : SettingsRoute()
 
     /* ========== External ========== */
 
@@ -197,6 +204,9 @@ sealed class SettingsRoute : Parcelable {
                 label = ctx.getString(R.string.input_methods)
             }
             fragment<InputMethodConfigFragment, InputMethodConfig>()
+            fragment<DictionaryManagementFragment, DictionaryManagement> {
+                label = ctx.getString(R.string.dictionary_management)
+            }
             fragment<AddonListFragment, AddonList> {
                 label = ctx.getString(R.string.addons)
             }
@@ -224,6 +234,9 @@ sealed class SettingsRoute : Parcelable {
             }
             fragment<AdvancedSettingsFragment, Advanced> {
                 label = ctx.getString(R.string.advanced)
+            }
+            fragment<SmartEnglishLearnedWordsFragment, SmartEnglishLearnedWords> {
+                label = ctx.getString(R.string.smart_english_learned_words)
             }
             fragment<DeveloperFragment, Developer> {
                 label = ctx.getString(R.string.developer)

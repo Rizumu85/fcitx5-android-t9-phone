@@ -34,6 +34,7 @@
     <string name="setup_keyboard">Finish setting up the keyboard</string>
     <string name="setup_channel">Setup Wizard</string>
     <string name="pinyin_dict">Pinyin Dictionaries</string>
+    <string name="dictionary_management">Dictionary Management</string>
     <string name="reloading">Reloading</string>
     <string name="importing">Importing</string>
     <string name="import_error">Import Error</string>
@@ -213,6 +214,9 @@
     <string name="use_t9_keyboard_layout_summary">Use phone-style T9 keys, candidates, and mode switching</string>
     <string name="smart_english_t9">智能英语</string>
     <string name="smart_english_t9_summary">Predict English words from number-key sequences and learn selected words</string>
+    <string name="smart_english_learned_words">Smart English learned words</string>
+    <string name="smart_english_learned_words_summary">Add, edit, or delete words learned from normal English T9 typing</string>
+    <string name="smart_english_learned_word_hint">English word</string>
     <string name="temporary_full_keyboard">Password mode</string>
     <string name="horizontal_candidate_style">Horizontal candidate style</string>
     <string name="horizontal_candidate_never_fill">Never fill width</string>

@@ -111,13 +111,10 @@ class NumberModeController(
             commitOperator("*")
             return KeyResult(handled = true, consumedKeyUp = keyCode)
         }
-        return when (keyCode) {
-            KeyEvent.KEYCODE_POUND,
-            KeyEvent.KEYCODE_DPAD_CENTER,
-            KeyEvent.KEYCODE_ENTER,
-            KeyEvent.KEYCODE_DEL,
-            KeyEvent.KEYCODE_BACK,
-            KeyEvent.KEYCODE_FORWARD_DEL -> {
+        return when {
+            keyCode == KeyEvent.KEYCODE_POUND ||
+                PhysicalT9KeyPolicy.isConfirmKey(keyCode) ||
+                PhysicalT9KeyPolicy.isDeleteKey(keyCode) -> {
                 dismissTransientPanel()
                 KeyResult(handled = true, consumedKeyUp = keyCode)
             }
@@ -129,14 +126,12 @@ class NumberModeController(
     }
 
     private fun handleResultChoiceKeyDown(keyCode: Int): KeyResult {
-        return when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+        return when {
+            PhysicalT9KeyPolicy.isConfirmKey(keyCode) -> {
                 commitEqualsResult()
                 KeyResult(handled = true, consumedKeyUp = keyCode)
             }
-            KeyEvent.KEYCODE_DEL,
-            KeyEvent.KEYCODE_BACK,
-            KeyEvent.KEYCODE_FORWARD_DEL -> {
+            PhysicalT9KeyPolicy.isDeleteKey(keyCode) -> {
                 dismissTransientPanel()
                 KeyResult(handled = true, consumedKeyUp = keyCode)
             }

@@ -75,6 +75,7 @@ import org.fcitx.fcitx5.android.input.cursor.CursorRange
 import org.fcitx.fcitx5.android.input.cursor.CursorTracker
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHandler
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
+import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9Session
 import org.fcitx.fcitx5.android.input.t9.T9CompositionModel
 import org.fcitx.fcitx5.android.input.t9.T9CompositionTracker
 import org.fcitx.fcitx5.android.input.t9.T9EnglishDictionary
@@ -157,7 +158,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 T9PunctuationSet.ENGLISH -> PhysicalT9KeyHandler.PunctuationSet.ENGLISH
             }
         override val hasSmartEnglishDigits: Boolean
-            get() = smartEnglishDigits.isNotEmpty()
+            get() = smartEnglishSession.hasDigits
         override val hasMultiTapPendingChar: Boolean
             get() = multiTapPendingChar != null
         override val hasTopPinyinCandidates: Boolean
@@ -212,8 +213,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             this@FcitxInputMethodService.showSmartEnglishPunctuationCandidates()
 
         override fun appendSmartEnglishDigit(digit: Int) {
-            smartEnglishDigits.append(DIGIT_TEXTS[digit])
-            smartEnglishCursorIndex = 0
+            smartEnglishSession.appendDigit(digit)
             candidatesView?.refreshT9Ui()
         }
 
@@ -248,15 +248,15 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         override fun moveHighlightedPinyin(delta: Int): Boolean =
             candidatesView?.moveHighlightedT9Pinyin(delta) == true
 
-        override fun moveHighlightedHanzi(delta: Int): Boolean =
-            candidatesView?.moveHighlightedT9HanziCandidate(delta) == true
+        override fun moveHighlightedBottomCandidate(delta: Int): Boolean =
+            candidatesView?.moveHighlightedT9BottomCandidate(delta) == true
 
-        override fun offsetHanziPage(delta: Int): Boolean =
-            candidatesView?.offsetT9HanziCandidatePage(delta) == true
+        override fun offsetBottomCandidatePage(delta: Int): Boolean =
+            candidatesView?.offsetT9BottomCandidatePage(delta) == true
 
         override fun commitHighlightedPinyin(): Boolean = commitHighlightedT9Pinyin()
-        override fun commitHighlightedHanzi(): Boolean =
-            candidatesView?.commitHighlightedT9HanziCandidate() == true
+        override fun commitHighlightedBottomCandidate(): Boolean =
+            candidatesView?.commitHighlightedT9BottomCandidate() == true
     })
 
     private fun isTemporaryPasswordKeyboardVisible(): Boolean =
@@ -1243,9 +1243,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (alt) sendUpKeyEvent(eventTime, KeyEvent.KEYCODE_ALT_LEFT)
     }
 
-    private fun isPhysicalSelectionOkKey(keyCode: Int): Boolean =
-        keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER
-
     private fun canUsePhysicalSelectionMode(): Boolean =
         inputDeviceMgr.isInInputMode &&
             currentInputConnection != null &&
@@ -1255,9 +1252,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             multiTapPendingChar == null
 
     private fun performDeferredPhysicalOkShortPress(keyCode: Int) {
-        when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_CENTER -> sendDownUpKeyEvents(KeyEvent.KEYCODE_SPACE)
-            KeyEvent.KEYCODE_ENTER -> handleReturnKey()
+        when (PhysicalT9KeyPolicy.confirmAction(keyCode)) {
+            PhysicalT9KeyPolicy.ConfirmAction.SELECT -> sendDownUpKeyEvents(KeyEvent.KEYCODE_SPACE)
+            PhysicalT9KeyPolicy.ConfirmAction.RETURN -> handleReturnKey()
+            null -> Unit
         }
     }
 
@@ -1321,33 +1319,33 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (!physicalSelectionActionPanelActive) return false
         if (event.action != KeyEvent.ACTION_DOWN) return false
         if (event.repeatCount > 0) return true
-        return when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_UP -> {
+        return when {
+            keyCode == KeyEvent.KEYCODE_DPAD_UP -> {
                 performPhysicalSelectionContextAction(android.R.id.copy, "复制")
                 t9ConsumedNavigationKeyUp = keyCode
                 true
             }
-            KeyEvent.KEYCODE_DPAD_LEFT -> {
+            keyCode == KeyEvent.KEYCODE_DPAD_LEFT -> {
                 performPhysicalSelectionContextAction(android.R.id.cut, "剪切")
                 t9ConsumedNavigationKeyUp = keyCode
                 true
             }
-            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+            keyCode == KeyEvent.KEYCODE_DPAD_RIGHT -> {
                 performPhysicalSelectionContextAction(android.R.id.paste, "粘贴")
                 t9ConsumedNavigationKeyUp = keyCode
                 true
             }
-            KeyEvent.KEYCODE_DPAD_DOWN -> {
+            keyCode == KeyEvent.KEYCODE_DPAD_DOWN -> {
                 performPhysicalSelectionDeleteAction()
                 t9ConsumedNavigationKeyUp = keyCode
                 true
             }
-            KeyEvent.KEYCODE_DEL, KeyEvent.KEYCODE_BACK -> {
+            PhysicalT9KeyPolicy.isDeleteKey(keyCode) -> {
                 cancelPhysicalSelectionActionPanelSelection()
                 t9ConsumedNavigationKeyUp = keyCode
                 true
             }
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+            PhysicalT9KeyPolicy.isConfirmKey(keyCode) -> {
                 dismissPhysicalSelectionActionPanel()
                 t9ConsumedNavigationKeyUp = keyCode
                 true
@@ -1386,19 +1384,19 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun handlePhysicalSelectionModeKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (event.action != KeyEvent.ACTION_DOWN) return false
         if (physicalSelectionMode) {
-            return when (keyCode) {
-                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+            return when {
+                keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT -> {
                     movePhysicalSelectionFocus(if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) -1 else 1)
                     t9ConsumedNavigationKeyUp = keyCode
                     true
                 }
-                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
+                keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN -> {
                     physicalSelectionRangeActive = true
                     sendCombinationKeyEvents(keyCode, shift = true)
                     t9ConsumedNavigationKeyUp = keyCode
                     true
                 }
-                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                PhysicalT9KeyPolicy.isConfirmKey(keyCode) -> {
                     if (event.repeatCount == 0) {
                         val showActions = currentInputSelection.isNotEmpty()
                         exitPhysicalSelectionMode(showBadge = !showActions)
@@ -1407,7 +1405,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                     }
                     true
                 }
-                KeyEvent.KEYCODE_DEL, KeyEvent.KEYCODE_BACK -> {
+                PhysicalT9KeyPolicy.isDeleteKey(keyCode) -> {
                     exitPhysicalSelectionMode(showBadge = true)
                     false
                 }
@@ -1417,7 +1415,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 }
             }
         }
-        if (!isPhysicalSelectionOkKey(keyCode) || !canUsePhysicalSelectionMode()) return false
+        if (!PhysicalT9KeyPolicy.isConfirmKey(keyCode) || !canUsePhysicalSelectionMode()) return false
         if (event.repeatCount == 0) {
             pendingPhysicalSelectionOkKeyCode = keyCode
             physicalSelectionOkLongPressTriggered = false
@@ -1597,7 +1595,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     /**
      * Maps T9 physical keys for input mode only.
-     * - DPAD_CENTER (confirm) -> SPACE (for candidate selection)
+     * - SELECT-style confirm keys -> SPACE (for candidate selection)
+     * - RETURN-style confirm keys -> ENTER
      * - KEYCODE_BACK (back) -> KEYCODE_DEL (backspace)
      * When NOT in input mode, pass through original events so normal phone usage works.
      */
@@ -1605,11 +1604,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (!inputDeviceMgr.isInInputMode) {
             return keyCode to event
         }
-        val newKeyCode = when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_CENTER -> KeyEvent.KEYCODE_SPACE
-            KeyEvent.KEYCODE_BACK -> KeyEvent.KEYCODE_DEL
-            else -> keyCode
-        }
+        val newKeyCode = PhysicalT9KeyPolicy.mappedInputModeKey(keyCode)
         return if (newKeyCode != keyCode) {
             newKeyCode to KeyEvent(
                 event.downTime,
@@ -1684,8 +1679,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var multiTapIndex = 0
     private var multiTapPendingChar: Char? = null
     private val englishDictionary = T9EnglishDictionary()
-    private val smartEnglishDigits = StringBuilder()
-    private var smartEnglishCursorIndex = 0
+    private val smartEnglishSession = SmartEnglishT9Session(
+        dictionary = englishDictionary,
+        candidateLimit = SmartEnglishCandidateLimit,
+        noMatchText = SmartEnglishNoMatchText
+    )
     private val englishLearningWord = StringBuilder()
     private val MULTITAP_TIMEOUT = 1200L  // Increased from 500ms for easier typing
 
@@ -2045,61 +2043,30 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         smartEnglishT9 = !smartEnglishT9
         keyboardPrefs.smartEnglishT9.setValue(smartEnglishT9)
         resetSmartEnglishT9()
+        if (smartEnglishT9) {
+            preloadSmartEnglishDictionary()
+        }
         inputView?.showModeIndicatorBadge(if (smartEnglishT9) "T9" else "abc")
+    }
+
+    private fun preloadSmartEnglishDictionary() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            englishDictionary.preload()
+        }
     }
 
     private fun resetSmartEnglishT9() {
         physicalT9KeyHandler.resetSmartEnglishPendingDigit()
-        smartEnglishDigits.clear()
-        smartEnglishCursorIndex = 0
+        smartEnglishSession.reset()
         candidatesView?.refreshT9Ui()
     }
 
-    private fun smartEnglishCandidates(): List<String> =
-        englishDictionary.candidatesFor(smartEnglishDigits.toString(), SmartEnglishCandidateLimit)
-
-    private fun smartEnglishVisibleCandidates(): List<String> {
-        val words = smartEnglishCandidates().map(::applyEnglishCaseToWord)
-        return words.ifEmpty { listOf(SmartEnglishNoMatchText) }
-    }
-
-    private fun smartEnglishInputPreviewText(candidates: List<String>): String {
-        val typedLength = smartEnglishDigits.length
-        val selectedPrefix = candidates
-            .getOrNull(smartEnglishCursorIndex)
-            ?: candidates.firstOrNull()
-        val preview = selectedPrefix
-            ?.take(typedLength)
-            ?.takeIf { it.isNotEmpty() }
-            ?: buildSmartEnglishDigitSkeleton()
-        return applyEnglishCaseToWord(preview)
-    }
-
-    private fun buildSmartEnglishDigitSkeleton(): String =
-        buildString(smartEnglishDigits.length) {
-            smartEnglishDigits.forEach { digit ->
-                append(
-                    when (digit) {
-                        '2' -> 'a'
-                        '3' -> 'd'
-                        '4' -> 'g'
-                        '5' -> 'j'
-                        '6' -> 'm'
-                        '7' -> 'p'
-                        '8' -> 't'
-                        '9' -> 'w'
-                        else -> digit
-                    }
-                )
-            }
-        }
-
     fun getSmartEnglishT9Paged(): FcitxEvent.PagedCandidateEvent.Data? {
-        if (!isSmartEnglishT9Active() || smartEnglishDigits.isEmpty()) return null
-        val shown = smartEnglishVisibleCandidates().map {
+        if (!isSmartEnglishT9Active() || !smartEnglishSession.hasDigits) return null
+        val shown = smartEnglishSession.visibleCandidates(::applyEnglishCaseToWord).map {
             FcitxEvent.Candidate(label = "", text = it, comment = "")
         }
-        val cursor = smartEnglishCursorIndex.coerceIn(shown.indices)
+        val cursor = smartEnglishSession.cursor.coerceIn(shown.indices)
         return FcitxEvent.PagedCandidateEvent.Data(
             candidates = shown.toTypedArray(),
             cursorIndex = cursor,
@@ -2110,41 +2077,36 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     fun getSmartEnglishT9Presentation(): T9PresentationState? {
-        if (!isSmartEnglishT9Active() || smartEnglishDigits.isEmpty()) return null
-        val candidates = smartEnglishCandidates()
+        if (!isSmartEnglishT9Active() || !smartEnglishSession.hasDigits) return null
+        val preview = smartEnglishSession.inputPreviewText()
         return T9PresentationState(
-            topReading = formattedT9Text(smartEnglishInputPreviewText(candidates)),
+            topReading = formattedT9Text(applyEnglishCaseToWord(preview)),
             pinyinOptions = emptyList()
         )
     }
 
     fun moveSmartEnglishCandidate(delta: Int): Boolean {
         if (!isSmartEnglishT9Active()) return false
-        val size = smartEnglishVisibleCandidates().size
-        if (size <= 0) return false
-        smartEnglishCursorIndex = (smartEnglishCursorIndex + delta).coerceIn(0, size - 1)
+        if (!smartEnglishSession.moveCandidate(delta)) return false
         candidatesView?.refreshT9Ui()
         return true
     }
 
     fun setSmartEnglishCandidateIndex(index: Int): Boolean {
         if (!isSmartEnglishT9Active()) return false
-        if (index !in smartEnglishVisibleCandidates().indices) return false
-        smartEnglishCursorIndex = index
+        if (!smartEnglishSession.setCandidateIndex(index)) return false
         candidatesView?.refreshT9Ui()
         return true
     }
 
     fun commitSmartEnglishCandidate(index: Int? = null): Boolean {
-        if (!isSmartEnglishT9Active() || smartEnglishDigits.isEmpty()) return false
-        val candidates = smartEnglishCandidates()
-        val selected = candidates.getOrNull(index ?: smartEnglishCursorIndex) ?: run {
+        if (!isSmartEnglishT9Active() || !smartEnglishSession.hasDigits) return false
+        val selected = smartEnglishSession.selectedRawCandidate(index) ?: run {
             resetSmartEnglishT9()
             return true
         }
         val committed = applyEnglishCaseToWord(selected)
         commitText(committed)
-        englishDictionary.learn(selected)
         resetSmartEnglishT9()
         consumeEnglishShiftOnce()
         return true
@@ -2159,6 +2121,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun recordEnglishLearningChar(char: Char) {
+        if (!shouldLearnEnglishWords()) {
+            englishLearningWord.clear()
+            return
+        }
         if (char in 'a'..'z' || char in 'A'..'Z') {
             englishLearningWord.append(char.lowercaseChar())
         } else {
@@ -2167,16 +2133,34 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun flushEnglishLearningWord() {
+        if (!shouldLearnEnglishWords()) {
+            englishLearningWord.clear()
+            return
+        }
         if (englishLearningWord.isNotEmpty()) {
             englishDictionary.learn(englishLearningWord.toString())
             englishLearningWord.clear()
         }
     }
 
+    private fun shouldLearnEnglishWords(): Boolean {
+        val info = currentInputEditorInfo
+        if (info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0) return false
+        val inputClass = info.inputType and InputType.TYPE_MASK_CLASS
+        val variation = info.inputType and InputType.TYPE_MASK_VARIATION
+        return when (inputClass) {
+            InputType.TYPE_CLASS_TEXT -> variation !in setOf(
+                InputType.TYPE_TEXT_VARIATION_PASSWORD,
+                InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
+                InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD
+            )
+            InputType.TYPE_CLASS_NUMBER -> variation != InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            else -> false
+        }
+    }
+
     private fun handleSmartEnglishBackspace(): Boolean {
-        if (!isSmartEnglishT9Active() || smartEnglishDigits.isEmpty()) return false
-        smartEnglishDigits.deleteAt(smartEnglishDigits.lastIndex)
-        smartEnglishCursorIndex = 0
+        if (!isSmartEnglishT9Active() || !smartEnglishSession.backspace()) return false
         candidatesView?.refreshT9Ui()
         return true
     }
@@ -2272,6 +2256,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             T9InputMode.CHINESE -> T9InputMode.ENGLISH
             T9InputMode.ENGLISH -> T9InputMode.NUMBER
             T9InputMode.NUMBER -> T9InputMode.CHINESE
+        }
+        if (currentT9Mode == T9InputMode.ENGLISH && smartEnglishT9) {
+            preloadSmartEnglishDictionary()
         }
         
         val modeName = getCurrentT9ModeLabel()
@@ -3068,7 +3055,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             KeyEvent.KEYCODE_DEL, KeyEvent.KEYCODE_BACK,
             KeyEvent.KEYCODE_FORWARD_DEL -> InputFeedbacks.SoundEffect.Delete
             KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> InputFeedbacks.SoundEffect.Return
-            KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_DPAD_CENTER -> InputFeedbacks.SoundEffect.SpaceBar
+            KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_BUTTON_SELECT -> InputFeedbacks.SoundEffect.SpaceBar
             else -> InputFeedbacks.SoundEffect.Standard
         }
         InputFeedbacks.soundEffect(effect)

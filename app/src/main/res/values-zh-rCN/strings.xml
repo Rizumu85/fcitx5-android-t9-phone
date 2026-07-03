@@ -34,6 +34,7 @@
     <string name="setup_keyboard">请完成键盘设置</string>
     <string name="setup_channel">设置向导</string>
     <string name="pinyin_dict">拼音词库</string>
+    <string name="dictionary_management">词库管理</string>
     <string name="reloading">重新加载中</string>
     <string name="importing">正在导入</string>
     <string name="import_error">导入错误</string>
@@ -211,6 +212,11 @@
     <string name="show_lang_switch_key">显示语言切换键</string>
     <string name="use_t9_keyboard_layout">启用T9输入模式</string>
     <string name="use_t9_keyboard_layout_summary">使用手机九键、候选栏和模式切换</string>
+    <string name="smart_english_t9">智能英语</string>
+    <string name="smart_english_t9_summary">根据数字键序列预测英文单词，并学习普通英文九键里实际输入的词</string>
+    <string name="smart_english_learned_words">智能英语学习词库</string>
+    <string name="smart_english_learned_words_summary">添加、编辑或删除普通英文九键输入时学到的词</string>
+    <string name="smart_english_learned_word_hint">英文单词</string>
     <string name="temporary_full_keyboard">密码模式</string>
     <string name="horizontal_candidate_style">横向候选词样式</string>
     <string name="horizontal_candidate_never_fill">从不填充宽度</string>

@@ -1,0 +1,108 @@
+/*
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-FileCopyrightText: Copyright 2026 Fcitx5 for Android Contributors
+ */
+
+package org.fcitx.fcitx5.android.input.t9
+
+import org.fcitx.fcitx5.android.core.FcitxEvent
+
+class T9CandidatePager {
+
+    data class Page(
+        val candidates: List<IndexedValue<FcitxEvent.Candidate>>,
+        val index: Int,
+        val hasPrev: Boolean,
+        val hasNext: Boolean
+    ) {
+        val originalIndices: IntArray
+            get() = candidates.map { it.index }.toIntArray()
+    }
+
+    private var signature = ""
+    private var budget = 0
+    private var pages: List<List<IndexedValue<FcitxEvent.Candidate>>> = emptyList()
+
+    var pageIndex = 0
+        private set
+
+    var candidates: List<IndexedValue<FcitxEvent.Candidate>> = emptyList()
+        private set
+
+    val hasCandidates: Boolean
+        get() = candidates.isNotEmpty()
+
+    fun reset() {
+        signature = ""
+        budget = 0
+        pages = emptyList()
+        pageIndex = 0
+        candidates = emptyList()
+    }
+
+    fun update(
+        signature: String,
+        candidates: List<IndexedValue<FcitxEvent.Candidate>>,
+        characterBudget: Int
+    ) {
+        val normalizedBudget = T9CandidateBudget.normalizedBudget(characterBudget)
+        if (this.signature == signature && budget == normalizedBudget) return
+        this.signature = signature
+        this.budget = normalizedBudget
+        this.candidates = candidates
+        pages = buildPages(candidates, normalizedBudget)
+        pageIndex = 0
+    }
+
+    fun currentPage(): Page? = pageAt(pageIndex)
+
+    fun pageAt(index: Int): Page? {
+        if (pages.isEmpty()) return null
+        val safeIndex = index.coerceIn(0, pages.lastIndex)
+        pageIndex = safeIndex
+        return pageFor(safeIndex)
+    }
+
+    fun offset(delta: Int): Page? = pageAt(pageIndex + delta)
+
+    fun selectPageContainingOriginalIndex(originalIndex: Int): Page? {
+        if (pages.isEmpty()) return null
+        val nextIndex = pages.indexOfFirst { page ->
+            page.any { it.index == originalIndex }
+        }.takeIf { it >= 0 } ?: pageIndex.coerceIn(pages.indices)
+        pageIndex = nextIndex
+        return pageFor(nextIndex)
+    }
+
+    private fun pageFor(index: Int): Page =
+        Page(
+            candidates = pages[index],
+            index = index,
+            hasPrev = index > 0,
+            hasNext = index < pages.lastIndex
+        )
+
+    private fun buildPages(
+        candidates: List<IndexedValue<FcitxEvent.Candidate>>,
+        budget: Int
+    ): List<List<IndexedValue<FcitxEvent.Candidate>>> {
+        if (candidates.isEmpty()) return emptyList()
+        val pages = mutableListOf<MutableList<IndexedValue<FcitxEvent.Candidate>>>()
+        var current = mutableListOf<IndexedValue<FcitxEvent.Candidate>>()
+        var used = 0
+        candidates.forEach { candidate ->
+            val length = T9CandidateBudget.candidateCost(candidate.value.text)
+            if (current.isNotEmpty() && used + length > budget) {
+                pages += current
+                current = mutableListOf()
+                used = 0
+            }
+            current += candidate
+            used += length
+        }
+        if (current.isNotEmpty()) {
+            pages += current
+        }
+        return pages
+    }
+}

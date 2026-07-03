@@ -45,11 +45,36 @@ class PhysicalT9KeyPolicyTest {
         )
         assertEquals(
             PhysicalT9KeyPolicy.FocusKey.OK,
+            PhysicalT9KeyPolicy.focusKey(KeyEvent.KEYCODE_BUTTON_SELECT)
+        )
+        assertEquals(
+            PhysicalT9KeyPolicy.FocusKey.OK,
             PhysicalT9KeyPolicy.focusKey(KeyEvent.KEYCODE_ENTER)
         )
         assertEquals(
             PhysicalT9KeyPolicy.FocusKey.OK,
             PhysicalT9KeyPolicy.focusKey(KeyEvent.KEYCODE_NUMPAD_ENTER)
+        )
+
+        assertEquals(
+            PhysicalT9KeyPolicy.ConfirmAction.SELECT,
+            PhysicalT9KeyPolicy.confirmAction(KeyEvent.KEYCODE_BUTTON_SELECT)
+        )
+        assertEquals(
+            PhysicalT9KeyPolicy.ConfirmAction.RETURN,
+            PhysicalT9KeyPolicy.confirmAction(KeyEvent.KEYCODE_NUMPAD_ENTER)
+        )
+        assertEquals(
+            KeyEvent.KEYCODE_SPACE,
+            PhysicalT9KeyPolicy.mappedInputModeKey(KeyEvent.KEYCODE_BUTTON_SELECT)
+        )
+        assertEquals(
+            KeyEvent.KEYCODE_ENTER,
+            PhysicalT9KeyPolicy.mappedInputModeKey(KeyEvent.KEYCODE_NUMPAD_ENTER)
+        )
+        assertEquals(
+            KeyEvent.KEYCODE_DEL,
+            PhysicalT9KeyPolicy.mappedInputModeKey(KeyEvent.KEYCODE_BACK)
         )
     }
 

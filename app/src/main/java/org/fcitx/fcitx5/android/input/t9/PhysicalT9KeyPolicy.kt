@@ -17,6 +17,11 @@ object PhysicalT9KeyPolicy {
         OK
     }
 
+    enum class ConfirmAction {
+        SELECT,
+        RETURN
+    }
+
     fun t9Digit(keyCode: Int): Int? = when (keyCode) {
         in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> keyCode - KeyEvent.KEYCODE_0
         else -> null
@@ -50,9 +55,26 @@ object PhysicalT9KeyPolicy {
         KeyEvent.KEYCODE_DPAD_LEFT -> FocusKey.LEFT
         KeyEvent.KEYCODE_DPAD_RIGHT -> FocusKey.RIGHT
         KeyEvent.KEYCODE_DPAD_CENTER,
+        KeyEvent.KEYCODE_BUTTON_SELECT,
         KeyEvent.KEYCODE_ENTER,
         KeyEvent.KEYCODE_NUMPAD_ENTER -> FocusKey.OK
         else -> null
+    }
+
+    fun confirmAction(keyCode: Int): ConfirmAction? = when (keyCode) {
+        KeyEvent.KEYCODE_DPAD_CENTER,
+        KeyEvent.KEYCODE_BUTTON_SELECT -> ConfirmAction.SELECT
+        KeyEvent.KEYCODE_ENTER,
+        KeyEvent.KEYCODE_NUMPAD_ENTER -> ConfirmAction.RETURN
+        else -> null
+    }
+
+    fun isConfirmKey(keyCode: Int): Boolean = confirmAction(keyCode) != null
+
+    fun mappedInputModeKey(keyCode: Int): Int = when (confirmAction(keyCode)) {
+        ConfirmAction.SELECT -> KeyEvent.KEYCODE_SPACE
+        ConfirmAction.RETURN -> KeyEvent.KEYCODE_ENTER
+        null -> if (keyCode == KeyEvent.KEYCODE_BACK) KeyEvent.KEYCODE_DEL else keyCode
     }
 
     fun isHorizontalFocusKey(keyCode: Int): Boolean = when (focusKey(keyCode)) {

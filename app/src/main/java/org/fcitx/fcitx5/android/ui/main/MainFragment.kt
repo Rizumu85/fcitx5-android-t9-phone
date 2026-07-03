@@ -54,6 +54,11 @@ class MainFragment : PaddingPreferenceFragment() {
                     SettingsRoute.InputMethodList
                 )
                 addDestinationPreference(
+                    R.string.dictionary_management,
+                    R.drawable.ic_baseline_library_books_24,
+                    SettingsRoute.DictionaryManagement
+                )
+                addDestinationPreference(
                     R.string.addons,
                     R.drawable.ic_baseline_extension_24,
                     SettingsRoute.AddonList

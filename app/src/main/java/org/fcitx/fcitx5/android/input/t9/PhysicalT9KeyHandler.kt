@@ -104,10 +104,10 @@ class PhysicalT9KeyHandler(private val host: Host) {
         fun forwardChineseT9SeparatorShortPress(): Boolean
         fun moveCandidateFocus(focus: CandidateFocus)
         fun moveHighlightedPinyin(delta: Int): Boolean
-        fun moveHighlightedHanzi(delta: Int): Boolean
-        fun offsetHanziPage(delta: Int): Boolean
+        fun moveHighlightedBottomCandidate(delta: Int): Boolean
+        fun offsetBottomCandidatePage(delta: Int): Boolean
         fun commitHighlightedPinyin(): Boolean
-        fun commitHighlightedHanzi(): Boolean
+        fun commitHighlightedBottomCandidate(): Boolean
     }
 
     private val digitLongPressFlags = BooleanArray(KeyEvent.KEYCODE_STAR + 1)
@@ -434,31 +434,33 @@ class PhysicalT9KeyHandler(private val host: Host) {
             return KeyResult(handled = false)
         }
         if (input.action != KeyEvent.ACTION_DOWN) return KeyResult(handled = false)
-        val handled = when (PhysicalT9KeyPolicy.focusKey(keyCode)) {
+        val focusKey = PhysicalT9KeyPolicy.focusKey(keyCode)
+            ?: if (keyCode == KeyEvent.KEYCODE_SPACE) PhysicalT9KeyPolicy.FocusKey.OK else null
+        val handled = when (focusKey) {
             PhysicalT9KeyPolicy.FocusKey.LEFT -> {
-                val moved = host.moveHighlightedHanzi(-1)
+                val moved = host.moveHighlightedBottomCandidate(-1)
                 if (!moved && !host.hasPendingPunctuation) {
                     host.moveSmartEnglishCandidate(-1)
                 }
                 true
             }
             PhysicalT9KeyPolicy.FocusKey.RIGHT -> {
-                val moved = host.moveHighlightedHanzi(1)
+                val moved = host.moveHighlightedBottomCandidate(1)
                 if (!moved && !host.hasPendingPunctuation) {
                     host.moveSmartEnglishCandidate(1)
                 }
                 true
             }
             PhysicalT9KeyPolicy.FocusKey.UP -> {
-                host.offsetHanziPage(-1)
+                host.offsetBottomCandidatePage(-1)
                 true
             }
             PhysicalT9KeyPolicy.FocusKey.DOWN -> {
-                host.offsetHanziPage(1)
+                host.offsetBottomCandidatePage(1)
                 true
             }
             PhysicalT9KeyPolicy.FocusKey.OK ->
-                host.commitHighlightedHanzi() || if (host.hasPendingPunctuation) {
+                host.commitHighlightedBottomCandidate() || if (host.hasPendingPunctuation) {
                     host.commitPendingPunctuation()
                 } else {
                     host.commitSmartEnglishCandidate()
@@ -506,25 +508,25 @@ class PhysicalT9KeyHandler(private val host: Host) {
                 true
             }
             focusKey == PhysicalT9KeyPolicy.FocusKey.UP && host.candidateFocus == CandidateFocus.BOTTOM ->
-                host.offsetHanziPage(-1) || host.hasPendingPunctuation
+                host.offsetBottomCandidatePage(-1) || host.hasPendingPunctuation
             focusKey == PhysicalT9KeyPolicy.FocusKey.DOWN && host.candidateFocus == CandidateFocus.TOP -> {
                 host.moveCandidateFocus(CandidateFocus.BOTTOM)
                 true
             }
             focusKey == PhysicalT9KeyPolicy.FocusKey.DOWN && host.candidateFocus == CandidateFocus.BOTTOM ->
-                host.offsetHanziPage(1) || host.hasPendingPunctuation
+                host.offsetBottomCandidatePage(1) || host.hasPendingPunctuation
             focusKey == PhysicalT9KeyPolicy.FocusKey.LEFT && host.candidateFocus == CandidateFocus.TOP ->
                 host.moveHighlightedPinyin(-1)
             focusKey == PhysicalT9KeyPolicy.FocusKey.RIGHT && host.candidateFocus == CandidateFocus.TOP ->
                 host.moveHighlightedPinyin(1)
             focusKey == PhysicalT9KeyPolicy.FocusKey.LEFT && host.candidateFocus == CandidateFocus.BOTTOM ->
-                host.moveHighlightedHanzi(-1) || host.hasPendingPunctuation
+                host.moveHighlightedBottomCandidate(-1) || host.hasPendingPunctuation
             focusKey == PhysicalT9KeyPolicy.FocusKey.RIGHT && host.candidateFocus == CandidateFocus.BOTTOM ->
-                host.moveHighlightedHanzi(1) || host.hasPendingPunctuation
+                host.moveHighlightedBottomCandidate(1) || host.hasPendingPunctuation
             focusKey == PhysicalT9KeyPolicy.FocusKey.OK && host.candidateFocus == CandidateFocus.TOP ->
                 host.commitHighlightedPinyin()
             focusKey == PhysicalT9KeyPolicy.FocusKey.OK && host.candidateFocus == CandidateFocus.BOTTOM ->
-                host.commitHighlightedHanzi() || host.hasPendingPunctuation
+                host.commitHighlightedBottomCandidate() || host.hasPendingPunctuation
             else -> false
         }
         return KeyResult(handled = handled, consumedKeyUp = keyCode.takeIf { handled })
@@ -703,6 +705,13 @@ class PhysicalT9KeyHandler(private val host: Host) {
                 } else if (isDigitLongPressFlagSet(keyCode)) {
                     setDigitLongPressFlag(keyCode, false)
                     true
+                } else if (host.compositionKeyCount > 0) {
+                    val committed = when (host.candidateFocus) {
+                        CandidateFocus.TOP -> host.commitHighlightedPinyin()
+                        CandidateFocus.BOTTOM -> host.commitHighlightedBottomCandidate()
+                    }
+                    setDigitLongPressFlag(keyCode, false)
+                    committed
                 } else if (host.chineseComposing) {
                     false
                 } else {
