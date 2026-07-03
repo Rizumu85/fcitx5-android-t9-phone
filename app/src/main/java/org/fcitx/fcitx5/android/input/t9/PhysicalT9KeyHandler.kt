@@ -111,6 +111,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
     }
 
     private val digitLongPressFlags = BooleanArray(KeyEvent.KEYCODE_STAR + 1)
+    private val effectPlanner = T9KeyEffectPlanner()
     private var poundLongPressTriggered = false
     private var pendingSmartEnglishDigitKeyCode: Int? = null
     private var pendingSmartEnglishDigit = -1
@@ -430,106 +431,81 @@ class PhysicalT9KeyHandler(private val host: Host) {
     }
 
     private fun handleSmartEnglishNavigationKeyDown(keyCode: Int, input: KeyInput): KeyResult {
-        if (!host.isSmartEnglishActive || (!host.hasSmartEnglishDigits && !host.hasPendingPunctuation)) {
-            return KeyResult(handled = false)
-        }
-        if (input.action != KeyEvent.ACTION_DOWN) return KeyResult(handled = false)
-        val focusKey = PhysicalT9KeyPolicy.focusKey(keyCode)
-            ?: if (keyCode == KeyEvent.KEYCODE_SPACE) PhysicalT9KeyPolicy.FocusKey.OK else null
-        val handled = when (focusKey) {
-            PhysicalT9KeyPolicy.FocusKey.LEFT -> {
-                val moved = host.moveHighlightedBottomCandidate(-1)
-                if (!moved && !host.hasPendingPunctuation) {
-                    host.moveSmartEnglishCandidate(-1)
+        val effect = effectPlanner.planSmartEnglishNavigationKeyDown(input, t9EffectSnapshot())
+        return executeT9Effect(effect, keyCode)
+    }
+
+    private fun handleEnglishDeleteKeyDown(keyCode: Int, input: KeyInput): KeyResult {
+        val effect = effectPlanner.planEnglishDeleteKeyDown(input, t9EffectSnapshot())
+        return executeT9Effect(effect, keyCode)
+    }
+
+    private fun handleChineseCandidateFocusNavigation(keyCode: Int, input: KeyInput): KeyResult {
+        val effect = effectPlanner.planChineseCandidateFocusNavigation(input, t9EffectSnapshot())
+        return executeT9Effect(effect, keyCode)
+    }
+
+    private fun t9EffectSnapshot(): T9KeyEffectPlanner.Snapshot = T9KeyEffectPlanner.Snapshot(
+        mode = host.mode,
+        isSmartEnglishActive = host.isSmartEnglishActive,
+        hasSmartEnglishDigits = host.hasSmartEnglishDigits,
+        hasPendingPunctuation = host.hasPendingPunctuation,
+        hasMultiTapPendingChar = host.hasMultiTapPendingChar,
+        hasTopPinyinCandidates = host.hasTopPinyinCandidates,
+        candidateFocus = host.candidateFocus
+    )
+
+    private fun executeT9Effect(effect: T9KeyEffectPlanner.Effect, keyCode: Int): KeyResult {
+        val handled = when (effect) {
+            T9KeyEffectPlanner.Effect.None -> false
+            is T9KeyEffectPlanner.Effect.MoveBottomCandidate -> {
+                val moved = host.moveHighlightedBottomCandidate(effect.delta)
+                if (!moved) {
+                    effect.fallbackSmartEnglishDelta?.let { host.moveSmartEnglishCandidate(it) }
+                    effect.handledWhenPendingPunctuation && host.hasPendingPunctuation ||
+                        effect.fallbackSmartEnglishDelta != null
+                } else {
+                    true
                 }
+            }
+            is T9KeyEffectPlanner.Effect.OffsetBottomCandidatePage ->
+                host.offsetBottomCandidatePage(effect.delta) ||
+                    (effect.handledWhenPendingPunctuation && host.hasPendingPunctuation) ||
+                    effect.alwaysHandled
+            is T9KeyEffectPlanner.Effect.MoveCandidateFocus -> {
+                host.moveCandidateFocus(effect.focus)
                 true
             }
-            PhysicalT9KeyPolicy.FocusKey.RIGHT -> {
-                val moved = host.moveHighlightedBottomCandidate(1)
-                if (!moved && !host.hasPendingPunctuation) {
-                    host.moveSmartEnglishCandidate(1)
-                }
-                true
-            }
-            PhysicalT9KeyPolicy.FocusKey.UP -> {
-                host.offsetBottomCandidatePage(-1)
-                true
-            }
-            PhysicalT9KeyPolicy.FocusKey.DOWN -> {
-                host.offsetBottomCandidatePage(1)
-                true
-            }
-            PhysicalT9KeyPolicy.FocusKey.OK ->
-                host.commitHighlightedBottomCandidate() || if (host.hasPendingPunctuation) {
+            is T9KeyEffectPlanner.Effect.MoveHighlightedPinyin ->
+                host.moveHighlightedPinyin(effect.delta)
+            T9KeyEffectPlanner.Effect.CommitHighlightedPinyin ->
+                host.commitHighlightedPinyin()
+            is T9KeyEffectPlanner.Effect.CommitHighlightedBottomCandidate ->
+                host.commitHighlightedBottomCandidate() ||
+                    (effect.handledWhenPendingPunctuation && host.hasPendingPunctuation)
+            is T9KeyEffectPlanner.Effect.ConfirmSmartEnglishCandidate ->
+                host.commitHighlightedBottomCandidate() || if (effect.hasPendingPunctuation) {
                     host.commitPendingPunctuation()
                 } else {
                     host.commitSmartEnglishCandidate()
                 }
-            null -> if (PhysicalT9KeyPolicy.isDeleteKey(keyCode)) {
-                if (host.hasPendingPunctuation) {
+            is T9KeyEffectPlanner.Effect.SmartEnglishDelete ->
+                if (effect.hasPendingPunctuation) {
                     host.cancelPendingPunctuation()
                 } else {
                     host.smartEnglishBackspace()
                 }
-            } else {
-                false
-            }
-        }
-        return KeyResult(handled = handled, consumedKeyUp = keyCode.takeIf { handled })
-    }
-
-    private fun handleEnglishDeleteKeyDown(keyCode: Int, input: KeyInput): KeyResult {
-        if (host.mode != Mode.ENGLISH || input.action != KeyEvent.ACTION_DOWN) {
-            return KeyResult(handled = false)
-        }
-        if (!PhysicalT9KeyPolicy.isDeleteKey(keyCode)) return KeyResult(handled = false)
-        if (host.hasSmartEnglishDigits) {
-            host.smartEnglishBackspace()
-            return KeyResult(handled = true, consumedKeyUp = keyCode)
-        }
-        if (host.hasMultiTapPendingChar) {
-            host.cancelMultiTapChar()
-            return KeyResult(handled = true)
-        }
-        if (host.hasPendingPunctuation) {
-            host.cancelPendingPunctuation()
-            return KeyResult(handled = true)
-        }
-        return KeyResult(handled = false)
-    }
-
-    private fun handleChineseCandidateFocusNavigation(keyCode: Int, input: KeyInput): KeyResult {
-        if (host.mode != Mode.CHINESE) return KeyResult(handled = false)
-        if (input.action != KeyEvent.ACTION_DOWN) return KeyResult(handled = false)
-        val focusKey = PhysicalT9KeyPolicy.focusKey(keyCode)
-        val handled = when {
-            focusKey == PhysicalT9KeyPolicy.FocusKey.UP && host.hasTopPinyinCandidates -> {
-                host.moveCandidateFocus(CandidateFocus.TOP)
+            is T9KeyEffectPlanner.Effect.CancelMultiTapChar -> {
+                host.cancelMultiTapChar()
                 true
             }
-            focusKey == PhysicalT9KeyPolicy.FocusKey.UP && host.candidateFocus == CandidateFocus.BOTTOM ->
-                host.offsetBottomCandidatePage(-1) || host.hasPendingPunctuation
-            focusKey == PhysicalT9KeyPolicy.FocusKey.DOWN && host.candidateFocus == CandidateFocus.TOP -> {
-                host.moveCandidateFocus(CandidateFocus.BOTTOM)
-                true
-            }
-            focusKey == PhysicalT9KeyPolicy.FocusKey.DOWN && host.candidateFocus == CandidateFocus.BOTTOM ->
-                host.offsetBottomCandidatePage(1) || host.hasPendingPunctuation
-            focusKey == PhysicalT9KeyPolicy.FocusKey.LEFT && host.candidateFocus == CandidateFocus.TOP ->
-                host.moveHighlightedPinyin(-1)
-            focusKey == PhysicalT9KeyPolicy.FocusKey.RIGHT && host.candidateFocus == CandidateFocus.TOP ->
-                host.moveHighlightedPinyin(1)
-            focusKey == PhysicalT9KeyPolicy.FocusKey.LEFT && host.candidateFocus == CandidateFocus.BOTTOM ->
-                host.moveHighlightedBottomCandidate(-1) || host.hasPendingPunctuation
-            focusKey == PhysicalT9KeyPolicy.FocusKey.RIGHT && host.candidateFocus == CandidateFocus.BOTTOM ->
-                host.moveHighlightedBottomCandidate(1) || host.hasPendingPunctuation
-            focusKey == PhysicalT9KeyPolicy.FocusKey.OK && host.candidateFocus == CandidateFocus.TOP ->
-                host.commitHighlightedPinyin()
-            focusKey == PhysicalT9KeyPolicy.FocusKey.OK && host.candidateFocus == CandidateFocus.BOTTOM ->
-                host.commitHighlightedBottomCandidate() || host.hasPendingPunctuation
-            else -> false
+            is T9KeyEffectPlanner.Effect.CancelPendingPunctuation ->
+                host.cancelPendingPunctuation()
         }
-        return KeyResult(handled = handled, consumedKeyUp = keyCode.takeIf { handled })
+        return KeyResult(
+            handled = handled,
+            consumedKeyUp = keyCode.takeIf { handled && effect.consumeKeyUp }
+        )
     }
 
     private fun handleT9SpecialKeyUp(keyCode: Int, input: KeyInput): KeyResult {
