@@ -206,7 +206,6 @@ class CandidatesView(
     private var t9RenderedPinyinWindowStart = 0
     private var t9RenderedPinyinItems: List<String> = emptyList()
     private var t9PinyinOptionCount = 0
-    private var t9PinyinHasRightOverflow = false
     private var t9PinyinOverflowHintSuppressedByFocus = false
     private var lastRenderedT9Focus = T9CandidateFocus.BOTTOM
     private val t9SmartEnglishPageCache = T9SmartEnglishPageCache(
@@ -557,7 +556,6 @@ class CandidatesView(
         t9RenderedPinyinWindowStart = 0
         t9RenderedPinyinItems = emptyList()
         t9PinyinOptionCount = 0
-        t9PinyinHasRightOverflow = false
         t9PinyinOverflowHintSuppressedByFocus = false
         updatePinyinOverflowHint(false)
         lastRenderedT9Focus = T9CandidateFocus.BOTTOM
@@ -981,7 +979,6 @@ class CandidatesView(
             pinyinBarAdapter.scrollToStart()
             t9RenderedPinyinItems = emptyList()
             t9PinyinOptionCount = 0
-            t9PinyinHasRightOverflow = false
             t9PinyinOverflowHintSuppressedByFocus = false
             updatePinyinOverflowHint(false)
             pinyinBarView.visibility = View.GONE
@@ -1045,33 +1042,51 @@ class CandidatesView(
     }
 
     private fun populatedPinyinRowWidthPx(): Int? {
-        val visiblePinyin = if (t9PinyinOptionCount > T9_PINYIN_ROW_MIN_VISIBLE_CHIPS) {
-            t9RenderedPinyinItems.take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS)
-        } else {
-            t9RenderedPinyinItems
-        }.takeIf { it.isNotEmpty() }
+        val visiblePinyin = t9RenderedPinyinItems.takeIf { it.isNotEmpty() }
             ?: return null
-        val reservesOverflowHint = shouldReservePinyinOverflowHintSpace()
+        val maxWidthPx = pinyinRowMaxWidthPx()
+        val fullContentWidthPx = pinyinItemsWidthPx(
+            visiblePinyin,
+            reservesOverflowHint = false
+        )
+        if (fullContentWidthPx <= maxWidthPx) {
+            return fullContentWidthPx.coerceAtLeast(1)
+        }
+        val compactPinyin = visiblePinyin.take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS)
+            .takeIf { it.isNotEmpty() }
+            ?: return null
+        // Product decision: the pinyin row should never show a clipped first frame. Short lists
+        // reserve their full visible content; extreme long-content cases reserve four chips plus
+        // a quiet ellipsis so the bubble keeps the stable width the user preferred.
+        return pinyinItemsWidthPx(compactPinyin, reservesOverflowHint = true)
+            .coerceAtMost(maxWidthPx)
+            .coerceAtLeast(1)
+    }
+
+    private fun pinyinItemsWidthPx(
+        pinyinItems: List<String>,
+        reservesOverflowHint: Boolean
+    ): Int {
         val paint = t9PinyinMeasurePaint.apply {
             textSize = compactTopRowFontSizeSp * ctx.resources.displayMetrics.scaledDensity
         }
         val chipPaddingPx = dpCandidates(itemPaddingHorizontal)
-        val chipWidthPx = visiblePinyin.withIndex().sumOf { (index, pinyin) ->
+        val chipWidthPx = pinyinItems.withIndex().sumOf { (index, pinyin) ->
             val textWidthPx = paint.measureText(pinyin).roundToInt()
-            val rightMarginPx = if (index != visiblePinyin.lastIndex || reservesOverflowHint) chipPaddingPx else 0
+            val rightMarginPx = if (index != pinyinItems.lastIndex || reservesOverflowHint) chipPaddingPx else 0
             textWidthPx + chipPaddingPx * 2 + rightMarginPx
         }
-        // Product decision: the pinyin row should never show a clipped first frame. Short lists
-        // reserve their full visible content; long lists reserve four chips plus a quiet ellipsis
-        // so the bubble keeps the stable width the user preferred before the layout experiments.
         val overflowHintWidthPx = if (reservesOverflowHint) pinyinOverflowHintReservedWidthPx() else 0
-        return (chipWidthPx + overflowHintWidthPx)
-            .coerceAtMost(pinyinRowMaxWidthPx())
-            .coerceAtLeast(1)
+        return chipWidthPx + overflowHintWidthPx
     }
 
-    private fun shouldReservePinyinOverflowHintSpace(): Boolean =
-        t9PinyinOptionCount > T9_PINYIN_ROW_MIN_VISIBLE_CHIPS
+    private fun shouldShowPinyinOverflowHint(): Boolean =
+        pinyinRenderedContentExceedsMaxWidth()
+
+    private fun pinyinRenderedContentExceedsMaxWidth(): Boolean {
+        if (t9RenderedPinyinItems.isEmpty()) return false
+        return pinyinItemsWidthPx(t9RenderedPinyinItems, reservesOverflowHint = false) > pinyinRowMaxWidthPx()
+    }
 
     private fun pinyinOverflowHintReservedWidthPx(): Int {
         val paint = t9PinyinMeasurePaint.apply {
@@ -1113,7 +1128,7 @@ class CandidatesView(
             return
         }
         updatePinyinOverflowHint(
-            !t9PinyinOverflowHintSuppressedByFocus && t9PinyinHasRightOverflow
+            !t9PinyinOverflowHintSuppressedByFocus && shouldShowPinyinOverflowHint()
         )
     }
 
@@ -1180,7 +1195,6 @@ class CandidatesView(
             t9RenderedPinyinWindowStart = 0
             t9RenderedPinyinItems = emptyList()
             t9PinyinOptionCount = 0
-            t9PinyinHasRightOverflow = false
             t9PinyinOverflowHintSuppressedByFocus = false
             updatePinyinOverflowHint(false)
             return setPinyinRowVisible(false)
@@ -1190,7 +1204,6 @@ class CandidatesView(
             t9RenderedPinyinWindowStart = 0
             t9RenderedPinyinItems = emptyList()
             t9PinyinOptionCount = 0
-            t9PinyinHasRightOverflow = false
             t9PinyinOverflowHintSuppressedByFocus = false
             updatePinyinOverflowHint(false)
             return setPinyinRowVisible(false)
@@ -1211,8 +1224,9 @@ class CandidatesView(
 
     private fun renderPinyinWindow(state: T9PinyinRowWindow.VisibleState): Boolean {
         t9RenderedPinyinItems = state.items
-        t9PinyinHasRightOverflow = state.windowStart + state.items.size < t9PinyinOptionCount
-        updatePinyinOverflowHint(t9PinyinHasRightOverflow && !t9PinyinOverflowHintSuppressedByFocus)
+        updatePinyinOverflowHint(
+            !t9PinyinOverflowHintSuppressedByFocus && shouldShowPinyinOverflowHint()
+        )
         val changed = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.submit") {
             pinyinBarAdapter.submitList(state.items, state.highlightedIndex)
         }
