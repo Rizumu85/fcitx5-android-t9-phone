@@ -72,7 +72,7 @@ class T9PinyinChipAdapter(
         pinyins = newCandidates
         highlightedIndex = highlightedIndex.coerceIn(0, (pinyins.lastIndex).coerceAtLeast(0))
         if (changed) {
-            rebuildChips()
+            updateChips()
         } else {
             updateAllChips()
         }
@@ -93,10 +93,12 @@ class T9PinyinChipAdapter(
 
     fun moveHighlightedIndex(delta: Int): Boolean {
         if (pinyins.isEmpty()) return false
+        val oldIndex = highlightedIndex
         val newIndex = (highlightedIndex + delta).coerceIn(0, pinyins.lastIndex)
         if (newIndex == highlightedIndex) return false
         highlightedIndex = newIndex
-        updateAllChips()
+        updateChipAt(oldIndex)
+        updateChipAt(newIndex)
         return true
     }
 
@@ -118,55 +120,91 @@ class T9PinyinChipAdapter(
         }
     }
 
-    private fun rebuildChips() {
-        container.removeAllViews()
-        chips.clear()
-        chipBackgrounds.clear()
+    private fun updateChips() {
+        syncChipCount(pinyins.size)
         pinyins.forEachIndexed { index, pinyin ->
-            val chip = TextView(root.context).apply {
-                setTextColor(theme.candidateTextColor)
-                textSize = textSizeSp
-                InputUiFont.applyTo(this)
-                setPadding(horizontalPaddingPx, verticalPaddingPx, horizontalPaddingPx, verticalPaddingPx)
-                minHeight = rowHeightPx
-                gravity = Gravity.CENTER_VERTICAL or Gravity.START
-                includeFontPadding = false
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    setLineHeight(rowHeightPx)
-                }
-                text = pinyin
-                setOnClickListener { onChipClick(pinyin) }
-                isFocusable = false
-                isFocusableInTouchMode = false
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    defaultFocusHighlightEnabled = false
-                }
-            }
-            val background = GradientDrawable().apply {
-                setColor(theme.genericActiveBackgroundColor)
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = cornerRadiusPx
-                alpha = 0
-            }
-            chip.background = background
-            chips += chip
-            chipBackgrounds += background
-            container.addView(chip, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                if (index != pinyins.lastIndex) {
-                    rightMargin = horizontalPaddingPx
-                }
-            })
+            bindChip(index, pinyin)
         }
         updateAllChips()
     }
+
+    private fun syncChipCount(targetSize: Int) {
+        while (chips.size > targetSize) {
+            val lastIndex = chips.lastIndex
+            container.removeViewAt(lastIndex)
+            chips.removeAt(lastIndex)
+            chipBackgrounds.removeAt(lastIndex)
+        }
+        while (chips.size < targetSize) {
+            val chip = createChip()
+            val background = createChipBackground()
+            chip.background = background
+            chips += chip
+            chipBackgrounds += background
+            container.addView(chip, chipLayoutParams(chips.lastIndex))
+        }
+    }
+
+    private fun createChip(): TextView =
+        TextView(root.context).apply {
+            setTextColor(theme.candidateTextColor)
+            textSize = textSizeSp
+            InputUiFont.applyTo(this)
+            setPadding(horizontalPaddingPx, verticalPaddingPx, horizontalPaddingPx, verticalPaddingPx)
+            minHeight = rowHeightPx
+            gravity = Gravity.CENTER_VERTICAL or Gravity.START
+            includeFontPadding = false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                setLineHeight(rowHeightPx)
+            }
+            isFocusable = false
+            isFocusableInTouchMode = false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                defaultFocusHighlightEnabled = false
+            }
+        }
+
+    private fun createChipBackground(): GradientDrawable =
+        GradientDrawable().apply {
+            setColor(theme.genericActiveBackgroundColor)
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = cornerRadiusPx
+            alpha = 0
+        }
+
+    private fun bindChip(index: Int, pinyin: String) {
+        val chip = chips[index]
+        if (chip.text.toString() != pinyin) {
+            chip.text = pinyin
+        }
+        chip.setOnClickListener { onChipClick(pinyin) }
+        val params = chip.layoutParams as? LinearLayout.LayoutParams
+        val expectedRightMargin = if (index != pinyins.lastIndex) horizontalPaddingPx else 0
+        if (params?.rightMargin != expectedRightMargin) {
+            chip.layoutParams = chipLayoutParams(index)
+        }
+    }
+
+    private fun chipLayoutParams(index: Int): LinearLayout.LayoutParams =
+        LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+            if (index != pinyins.lastIndex) {
+                rightMargin = horizontalPaddingPx
+            }
+        }
 
     private fun updateAllChips() {
         chips.forEachIndexed { index, chip ->
             updateChip(chip, chipBackgrounds[index], active = highlightActive && index == highlightedIndex)
         }
+    }
+
+    private fun updateChipAt(index: Int) {
+        val chip = chips.getOrNull(index) ?: return
+        val background = chipBackgrounds.getOrNull(index) ?: return
+        updateChip(chip, background, active = highlightActive && index == highlightedIndex)
     }
 
     private fun updateChip(chip: TextView, background: GradientDrawable, active: Boolean) {
