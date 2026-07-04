@@ -11,32 +11,32 @@ import org.junit.Test
 
 class T9CandidatePanelWidthStateTest {
     @Test
-    fun remembersLargestWidthWithinSession() {
+    fun tracksCurrentFrameWidth() {
         val state = T9CandidatePanelWidthState()
 
-        assertEquals(120, state.remember(120))
-        assertEquals(120, state.remember(40))
-        assertEquals(180, state.remember(180))
+        assertEquals(120, state.update(120))
+        assertEquals(40, state.update(40))
+        assertEquals(180, state.update(180))
     }
 
     @Test
     fun ignoresNonPositiveMeasurements() {
         val state = T9CandidatePanelWidthState()
 
-        assertEquals(0, state.remember(0))
+        assertEquals(0, state.update(0))
         assertNull(state.currentOrNull())
-        assertEquals(90, state.remember(90))
-        assertEquals(90, state.remember(-1))
+        assertEquals(90, state.update(90))
+        assertEquals(90, state.update(-1))
     }
 
     @Test
     fun resetStartsANewSession() {
         val state = T9CandidatePanelWidthState()
 
-        state.remember(160)
+        state.update(160)
         state.reset()
 
         assertNull(state.currentOrNull())
-        assertEquals(30, state.remember(30))
+        assertEquals(30, state.update(30))
     }
 }

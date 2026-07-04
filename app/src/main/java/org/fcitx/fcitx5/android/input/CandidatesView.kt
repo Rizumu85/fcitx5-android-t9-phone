@@ -207,6 +207,7 @@ class CandidatesView(
     private var t9ShownUsesSmartEnglish = false
     private val t9PinyinRowWindow = T9PinyinRowWindow()
     private var t9RenderedPinyinWindowStart = 0
+    private var t9RenderedPinyinItems: List<String> = emptyList()
     private var lastRenderedT9Focus = T9CandidateFocus.BOTTOM
     private val t9SmartEnglishPageCache = T9SmartEnglishPageCache(
         characterBudget = { t9HanziCharacterBudget },
@@ -730,6 +731,7 @@ class CandidatesView(
         preeditUi.root.visibility = GONE
         t9PinyinRowWindow.clear()
         t9RenderedPinyinWindowStart = 0
+        t9RenderedPinyinItems = emptyList()
         t9CandidatePanelWidthState.reset()
         lastRenderedT9Focus = T9CandidateFocus.BOTTOM
         setPinyinRowVisible(false)
@@ -1150,6 +1152,7 @@ class CandidatesView(
         } else {
             pinyinBarAdapter.clear()
             pinyinBarAdapter.scrollToStart()
+            t9RenderedPinyinItems = emptyList()
             t9CandidatePanelWidthState.reset()
             pinyinBarView.visibility = View.GONE
             pinyinRowWrapper.visibility = View.GONE
@@ -1181,14 +1184,17 @@ class CandidatesView(
 
     private fun syncPinyinRowWidthToCandidates(): Boolean {
         // The pinyin row should feel attached to the Hanzi candidate bubble the user is choosing from.
-        // We therefore cap it by measured candidate content, while keeping the widest page in the
-        // current composition so the last short page cannot clip a still-populated pinyin row.
-        val candidateWidth = measuredShownT9CandidatePanelWidthPx()
-            ?.let { t9CandidatePanelWidthState.remember(it) }
+        // Current candidate width stays the primary anchor; visible pinyin chips may widen the same
+        // bubble only for the current frame, so paging to a one-candidate page does not inherit a
+        // large blank area from the previous page.
+        val candidateWidth = measuredCurrentT9CandidatePanelWidthPx()
+        val pinyinWidth = measuredCurrentT9PinyinPanelWidthPx()
+        val targetWidth = listOfNotNull(candidateWidth, pinyinWidth).maxOrNull()
+            ?.let { t9CandidatePanelWidthState.update(it) }
             ?: firstPositiveCandidateRowWidth()
             ?: t9CandidatePanelWidthState.currentOrNull()
-        if (candidateWidth != null) {
-            setPinyinRowWidth(candidateWidth)
+        if (targetWidth != null) {
+            setPinyinRowWidth(targetWidth)
             return true
         }
         setPinyinRowWidth(ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -1217,17 +1223,17 @@ class CandidatesView(
 
     private fun firstPositiveCandidateRowWidth(): Int? {
         t9FixedCandidatesUi.root.width.takeIf { it > 0 && t9FixedCandidatesUi.root.visibility == View.VISIBLE }
-            ?.let { return t9CandidatePanelWidthState.remember(it) }
+            ?.let { return t9CandidatePanelWidthState.update(it) }
         t9FixedCandidatesUi.root.measuredWidth.takeIf { it > 0 && t9FixedCandidatesUi.root.visibility == View.VISIBLE }
-            ?.let { return t9CandidatePanelWidthState.remember(it) }
-        candidatesUi.root.width.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.remember(it) }
-        candidatesUi.root.measuredWidth.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.remember(it) }
-        candidateRowWrapper.width.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.remember(it) }
-        candidateRowWrapper.measuredWidth.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.remember(it) }
+            ?.let { return t9CandidatePanelWidthState.update(it) }
+        candidatesUi.root.width.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.update(it) }
+        candidatesUi.root.measuredWidth.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.update(it) }
+        candidateRowWrapper.width.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.update(it) }
+        candidateRowWrapper.measuredWidth.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.update(it) }
         return null
     }
 
-    private fun measuredShownT9CandidatePanelWidthPx(): Int? {
+    private fun measuredCurrentT9CandidatePanelWidthPx(): Int? {
         val shown = t9ShownPaged ?: paged
         if (shown.candidates.isEmpty()) return null
         val paint = t9CandidateMeasurePaint.apply {
@@ -1265,6 +1271,25 @@ class CandidatesView(
         return targetPanelWidthPx.coerceAtMost(availablePanelWidthPx).coerceAtLeast(1)
     }
 
+    private fun measuredCurrentT9PinyinPanelWidthPx(): Int? {
+        if (t9RenderedPinyinItems.isEmpty()) return null
+        val paint = t9CandidateMeasurePaint.apply {
+            textSize = compactTopRowFontSizeSp * ctx.resources.displayMetrics.scaledDensity
+            InputUiFont.applyTo(this)
+        }
+        val chipPaddingPx = dpCandidates(itemPaddingHorizontal)
+        val chipWidthPx = t9RenderedPinyinItems.withIndex().sumOf { (index, pinyin) ->
+            val textWidthPx = paint.measureText(pinyin).roundToInt()
+            val rightMarginPx = if (index == t9RenderedPinyinItems.lastIndex) 0 else chipPaddingPx
+            textWidthPx + chipPaddingPx * 2 + rightMarginPx
+        }
+        val fixedRowSidePaddingPx = t9CandidateHighlightOverflowPaddingPx * 2
+        val availablePanelWidthPx =
+            t9CandidateAvailableContentWidthPx(reservePagination = false) + fixedRowSidePaddingPx
+        val targetPanelWidthPx = chipWidthPx + fixedRowSidePaddingPx
+        return targetPanelWidthPx.coerceAtMost(availablePanelWidthPx).coerceAtLeast(1)
+    }
+
     private fun currentT9CandidatePageShowsPagination(
         shown: FcitxEvent.PagedCandidateEvent.Data = t9ShownPaged ?: paged
     ): Boolean {
@@ -1275,11 +1300,13 @@ class CandidatesView(
         if (!useT9) {
             t9PinyinRowWindow.clear()
             t9RenderedPinyinWindowStart = 0
+            t9RenderedPinyinItems = emptyList()
             return setPinyinRowVisible(false)
         }
         if (candidates.isEmpty()) {
             t9PinyinRowWindow.clear()
             t9RenderedPinyinWindowStart = 0
+            t9RenderedPinyinItems = emptyList()
             return setPinyinRowVisible(false)
         }
         val state = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.window") {
@@ -1296,6 +1323,7 @@ class CandidatesView(
     }
 
     private fun renderPinyinWindow(state: T9PinyinRowWindow.VisibleState): Boolean {
+        t9RenderedPinyinItems = state.items
         val changed = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.submit") {
             pinyinBarAdapter.submitList(state.items, state.highlightedIndex)
         }
@@ -1476,11 +1504,17 @@ class CandidatesView(
         // After layout, give pinyin bar the same width as candidates so it scrolls inside bubble2
         bubble2Wrapper.viewTreeObserver.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {
             override fun onGlobalLayout() {
+                val targetWidth = if (pinyinRowTargetVisible) {
+                    t9CandidatePanelWidthState.currentOrNull()
+                } else {
+                    null
+                }
                 val cw = when {
                     t9FixedCandidatesUi.root.visibility == View.VISIBLE -> t9FixedCandidatesUi.root.width
                     else -> candidatesUi.root.width
                 }
-                val stableWidth = cw.takeIf { it > 0 }?.let { t9CandidatePanelWidthState.remember(it) }
+                val stableWidth = targetWidth
+                    ?: cw.takeIf { it > 0 }?.let { t9CandidatePanelWidthState.update(it) }
                     ?: return
                 if ((pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.width != stableWidth) {
                     setPinyinRowWidth(stableWidth)

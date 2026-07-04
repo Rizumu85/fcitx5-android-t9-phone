@@ -5,23 +5,21 @@
 
 package org.fcitx.fcitx5.android.input.t9
 
-import kotlin.math.max
-
 class T9CandidatePanelWidthState {
-    private var rememberedWidthPx = 0
+    private var currentWidthPx = 0
 
-    val rememberedWidth: Int
-        get() = rememberedWidthPx
+    val currentWidth: Int
+        get() = currentWidthPx
 
     fun reset() {
-        rememberedWidthPx = 0
+        currentWidthPx = 0
     }
 
-    fun remember(widthPx: Int): Int {
-        if (widthPx <= 0) return rememberedWidthPx
-        rememberedWidthPx = max(rememberedWidthPx, widthPx)
-        return rememberedWidthPx
+    fun update(widthPx: Int): Int {
+        if (widthPx <= 0) return currentWidthPx
+        currentWidthPx = widthPx
+        return currentWidthPx
     }
 
-    fun currentOrNull(): Int? = rememberedWidthPx.takeIf { it > 0 }
+    fun currentOrNull(): Int? = currentWidthPx.takeIf { it > 0 }
 }
