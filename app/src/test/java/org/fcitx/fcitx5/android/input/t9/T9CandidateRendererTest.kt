@@ -41,7 +41,7 @@ class T9CandidateRendererTest {
     }
 
     @Test
-    fun candidateContentChangeAlsoRefreshesPinyinWidth() {
+    fun candidateContentChangeDoesNotRefreshPinyinContent() {
         val previous = state(candidates = paged("a"))
         val next = state(candidates = paged("alphabet"))
 
@@ -49,8 +49,8 @@ class T9CandidateRendererTest {
 
         assertTrue(patch.candidates)
         assertTrue(patch.candidateContent)
-        assertTrue(patch.pinyin)
-        assertTrue(patch.focus)
+        assertFalse(patch.pinyin)
+        assertFalse(patch.focus)
     }
 
     @Test

@@ -221,6 +221,8 @@ class CandidatesView(
         override fun renderPinyin(pinyinOptions: List<String>, pinyinUseT9: Boolean): Boolean =
             updatePinyinBar(pinyinOptions, pinyinUseT9)
 
+        override fun syncPinyinLayout(): Boolean = syncVisiblePinyinRowLayout()
+
         override fun renderFocus(focus: T9CandidateFocus) {
             updateT9FocusIndicator(focus)
         }
@@ -1052,6 +1054,13 @@ class CandidatesView(
     }
 
     private fun setPinyinRowVisible(visible: Boolean): Boolean {
+        if (!visible &&
+            !pinyinRowTargetVisible &&
+            pinyinRowWrapper.visibility == View.GONE &&
+            pinyinBarView.visibility == View.GONE
+        ) {
+            return true
+        }
         pinyinRowTargetVisible = visible
         pinyinBarView.alpha = 1f
         pinyinBarView.scaleX = 1f
@@ -1081,6 +1090,16 @@ class CandidatesView(
             setPinyinRowHeight(0)
             return true
         }
+    }
+
+    private fun syncVisiblePinyinRowLayout(): Boolean {
+        if (!pinyinRowTargetVisible) return true
+        val widthReady = syncPinyinRowWidthToCandidates()
+        setPinyinRowHeight(pinyinBarRowHeightPx)
+        if (widthReady && pinyinRowWrapper.visibility == View.INVISIBLE) {
+            showPinyinRowNow()
+        }
+        return widthReady
     }
 
     private fun setPinyinRowHeight(height: Int) {
@@ -1270,7 +1289,7 @@ class CandidatesView(
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply { gravity = Gravity.START or Gravity.TOP })
-        (candidatesUi.root as? RecyclerView)?.addItemDecoration(object : RecyclerView.ItemDecoration() {
+        candidatesUi.root.addItemDecoration(object : RecyclerView.ItemDecoration() {
             override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
                 outRect.right = dp(candidateItemSpacing)
             }

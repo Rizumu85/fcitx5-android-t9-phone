@@ -100,8 +100,8 @@ object T9CandidateRenderer {
             preedit = previous.preeditSignature != next.preeditSignature,
             candidates = previous.candidateSignature != next.candidateSignature,
             candidateContent = candidateContentChanged,
-            pinyin = pinyinChanged || candidateContentChanged,
-            focus = previous.focus != next.focus || pinyinChanged || candidateContentChanged,
+            pinyin = pinyinChanged,
+            focus = previous.focus != next.focus || pinyinChanged,
             visibility = previous.visibilitySignature != next.visibilitySignature
         )
     }

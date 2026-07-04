@@ -20,6 +20,7 @@ class T9CandidateUiRenderer(
             showShortcutLabels: Boolean
         )
         fun renderPinyin(pinyinOptions: List<String>, pinyinUseT9: Boolean): Boolean
+        fun syncPinyinLayout(): Boolean
         fun renderFocus(focus: T9CandidateFocus)
         fun showWhenPositioned(contentReady: Boolean)
         fun hideCandidateUi()
@@ -48,12 +49,18 @@ class T9CandidateUiRenderer(
                 )
             }
         }
-        val pinyinRowReady = if (patch.pinyin) {
-            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin") {
-                delegate.renderPinyin(next.pinyinOptions, next.pinyinUseT9)
+        val pinyinRowReady = when {
+            patch.pinyin -> {
+                T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin") {
+                    delegate.renderPinyin(next.pinyinOptions, next.pinyinUseT9)
+                }
             }
-        } else {
-            true
+            patch.candidateContent && next.pinyinUseT9 && next.pinyinOptions.isNotEmpty() -> {
+                T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyinLayout") {
+                    delegate.syncPinyinLayout()
+                }
+            }
+            else -> true
         }
         if (patch.focus) {
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderFocus") {
@@ -68,7 +75,7 @@ class T9CandidateUiRenderer(
                     delegate.hideCandidateUi()
                 }
             }
-        } else if (next.shouldShow && patch.pinyin && !pinyinRowReady) {
+        } else if (next.shouldShow && !pinyinRowReady) {
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderVisibility") {
                 delegate.showWhenPositioned(false)
             }
