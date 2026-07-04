@@ -1135,8 +1135,8 @@ class CandidatesView(
         val viewportWidthPx = pinyinRowViewportWidthPx() ?: return hintWidthPx
         val comfortablePrefixWidthPx = pinyinItemsWidthPx(
             t9RenderedPinyinItems.take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS),
-            reservesOverflowHint = true
-        )
+            reservesOverflowHint = false
+        ) + dp(T9_PINYIN_ROW_OVERFLOW_CHIP_GAP_DP)
         // Product decision: when the ellipsis is visible it is the overflow affordance, so we
         // avoid also exposing a clipped fifth chip as a second, noisier hint.
         return (viewportWidthPx - comfortablePrefixWidthPx)
@@ -1484,6 +1484,7 @@ class CandidatesView(
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
         private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 18
         private const val T9_PINYIN_ROW_OVERFLOW_EDGE_GUARD_DP = 8
+        private const val T9_PINYIN_ROW_OVERFLOW_CHIP_GAP_DP = 4
         private const val T9_PINYIN_ROW_FOCUSED_END_GAP_DP = 10
     }
 }
