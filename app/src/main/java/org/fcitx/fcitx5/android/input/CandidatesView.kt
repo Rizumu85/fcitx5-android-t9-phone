@@ -35,6 +35,7 @@ import org.fcitx.fcitx5.android.input.candidates.floating.PagedCandidatesUi
 import org.fcitx.fcitx5.android.input.preedit.PreeditUi
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidatePipeline
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidateLoadingState
+import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
 import org.fcitx.fcitx5.android.input.t9.T9BulkCandidateLoader
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidatePager
@@ -201,6 +202,7 @@ class CandidatesView(
     private var t9RenderedPinyinWindowStart = 0
     private var t9RenderedPinyinItems: List<String> = emptyList()
     private var t9PinyinOptionCount = 0
+    private var t9PinyinHasRightOverflow = false
     private var lastRenderedT9Focus = T9CandidateFocus.BOTTOM
     private val t9SmartEnglishPageCache = T9SmartEnglishPageCache(
         characterBudget = { t9HanziCharacterBudget }
@@ -253,9 +255,10 @@ class CandidatesView(
         }
     })
     private val t9CandidateUiStateBuilder = T9CandidateUiStateBuilder(object : T9CandidateUiStateBuilder.Delegate {
-        override fun syncT9CompositionWithInputPanel(inputPanel: FcitxEvent.InputPanelEvent.Data) {
-            service.syncT9CompositionWithInputPanel(inputPanel)
-        }
+        override fun getChineseT9InputSnapshot(
+            inputPanel: FcitxEvent.InputPanelEvent.Data
+        ): ChineseT9InputSnapshot =
+            service.getChineseT9InputSnapshot(inputPanel)
 
         override fun isChineseT9InputModeActive(): Boolean = service.isChineseT9InputModeActive()
 
@@ -268,19 +271,12 @@ class CandidatesView(
             data: FcitxEvent.PagedCandidateEvent.Data
         ): T9PagedCandidates = this@CandidatesView.buildSmartEnglishPaged(data)
 
-        override fun getT9ResolvedPinyinFilterPrefixes(): List<String> =
-            service.getT9ResolvedPinyinFilterPrefixes()
-
         override fun getPendingT9PunctuationPaged(): FcitxEvent.PagedCandidateEvent.Data? =
             service.getPendingT9PunctuationPaged()
 
         override fun buildT9PendingPunctuationPaged(
             data: FcitxEvent.PagedCandidateEvent.Data
         ): T9PagedCandidates = this@CandidatesView.buildT9PendingPunctuationPaged(data)
-
-        override fun hasPendingT9PinyinSelection(): Boolean = service.hasPendingT9PinyinSelection()
-
-        override fun getT9CompositionKeyCount(): Int = service.getT9CompositionKeyCount()
 
         override fun resetT9BulkFilterState() {
             this@CandidatesView.resetT9BulkFilterState()
@@ -318,9 +314,10 @@ class CandidatesView(
             service.getSmartEnglishT9Presentation()
 
         override fun getT9PresentationState(
+            snapshot: ChineseT9InputSnapshot,
             inputPanel: FcitxEvent.InputPanelEvent.Data,
             effectivePaged: FcitxEvent.PagedCandidateEvent.Data
-        ): T9PresentationState = service.getT9PresentationState(inputPanel, effectivePaged)
+        ): T9PresentationState = service.getT9PresentationState(snapshot, inputPanel, effectivePaged)
 
         override fun clearHiddenChineseT9CompositionIfCandidateUiSuppressed() {
             service.clearHiddenChineseT9CompositionIfCandidateUiSuppressed()
@@ -380,6 +377,21 @@ class CandidatesView(
     private val pinyinBarView = pinyinBarAdapter.root.apply {
         visibility = View.GONE
     }
+    private val pinyinOverflowHint = TextView(ctx).apply {
+        text = "\u2026"
+        textSize = compactTopRowFontSizeSp
+        InputUiFont.applyTo(this)
+        setTextColor(theme.candidateTextColor)
+        alpha = 0.72f
+        gravity = Gravity.CENTER
+        includeFontPadding = false
+        isFocusable = false
+        isFocusableInTouchMode = false
+        visibility = View.GONE
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            setLineHeight(pinyinBarRowHeightPx)
+        }
+    }
     private val pinyinRowWrapper = FrameLayout(ctx).apply {
         clipChildren = false
         clipToPadding = false
@@ -388,6 +400,12 @@ class CandidatesView(
             pinyinBarRowHeightPx
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.START
+        })
+        addView(pinyinOverflowHint, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ).apply {
+            gravity = Gravity.END or Gravity.CENTER_VERTICAL
         })
         setOnClickListener {
             service.moveT9CandidateFocus(T9CandidateFocus.TOP)
@@ -527,6 +545,8 @@ class CandidatesView(
         t9RenderedPinyinWindowStart = 0
         t9RenderedPinyinItems = emptyList()
         t9PinyinOptionCount = 0
+        t9PinyinHasRightOverflow = false
+        updatePinyinOverflowHint(false)
         lastRenderedT9Focus = T9CandidateFocus.BOTTOM
         setPinyinRowVisible(false)
         service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
@@ -588,7 +608,8 @@ class CandidatesView(
         if (!service.isChineseT9InputModeActive()) return null
         if (service.getT9CompositionKeyCount() <= 0) return null
         val shown = t9ShownPaged ?: paged
-        val preview = service.getT9PresentationState(inputPanel, shown)
+        val snapshot = service.getChineseT9InputSnapshot(inputPanel)
+        val preview = service.getT9PresentationState(snapshot, inputPanel, shown)
             .topReading
             ?.toString()
             .orEmpty()
@@ -931,6 +952,8 @@ class CandidatesView(
             pinyinBarAdapter.scrollToStart()
             t9RenderedPinyinItems = emptyList()
             t9PinyinOptionCount = 0
+            t9PinyinHasRightOverflow = false
+            updatePinyinOverflowHint(false)
             pinyinBarView.visibility = View.GONE
             pinyinRowWrapper.visibility = View.GONE
             setPinyinRowHeight(0)
@@ -979,30 +1002,41 @@ class CandidatesView(
             .take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS)
             .takeIf { it.size >= T9_PINYIN_ROW_MIN_VISIBLE_CHIPS }
             ?: return null
-        val peekPinyin = t9RenderedPinyinItems.getOrNull(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS)
         val paint = t9PinyinMeasurePaint.apply {
             textSize = compactTopRowFontSizeSp * ctx.resources.displayMetrics.scaledDensity
         }
         val chipPaddingPx = dpCandidates(itemPaddingHorizontal)
         val chipWidthPx = visiblePinyin.withIndex().sumOf { (index, pinyin) ->
             val textWidthPx = paint.measureText(pinyin).roundToInt()
-            val rightMarginPx = if (index != visiblePinyin.lastIndex || peekPinyin != null) chipPaddingPx else 0
+            val rightMarginPx = if (index != visiblePinyin.lastIndex || t9PinyinHasRightOverflow) chipPaddingPx else 0
             textWidthPx + chipPaddingPx * 2 + rightMarginPx
         }
-        val peekWidthPx = peekPinyin?.let { pinyin ->
-            val textWidthPx = paint.measureText(pinyin).roundToInt()
-            val chipBodyWidthPx = textWidthPx + chipPaddingPx * 2
-            (chipBodyWidthPx * T9_PINYIN_ROW_PEEK_CHIP_RATIO)
-                .roundToInt()
-                .coerceAtLeast(dp(T9_PINYIN_ROW_MIN_PEEK_DP))
-                .coerceAtMost(chipBodyWidthPx)
-        } ?: 0
-        // Product decision: keep the old bubble-sized Hanzi row, but give a populated pinyin row
-        // a small usability floor. Showing part of the next chip makes overflow feel scrollable
-        // instead of looking like the fourth chip was accidentally clipped.
-        return (chipWidthPx + peekWidthPx)
+        // Product decision: the pinyin row should keep a small usability floor without exposing
+        // a clipped fifth chip. A quiet edge ellipsis signals overflow while preserving the
+        // bubble shape the user preferred before the layout experiments.
+        val overflowHintWidthPx = if (t9PinyinHasRightOverflow) pinyinOverflowHintReservedWidthPx() else 0
+        return (chipWidthPx + overflowHintWidthPx)
             .coerceAtMost(pinyinRowMaxWidthPx())
             .coerceAtLeast(1)
+    }
+
+    private fun pinyinOverflowHintReservedWidthPx(): Int {
+        val paint = t9PinyinMeasurePaint.apply {
+            textSize = compactTopRowFontSizeSp * ctx.resources.displayMetrics.scaledDensity
+        }
+        return (paint.measureText("\u2026").roundToInt() + dpCandidates(itemPaddingHorizontal) * 2)
+            .coerceAtLeast(dp(T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP))
+    }
+
+    private fun updatePinyinOverflowHint(visible: Boolean) {
+        val targetVisibility = if (visible) View.VISIBLE else View.GONE
+        if (pinyinOverflowHint.visibility != targetVisibility) {
+            pinyinOverflowHint.visibility = targetVisibility
+        }
+        val rightPadding = if (visible) pinyinOverflowHintReservedWidthPx() else 0
+        if (pinyinBarView.paddingRight != rightPadding) {
+            pinyinBarView.setPadding(0, 0, rightPadding, 0)
+        }
     }
 
     private fun pinyinRowMaxWidthPx(): Int {
@@ -1035,6 +1069,8 @@ class CandidatesView(
             t9RenderedPinyinWindowStart = 0
             t9RenderedPinyinItems = emptyList()
             t9PinyinOptionCount = 0
+            t9PinyinHasRightOverflow = false
+            updatePinyinOverflowHint(false)
             return setPinyinRowVisible(false)
         }
         if (candidates.isEmpty()) {
@@ -1042,6 +1078,8 @@ class CandidatesView(
             t9RenderedPinyinWindowStart = 0
             t9RenderedPinyinItems = emptyList()
             t9PinyinOptionCount = 0
+            t9PinyinHasRightOverflow = false
+            updatePinyinOverflowHint(false)
             return setPinyinRowVisible(false)
         }
         t9PinyinOptionCount = candidates.size
@@ -1060,6 +1098,8 @@ class CandidatesView(
 
     private fun renderPinyinWindow(state: T9PinyinRowWindow.VisibleState): Boolean {
         t9RenderedPinyinItems = state.items
+        t9PinyinHasRightOverflow = state.windowStart + state.items.size < t9PinyinOptionCount
+        updatePinyinOverflowHint(t9PinyinHasRightOverflow)
         val changed = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.submit") {
             pinyinBarAdapter.submitList(state.items, state.highlightedIndex)
         }
@@ -1293,7 +1333,6 @@ class CandidatesView(
         private const val T9_BULK_FILTER_LIMIT = 80
         private const val T9_PINYIN_TO_HANZI_GAP_DP = 2
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
-        private const val T9_PINYIN_ROW_PEEK_CHIP_RATIO = 0.75f
-        private const val T9_PINYIN_ROW_MIN_PEEK_DP = 18
+        private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 18
     }
 }

@@ -46,16 +46,13 @@ class T9CandidateUiStateBuilder(
     )
 
     interface Delegate {
-        fun syncT9CompositionWithInputPanel(inputPanel: FcitxEvent.InputPanelEvent.Data)
+        fun getChineseT9InputSnapshot(inputPanel: FcitxEvent.InputPanelEvent.Data): ChineseT9InputSnapshot
         fun isChineseT9InputModeActive(): Boolean
         fun isSmartEnglishT9InputModeActive(): Boolean
         fun getSmartEnglishT9Paged(): FcitxEvent.PagedCandidateEvent.Data?
         fun buildSmartEnglishPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates
-        fun getT9ResolvedPinyinFilterPrefixes(): List<String>
         fun getPendingT9PunctuationPaged(): FcitxEvent.PagedCandidateEvent.Data?
         fun buildT9PendingPunctuationPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates
-        fun hasPendingT9PinyinSelection(): Boolean
-        fun getT9CompositionKeyCount(): Int
         fun resetT9BulkFilterState()
         fun requestT9BulkFilteredCandidatesIfNeeded(chineseT9Active: Boolean, prefixes: List<String>)
         fun filterPagedByT9PinyinPrefixes(
@@ -73,6 +70,7 @@ class T9CandidateUiStateBuilder(
         ): FcitxEvent.PagedCandidateEvent.Data
         fun getSmartEnglishT9Presentation(): T9PresentationState?
         fun getT9PresentationState(
+            snapshot: ChineseT9InputSnapshot,
             inputPanel: FcitxEvent.InputPanelEvent.Data,
             effectivePaged: FcitxEvent.PagedCandidateEvent.Data
         ): T9PresentationState
@@ -94,10 +92,12 @@ class T9CandidateUiStateBuilder(
                 smartEnglishT9Active -> Surface.SMART_ENGLISH
                 else -> Surface.OTHER
             }
-            if (surface == Surface.CHINESE) {
-                T9ResponsivenessTrace.measure("CandidatesView.updateUi.syncComposition") {
-                    delegate.syncT9CompositionWithInputPanel(input.inputPanel)
+            val chineseSnapshot = if (surface == Surface.CHINESE) {
+                T9ResponsivenessTrace.measure("CandidatesView.updateUi.chineseSnapshot") {
+                    delegate.getChineseT9InputSnapshot(input.inputPanel)
                 }
+            } else {
+                null
             }
             val smartEnglishRawPaged = if (surface == Surface.SMART_ENGLISH) {
                 delegate.getSmartEnglishT9Paged()
@@ -107,11 +107,7 @@ class T9CandidateUiStateBuilder(
             val smartEnglishPaged = T9ResponsivenessTrace.measure("CandidatesView.updateUi.smartEnglishPage") {
                 smartEnglishRawPaged?.let(delegate::buildSmartEnglishPaged)
             }
-            val t9FilterPrefixes = if (surface == Surface.CHINESE) {
-                delegate.getT9ResolvedPinyinFilterPrefixes()
-            } else {
-                emptyList()
-            }
+            val t9FilterPrefixes = chineseSnapshot?.filterPrefixes ?: emptyList()
             val pendingPunctuationPaged = if (surface == Surface.CHINESE || surface == Surface.SMART_ENGLISH) {
                 delegate.getPendingT9PunctuationPaged()
             } else {
@@ -122,12 +118,8 @@ class T9CandidateUiStateBuilder(
             ) {
                 pendingPunctuationPaged?.let(delegate::buildT9PendingPunctuationPaged)
             }
-            val pendingT9PinyinSelection = surface == Surface.CHINESE && delegate.hasPendingT9PinyinSelection()
-            val compositionKeyCount = if (surface == Surface.CHINESE) {
-                delegate.getT9CompositionKeyCount()
-            } else {
-                0
-            }
+            val pendingT9PinyinSelection = chineseSnapshot?.hasPendingPinyinSelection == true
+            val compositionKeyCount = chineseSnapshot?.keyCount ?: 0
             val waitForChineseT9Candidates = if (surface == Surface.CHINESE) {
                 input.loadingState.shouldWaitForCandidates(
                     chineseT9Active = true,
@@ -139,7 +131,11 @@ class T9CandidateUiStateBuilder(
             } else {
                 false
             }
-            if (waitForChineseT9Candidates && input.currentlyVisible) {
+            if (surface == Surface.CHINESE &&
+                waitForChineseT9Candidates &&
+                pendingPunctuationPaged == null &&
+                input.currentlyVisible
+            ) {
                 return@measure null
             }
             val suppressEmptyT9Candidates = surface == Surface.CHINESE &&
@@ -214,7 +210,17 @@ class T9CandidateUiStateBuilder(
             val originalIndices = presentationPlan.cursorSource.originalIndices
             val t9State = T9ResponsivenessTrace.measure("CandidatesView.updateUi.presentationState") {
                 when (surface) {
-                    Surface.CHINESE -> delegate.getT9PresentationState(input.inputPanel, effectivePaged)
+                    Surface.CHINESE -> {
+                        if (suppressEmptyT9Candidates) {
+                            null
+                        } else {
+                            delegate.getT9PresentationState(
+                                chineseSnapshot ?: return@measure null,
+                                input.inputPanel,
+                                effectivePaged
+                            )
+                        }
+                    }
                     Surface.SMART_ENGLISH -> delegate.getSmartEnglishT9Presentation()
                     Surface.OTHER -> null
                 }
@@ -257,7 +263,6 @@ class T9CandidateUiStateBuilder(
                     shouldShow = shouldShowT9CandidateUi(
                         inputPanel = input.inputPanel,
                         suppressEmptyT9Candidates = suppressEmptyT9Candidates,
-                        waitForChineseT9Candidates = waitForChineseT9Candidates,
                         t9State = t9State,
                         effectivePaged = effectivePaged
                     )
@@ -277,11 +282,10 @@ class T9CandidateUiStateBuilder(
     private fun shouldShowT9CandidateUi(
         inputPanel: FcitxEvent.InputPanelEvent.Data,
         suppressEmptyT9Candidates: Boolean,
-        waitForChineseT9Candidates: Boolean,
         t9State: T9PresentationState?,
         effectivePaged: FcitxEvent.PagedCandidateEvent.Data
     ): Boolean =
-        !suppressEmptyT9Candidates && !waitForChineseT9Candidates && evaluateVisibility(
+        !suppressEmptyT9Candidates && evaluateVisibility(
             inputPanel = inputPanel,
             topReading = t9State?.topReading,
             pinyinRowVisible = t9State?.pinyinRowVisible == true,

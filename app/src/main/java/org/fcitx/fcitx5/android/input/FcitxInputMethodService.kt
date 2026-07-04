@@ -74,6 +74,7 @@ import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.cursor.CursorRange
 import org.fcitx.fcitx5.android.input.cursor.CursorTracker
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionSession
+import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSnapshotCache
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSnapshotKey
 import org.fcitx.fcitx5.android.input.t9.ChineseT9RimeBridge
@@ -2128,12 +2129,25 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         chineseT9Session.syncFromPreedit(data.preedit.toString())
     }
 
+    fun getChineseT9InputSnapshot(data: FcitxEvent.InputPanelEvent.Data): ChineseT9InputSnapshot {
+        syncT9CompositionWithInputPanel(data)
+        val rawSequence = getT9CompositionRawSequence()
+        return ChineseT9InputSnapshot(
+            rawSequence = rawSequence,
+            digitSequence = rawSequence.filter { it in '2'..'9' },
+            currentSegment = getCurrentT9Segment(),
+            fullComposition = chineseT9Session.fullComposition(),
+            model = chineseT9Session.model,
+            keyCount = rawSequence.count { it in '2'..'9' },
+            filterPrefixes = buildT9ResolvedPinyinFilterPrefixes(chineseT9Session.model),
+            hasPendingPinyinSelection = chineseT9Session.pendingSelection != null,
+            sessionRevision = chineseT9Session.revision
+        )
+    }
+
     /** Total number of digit keys (2-9) in current composition, for truncating first-row pinyin. */
     fun getT9CompositionKeyCount(): Int =
         chineseT9Session.keyCount()
-
-    private fun getT9CompositionDigitSequence(): String =
-        chineseT9Session.digitSequence()
 
     private fun getT9CompositionRawSequence(): String =
         chineseT9Session.rawSequence()
@@ -2275,34 +2289,31 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
 
     fun getT9PresentationState(
+        snapshot: ChineseT9InputSnapshot,
         inputPanel: FcitxEvent.InputPanelEvent.Data,
         paged: FcitxEvent.PagedCandidateEvent.Data
     ): T9PresentationState {
         if (!t9InputModeEnabled || currentT9Mode != T9InputMode.CHINESE) {
             return T9PresentationState(null, emptyList())
         }
-        val key = buildChineseT9PresentationSnapshotKey(inputPanel, paged)
+        val key = buildChineseT9PresentationSnapshotKey(snapshot, inputPanel, paged)
         return chineseT9PresentationCache.getOrBuild(key) {
             buildChineseT9PresentationStateUncached(key)
         }
     }
 
     private fun buildChineseT9PresentationSnapshotKey(
+        snapshot: ChineseT9InputSnapshot,
         inputPanel: FcitxEvent.InputPanelEvent.Data,
         paged: FcitxEvent.PagedCandidateEvent.Data
     ): ChineseT9PresentationSnapshotKey {
         val comment = paged.candidates.getOrNull(paged.cursorIndex)?.comment
             ?: paged.candidates.firstOrNull()?.comment.orEmpty()
-        return ChineseT9PresentationSnapshotKey(
+        return snapshot.presentationKey(
             pendingPunctuationText = t9PunctuationCoordinator.pendingText,
             inputPreedit = inputPanel.preedit.toString(),
             candidateComment = comment,
-            candidateCursorIndex = paged.cursorIndex,
-            rawSequence = getT9CompositionRawSequence(),
-            digitSequence = getT9CompositionDigitSequence(),
-            currentSegment = getCurrentT9Segment(),
-            fullComposition = chineseT9Session.fullComposition(),
-            model = chineseT9Session.model
+            candidateCursorIndex = paged.cursorIndex
         )
     }
 
@@ -2413,10 +2424,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     fun getT9ResolvedPinyinFilterPrefixes(): List<String> {
-        val resolvedSegments = chineseT9Session.resolvedSegments
+        return buildT9ResolvedPinyinFilterPrefixes(chineseT9Session.model)
+    }
+
+    private fun buildT9ResolvedPinyinFilterPrefixes(model: T9CompositionModel): List<String> {
+        val resolvedSegments = model.resolvedSegments
         val resolved = resolvedSegments.map { it.pinyin }
         if (resolved.isEmpty()) return emptyList()
-        if (chineseT9Session.pendingSelection != null ||
+        if (model.pendingSelection != null ||
             resolvedSegments.all { it.engineBacked }
         ) {
             return emptyList()
