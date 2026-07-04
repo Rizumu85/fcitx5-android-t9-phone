@@ -1218,19 +1218,22 @@ class CandidatesView(
             startOfParent()
         })
 
-        // After layout, give pinyin bar the same width as candidates so it scrolls inside bubble2
+        // Layout can discover the candidate row width after the first render, but it must still
+        // respect the pinyin usability floor or the row flashes wide and immediately shrinks again.
         bubble2Wrapper.viewTreeObserver.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {
             override fun onGlobalLayout() {
                 val cw = candidatesUi.root.width
                 if (cw > 0) {
                     lastCandidateRowWidthPx = cw
                 }
-                if (cw > 0 && (pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.width != cw) {
-                    (pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.width = cw
+                val targetWidth = cw.takeIf { it > 0 }
+                    ?.let { maxOf(it, minimumPopulatedPinyinRowWidthPx() ?: 0) }
+                    ?: return
+                if ((pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.width != targetWidth) {
+                    (pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.width = targetWidth
                     pinyinRowWrapper.requestLayout()
                 }
-                if (cw > 0 &&
-                    pinyinRowTargetVisible &&
+                if (pinyinRowTargetVisible &&
                     pinyinRowWrapper.visibility == View.INVISIBLE
                 ) {
                     showPinyinRowNow()
