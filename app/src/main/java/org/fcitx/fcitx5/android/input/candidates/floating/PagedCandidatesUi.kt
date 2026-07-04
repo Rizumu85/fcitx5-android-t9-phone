@@ -171,7 +171,15 @@ class PagedCandidatesUi(
         }
     }
 
-    private val candidatesLayoutManager = FlexboxLayoutManager(ctx).apply {
+    private class CandidateFlexboxLayoutManager(context: Context) : FlexboxLayoutManager(context) {
+        var shortcutToolbarMode = false
+
+        override fun canScrollHorizontally(): Boolean = !shortcutToolbarMode && super.canScrollHorizontally()
+
+        override fun canScrollVertically(): Boolean = !shortcutToolbarMode && super.canScrollVertically()
+    }
+
+    private val candidatesLayoutManager = CandidateFlexboxLayoutManager(ctx).apply {
         flexWrap = FlexWrap.WRAP
     }
 
@@ -207,6 +215,7 @@ class PagedCandidatesUi(
         this.showShortcutLabels = showShortcutLabels
         this.isVertical = nextVertical
         candidatesLayoutManager.apply {
+            shortcutToolbarMode = showShortcutLabels
             if (isVertical) {
                 flexDirection = FlexDirection.COLUMN
                 alignItems = AlignItems.STRETCH
@@ -215,6 +224,7 @@ class PagedCandidatesUi(
                 alignItems = if (showShortcutLabels) AlignItems.CENTER else AlignItems.BASELINE
             }
         }
+        updateShortcutToolbarClipping(showShortcutLabels)
         val newRows = rowsFor(
             data = data,
             highlightActive = highlightActive,
@@ -228,6 +238,7 @@ class PagedCandidatesUi(
             else -> DiffUtil.calculateDiff(rowDiff(oldRows, newRows))
                 .dispatchUpdatesTo(candidatesAdapter)
         }
+        resetShortcutToolbarOffsetIfNeeded()
     }
 
     fun setHighlightActive(active: Boolean) {
@@ -258,6 +269,27 @@ class PagedCandidatesUi(
             highlightOverflowPaddingPx,
             verticalPadding
         )
+    }
+
+    private fun updateShortcutToolbarClipping(enabled: Boolean) {
+        // T9 candidates are a paged toolbar, not a scrollable list. Clipping only in this mode
+        // prevents FlexboxLayoutManager's stale scroll offset from painting a page into the
+        // pinyin row while keeping normal floating candidates' focus overflow unchanged.
+        root.clipChildren = enabled
+        root.clipToPadding = false
+    }
+
+    private fun resetShortcutToolbarOffsetIfNeeded() {
+        if (!showShortcutLabels) return
+        root.stopScroll()
+        candidatesLayoutManager.scrollToPosition(0)
+        root.scrollTo(0, 0)
+        root.post {
+            if (!showShortcutLabels) return@post
+            root.stopScroll()
+            candidatesLayoutManager.scrollToPosition(0)
+            root.scrollTo(0, 0)
+        }
     }
 
     companion object {
