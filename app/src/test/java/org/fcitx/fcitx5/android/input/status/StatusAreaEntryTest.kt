@@ -14,13 +14,17 @@ import org.junit.Test
 class StatusAreaEntryTest {
 
     @Test
-    fun rimeSchemeSwitchIsDetectedByCheckedMenuItem() {
+    fun rimeSchemeSwitchIsDetectedBySourceActionName() {
         val schemeSwitch = action(
-            name = "fcitx-rime-schema",
+            name = "fcitx-rime-im",
             shortText = "雾凇拼音",
             menu = arrayOf(
-                action(shortText = "朙月拼音", isCheckable = true),
-                action(shortText = "雾凇拼音", isCheckable = true, isChecked = true)
+                action(shortText = "Latin Mode"),
+                action(shortText = "朙月拼音"),
+                action(shortText = "雾凇拼音"),
+                action(isSeparator = true),
+                action(name = "fcitx-rime-deploy", shortText = "Deploy"),
+                action(name = "fcitx-rime-sync", shortText = "Synchronize")
             )
         )
 
@@ -48,7 +52,7 @@ class StatusAreaEntryTest {
     @Test
     fun otherRimeFeatureMenusKeepTheirOwnLabels() {
         val featureMenu = action(
-            name = "fcitx-rime",
+            name = "fcitx-rime-schema-select-ascii_mode",
             shortText = "Rime Options",
             menu = arrayOf(
                 action(shortText = "ASCII Mode", isCheckable = true, isChecked = true),
@@ -60,9 +64,9 @@ class StatusAreaEntryTest {
     }
 
     @Test
-    fun nonRimeCurrentValueMenusAreNotSchemeSwitches() {
-        val nonRimeMenu = action(
-            name = "generic-config",
+    fun rimeOptionMenuThatLooksLikeCurrentValueKeepsItsLabel() {
+        val rimeOptionMenu = action(
+            name = "fcitx-rime-luna_pinyin-select-ascii_punct",
             shortText = "Current",
             menu = arrayOf(
                 action(shortText = "Current", isCheckable = true, isChecked = true),
@@ -70,7 +74,7 @@ class StatusAreaEntryTest {
             )
         )
 
-        assertFalse(nonRimeMenu.isRimeSchemeSwitchAction())
+        assertFalse(rimeOptionMenu.isRimeSchemeSwitchAction())
     }
 
     private fun action(
@@ -78,13 +82,14 @@ class StatusAreaEntryTest {
         icon: String = "",
         shortText: String = "",
         longText: String = "",
+        isSeparator: Boolean = false,
         isCheckable: Boolean = false,
         isChecked: Boolean = false,
         menu: Array<Action>? = null
     ): Action =
         Action(
             id = 0,
-            isSeparator = false,
+            isSeparator = isSeparator,
             isCheckable = isCheckable,
             isChecked = isChecked,
             name = name,

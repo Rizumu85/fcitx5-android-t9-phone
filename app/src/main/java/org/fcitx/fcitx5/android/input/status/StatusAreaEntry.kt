@@ -81,29 +81,12 @@ sealed class StatusAreaEntry(
         }
 
         internal fun Action.isRimeSchemeSwitchAction(): Boolean {
-            if (!hasRimeMarker()) return false
-            val currentLabel = displayLabel()
-            if (currentLabel.isEmpty()) return false
-            val labeledMenu = menu.orEmpty()
-                .filterNot { it.isSeparator }
-                .filter { it.displayLabel().isNotEmpty() }
-            if (labeledMenu.size < 2) return false
-
-            // Rime has many status actions. Only the schema dropdown mirrors the active schema
-            // as both the status label and the checked menu item, so only that user-facing entry
-            // hides implementation scheme names behind "Dictionary Switch".
-            return labeledMenu.any { it.isChecked && it.displayLabel() == currentLabel }
+            // fcitx5-rime registers this exact action as the schema menu entry. Other Rime
+            // actions can also have menus, so source identity is more stable than label shape.
+            return name == "fcitx-rime-im"
         }
 
         private fun Action.displayLabel(): String =
             shortText.trim().ifEmpty { longText.trim() }
-
-        private fun Action.hasRimeMarker(): Boolean =
-            name.startsWith("fcitx-rime") ||
-                icon.startsWith("fcitx_rime") ||
-                menu?.any {
-                    it.name.startsWith("fcitx-rime") ||
-                        it.icon.startsWith("fcitx_rime")
-                } == true
     }
 }
