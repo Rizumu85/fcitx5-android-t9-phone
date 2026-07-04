@@ -1083,7 +1083,17 @@ class CandidatesView(
     private fun pinyinRenderedContentExceedsViewport(): Boolean {
         if (t9RenderedPinyinItems.isEmpty()) return false
         val viewportWidthPx = pinyinRowViewportWidthPx() ?: pinyinRowMaxWidthPx()
-        return pinyinItemsWidthPx(t9RenderedPinyinItems, reservesOverflowHint = false) > viewportWidthPx
+        val contentWidthPx = pinyinBarAdapter.contentWidthPx()
+            ?: pinyinItemsWidthPx(t9RenderedPinyinItems, reservesOverflowHint = false)
+        // Product decision: do not show a hint for ordinary short rows, but when a long pinyin
+        // filter row is squeezed to its exact measured edge, Android text layout and focus scale
+        // can still clip the final chip. Treat that edge as hidden content.
+        val edgeGuardPx = if (t9RenderedPinyinItems.size > T9_PINYIN_ROW_MIN_VISIBLE_CHIPS) {
+            dp(T9_PINYIN_ROW_OVERFLOW_EDGE_GUARD_DP)
+        } else {
+            0
+        }
+        return contentWidthPx + edgeGuardPx > viewportWidthPx
     }
 
     private fun pinyinRowViewportWidthPx(): Int? {
@@ -1460,6 +1470,7 @@ class CandidatesView(
         private const val T9_PINYIN_TO_HANZI_GAP_DP = 2
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
         private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 18
+        private const val T9_PINYIN_ROW_OVERFLOW_EDGE_GUARD_DP = 8
         private const val T9_PINYIN_ROW_FOCUSED_END_GAP_DP = 10
     }
 }

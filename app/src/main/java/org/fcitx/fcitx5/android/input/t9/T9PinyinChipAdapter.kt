@@ -97,6 +97,10 @@ class T9PinyinChipAdapter(
 
     fun getHighlightedPinyin(): String? = pinyins.getOrNull(highlightedIndex)
 
+    fun contentWidthPx(): Int? =
+        container.width.takeIf { it > 0 }
+            ?: container.measuredWidth.takeIf { it > 0 }
+
     fun setHighlightActive(active: Boolean) {
         if (highlightActive == active) return
         highlightActive = active
@@ -132,9 +136,10 @@ class T9PinyinChipAdapter(
 
     private fun scrollHighlightedIntoView(viewportWidthPx: Int?) {
         val chip = chips.getOrNull(highlightedIndex) ?: return
-        val viewportWidth = viewportWidthPx?.takeIf { it > 0 }
+        val viewportWidth = (viewportWidthPx?.takeIf { it > 0 }
             ?: root.width.takeIf { it > 0 }
-            ?: return
+            ?: return) - root.paddingLeft - root.paddingRight
+        if (viewportWidth <= 0) return
         val params = chip.layoutParams as? LinearLayout.LayoutParams
         val chipStart = chip.left
         val chipEnd = chip.right + (params?.rightMargin ?: 0)
