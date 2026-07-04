@@ -48,6 +48,23 @@ class T9CandidateUiRendererTest {
         assertEquals(listOf(false, true), delegate.showRequests)
     }
 
+    @Test
+    fun hidingPanelSkipsInternalPinyinCollapse() {
+        val delegate = FakeDelegate()
+        val renderer = T9CandidateUiRenderer(delegate)
+
+        renderer.render(state(candidates = paged("a")))
+        renderer.render(state(
+            candidates = FcitxEvent.PagedCandidateEvent.Data.Empty,
+            pinyinOptions = emptyList(),
+            pinyinUseT9 = false,
+            shouldShow = false
+        ))
+
+        assertEquals(1, delegate.renderPinyinCount)
+        assertEquals(1, delegate.hideCount)
+    }
+
     private class FakeDelegate : T9CandidateUiRenderer.Delegate {
         constructor()
         constructor(pinyinReady: Boolean) {
@@ -92,18 +109,21 @@ class T9CandidateUiRendererTest {
     }
 
     private fun state(
-        candidates: FcitxEvent.PagedCandidateEvent.Data
+        candidates: FcitxEvent.PagedCandidateEvent.Data,
+        pinyinOptions: List<String> = listOf("a"),
+        pinyinUseT9: Boolean = true,
+        shouldShow: Boolean = true
     ): T9CandidateRenderState =
         T9CandidateRenderState(
             panel = FcitxEvent.InputPanelEvent.Data(),
             candidates = candidates,
             orientation = FloatingCandidatesOrientation.Horizontal,
             showShortcutLabels = true,
-            pinyinOptions = listOf("a"),
-            pinyinUseT9 = true,
+            pinyinOptions = pinyinOptions,
+            pinyinUseT9 = pinyinUseT9,
             focus = T9CandidateFocus.BOTTOM,
             preferAboveCursorAnchor = true,
-            shouldShow = true
+            shouldShow = shouldShow
         )
 
     private fun paged(text: String): FcitxEvent.PagedCandidateEvent.Data =

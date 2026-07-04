@@ -980,12 +980,12 @@ class CandidatesView(
         val chipPaddingPx = dpCandidates(itemPaddingHorizontal)
         val chipWidthPx = visiblePinyin.withIndex().sumOf { (index, pinyin) ->
             val textWidthPx = paint.measureText(pinyin).roundToInt()
-            val rightMarginPx = if (index == visiblePinyin.lastIndex) 0 else chipPaddingPx
+            val rightMarginPx = if (index != visiblePinyin.lastIndex || peekPinyin != null) chipPaddingPx else 0
             textWidthPx + chipPaddingPx * 2 + rightMarginPx
         }
         val peekWidthPx = peekPinyin?.let { pinyin ->
             val textWidthPx = paint.measureText(pinyin).roundToInt()
-            ((textWidthPx + chipPaddingPx * 2 + chipPaddingPx) * T9_PINYIN_ROW_PEEK_CHIP_RATIO)
+            ((textWidthPx + chipPaddingPx * 2) * T9_PINYIN_ROW_PEEK_CHIP_RATIO)
                 .roundToInt()
         } ?: 0
         // Product decision: keep the old bubble-sized Hanzi row, but give a populated pinyin row

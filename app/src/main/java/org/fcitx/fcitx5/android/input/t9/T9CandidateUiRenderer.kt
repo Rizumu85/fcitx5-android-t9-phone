@@ -42,6 +42,21 @@ class T9CandidateUiRenderer(
 
     fun render(next: T9CandidateRenderState) {
         val patch = T9CandidateRenderer.diff(previousState, next)
+        val hiddenVisibilityRequest = VisibilityRequest(
+            shouldShow = false,
+            contentReady = true,
+            preferAboveCursorAnchor = next.preferAboveCursorAnchor
+        )
+        if (!next.shouldShow) {
+            if (patch.visibility || previousVisibilityRequest != hiddenVisibilityRequest) {
+                T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderVisibility") {
+                    delegate.hideCandidateUi()
+                }
+                previousVisibilityRequest = hiddenVisibilityRequest
+            }
+            previousState = next
+            return
+        }
         if (previousState?.preferAboveCursorAnchor != next.preferAboveCursorAnchor) {
             delegate.setPreferAboveCursorAnchor(next.preferAboveCursorAnchor)
         }
