@@ -63,6 +63,7 @@ class T9BulkCandidateLoaderTest {
     ): T9BulkCandidateLoader =
         T9BulkCandidateLoader(
             characterBudget = { budget },
+            widthBudget = { null },
             candidateMatchesPrefix = matches
         )
 

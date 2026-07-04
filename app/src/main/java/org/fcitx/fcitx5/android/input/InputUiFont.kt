@@ -8,6 +8,7 @@ import android.content.Context
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Environment
+import android.text.TextPaint
 import android.widget.TextView
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
@@ -46,6 +47,10 @@ object InputUiFont {
 
     fun applyTo(view: TextView, style: Int = Typeface.NORMAL) {
         view.setTypeface(selectedTypeface(), style)
+    }
+
+    fun applyTo(paint: TextPaint, style: Int = Typeface.NORMAL) {
+        paint.typeface = Typeface.create(selectedTypeface(), style)
     }
 
     fun applyWeightTo(

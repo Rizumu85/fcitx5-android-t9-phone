@@ -48,13 +48,14 @@ object T9CandidateSnapshots {
 
     fun pagerContent(
         data: FcitxEvent.PagedCandidateEvent.Data,
-        characterBudget: Int
+        characterBudget: Int,
+        widthBudget: T9CandidateWidthBudget? = null
     ): String =
         pagedContent(
             data = data,
             orientation = null,
             showShortcutLabels = null,
-            prefix = "$characterBudget|"
+            prefix = "$characterBudget|${widthBudget?.signature.orEmpty()}|"
         )
 
     fun pinyin(candidates: List<String>, useT9: Boolean): T9PinyinSnapshot =

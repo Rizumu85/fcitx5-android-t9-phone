@@ -127,6 +127,7 @@ class ChineseT9CandidatePipelineTest {
     ): ChineseT9CandidatePipeline =
         ChineseT9CandidatePipeline(
             characterBudget = { characterBudget },
+            widthBudget = { null },
             candidateMatchesPrefix = matchesPrefix
         )
 

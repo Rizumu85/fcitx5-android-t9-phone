@@ -15,7 +15,7 @@ class T9SmartEnglishPageCacheTest {
 
     @Test
     fun sameCandidatePageAndCursorReusesPagedResult() {
-        val cache = T9SmartEnglishPageCache { 20 }
+        val cache = cache()
         val data = paged("hello", "help", cursor = 1)
 
         val first = cache.build(data)
@@ -28,7 +28,7 @@ class T9SmartEnglishPageCacheTest {
 
     @Test
     fun cursorChangeReusesPagerButBuildsNewPagedResult() {
-        val cache = T9SmartEnglishPageCache { 20 }
+        val cache = cache()
 
         cache.build(paged("hello", "help", cursor = 0))
         val second = cache.build(paged("hello", "help", cursor = 1))
@@ -39,7 +39,7 @@ class T9SmartEnglishPageCacheTest {
 
     @Test
     fun emptyCandidatesDoNotThrow() {
-        val cache = T9SmartEnglishPageCache { 20 }
+        val cache = cache()
 
         val result = cache.build(
             FcitxEvent.PagedCandidateEvent.Data(
@@ -67,5 +67,11 @@ class T9SmartEnglishPageCacheTest {
             layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
             hasPrev = false,
             hasNext = false
+        )
+
+    private fun cache(): T9SmartEnglishPageCache =
+        T9SmartEnglishPageCache(
+            characterBudget = { 20 },
+            widthBudget = { null }
         )
 }

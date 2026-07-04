@@ -68,6 +68,7 @@ class T9CandidatePager {
 
     private var signature = ""
     private var budget = 0
+    private var widthSignature = ""
     private var pages: List<List<IndexedValue<FcitxEvent.Candidate>>> = emptyList()
 
     var pageIndex = 0
@@ -82,6 +83,7 @@ class T9CandidatePager {
     fun reset() {
         signature = ""
         budget = 0
+        widthSignature = ""
         pages = emptyList()
         pageIndex = 0
         candidates = emptyList()
@@ -90,14 +92,21 @@ class T9CandidatePager {
     fun update(
         signature: String,
         candidates: List<IndexedValue<FcitxEvent.Candidate>>,
-        characterBudget: Int
+        characterBudget: Int,
+        widthBudget: T9CandidateWidthBudget? = null
     ) {
         val normalizedBudget = T9CandidateBudget.normalizedBudget(characterBudget)
-        if (this.signature == signature && budget == normalizedBudget) return
+        val normalizedWidthSignature = widthBudget?.signature.orEmpty()
+        if (
+            this.signature == signature &&
+            budget == normalizedBudget &&
+            widthSignature == normalizedWidthSignature
+        ) return
         this.signature = signature
         this.budget = normalizedBudget
+        this.widthSignature = normalizedWidthSignature
         this.candidates = candidates
-        pages = buildPages(candidates, normalizedBudget)
+        pages = buildPages(candidates, normalizedBudget, widthBudget)
         pageIndex = 0
     }
 
@@ -131,26 +140,35 @@ class T9CandidatePager {
 
     private fun buildPages(
         candidates: List<IndexedValue<FcitxEvent.Candidate>>,
-        budget: Int
+        budget: Int,
+        widthBudget: T9CandidateWidthBudget?
     ): List<List<IndexedValue<FcitxEvent.Candidate>>> {
         if (candidates.isEmpty()) return emptyList()
         val pages = mutableListOf<MutableList<IndexedValue<FcitxEvent.Candidate>>>()
         var current = mutableListOf<IndexedValue<FcitxEvent.Candidate>>()
         var used = 0
+        var usedWidth = 0
         candidates.forEach { candidate ->
             val length = T9CandidateBudget.candidateCost(candidate.value.text)
+            val width = widthBudget?.candidateWidthPx(candidate.value) ?: 0
             // T9 pages map directly to the physical 1-0 shortcuts, so a page must never expose
             // more candidates than the user can select by number even when short English words
             // would fit the character budget.
             if (current.isNotEmpty() &&
-                (used + length > budget || current.size >= T9CandidateBudget.MAX_CANDIDATES_PER_PAGE)
+                (
+                    used + length > budget ||
+                        current.size >= T9CandidateBudget.MAX_CANDIDATES_PER_PAGE ||
+                        (widthBudget != null && usedWidth + width > widthBudget.maxWidthPx)
+                    )
             ) {
                 pages += current
                 current = mutableListOf()
                 used = 0
+                usedWidth = 0
             }
             current += candidate
             used += length
+            usedWidth += width
         }
         if (current.isNotEmpty()) {
             pages += current

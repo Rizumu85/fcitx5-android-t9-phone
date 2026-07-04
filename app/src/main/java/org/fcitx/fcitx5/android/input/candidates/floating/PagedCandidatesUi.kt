@@ -46,6 +46,7 @@ class PagedCandidatesUi(
     private var isVertical = false
     private var highlightActive = true
     private var showShortcutLabels = false
+    private var shortcutLayout: ShortcutLayout? = null
     private val t9InputModeEnabledPref = AppPrefs.getInstance().keyboard.useT9KeyboardLayout
 
     @Volatile
@@ -76,6 +77,10 @@ class PagedCandidatesUi(
     }
 
     private var renderRows: List<Row> = rowsFor(data, highlightActive, showShortcutLabels)
+
+    data class ShortcutLayout(
+        val maxCandidateWidthPx: Int
+    )
 
     sealed class UiHolder(open val ui: Ui) : RecyclerView.ViewHolder(ui.root) {
         class Candidate(override val ui: LabeledCandidateItemUi) : UiHolder(ui)
@@ -158,7 +163,8 @@ class PagedCandidatesUi(
                 active = row.active,
                 inactiveRow = row.inactiveRow,
                 t9InputModeEnabled = t9InputModeEnabled,
-                shortcutLabel = row.shortcutLabel
+                shortcutLabel = row.shortcutLabel,
+                shortcutMaxWidthPx = shortcutLayout?.maxCandidateWidthPx
             )
         }
 
@@ -169,7 +175,8 @@ class PagedCandidatesUi(
                 active = row.active,
                 inactiveRow = row.inactiveRow,
                 t9InputModeEnabled = t9InputModeEnabled,
-                shortcutLabel = row.shortcutLabel
+                shortcutLabel = row.shortcutLabel,
+                shortcutMaxWidthPx = shortcutLayout?.maxCandidateWidthPx
             )
         }
     }
@@ -207,20 +214,25 @@ class PagedCandidatesUi(
     fun update(
         data: FcitxEvent.PagedCandidateEvent.Data,
         orientation: FloatingCandidatesOrientation,
-        showShortcutLabels: Boolean = false
+        showShortcutLabels: Boolean = false,
+        shortcutLayout: ShortcutLayout? = null
     ) {
         val oldRows = renderRows
         val oldVertical = isVertical
         val oldShortcutLabels = this.showShortcutLabels
+        val oldShortcutLayout = this.shortcutLayout
         val nextVertical = if (showShortcutLabels) {
             false
         } else when (orientation) {
             FloatingCandidatesOrientation.Automatic -> data.layoutHint == LayoutHint.Vertical
             else -> orientation == FloatingCandidatesOrientation.Vertical
         }
-        val layoutChanged = oldVertical != nextVertical || oldShortcutLabels != showShortcutLabels
+        val layoutChanged = oldVertical != nextVertical ||
+            oldShortcutLabels != showShortcutLabels ||
+            oldShortcutLayout != shortcutLayout
         this.data = data
         this.showShortcutLabels = showShortcutLabels
+        this.shortcutLayout = shortcutLayout
         this.isVertical = nextVertical
         updateLayoutManager(showShortcutLabels)
         updateShortcutToolbarClipping(showShortcutLabels)

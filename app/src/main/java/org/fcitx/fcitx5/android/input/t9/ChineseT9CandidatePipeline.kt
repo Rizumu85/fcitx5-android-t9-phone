@@ -9,6 +9,7 @@ import org.fcitx.fcitx5.android.core.FcitxEvent
 
 class ChineseT9CandidatePipeline(
     private val characterBudget: () -> Int,
+    private val widthBudget: () -> T9CandidateWidthBudget?,
     private val candidateMatchesPrefix: (candidate: FcitxEvent.Candidate, prefix: String) -> Boolean
 ) {
     private val localBudgetPager = T9CandidatePager()
@@ -56,7 +57,7 @@ class ChineseT9CandidatePipeline(
             ) to null
         }
         val pager = T9CandidatePager()
-        pager.update("filtered", matched.candidates, characterBudget())
+        pager.update("filtered", matched.candidates, characterBudget(), widthBudget())
         val page = pager.currentPage() ?: return T9PagedCandidates.passthrough(data) to matched.prefix
         if (page.candidates.size == data.candidates.size &&
             page.candidates.indices.all { page.candidates[it].index == it }
@@ -78,7 +79,7 @@ class ChineseT9CandidatePipeline(
         if (signature == localBudgetNoPageSignature) return null
         if (signature != localBudgetSignature) {
             val indexedCandidates = dedupeDisplayCandidates(data.candidates.withIndex().toList())
-            localBudgetPager.update(signature, indexedCandidates, characterBudget())
+            localBudgetPager.update(signature, indexedCandidates, characterBudget(), widthBudget())
             localBudgetSignature = signature
         }
         val page = localBudgetPager.currentPage() ?: return null
@@ -154,7 +155,7 @@ class ChineseT9CandidatePipeline(
     }
 
     private fun buildCandidateSignature(data: FcitxEvent.PagedCandidateEvent.Data): String =
-        T9CandidateSnapshots.pagerContent(data, characterBudget())
+        T9CandidateSnapshots.pagerContent(data, characterBudget(), widthBudget())
 
     private fun buildShownCandidateSignature(data: FcitxEvent.PagedCandidateEvent.Data): String =
         buildString {

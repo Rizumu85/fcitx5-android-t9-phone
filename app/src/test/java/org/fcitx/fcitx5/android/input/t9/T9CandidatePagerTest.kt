@@ -122,6 +122,86 @@ class T9CandidatePagerTest {
         assertArrayEquals(intArrayOf(10, 11), second.originalIndices)
     }
 
+    @Test
+    fun keepsShortCandidatesStableWhenTheyFitPixelBudget() {
+        val pager = T9CandidatePager()
+        val shortWords = listOf(
+            "and", "ane", "bod", "boe", "cod", "coe",
+            "amd", "ame", "bof", "con", "boo", "bon"
+        )
+        pager.update(
+            signature = "short-english",
+            candidates = shortWords.mapIndexed { index, word -> IndexedValue(index, candidate(word)) },
+            characterBudget = 24,
+            widthBudget = widthBudget(maxWidthPx = 1_000)
+        )
+
+        val first = pager.currentPage()
+        assertNotNull(first)
+        first!!
+
+        assertEquals(10, first.candidates.size)
+        assertEquals(shortWords.take(10), first.candidates.map { it.value.text })
+        assertTrue(first.hasNext)
+    }
+
+    @Test
+    fun splitsLongEnglishCandidatesByPixelBudget() {
+        val pager = T9CandidatePager()
+        val words = listOf("bodily", "Boeing", "coding", "AMDgpu", "Command", "condition")
+        pager.update(
+            signature = "long-english",
+            candidates = words.mapIndexed { index, word -> IndexedValue(index, candidate(word)) },
+            characterBudget = 24,
+            widthBudget = widthBudget(maxWidthPx = 60)
+        )
+
+        val first = pager.currentPage()
+        assertNotNull(first)
+        first!!
+
+        assertEquals(listOf("bodily", "Boeing"), first.candidates.map { it.value.text })
+        assertArrayEquals(intArrayOf(0, 1), first.originalIndices)
+        assertTrue(first.hasNext)
+
+        val second = pager.offset(1)
+        assertNotNull(second)
+        second!!
+        assertEquals(listOf("coding", "AMDgpu"), second.candidates.map { it.value.text })
+        assertArrayEquals(intArrayOf(2, 3), second.originalIndices)
+    }
+
+    @Test
+    fun keepsSingleOversizedCandidateVisibleForEllipsizing() {
+        val pager = T9CandidatePager()
+        pager.update(
+            signature = "oversized",
+            candidates = listOf(
+                IndexedValue(0, candidate("supercalifragilistic")),
+                IndexedValue(1, candidate("word"))
+            ),
+            characterBudget = 24,
+            widthBudget = widthBudget(maxWidthPx = 20)
+        )
+
+        val first = pager.currentPage()
+        assertNotNull(first)
+        first!!
+
+        assertEquals(listOf("supercalifragilistic"), first.candidates.map { it.value.text })
+        assertTrue(first.hasNext)
+    }
+
     private fun candidate(text: String): FcitxEvent.Candidate =
         FcitxEvent.Candidate(label = "", text = text, comment = "")
+
+    private fun widthBudget(maxWidthPx: Int): T9CandidateWidthBudget =
+        T9CandidateWidthBudget(
+            maxWidthPx = maxWidthPx,
+            candidateSpacingPx = 0,
+            candidateHorizontalPaddingPx = 0,
+            minimumCandidateWidthPx = 1,
+            activeScalePercent = 100,
+            measureTextWidthPx = { it.length * 5 }
+        )
 }

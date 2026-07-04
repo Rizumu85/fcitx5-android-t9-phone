@@ -8,7 +8,8 @@ package org.fcitx.fcitx5.android.input.t9
 import org.fcitx.fcitx5.android.core.FcitxEvent
 
 class T9SmartEnglishPageCache(
-    private val characterBudget: () -> Int
+    private val characterBudget: () -> Int,
+    private val widthBudget: () -> T9CandidateWidthBudget?
 ) {
     private val pager = T9CandidatePager()
     private var contentSignature = ""
@@ -27,7 +28,8 @@ class T9SmartEnglishPageCache(
 
     fun build(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates {
         val budget = characterBudget()
-        val signature = T9CandidateSnapshots.pagerContent(data, budget)
+        val widthBudget = widthBudget()
+        val signature = T9CandidateSnapshots.pagerContent(data, budget, widthBudget)
         val selectedIndex = data.candidates.indices
             .takeIf { !it.isEmpty() }
             ?.let { data.cursorIndex.coerceIn(it) }
@@ -38,7 +40,7 @@ class T9SmartEnglishPageCache(
             }
         }
         if (signature != contentSignature) {
-            pager.update(signature, data.candidates.withIndex().toList(), budget)
+            pager.update(signature, data.candidates.withIndex().toList(), budget, widthBudget)
             contentSignature = signature
         }
         cachedCursorIndex = selectedIndex

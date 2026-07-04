@@ -37,11 +37,13 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidatePipeline
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidateLoadingState
 import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
 import org.fcitx.fcitx5.android.input.t9.T9BulkCandidateLoader
+import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidatePager
 import org.fcitx.fcitx5.android.input.t9.T9CandidateSnapshots
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiStateBuilder
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiRenderer
+import org.fcitx.fcitx5.android.input.t9.T9CandidateWidthBudget
 import org.fcitx.fcitx5.android.input.t9.T9PagedCandidates
 import org.fcitx.fcitx5.android.input.t9.T9PinyinChipAdapter
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowWindow
@@ -186,12 +188,14 @@ class CandidatesView(
     private var t9BulkFilteredMatchedPrefix: String? = null
     private val chineseT9CandidatePipeline = ChineseT9CandidatePipeline(
         characterBudget = { t9HanziCharacterBudget },
+        widthBudget = ::t9CandidateWidthBudget,
         candidateMatchesPrefix = { candidate, prefix ->
             service.candidateMatchesT9ResolvedPrefix(candidate, prefix)
         }
     )
     private val t9BulkCandidateLoader = T9BulkCandidateLoader(
         characterBudget = { t9HanziCharacterBudget },
+        widthBudget = ::t9CandidateWidthBudget,
         candidateMatchesPrefix = { candidate, prefix ->
             service.candidateMatchesT9ResolvedPrefix(candidate, prefix)
         }
@@ -206,7 +210,8 @@ class CandidatesView(
     private var t9PinyinOverflowHintSuppressedByFocus = false
     private var lastRenderedT9Focus = T9CandidateFocus.BOTTOM
     private val t9SmartEnglishPageCache = T9SmartEnglishPageCache(
-        characterBudget = { t9HanziCharacterBudget }
+        characterBudget = { t9HanziCharacterBudget },
+        widthBudget = ::t9CandidateWidthBudget
     )
     private val t9RefreshScheduler = T9UiRefreshScheduler(
         postRefresh = { block -> postOnAnimation(block) },
@@ -214,6 +219,7 @@ class CandidatesView(
     )
     private var lastCandidateRowWidthPx = 0
     private val t9PinyinMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
+    private val t9CandidateMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
     private val t9CandidateUiRenderer = T9CandidateUiRenderer(object : T9CandidateUiRenderer.Delegate {
         override fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean) {
             this@CandidatesView.preferAboveCursorAnchor = preferAboveCursorAnchor
@@ -232,7 +238,8 @@ class CandidatesView(
             candidatesUi.update(
                 candidates,
                 orientation,
-                showShortcutLabels = showShortcutLabels
+                showShortcutLabels = showShortcutLabels,
+                shortcutLayout = t9ShortcutCandidateLayout().takeIf { showShortcutLabels }
             )
         }
 
@@ -835,7 +842,12 @@ class CandidatesView(
         data: FcitxEvent.PagedCandidateEvent.Data
     ): T9PagedCandidates {
         val signature = buildT9CandidateSignature(data)
-        t9PendingPunctuationPager.update(signature, data.candidates.withIndex().toList(), t9HanziCharacterBudget)
+        t9PendingPunctuationPager.update(
+            signature,
+            data.candidates.withIndex().toList(),
+            t9HanziCharacterBudget,
+            t9CandidateWidthBudget()
+        )
         val selectedIndex = data.cursorIndex.coerceIn(data.candidates.indices)
         val page = t9PendingPunctuationPager.selectPageContainingOriginalIndex(selectedIndex)
             ?: return T9PagedCandidates.passthrough(data)
@@ -861,7 +873,7 @@ class CandidatesView(
         )
 
     private fun buildT9CandidateSignature(data: FcitxEvent.PagedCandidateEvent.Data): String =
-        T9CandidateSnapshots.pagerContent(data, t9HanziCharacterBudget)
+        T9CandidateSnapshots.pagerContent(data, t9HanziCharacterBudget, t9CandidateWidthBudget())
 
     private fun applyT9BulkFilteredPage(page: T9CandidatePager.Page) {
         t9BulkFilteredPaged = if (page.candidates.isEmpty()) {
@@ -1127,6 +1139,33 @@ class CandidatesView(
             ?: (parentWidthPx - horizontalMarginPx * 2).coerceAtLeast(1)
         return (outerMaxWidthPx - paddingLeft - paddingRight - dp(windowPadding) * 2)
             .coerceAtLeast(1)
+    }
+
+    private fun t9ShortcutCandidateLayout(): PagedCandidatesUi.ShortcutLayout {
+        val widthBudget = t9CandidateWidthBudget()
+        return PagedCandidatesUi.ShortcutLayout(
+            maxCandidateWidthPx = widthBudget.maxCandidateWidthPx
+        )
+    }
+
+    private fun t9CandidateWidthBudget(): T9CandidateWidthBudget {
+        val maxWidthPx = pinyinRowMaxWidthPx()
+        val itemSpacingPx = dp(candidateItemSpacing)
+        val horizontalPaddingPx = dpCandidates(itemPaddingHorizontal)
+        val minimumCandidateWidthPx = (fontSize * ctx.resources.displayMetrics.scaledDensity * 1.35f)
+            .roundToInt()
+            .coerceAtLeast(1)
+        val paint = t9CandidateMeasurePaint.apply {
+            textSize = fontSize * ctx.resources.displayMetrics.scaledDensity
+            InputUiFont.applyTo(this)
+        }
+        return T9CandidateWidthBudget(
+            maxWidthPx = maxWidthPx,
+            candidateSpacingPx = itemSpacingPx,
+            candidateHorizontalPaddingPx = horizontalPaddingPx,
+            minimumCandidateWidthPx = minimumCandidateWidthPx,
+            measureTextWidthPx = { text -> paint.measureText(text).roundToInt() }
+        )
     }
 
     private fun firstPositiveCandidateRowWidth(): Int? {

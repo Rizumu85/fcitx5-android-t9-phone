@@ -8,6 +8,7 @@ package org.fcitx.fcitx5.android.input.candidates.floating
 import android.content.Context
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.text.TextUtils
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -90,10 +91,12 @@ class LabeledCandidateItemUi(
         active: Boolean,
         inactiveRow: Boolean = false,
         t9InputModeEnabled: Boolean = false,
-        shortcutLabel: String? = null
+        shortcutLabel: String? = null,
+        shortcutMaxWidthPx: Int? = null
     ) {
         val usesShortcutLabel = t9InputModeEnabled && shortcutLabel != null
         lastUsesShortcutLabel = usesShortcutLabel
+        applyShortcutWidthLimit(if (usesShortcutLabel) shortcutMaxWidthPx else null)
         root.gravity = if (usesShortcutLabel) Gravity.CENTER else Gravity.CENTER_VERTICAL
         root.minimumWidth = if (usesShortcutLabel) {
             (candidateText.textSize * SHORTCUT_CANDIDATE_MIN_WIDTH_EM).toInt()
@@ -112,7 +115,8 @@ class LabeledCandidateItemUi(
             active = active,
             inactiveRow = inactiveRow,
             t9InputModeEnabled = t9InputModeEnabled,
-            shortcutLabel = shortcutLabel
+            shortcutLabel = shortcutLabel,
+            shortcutMaxWidthPx = shortcutMaxWidthPx
         )
     }
 
@@ -121,8 +125,10 @@ class LabeledCandidateItemUi(
         active: Boolean,
         inactiveRow: Boolean = false,
         t9InputModeEnabled: Boolean = false,
-        shortcutLabel: String? = null
+        shortcutLabel: String? = null,
+        shortcutMaxWidthPx: Int? = null
     ) {
+        applyShortcutWidthLimit(if (t9InputModeEnabled && shortcutLabel != null) shortcutMaxWidthPx else null)
         val labelFg = when {
             active -> theme.genericActiveForegroundColor
             inactiveRow -> theme.candidateCommentColor
@@ -184,6 +190,18 @@ class LabeledCandidateItemUi(
         activeBackground.alpha = targetAlpha
         root.scaleX = targetScale
         root.scaleY = targetScaleY
+    }
+
+    private fun applyShortcutWidthLimit(maxRootWidthPx: Int?) {
+        if (maxRootWidthPx == null || maxRootWidthPx <= 0) {
+            candidateText.maxWidth = Int.MAX_VALUE
+            candidateText.ellipsize = null
+            return
+        }
+        val textMaxWidth = (maxRootWidthPx - root.paddingLeft - root.paddingRight)
+            .coerceAtLeast(candidateText.textSize.toInt())
+        candidateText.maxWidth = textMaxWidth
+        candidateText.ellipsize = TextUtils.TruncateAt.END
     }
 
     companion object {
