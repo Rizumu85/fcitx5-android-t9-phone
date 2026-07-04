@@ -89,6 +89,19 @@ class SmartEnglishT9ControllerTest {
     }
 
     @Test
+    fun loadingDictionaryUsesAvailablePrefixCandidatesForPreview() {
+        val host = FakeHost(dictionaryReady = false)
+        val controller = host.controller()
+
+        listOf(4, 3, 5).forEach(controller::appendDigit)
+
+        assertEquals("hello", controller.paged()?.candidates?.first()?.text)
+        assertEquals("hel", controller.presentation {
+            FormattedText(arrayOf(it), intArrayOf(TextFormatFlag.NoFlag.flag), -1)
+        }?.topReading?.toString())
+    }
+
+    @Test
     fun learningFlushesCompletedWordsWhenEnabled() {
         val host = FakeHost(learn = true)
         val controller = host.controller()
@@ -106,6 +119,7 @@ class SmartEnglishT9ControllerTest {
         private val candidates = mapOf(
             "2" to listOf("a"),
             "4" to listOf("I"),
+            "435" to listOf("hello", "help"),
             "43556" to listOf("hello", "gekko")
         )
         val committedTexts = mutableListOf<String>()

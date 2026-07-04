@@ -49,6 +49,7 @@ class T9EnglishDictionary {
         synchronized(this) {
             builtInReady = true
             invalidateCandidateCache()
+            warmCommonCandidateCache()
         }
     }
 
@@ -128,6 +129,12 @@ class T9EnglishDictionary {
 
     private fun invalidateCandidateCache() {
         candidateCache.clear()
+    }
+
+    private fun warmCommonCandidateCache() {
+        WarmupDigitSequences.forEach { digits ->
+            candidatesFor(digits, WarmupCandidateLimit)
+        }
     }
 
     private fun persistLearnedWords() {
@@ -221,6 +228,7 @@ class T9EnglishDictionary {
         private const val BuiltInDictionaryAsset = "t9/english.tsv"
         private const val PrefixCandidatePoolSize = 64
         private const val CandidateCacheSize = 128
+        private const val WarmupCandidateLimit = 10
 
         fun normalizeLearnedWord(rawWord: String): String? {
             val word = rawWord.trim().lowercase(Locale.US)
@@ -230,9 +238,33 @@ class T9EnglishDictionary {
             return word
         }
 
+        private val WarmupDigitSequences = listOf(
+            "2", "3", "4", "5", "6", "7", "8", "9",
+            "26", "36", "43", "46", "48", "66", "73", "84", "93",
+            "435", "466", "843"
+        )
+
         private val EssentialWordsByDigits = mapOf(
-            "2" to listOf("a"),
-            "4" to listOf("I")
+            "2" to listOf("a", "as", "at"),
+            "3" to listOf("do"),
+            "4" to listOf("I", "in", "is", "hi"),
+            "5" to listOf("like"),
+            "6" to listOf("my", "no", "of", "on"),
+            "7" to listOf("so", "see", "she"),
+            "8" to listOf("to", "the", "this"),
+            "9" to listOf("we", "you", "yes"),
+            "26" to listOf("am", "an"),
+            "36" to listOf("do"),
+            "43" to listOf("he", "if"),
+            "46" to listOf("go", "in"),
+            "48" to listOf("it"),
+            "66" to listOf("no", "on"),
+            "73" to listOf("see"),
+            "84" to listOf("the"),
+            "93" to listOf("we"),
+            "435" to listOf("hello", "help"),
+            "466" to listOf("good", "home"),
+            "843" to listOf("the")
         )
 
         private data class BuiltInWord(
