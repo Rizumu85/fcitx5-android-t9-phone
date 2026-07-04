@@ -205,7 +205,6 @@ class CandidatesView(
     private val t9PinyinRowWindow = T9PinyinRowWindow()
     private var t9RenderedPinyinWindowStart = 0
     private var t9RenderedPinyinItems: List<String> = emptyList()
-    private var t9PinyinOverflowHintSuppressedByFocus = false
     private var lastRenderedT9Focus = T9CandidateFocus.BOTTOM
     private val t9SmartEnglishPageCache = T9SmartEnglishPageCache(
         characterBudget = { t9HanziCharacterBudget },
@@ -554,7 +553,6 @@ class CandidatesView(
         t9PinyinRowWindow.clear()
         t9RenderedPinyinWindowStart = 0
         t9RenderedPinyinItems = emptyList()
-        t9PinyinOverflowHintSuppressedByFocus = false
         updatePinyinOverflowHint(false)
         lastRenderedT9Focus = T9CandidateFocus.BOTTOM
         setPinyinRowVisible(false)
@@ -632,7 +630,6 @@ class CandidatesView(
 
     fun moveHighlightedT9Pinyin(delta: Int): Boolean {
         val state = t9PinyinRowWindow.move(delta) ?: return false
-        suppressPinyinOverflowHintForFocus()
         renderPinyinWindow(state)
         pinyinBarAdapter.scrollToHighlighted(pinyinRowViewportWidthPx())
         return true
@@ -702,11 +699,10 @@ class CandidatesView(
     ) {
         val topFocused = focus == T9CandidateFocus.TOP
         if (topFocused && lastRenderedT9Focus != T9CandidateFocus.TOP) {
-            suppressPinyinOverflowHintForFocus()
+            updatePinyinOverflowHint(false)
             t9PinyinRowWindow.resetHighlight()?.let(::renderPinyinWindow)
             pinyinBarAdapter.scrollToStart()
-        } else if (!topFocused && t9PinyinOverflowHintSuppressedByFocus) {
-            t9PinyinOverflowHintSuppressedByFocus = false
+        } else if (!topFocused) {
             pinyinRowWrapper.post(::updatePinyinOverflowHintFromLayout)
         }
         pinyinBarAdapter.setHighlightActive(topFocused)
@@ -971,7 +967,6 @@ class CandidatesView(
             pinyinBarAdapter.clear()
             pinyinBarAdapter.scrollToStart()
             t9RenderedPinyinItems = emptyList()
-            t9PinyinOverflowHintSuppressedByFocus = false
             updatePinyinOverflowHint(false)
             pinyinBarView.visibility = View.GONE
             pinyinRowWrapper.visibility = View.GONE
@@ -1116,7 +1111,7 @@ class CandidatesView(
         }
         val rightPadding = when {
             visible -> pinyinOverflowHintReservedWidthPx()
-            t9PinyinOverflowHintSuppressedByFocus && pinyinRowTargetVisible ->
+            service.getT9CandidateFocus() == T9CandidateFocus.TOP && pinyinRowTargetVisible ->
                 dp(T9_PINYIN_ROW_FOCUSED_END_GAP_DP)
             else -> 0
         }
@@ -1141,14 +1136,8 @@ class CandidatesView(
             return
         }
         updatePinyinOverflowHint(
-            !t9PinyinOverflowHintSuppressedByFocus && shouldShowPinyinOverflowHint()
+            service.getT9CandidateFocus() != T9CandidateFocus.TOP && shouldShowPinyinOverflowHint()
         )
-    }
-
-    private fun suppressPinyinOverflowHintForFocus() {
-        if (t9PinyinOverflowHintSuppressedByFocus) return
-        t9PinyinOverflowHintSuppressedByFocus = true
-        updatePinyinOverflowHint(false)
     }
 
     private fun pinyinRowMaxWidthPx(): Int {
@@ -1207,7 +1196,6 @@ class CandidatesView(
             t9PinyinRowWindow.clear()
             t9RenderedPinyinWindowStart = 0
             t9RenderedPinyinItems = emptyList()
-            t9PinyinOverflowHintSuppressedByFocus = false
             updatePinyinOverflowHint(false)
             return setPinyinRowVisible(false)
         }
@@ -1215,7 +1203,6 @@ class CandidatesView(
             t9PinyinRowWindow.clear()
             t9RenderedPinyinWindowStart = 0
             t9RenderedPinyinItems = emptyList()
-            t9PinyinOverflowHintSuppressedByFocus = false
             updatePinyinOverflowHint(false)
             return setPinyinRowVisible(false)
         }
@@ -1235,7 +1222,7 @@ class CandidatesView(
     private fun renderPinyinWindow(state: T9PinyinRowWindow.VisibleState): Boolean {
         t9RenderedPinyinItems = state.items
         updatePinyinOverflowHint(
-            !t9PinyinOverflowHintSuppressedByFocus && shouldShowPinyinOverflowHint()
+            service.getT9CandidateFocus() != T9CandidateFocus.TOP && shouldShowPinyinOverflowHint()
         )
         val changed = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.submit") {
             pinyinBarAdapter.submitList(state.items, state.highlightedIndex)
