@@ -6,7 +6,7 @@
 package org.fcitx.fcitx5.android.input.status
 
 import org.fcitx.fcitx5.android.core.Action
-import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Companion.isRimeAction
+import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Companion.isRimeSchemeSwitchAction
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -14,17 +14,24 @@ import org.junit.Test
 class StatusAreaEntryTest {
 
     @Test
-    fun rimeActionIsDetectedByNameOrIcon() {
-        assertTrue(action(name = "fcitx-rime").isRimeAction())
-        assertTrue(action(icon = "fcitx_rime_dark").isRimeAction())
-        assertTrue(action(menu = arrayOf(action(name = "fcitx-rime-deploy"))).isRimeAction())
+    fun rimeSchemeSwitchIsDetectedByCheckedMenuItem() {
+        val schemeSwitch = action(
+            name = "fcitx-rime-schema",
+            shortText = "雾凇拼音",
+            menu = arrayOf(
+                action(shortText = "朙月拼音", isCheckable = true),
+                action(shortText = "雾凇拼音", isCheckable = true, isChecked = true)
+            )
+        )
+
+        assertTrue(schemeSwitch.isRimeSchemeSwitchAction())
     }
 
     @Test
-    fun genericDeployMenuDoesNotBecomeRime() {
-        val nonRime = action(
-            name = "generic-config",
-            shortText = "Generic",
+    fun rimeDeployAndSyncActionsAreNotSchemeSwitches() {
+        val rimeConfig = action(
+            name = "fcitx-rime-config",
+            shortText = "Rime",
             menu = arrayOf(
                 action(shortText = "Deploy"),
                 action(shortText = "Synchronize"),
@@ -33,7 +40,37 @@ class StatusAreaEntryTest {
             )
         )
 
-        assertFalse(nonRime.isRimeAction())
+        assertFalse(rimeConfig.isRimeSchemeSwitchAction())
+        assertFalse(action(name = "fcitx-rime-deploy", shortText = "Deploy").isRimeSchemeSwitchAction())
+        assertFalse(action(name = "fcitx-rime-sync", shortText = "Synchronize").isRimeSchemeSwitchAction())
+    }
+
+    @Test
+    fun otherRimeFeatureMenusKeepTheirOwnLabels() {
+        val featureMenu = action(
+            name = "fcitx-rime",
+            shortText = "Rime Options",
+            menu = arrayOf(
+                action(shortText = "ASCII Mode", isCheckable = true, isChecked = true),
+                action(shortText = "Full Shape", isCheckable = true)
+            )
+        )
+
+        assertFalse(featureMenu.isRimeSchemeSwitchAction())
+    }
+
+    @Test
+    fun nonRimeCurrentValueMenusAreNotSchemeSwitches() {
+        val nonRimeMenu = action(
+            name = "generic-config",
+            shortText = "Current",
+            menu = arrayOf(
+                action(shortText = "Current", isCheckable = true, isChecked = true),
+                action(shortText = "Other", isCheckable = true)
+            )
+        )
+
+        assertFalse(nonRimeMenu.isRimeSchemeSwitchAction())
     }
 
     private fun action(
@@ -41,13 +78,15 @@ class StatusAreaEntryTest {
         icon: String = "",
         shortText: String = "",
         longText: String = "",
+        isCheckable: Boolean = false,
+        isChecked: Boolean = false,
         menu: Array<Action>? = null
     ): Action =
         Action(
             id = 0,
             isSeparator = false,
-            isCheckable = false,
-            isChecked = false,
+            isCheckable = isCheckable,
+            isChecked = isChecked,
             name = name,
             icon = icon,
             shortText = shortText,

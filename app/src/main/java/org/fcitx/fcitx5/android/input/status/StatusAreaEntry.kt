@@ -59,20 +59,19 @@ sealed class StatusAreaEntry(
         }
 
         fun labelForAction(context: Context, action: Action): String {
-            if (action.isRimeAction()) return context.getString(R.string.rime_status_menu)
-            val directLabel = action.shortText.trim().ifEmpty { action.longText.trim() }
+            if (action.isRimeSchemeSwitchAction()) return context.getString(R.string.rime_status_menu)
+            val directLabel = action.displayLabel()
             if (directLabel.isNotEmpty()) return directLabel
             return action.name.trim().ifEmpty { context.getString(R.string.status_action) }
         }
 
         fun labelForActionMenuItem(action: Action): String? {
-            return action.shortText.trim()
-                .ifEmpty { action.longText.trim() }
+            return action.displayLabel()
                 .ifEmpty { null }
         }
 
         fun titleForActionMenu(context: Context, action: Action): String {
-            if (action.isRimeAction()) return context.getString(R.string.rime_status_menu)
+            if (action.isRimeSchemeSwitchAction()) return context.getString(R.string.rime_status_menu)
             return labelForAction(context, action)
         }
 
@@ -81,7 +80,25 @@ sealed class StatusAreaEntry(
             return Fcitx(it, labelForAction(context, it), drawableFromIconName(it.icon), active)
         }
 
-        internal fun Action.isRimeAction(): Boolean =
+        internal fun Action.isRimeSchemeSwitchAction(): Boolean {
+            if (!hasRimeMarker()) return false
+            val currentLabel = displayLabel()
+            if (currentLabel.isEmpty()) return false
+            val labeledMenu = menu.orEmpty()
+                .filterNot { it.isSeparator }
+                .filter { it.displayLabel().isNotEmpty() }
+            if (labeledMenu.size < 2) return false
+
+            // Rime has many status actions. Only the schema dropdown mirrors the active schema
+            // as both the status label and the checked menu item, so only that user-facing entry
+            // hides implementation scheme names behind "Dictionary Switch".
+            return labeledMenu.any { it.isChecked && it.displayLabel() == currentLabel }
+        }
+
+        private fun Action.displayLabel(): String =
+            shortText.trim().ifEmpty { longText.trim() }
+
+        private fun Action.hasRimeMarker(): Boolean =
             name.startsWith("fcitx-rime") ||
                 icon.startsWith("fcitx_rime") ||
                 menu?.any {
