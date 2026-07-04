@@ -126,7 +126,7 @@ class PagedCandidatesUi(
 
         override fun onBindViewHolder(holder: UiHolder, position: Int, payloads: MutableList<Any>) {
             if (payloads.contains(SelectionPayload) && holder is UiHolder.Candidate) {
-                bindCandidate(holder, position)
+                bindCandidateSelection(holder, position)
                 return
             }
             onBindViewHolder(holder, position)
@@ -142,6 +142,17 @@ class PagedCandidatesUi(
         private fun bindCandidate(holder: UiHolder.Candidate, position: Int) {
             val candidate = data.candidates[position]
             holder.ui.update(
+                candidate,
+                active = highlightActive && position == data.cursorIndex,
+                inactiveRow = !highlightActive,
+                t9InputModeEnabled = t9InputModeEnabled,
+                shortcutLabel = if (showShortcutLabels) shortcutLabelForPosition(position) else null
+            )
+        }
+
+        private fun bindCandidateSelection(holder: UiHolder.Candidate, position: Int) {
+            val candidate = data.candidates[position]
+            holder.ui.updateSelection(
                 candidate,
                 active = highlightActive && position == data.cursorIndex,
                 inactiveRow = !highlightActive,

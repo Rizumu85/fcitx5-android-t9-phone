@@ -55,7 +55,6 @@ import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.withTheme
 import splitties.views.dsl.core.wrapContent
 import splitties.views.padding
-import android.view.View.MeasureSpec
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -196,6 +195,7 @@ class CandidatesView(
         postRefresh = { block -> postOnAnimation(block) },
         refreshNow = ::updateUi
     )
+    private var lastCandidateRowWidthPx = 0
     private val t9CandidateUiRenderer = T9CandidateUiRenderer(object : T9CandidateUiRenderer.Delegate {
         override fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean) {
             this@CandidatesView.preferAboveCursorAnchor = preferAboveCursorAnchor
@@ -1100,12 +1100,9 @@ class CandidatesView(
     }
 
     private fun syncPinyinRowWidthToCandidates(): Boolean {
-        var candidateWidth = firstPositiveCandidateRowWidth()
-        if (candidateWidth == null) {
-            ensureCandidateRowMeasuredForPinyinSync()
-            candidateWidth = firstPositiveCandidateRowWidth()
-        }
-        candidateWidth ?: return false
+        val candidateWidth = firstPositiveCandidateRowWidth()
+            ?: lastCandidateRowWidthPx.takeIf { it > 0 }
+            ?: return false
         (pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
             if (params.width != candidateWidth) {
                 params.width = candidateWidth
@@ -1116,22 +1113,16 @@ class CandidatesView(
     }
 
     private fun firstPositiveCandidateRowWidth(): Int? {
-        candidatesUi.root.width.takeIf { it > 0 }?.let { return it }
-        candidatesUi.root.measuredWidth.takeIf { it > 0 }?.let { return it }
-        candidateRowWrapper.width.takeIf { it > 0 }?.let { return it }
-        candidateRowWrapper.measuredWidth.takeIf { it > 0 }?.let { return it }
+        candidatesUi.root.width.takeIf { it > 0 }?.let { return rememberCandidateRowWidth(it) }
+        candidatesUi.root.measuredWidth.takeIf { it > 0 }?.let { return rememberCandidateRowWidth(it) }
+        candidateRowWrapper.width.takeIf { it > 0 }?.let { return rememberCandidateRowWidth(it) }
+        candidateRowWrapper.measuredWidth.takeIf { it > 0 }?.let { return rememberCandidateRowWidth(it) }
         return null
     }
 
-    private fun ensureCandidateRowMeasuredForPinyinSync() {
-        val availableWidth = (maxWidth.takeIf { it > 0 }
-            ?: parentSize[0].roundToInt().takeIf { it > 0 }
-            ?: resources.displayMetrics.widthPixels)
-            .coerceAtLeast(minWidth)
-        val widthSpec = MeasureSpec.makeMeasureSpec(availableWidth, MeasureSpec.AT_MOST)
-        val heightSpec = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
-        candidateRowWrapper.measure(widthSpec, heightSpec)
-        candidatesUi.root.measure(widthSpec, heightSpec)
+    private fun rememberCandidateRowWidth(width: Int): Int {
+        lastCandidateRowWidthPx = width
+        return width
     }
 
     private fun updatePinyinBar(candidates: List<String>, useT9: Boolean): Boolean {
@@ -1312,6 +1303,9 @@ class CandidatesView(
         bubble2Wrapper.viewTreeObserver.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {
             override fun onGlobalLayout() {
                 val cw = candidatesUi.root.width
+                if (cw > 0) {
+                    lastCandidateRowWidthPx = cw
+                }
                 if (cw > 0 && (pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.width != cw) {
                     (pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.width = cw
                     pinyinRowWrapper.requestLayout()

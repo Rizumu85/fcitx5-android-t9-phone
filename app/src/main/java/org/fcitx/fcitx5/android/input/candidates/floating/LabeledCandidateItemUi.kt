@@ -56,17 +56,6 @@ class LabeledCandidateItemUi(
         t9InputModeEnabled: Boolean = false,
         shortcutLabel: String? = null
     ) {
-        val labelFg = when {
-            active -> theme.genericActiveForegroundColor
-            inactiveRow -> theme.candidateCommentColor
-            else -> theme.candidateLabelColor
-        }
-        val fg = when {
-            active -> theme.genericActiveForegroundColor
-            inactiveRow -> theme.candidateCommentColor
-            else -> theme.candidateTextColor
-        }
-        val altFg = if (active) theme.genericActiveForegroundColor else theme.candidateCommentColor
         root.gravity = if (t9InputModeEnabled && shortcutLabel != null) {
             Gravity.CENTER
         } else {
@@ -84,6 +73,33 @@ class LabeledCandidateItemUi(
         }
         root.includeFontPadding = !(t9InputModeEnabled && shortcutLabel != null)
         root.setLineSpacing(0f, if (t9InputModeEnabled && shortcutLabel != null) 0.82f else 1f)
+        updateSelection(
+            candidate = candidate,
+            active = active,
+            inactiveRow = inactiveRow,
+            t9InputModeEnabled = t9InputModeEnabled,
+            shortcutLabel = shortcutLabel
+        )
+    }
+
+    fun updateSelection(
+        candidate: FcitxEvent.Candidate,
+        active: Boolean,
+        inactiveRow: Boolean = false,
+        t9InputModeEnabled: Boolean = false,
+        shortcutLabel: String? = null
+    ) {
+        val labelFg = when {
+            active -> theme.genericActiveForegroundColor
+            inactiveRow -> theme.candidateCommentColor
+            else -> theme.candidateLabelColor
+        }
+        val fg = when {
+            active -> theme.genericActiveForegroundColor
+            inactiveRow -> theme.candidateCommentColor
+            else -> theme.candidateTextColor
+        }
+        val altFg = if (active) theme.genericActiveForegroundColor else theme.candidateCommentColor
         root.text = buildSpannedString {
             // Hide label and comment in T9 mode for cleaner display
             if (!t9InputModeEnabled) {

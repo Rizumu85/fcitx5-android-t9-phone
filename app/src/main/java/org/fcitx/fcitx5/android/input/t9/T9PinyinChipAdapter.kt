@@ -73,8 +73,6 @@ class T9PinyinChipAdapter(
         highlightedIndex = highlightedIndex.coerceIn(0, (pinyins.lastIndex).coerceAtLeast(0))
         if (changed) {
             updateChips()
-        } else {
-            updateAllChips()
         }
         return changed
     }
@@ -162,6 +160,9 @@ class T9PinyinChipAdapter(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 defaultFocusHighlightEnabled = false
             }
+            setOnClickListener {
+                (tag as? String)?.let(onChipClick)
+            }
         }
 
     private fun createChipBackground(): GradientDrawable =
@@ -177,7 +178,7 @@ class T9PinyinChipAdapter(
         if (chip.text.toString() != pinyin) {
             chip.text = pinyin
         }
-        chip.setOnClickListener { onChipClick(pinyin) }
+        chip.tag = pinyin
         val params = chip.layoutParams as? LinearLayout.LayoutParams
         val expectedRightMargin = if (index != pinyins.lastIndex) horizontalPaddingPx else 0
         if (params?.rightMargin != expectedRightMargin) {
