@@ -16,6 +16,9 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.DrawableCompat
+import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.Action
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.InputUiFont
@@ -61,8 +64,8 @@ class StatusActionMenuUi(
                     list.addView(separatorView())
                 }
                 is MenuItem.ActionRow -> {
-                    val row = actionRow(item.action, item.label, item.active)
-                    if (item.active) {
+                    val row = actionRow(item.action, item.label, item.activeStyle)
+                    if (item.activeStyle != ActiveStyle.None) {
                         activeRow = row
                     }
                     list.addView(
@@ -100,31 +103,62 @@ class StatusActionMenuUi(
                 items.add(MenuItem.Separator)
             }
             pendingSeparator = false
-            items.add(MenuItem.ActionRow(action, label, isActiveMenuItem(action, label)))
+            items.add(MenuItem.ActionRow(action, label, activeStyleForMenuItem(action, label)))
         }
         return items
     }
 
     private sealed class MenuItem {
-        data class ActionRow(val action: Action, val label: String, val active: Boolean) : MenuItem()
+        data class ActionRow(
+            val action: Action,
+            val label: String,
+            val activeStyle: ActiveStyle
+        ) : MenuItem()
         object Separator : MenuItem()
     }
 
-    private fun isActiveMenuItem(action: Action, label: String): Boolean =
-        action.isChecked || activeMenuLabel?.let { it == label } == true
+    private enum class ActiveStyle {
+        None,
+        Checked,
+        CurrentScheme
+    }
 
-    private fun actionRow(action: Action, label: String, active: Boolean) = TextView(ctx).apply {
+    private fun activeStyleForMenuItem(action: Action, label: String): ActiveStyle =
+        when {
+            action.isChecked -> ActiveStyle.Checked
+            activeMenuLabel?.let { it == label } == true -> ActiveStyle.CurrentScheme
+            else -> ActiveStyle.None
+        }
+
+    private fun actionRow(action: Action, label: String, activeStyle: ActiveStyle) = TextView(ctx).apply {
         text = label
         textSize = 15f
         gravity = Gravity.CENTER_VERTICAL
         includeFontPadding = false
         setSingleLine(false)
-        setTextColor(if (active) theme.genericActiveForegroundColor else theme.keyTextColor)
+        setTextColor(
+            if (activeStyle != ActiveStyle.None) {
+                theme.genericActiveForegroundColor
+            } else {
+                theme.keyTextColor
+            }
+        )
         setPadding(ctx.dp(16), 0, ctx.dp(16), 0)
         InputUiFont.applyTo(this)
-        background = rowBackground(active)
+        if (activeStyle == ActiveStyle.CurrentScheme) {
+            setCompoundDrawablesRelativeWithIntrinsicBounds(null, null, activeIndicatorDrawable(), null)
+            compoundDrawablePadding = ctx.dp(12)
+        }
+        background = rowBackground(activeStyle == ActiveStyle.Checked)
         setOnClickListener { onActionClick(action) }
     }
+
+    private fun activeIndicatorDrawable() =
+        ContextCompat.getDrawable(ctx, R.drawable.ic_baseline_check_24)?.let { drawable ->
+            DrawableCompat.wrap(drawable.mutate()).also {
+                DrawableCompat.setTint(it, theme.genericActiveForegroundColor)
+            }
+        }
 
     private fun separatorView() = FrameLayout(ctx).apply {
         addView(
