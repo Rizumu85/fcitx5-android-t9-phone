@@ -140,8 +140,8 @@ class StatusActionMenuUi(
         setPadding(ctx.dp(16), 0, ctx.dp(16), 0)
         InputUiFont.applyTo(this)
         if (activeStyle == ActiveStyle.CurrentScheme) {
-            setCompoundDrawablesRelativeWithIntrinsicBounds(null, null, activeIndicatorDrawable(), null)
-            compoundDrawablePadding = ctx.dp(12)
+            setCompoundDrawablesRelative(null, null, activeIndicatorDrawable(), null)
+            compoundDrawablePadding = ctx.dp(8)
         }
         background = rowBackground(activeStyle == ActiveStyle.Checked)
         setOnClickListener { onActionClick(action) }
@@ -151,6 +151,8 @@ class StatusActionMenuUi(
         ContextCompat.getDrawable(ctx, R.drawable.ic_baseline_check_24)?.let { drawable ->
             DrawableCompat.wrap(drawable.mutate()).also {
                 DrawableCompat.setTint(it, theme.genericActiveBackgroundColor)
+                val size = ctx.dp(14)
+                it.setBounds(0, 0, size, size)
             }
         }
 
