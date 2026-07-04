@@ -42,8 +42,6 @@ class StatusActionMenuUi(
         setPadding(ctx.dp(10), ctx.dp(6), ctx.dp(10), ctx.dp(6))
     }
 
-    private var activeRow: View? = null
-
     override val root = ScrollView(ctx).apply {
         backgroundColor = theme.barColor
         isFillViewport = true
@@ -65,9 +63,6 @@ class StatusActionMenuUi(
                 }
                 is MenuItem.ActionRow -> {
                     val row = actionRow(item.action, item.label, item.activeStyle)
-                    if (item.activeStyle != ActiveStyle.None) {
-                        activeRow = row
-                    }
                     list.addView(
                         row,
                         LinearLayout.LayoutParams(
@@ -79,11 +74,6 @@ class StatusActionMenuUi(
                         }
                     )
                 }
-            }
-        }
-        activeRow?.let { row ->
-            root.post {
-                root.scrollTo(0, (row.top - ctx.dp(6)).coerceAtLeast(0))
             }
         }
     }
