@@ -19,6 +19,7 @@ import androidx.core.text.color
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.data.theme.Theme
 import splitties.views.dsl.core.Ui
+import kotlin.math.roundToInt
 
 class LabeledCandidateItemUi(
     override val ctx: Context,
@@ -97,6 +98,7 @@ class LabeledCandidateItemUi(
         val usesShortcutLabel = t9InputModeEnabled && shortcutLabel != null
         lastUsesShortcutLabel = usesShortcutLabel
         applyShortcutWidthLimit(if (usesShortcutLabel) shortcutMaxWidthPx else null)
+        applyShortcutLineMetrics(usesShortcutLabel)
         root.gravity = if (usesShortcutLabel) Gravity.CENTER else Gravity.CENTER_VERTICAL
         root.minimumWidth = if (usesShortcutLabel) {
             (candidateText.textSize * SHORTCUT_CANDIDATE_MIN_WIDTH_EM).toInt()
@@ -204,9 +206,36 @@ class LabeledCandidateItemUi(
         candidateText.ellipsize = TextUtils.TruncateAt.END
     }
 
+    private fun applyShortcutLineMetrics(usesShortcutLabel: Boolean) {
+        val candidateHeight = if (usesShortcutLabel) {
+            (candidateText.textSize * SHORTCUT_CANDIDATE_LINE_HEIGHT_EM).roundToInt()
+        } else {
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        }
+        val shortcutHeight = if (usesShortcutLabel) {
+            (candidateText.textSize * SHORTCUT_LABEL_LINE_HEIGHT_EM).roundToInt()
+        } else {
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        }
+        // Product decision: custom UI fonts may fall back per glyph, changing TextView metrics.
+        // T9 number labels must stay on one visual baseline, so the two shortcut rows use fixed
+        // line boxes while the parent still allows tall fallback glyphs to draw outside.
+        updateChildHeight(candidateText, candidateHeight)
+        updateChildHeight(shortcutText, shortcutHeight)
+    }
+
+    private fun updateChildHeight(view: TextView, height: Int) {
+        val params = view.layoutParams as? LinearLayout.LayoutParams ?: return
+        if (params.height == height) return
+        params.height = height
+        view.layoutParams = params
+    }
+
     companion object {
         private const val ACTIVE_HIGHLIGHT_SCALE = 1.07f
         private const val SHORTCUT_LABEL_SCALE = 0.45f
         private const val SHORTCUT_CANDIDATE_MIN_WIDTH_EM = 1.35f
+        private const val SHORTCUT_CANDIDATE_LINE_HEIGHT_EM = 1.45f
+        private const val SHORTCUT_LABEL_LINE_HEIGHT_EM = 0.62f
     }
 }
