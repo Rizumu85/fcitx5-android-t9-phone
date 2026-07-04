@@ -11,7 +11,6 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.text.Spanned
 import android.text.style.RelativeSizeSpan
-import android.text.style.SubscriptSpan
 import android.view.Gravity
 import android.view.View
 import android.widget.TextView
@@ -38,6 +37,7 @@ class LabeledCandidateItemUi(
     private var lastCandidateLabel = ""
     private var lastCandidateText = ""
     private var lastCandidateComment = ""
+    private var lastUsesShortcutLabel = false
 
     override val root = textView {
         setupTextView(this)
@@ -71,8 +71,20 @@ class LabeledCandidateItemUi(
         } else {
             0
         }
-        root.includeFontPadding = !(t9InputModeEnabled && shortcutLabel != null)
-        root.setLineSpacing(0f, if (t9InputModeEnabled && shortcutLabel != null) 0.82f else 1f)
+        val usesShortcutLabel = t9InputModeEnabled && shortcutLabel != null
+        lastUsesShortcutLabel = usesShortcutLabel
+        root.includeFontPadding = !usesShortcutLabel
+        root.setLineSpacing(0f, if (usesShortcutLabel) T9_SHORTCUT_LINE_SPACING else 1f)
+        root.minHeight = if (usesShortcutLabel) {
+            // T9 shortcut labels must look like the old compact two-line chips, but subscript
+            // spans and vertical scaling ask TextView to draw outside its measured height.
+            // Reserve the height explicitly so the rounded candidate bubble never clips them.
+            val verticalPadding = root.paddingTop + root.paddingBottom
+            val textHeight = root.textSize * (1f + SHORTCUT_LABEL_SCALE) * T9_SHORTCUT_HEIGHT_MULTIPLIER
+            (textHeight + verticalPadding).toInt()
+        } else {
+            0
+        }
         updateSelection(
             candidate = candidate,
             active = active,
@@ -118,12 +130,6 @@ class LabeledCandidateItemUi(
                     length,
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                 )
-                setSpan(
-                    SubscriptSpan(),
-                    start,
-                    length,
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                )
             }
             if (!t9InputModeEnabled && candidate.comment.isNotBlank()) {
                 append(" ")
@@ -150,20 +156,23 @@ class LabeledCandidateItemUi(
     private fun updateHighlight(active: Boolean) {
         val targetAlpha = if (active) 255 else 0
         val targetScale = if (active) ACTIVE_HIGHLIGHT_SCALE else 1f
+        val targetScaleY = if (lastUsesShortcutLabel) 1f else targetScale
         if (lastActive == active && activeBackground.alpha == targetAlpha) {
             root.scaleX = targetScale
-            root.scaleY = targetScale
+            root.scaleY = targetScaleY
             return
         }
         lastActive = active
         activeBackground.alpha = targetAlpha
         root.scaleX = targetScale
-        root.scaleY = targetScale
+        root.scaleY = targetScaleY
     }
 
     companion object {
         private const val ACTIVE_HIGHLIGHT_SCALE = 1.07f
         private const val SHORTCUT_LABEL_SCALE = 0.45f
         private const val SHORTCUT_CANDIDATE_MIN_WIDTH_EM = 1.35f
+        private const val T9_SHORTCUT_LINE_SPACING = 0.86f
+        private const val T9_SHORTCUT_HEIGHT_MULTIPLIER = 1.15f
     }
 }
