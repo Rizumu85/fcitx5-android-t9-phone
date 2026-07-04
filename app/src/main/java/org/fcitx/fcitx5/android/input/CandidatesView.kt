@@ -1014,23 +1014,28 @@ class CandidatesView(
             .take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS)
             .takeIf { it.size >= T9_PINYIN_ROW_MIN_VISIBLE_CHIPS }
             ?: return null
+        val reservesOverflowHint = shouldReservePinyinOverflowHintSpace()
         val paint = t9PinyinMeasurePaint.apply {
             textSize = compactTopRowFontSizeSp * ctx.resources.displayMetrics.scaledDensity
         }
         val chipPaddingPx = dpCandidates(itemPaddingHorizontal)
         val chipWidthPx = visiblePinyin.withIndex().sumOf { (index, pinyin) ->
             val textWidthPx = paint.measureText(pinyin).roundToInt()
-            val rightMarginPx = if (index != visiblePinyin.lastIndex || t9PinyinHasRightOverflow) chipPaddingPx else 0
+            val rightMarginPx = if (index != visiblePinyin.lastIndex || reservesOverflowHint) chipPaddingPx else 0
             textWidthPx + chipPaddingPx * 2 + rightMarginPx
         }
         // Product decision: the pinyin row should keep a small usability floor without exposing
         // a clipped fifth chip. A quiet edge ellipsis signals overflow while preserving the
-        // bubble shape the user preferred before the layout experiments.
-        val overflowHintWidthPx = if (t9PinyinHasRightOverflow) pinyinOverflowHintReservedWidthPx() else 0
+        // bubble shape the user preferred before the layout experiments. Reserve that hint from
+        // candidate count, because scroll overflow is only known after this width has been chosen.
+        val overflowHintWidthPx = if (reservesOverflowHint) pinyinOverflowHintReservedWidthPx() else 0
         return (chipWidthPx + overflowHintWidthPx)
             .coerceAtMost(pinyinRowMaxWidthPx())
             .coerceAtLeast(1)
     }
+
+    private fun shouldReservePinyinOverflowHintSpace(): Boolean =
+        t9PinyinOptionCount > T9_PINYIN_ROW_MIN_VISIBLE_CHIPS
 
     private fun pinyinOverflowHintReservedWidthPx(): Int {
         val paint = t9PinyinMeasurePaint.apply {

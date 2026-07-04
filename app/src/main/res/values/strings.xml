@@ -216,9 +216,9 @@
     <string name="show_lang_switch_key">Show language switch key</string>
     <string name="use_t9_keyboard_layout">Enable T9 input mode</string>
     <string name="use_t9_keyboard_layout_summary">Use phone-style T9 keys, candidates, and mode switching</string>
-    <string name="smart_english_t9">智能英语</string>
+    <string name="smart_english_t9">联想英语</string>
     <string name="smart_english_t9_summary">Predict English words from number-key sequences and learn selected words</string>
-    <string name="smart_english_learned_words">Smart English learned words</string>
+    <string name="smart_english_learned_words">Predictive English learned words</string>
     <string name="smart_english_learned_words_summary">Add, edit, or delete words learned from normal English T9 typing</string>
     <string name="smart_english_learned_word_hint">English word</string>
     <string name="temporary_full_keyboard">Password mode</string>
