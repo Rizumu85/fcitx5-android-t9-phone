@@ -53,49 +53,6 @@ class ChineseT9PresentationSnapshotCacheTest {
     }
 
     @Test
-    fun rebuildsWhenCurrentSegmentChanges() {
-        val cache = ChineseT9PresentationSnapshotCache()
-        var builds = 0
-
-        val first = cache.getOrBuild(key(currentSegment = "2", fullComposition = "2")) {
-            builds += 1
-            state("a")
-        }
-        val second = cache.getOrBuild(key(currentSegment = "62", fullComposition = "62")) {
-            builds += 1
-            state("ma")
-        }
-
-        assertEquals(2, builds)
-        assertEquals("a", first.topReading.toString())
-        assertEquals("ma", second.topReading.toString())
-    }
-
-    @Test
-    fun reusesRecentSnapshotsWhenCursorReturns() {
-        val cache = ChineseT9PresentationSnapshotCache()
-        val firstKey = key(candidateComment = "ni", cursorIndex = 0)
-        val secondKey = key(candidateComment = "hao", cursorIndex = 1)
-        var builds = 0
-
-        val first = cache.getOrBuild(firstKey) {
-            builds += 1
-            state("ni")
-        }
-        cache.getOrBuild(secondKey) {
-            builds += 1
-            state("hao")
-        }
-        val firstAgain = cache.getOrBuild(firstKey) {
-            builds += 1
-            state("unused")
-        }
-
-        assertEquals(2, builds)
-        assertSame(first, firstAgain)
-    }
-
-    @Test
     fun resetDropsCachedSnapshot() {
         val cache = ChineseT9PresentationSnapshotCache()
         val key = key(candidateComment = "ni")
@@ -115,30 +72,24 @@ class ChineseT9PresentationSnapshotCacheTest {
     }
 
     private fun key(
-        candidateComment: String = "",
+        candidateComment: String,
         inputPreedit: String = "",
-        cursorIndex: Int = 0,
-        sessionRevision: Long = 1,
-        fullComposition: String = "",
-        rawSequence: String = fullComposition,
-        digitSequence: String = rawSequence.filter { it in '2'..'9' },
-        currentSegment: String = digitSequence,
-        model: T9CompositionModel = T9CompositionModel(
-            unresolvedDigits = currentSegment,
-            rawPreedit = rawSequence
-        )
+        rawSequence: String = "64",
+        currentSegment: String = "64"
     ): ChineseT9PresentationSnapshotKey =
         ChineseT9PresentationSnapshotKey(
             pendingPunctuationText = null,
-            rawSequence = rawSequence,
-            digitSequence = digitSequence,
-            currentSegment = currentSegment,
-            fullComposition = fullComposition,
-            model = model,
             inputPreedit = inputPreedit,
             candidateComment = candidateComment,
-            candidateCursorIndex = cursorIndex,
-            sessionRevision = sessionRevision
+            candidateCursorIndex = 0,
+            rawSequence = rawSequence,
+            digitSequence = rawSequence.filter { it in '2'..'9' },
+            currentSegment = currentSegment,
+            fullComposition = rawSequence,
+            model = T9CompositionModel(
+                unresolvedDigits = currentSegment,
+                rawPreedit = rawSequence
+            )
         )
 
     private fun state(text: String): T9PresentationState =

@@ -15,15 +15,7 @@ class T9CandidateUiRenderer(
         val shouldShow: Boolean,
         val contentReady: Boolean,
         val preferAboveCursorAnchor: Boolean
-    ) {
-        fun requiresRenderAfter(previous: VisibilityRequest?): Boolean {
-            if (previous == null) return true
-            if (shouldShow != previous.shouldShow) return true
-            if (!shouldShow) return false
-            if (!previous.contentReady && contentReady) return true
-            return preferAboveCursorAnchor != previous.preferAboveCursorAnchor
-        }
-    }
+    )
 
     interface Delegate {
         fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean)
@@ -48,32 +40,8 @@ class T9CandidateUiRenderer(
         previousVisibilityRequest = null
     }
 
-    fun hideImmediately() {
-        delegate.hideCandidateUi()
-        previousVisibilityRequest = VisibilityRequest(
-            shouldShow = false,
-            contentReady = true,
-            preferAboveCursorAnchor = previousVisibilityRequest?.preferAboveCursorAnchor ?: false
-        )
-    }
-
     fun render(next: T9CandidateRenderState) {
         val patch = T9CandidateRenderer.diff(previousState, next)
-        val visibilityRequest = VisibilityRequest(
-            shouldShow = next.shouldShow,
-            contentReady = previousVisibilityRequest?.contentReady ?: true,
-            preferAboveCursorAnchor = next.preferAboveCursorAnchor
-        )
-        if (!next.shouldShow) {
-            if (visibilityRequest.requiresRenderAfter(previousVisibilityRequest)) {
-                T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderVisibility") {
-                    delegate.hideCandidateUi()
-                }
-            }
-            previousVisibilityRequest = visibilityRequest
-            previousState = next
-            return
-        }
         if (previousState?.preferAboveCursorAnchor != next.preferAboveCursorAnchor) {
             delegate.setPreferAboveCursorAnchor(next.preferAboveCursorAnchor)
         }
@@ -91,16 +59,8 @@ class T9CandidateUiRenderer(
                 )
             }
         }
-        val shouldClearPinyinRow = !next.pinyinUseT9 &&
-            (previousState == null || previousState?.pinyinUseT9 == true || previousState?.pinyinOptions?.isNotEmpty() == true)
-        val shouldEnsurePinyinRow = next.pinyinUseT9 && next.pinyinOptions.isNotEmpty()
         val pinyinRowReady = when {
-            shouldClearPinyinRow -> {
-                T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin") {
-                    delegate.renderPinyin(emptyList(), false)
-                }
-            }
-            patch.pinyin || shouldEnsurePinyinRow -> {
+            patch.pinyin -> {
                 T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin") {
                     delegate.renderPinyin(next.pinyinOptions, next.pinyinUseT9)
                 }
@@ -117,17 +77,21 @@ class T9CandidateUiRenderer(
                 delegate.renderFocus(next.focus)
             }
         }
-        val nextVisibilityRequest = VisibilityRequest(
+        val visibilityRequest = VisibilityRequest(
             shouldShow = next.shouldShow,
             contentReady = pinyinRowReady,
             preferAboveCursorAnchor = next.preferAboveCursorAnchor
         )
-        if (nextVisibilityRequest.requiresRenderAfter(previousVisibilityRequest)) {
+        if (patch.visibility || previousVisibilityRequest != visibilityRequest) {
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderVisibility") {
-                delegate.showWhenPositioned(pinyinRowReady)
+                if (next.shouldShow) {
+                    delegate.showWhenPositioned(pinyinRowReady)
+                } else {
+                    delegate.hideCandidateUi()
+                }
             }
+            previousVisibilityRequest = visibilityRequest
         }
-        previousVisibilityRequest = nextVisibilityRequest
         previousState = next
     }
 }

@@ -16,7 +16,6 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.Action
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.InputUiFont
@@ -100,11 +99,7 @@ class StatusActionMenuUi(
     }
 
     private fun actionRow(action: Action, label: String) = TextView(ctx).apply {
-        text = if (action.isChecked) {
-            ctx.getString(R.string.status_action_current_item, label)
-        } else {
-            label
-        }
+        text = label
         textSize = 15f
         gravity = Gravity.CENTER_VERTICAL
         includeFontPadding = false

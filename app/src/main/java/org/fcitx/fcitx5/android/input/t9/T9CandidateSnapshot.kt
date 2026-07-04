@@ -15,33 +15,6 @@ data class T9CandidatePageSnapshot(
     val cursorSignature: String
 )
 
-class T9CandidatePagerSnapshot(
-    val characterBudget: Any,
-    val layoutHint: FcitxEvent.PagedCandidateEvent.LayoutHint,
-    val hasPrev: Boolean,
-    val hasNext: Boolean,
-    val candidates: Array<FcitxEvent.Candidate>
-) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other !is T9CandidatePagerSnapshot) return false
-        if (characterBudget != other.characterBudget) return false
-        if (layoutHint != other.layoutHint) return false
-        if (hasPrev != other.hasPrev) return false
-        if (hasNext != other.hasNext) return false
-        return candidates.contentEquals(other.candidates)
-    }
-
-    override fun hashCode(): Int {
-        var result = characterBudget.hashCode()
-        result = 31 * result + layoutHint.hashCode()
-        result = 31 * result + hasPrev.hashCode()
-        result = 31 * result + hasNext.hashCode()
-        result = 31 * result + candidates.contentHashCode()
-        return result
-    }
-}
-
 data class T9PinyinSnapshot(val signature: String)
 
 data class T9VisibilitySnapshot(
@@ -73,20 +46,15 @@ object T9CandidateSnapshots {
             cursorSignature = data.cursorIndex.toString()
         )
 
-    fun pagerSnapshot(
+    fun pagerContent(
         data: FcitxEvent.PagedCandidateEvent.Data,
-        characterBudget: Any
-    ): T9CandidatePagerSnapshot =
-        T9CandidatePagerSnapshot(
-            characterBudget = if (characterBudget is Int) {
-                T9CandidateBudget.normalizedBudget(characterBudget)
-            } else {
-                characterBudget
-            },
-            layoutHint = data.layoutHint,
-            hasPrev = data.hasPrev,
-            hasNext = data.hasNext,
-            candidates = data.candidates
+        characterBudget: Int
+    ): String =
+        pagedContent(
+            data = data,
+            orientation = null,
+            showShortcutLabels = null,
+            prefix = "$characterBudget|"
         )
 
     fun pinyin(candidates: List<String>, useT9: Boolean): T9PinyinSnapshot =
@@ -121,10 +89,6 @@ object T9CandidateSnapshots {
             append(data.layoutHint.name).append('|')
             append(data.hasPrev).append('|').append(data.hasNext).append('\n')
             data.candidates.forEach {
-                if (showShortcutLabels == true) {
-                    append(it.text).append('\n')
-                    return@forEach
-                }
                 append(it.label).append('|')
                 append(it.text).append('|')
                 append(it.comment).append('\n')

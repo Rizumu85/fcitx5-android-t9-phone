@@ -220,12 +220,8 @@ class PagedCandidatesUi(
             showShortcutLabels = showShortcutLabels
         )
         renderRows = newRows
-        val contentChanged = rowLayoutSignature(oldRows) != rowLayoutSignature(newRows)
         when {
-            layoutChanged || contentChanged -> {
-                candidatesAdapter.notifyDataSetChanged()
-                requestStableLayout()
-            }
+            layoutChanged -> candidatesAdapter.notifyDataSetChanged()
             oldRows == newRows -> Unit
             else -> DiffUtil.calculateDiff(rowDiff(oldRows, newRows))
                 .dispatchUpdatesTo(candidatesAdapter)
@@ -260,30 +256,6 @@ class PagedCandidatesUi(
     private fun candidateRowAt(position: Int): Row.Candidate? =
         renderRows.getOrNull(position) as? Row.Candidate
 
-    private fun requestStableLayout() {
-        candidatesLayoutManager.requestLayout()
-        root.requestLayout()
-        root.post {
-            candidatesLayoutManager.requestLayout()
-            root.requestLayout()
-            root.invalidate()
-        }
-    }
-
-    private fun rowLayoutSignature(rows: List<Row>): List<Any> =
-        rows.map { row ->
-            when (row) {
-                is Row.Candidate -> CandidateLayoutSignature(
-                    position = row.position,
-                    text = row.candidate.text,
-                    label = row.candidate.label,
-                    comment = row.candidate.comment,
-                    shortcutLabel = row.shortcutLabel
-                )
-                is Row.Pagination -> row
-            }
-        }
-
     private fun rowsFor(
         data: FcitxEvent.PagedCandidateEvent.Data,
         highlightActive: Boolean,
@@ -303,14 +275,6 @@ class PagedCandidatesUi(
         }
         return rows
     }
-
-    private data class CandidateLayoutSignature(
-        val position: Int,
-        val text: String,
-        val label: String,
-        val comment: String,
-        val shortcutLabel: String?
-    )
 
     private fun rowDiff(oldRows: List<Row>, newRows: List<Row>) =
         object : DiffUtil.Callback() {

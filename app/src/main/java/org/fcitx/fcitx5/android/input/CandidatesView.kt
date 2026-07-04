@@ -10,7 +10,6 @@ import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
-import android.text.TextPaint
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -32,18 +31,12 @@ import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrientation
 import org.fcitx.fcitx5.android.input.candidates.floating.PagedCandidatesUi
-import org.fcitx.fcitx5.android.input.candidates.floating.T9FixedCandidatesUi
 import org.fcitx.fcitx5.android.input.preedit.PreeditUi
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidatePipeline
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidateLoadingState
-import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
 import org.fcitx.fcitx5.android.input.t9.T9BulkCandidateLoader
-import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
-import org.fcitx.fcitx5.android.input.t9.T9CandidatePanelFrame
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidatePager
-import org.fcitx.fcitx5.android.input.t9.T9CandidatePanelWidthState
-import org.fcitx.fcitx5.android.input.t9.T9CandidateRowLayout
 import org.fcitx.fcitx5.android.input.t9.T9CandidateSnapshots
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiStateBuilder
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiRenderer
@@ -67,7 +60,6 @@ import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.withTheme
 import splitties.views.dsl.core.wrapContent
 import splitties.views.padding
-import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -192,14 +184,12 @@ class CandidatesView(
     private var t9BulkFilteredMatchedPrefix: String? = null
     private val chineseT9CandidatePipeline = ChineseT9CandidatePipeline(
         characterBudget = { t9HanziCharacterBudget },
-        pageBudget = { currentT9CandidatePageBudget() },
         candidateMatchesPrefix = { candidate, prefix ->
             service.candidateMatchesT9ResolvedPrefix(candidate, prefix)
         }
     )
     private val t9BulkCandidateLoader = T9BulkCandidateLoader(
         characterBudget = { t9HanziCharacterBudget },
-        pageBudget = { currentT9CandidatePageBudget() },
         candidateMatchesPrefix = { candidate, prefix ->
             service.candidateMatchesT9ResolvedPrefix(candidate, prefix)
         }
@@ -208,18 +198,15 @@ class CandidatesView(
     private var t9ShownUsesSmartEnglish = false
     private val t9PinyinRowWindow = T9PinyinRowWindow()
     private var t9RenderedPinyinWindowStart = 0
-    private var t9RenderedPinyinItems: List<String> = emptyList()
     private var lastRenderedT9Focus = T9CandidateFocus.BOTTOM
     private val t9SmartEnglishPageCache = T9SmartEnglishPageCache(
-        characterBudget = { t9HanziCharacterBudget },
-        pageBudget = { currentT9CandidatePageBudget() }
+        characterBudget = { t9HanziCharacterBudget }
     )
     private val t9RefreshScheduler = T9UiRefreshScheduler(
         postRefresh = { block -> postOnAnimation(block) },
         refreshNow = ::updateUi
     )
-    private val t9CandidatePanelWidthState = T9CandidatePanelWidthState()
-    private val t9CandidateMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
+    private var lastCandidateRowWidthPx = 0
     private val t9CandidateUiRenderer = T9CandidateUiRenderer(object : T9CandidateUiRenderer.Delegate {
         override fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean) {
             this@CandidatesView.preferAboveCursorAnchor = preferAboveCursorAnchor
@@ -235,20 +222,11 @@ class CandidatesView(
             orientation: FloatingCandidatesOrientation,
             showShortcutLabels: Boolean
         ) {
-            setCandidateRowStableFrame(showShortcutLabels)
-            if (showShortcutLabels) {
-                candidatesUi.root.visibility = GONE
-                t9FixedCandidatesUi.root.visibility = VISIBLE
-                t9FixedCandidatesUi.update(candidates, showShortcutLabels = true)
-            } else {
-                t9FixedCandidatesUi.root.visibility = GONE
-                candidatesUi.root.visibility = VISIBLE
-                candidatesUi.update(
-                    candidates,
-                    orientation,
-                    showShortcutLabels = false
-                )
-            }
+            candidatesUi.update(
+                candidates,
+                orientation,
+                showShortcutLabels = showShortcutLabels
+            )
         }
 
         override fun renderPinyin(pinyinOptions: List<String>, pinyinUseT9: Boolean): Boolean =
@@ -271,8 +249,9 @@ class CandidatesView(
         }
     })
     private val t9CandidateUiStateBuilder = T9CandidateUiStateBuilder(object : T9CandidateUiStateBuilder.Delegate {
-        override fun getChineseT9InputSnapshot(inputPanel: FcitxEvent.InputPanelEvent.Data): ChineseT9InputSnapshot =
-            service.getChineseT9InputSnapshot(inputPanel)
+        override fun syncT9CompositionWithInputPanel(inputPanel: FcitxEvent.InputPanelEvent.Data) {
+            service.syncT9CompositionWithInputPanel(inputPanel)
+        }
 
         override fun isChineseT9InputModeActive(): Boolean = service.isChineseT9InputModeActive()
 
@@ -285,12 +264,19 @@ class CandidatesView(
             data: FcitxEvent.PagedCandidateEvent.Data
         ): T9PagedCandidates = this@CandidatesView.buildSmartEnglishPaged(data)
 
+        override fun getT9ResolvedPinyinFilterPrefixes(): List<String> =
+            service.getT9ResolvedPinyinFilterPrefixes()
+
         override fun getPendingT9PunctuationPaged(): FcitxEvent.PagedCandidateEvent.Data? =
             service.getPendingT9PunctuationPaged()
 
         override fun buildT9PendingPunctuationPaged(
             data: FcitxEvent.PagedCandidateEvent.Data
         ): T9PagedCandidates = this@CandidatesView.buildT9PendingPunctuationPaged(data)
+
+        override fun hasPendingT9PinyinSelection(): Boolean = service.hasPendingT9PinyinSelection()
+
+        override fun getT9CompositionKeyCount(): Int = service.getT9CompositionKeyCount()
 
         override fun resetT9BulkFilterState() {
             this@CandidatesView.resetT9BulkFilterState()
@@ -328,10 +314,9 @@ class CandidatesView(
             service.getSmartEnglishT9Presentation()
 
         override fun getT9PresentationState(
-            snapshot: ChineseT9InputSnapshot,
             inputPanel: FcitxEvent.InputPanelEvent.Data,
             effectivePaged: FcitxEvent.PagedCandidateEvent.Data
-        ): T9PresentationState = service.getT9PresentationState(snapshot, inputPanel, effectivePaged)
+        ): T9PresentationState = service.getT9PresentationState(inputPanel, effectivePaged)
 
         override fun clearHiddenChineseT9CompositionIfCandidateUiSuppressed() {
             service.clearHiddenChineseT9CompositionIfCandidateUiSuppressed()
@@ -350,36 +335,6 @@ class CandidatesView(
         ctx, theme, setupTextViewCandidates,
         showPaginationArrows,
         dp(windowRadius),
-        onCandidateClick = { shownIndex ->
-            if (service.isSmartEnglishT9InputModeActive()) {
-                commitSmartEnglishShortcut(shownIndex)
-            } else {
-                service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
-                updateT9FocusIndicator()
-                selectT9ShownHanziCandidate(shownIndex)
-            }
-        },
-        onPrevPage = {
-            if (!offsetT9BottomCandidatePage(-1)) {
-                fcitx.launchOnReady { it.offsetCandidatePage(-1) }
-            }
-        },
-        onNextPage = {
-            if (!offsetT9BottomCandidatePage(1)) {
-                fcitx.launchOnReady { it.offsetCandidatePage(1) }
-            }
-        }
-    )
-    private val t9FixedCandidatesUi = T9FixedCandidatesUi(
-        ctx = ctx,
-        theme = theme,
-        setupTextView = setupTextViewCandidates,
-        showPaginationArrows = showPaginationArrows,
-        highlightCornerRadiusPx = dp(windowRadius),
-        itemSpacingPx = dp(candidateItemSpacing),
-        maxCandidateWidthPx = {
-            t9ShortcutCandidateMaxWidthPx(t9CandidateRowAvailableWidthPx())
-        },
         onCandidateClick = { shownIndex ->
             if (service.isSmartEnglishT9InputModeActive()) {
                 commitSmartEnglishShortcut(shownIndex)
@@ -449,11 +404,6 @@ class CandidatesView(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
         ))
-        addView(t9FixedCandidatesUi.root, FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT
-        ))
-        t9FixedCandidatesUi.root.visibility = View.GONE
         setOnClickListener {
             service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
             updateT9FocusIndicator()
@@ -468,182 +418,12 @@ class CandidatesView(
 
     private fun dpCandidates(value: Int): Int = (value * ctx.resources.displayMetrics.density).toInt()
 
-    private fun currentT9CandidatePageBudget(): T9CandidatePager.Budget {
-        val hardAvailableWidthPx = t9CandidateRowAvailableWidthPx()
-        if (hardAvailableWidthPx <= 0) {
-            return T9CandidatePager.Budget.character(t9HanziCharacterBudget)
-        }
-        val paint = t9CandidateMeasurePaint.apply {
-            textSize = fontSize * ctx.resources.displayMetrics.scaledDensity
-            InputUiFont.applyTo(this)
-        }
-        // Candidate paging must use the same dp rounding as the TextViews; truncating here lets
-        // ten T9 shortcuts accumulate enough error to leak one or two Hanzi past the safe edge.
-        val horizontalPaddingPx = dp(itemPaddingHorizontal) * 2
-        val itemSpacingPx = dp(candidateItemSpacing)
-        val paginationWidthPx = t9PaginationWidthPx()
-        val shortcutWidthPx = paint.measureText("0")
-        val protectedMinItems = T9CandidateBudget.normalizedBudget(t9HanziCharacterBudget)
-        val minItemWidthPx = (paint.textSize * T9_SHORTCUT_CANDIDATE_MIN_WIDTH_EM).roundToInt()
-            .coerceAtLeast(1)
-        val preferredWidthPx = t9PreferredCandidateContentWidthPx(
-            paint = paint,
-            horizontalPaddingPx = horizontalPaddingPx,
-            itemSpacingPx = itemSpacingPx,
-            minItemWidthPx = minItemWidthPx
-        )
-        val pageWidthPx = min(preferredWidthPx, hardAvailableWidthPx).coerceAtLeast(minItemWidthPx)
-        val maxItemWidthPx = t9ShortcutCandidateMaxWidthPx(hardAvailableWidthPx)
-        return T9CandidatePager.Budget(
-            value = pageWidthPx,
-            key = T9MeasuredCandidateBudgetKey(
-                pageWidthPx = pageWidthPx,
-                hardAvailableWidthPx = hardAvailableWidthPx,
-                preferredWidthPx = preferredWidthPx,
-                fontSizeSp = fontSize,
-                horizontalPaddingPx = horizontalPaddingPx,
-                itemSpacingPx = itemSpacingPx,
-                maxItemWidthPx = maxItemWidthPx
-            ),
-            itemCost = { candidate ->
-                measuredT9CandidateItemWidthPx(
-                    text = candidate.text,
-                    paint = paint,
-                    shortcutWidthPx = shortcutWidthPx,
-                    horizontalPaddingPx = horizontalPaddingPx,
-                    minItemWidthPx = minItemWidthPx,
-                    maxItemWidthPx = maxItemWidthPx,
-                    itemSpacingPx = itemSpacingPx
-                )
-            },
-            hardValue = hardAvailableWidthPx,
-            hardItemCost = { candidate ->
-                measuredT9CandidateItemWidthPx(
-                    text = candidate.text,
-                    paint = paint,
-                    shortcutWidthPx = shortcutWidthPx,
-                    horizontalPaddingPx = horizontalPaddingPx,
-                    minItemWidthPx = minItemWidthPx,
-                    maxItemWidthPx = maxItemWidthPx,
-                    itemSpacingPx = itemSpacingPx
-                )
-            },
-            itemSpacing = itemSpacingPx,
-            paginationCost = paginationWidthPx,
-            sidePadding = t9CandidateHighlightOverflowPaddingPx * 2,
-            protectedMinItems = protectedMinItems,
-            canProtectItem = { candidate -> isT9SingleUnitCandidate(candidate.text) }
-        )
-    }
-
-    private fun measuredT9CandidateItemWidthPx(
-        text: String,
-        paint: TextPaint,
-        shortcutWidthPx: Float,
-        horizontalPaddingPx: Int,
-        minItemWidthPx: Int,
-        maxItemWidthPx: Int,
-        itemSpacingPx: Int
-    ): Int {
-        val textWidthPx = paint.measureText(text)
-        val contentWidthPx = max(textWidthPx, shortcutWidthPx).roundToInt()
-        val itemWidthPx = (contentWidthPx + horizontalPaddingPx)
-            .coerceAtLeast(minItemWidthPx)
-            .coerceAtMost(maxItemWidthPx)
-        return itemWidthPx
-    }
-
-    private fun isT9SingleUnitCandidate(text: String): Boolean {
-        if (text.isBlank()) return false
-        return T9CandidateBudget.candidateCost(text) == 1
-    }
-
-    private fun t9PreferredCandidateContentWidthPx(
-        paint: TextPaint,
-        horizontalPaddingPx: Int,
-        itemSpacingPx: Int,
-        minItemWidthPx: Int
-    ): Int {
-        val budget = T9CandidateBudget.normalizedBudget(t9HanziCharacterBudget)
-        val measuredUnitPx = max(
-            paint.measureText(T9_MEASURED_BUDGET_UNIT_TEXT),
-            paint.measureText("0")
-        ).roundToInt()
-        val oneUnitCandidatePx = (measuredUnitPx + horizontalPaddingPx)
-            .coerceAtLeast(minItemWidthPx)
-        return T9CandidateRowLayout.rowWidth(
-            itemWidths = List(budget) { oneUnitCandidatePx },
-            itemSpacingPx = itemSpacingPx,
-            paginationWidthPx = 0,
-            hasPagination = false,
-            sidePaddingPx = t9CandidateHighlightOverflowPaddingPx * 2
-        )
-            .coerceAtLeast(1)
-    }
-
-    private fun t9ShortcutCandidateMaxWidthPx(
-        availableWidthPx: Int = t9CandidateRowAvailableWidthPx()
-    ): Int {
-        val minItemWidthPx = (fontSize * ctx.resources.displayMetrics.scaledDensity * T9_SHORTCUT_CANDIDATE_MIN_WIDTH_EM)
-            .roundToInt()
-            .coerceAtLeast(1)
-        return (availableWidthPx * T9_SHORTCUT_CANDIDATE_MAX_WIDTH_RATIO)
-            .roundToInt()
-            .coerceAtLeast(minItemWidthPx)
-    }
-
-    private fun t9CandidateRowAvailableWidthPx(): Int {
-        val parentWidthPx = predictedParentWidthPx()
-        val windowSidePaddingPx = dp(windowPadding) * 2
-        val edgeGapPx = dp(T9_MEASURED_ROW_EDGE_GAP_DP) * 2
-        return (parentWidthPx - horizontalMarginPx * 2 -
-            windowSidePaddingPx -
-            edgeGapPx
-            ).coerceAtLeast(0)
-    }
-
-    private fun t9PaginationWidthPx(): Int =
-        if (showPaginationArrows) dp(T9_PAGINATION_WIDTH_DP) else 0
-
-    private fun predictedParentWidthPx(): Int {
-        parentSize[0].roundToInt().takeIf { it > 0 }?.let { return it }
-        rootView.width.takeIf { it > 0 }?.let { return it }
-        width.takeIf { it > 0 }?.let { return it }
-        return ctx.resources.displayMetrics.widthPixels
-    }
-
-    private val t9CandidateHighlightOverflowPaddingPx: Int
-        get() = (dp(windowRadius) * 0.35f).roundToInt().coerceAtLeast(dp(2))
-
-    private data class T9MeasuredCandidateBudgetKey(
-        val pageWidthPx: Int,
-        val hardAvailableWidthPx: Int,
-        val preferredWidthPx: Int,
-        val fontSizeSp: Int,
-        val horizontalPaddingPx: Int,
-        val itemSpacingPx: Int,
-        val maxItemWidthPx: Int
-    )
-
     /** Height of one lower Hanzi candidate row. Compact top rows are a ratio of this baseline. */
     private val oneCandidateRowHeightPx: Int
         get() {
             val dm = ctx.resources.displayMetrics
-            return T9CandidatePanelFrame.oneLineRowHeight(
-                fontSizeSp = fontSize,
-                scaledDensity = dm.scaledDensity,
-                verticalPaddingPx = dpCandidates(itemPaddingVertical)
-            )
-        }
-
-    private val t9CandidateRowHeightPx: Int
-        get() {
-            val dm = ctx.resources.displayMetrics
-            return T9CandidatePanelFrame.shortcutRowHeight(
-                fontSizeSp = fontSize,
-                scaledDensity = dm.scaledDensity,
-                verticalPaddingPx = dpCandidates(itemPaddingVertical)
-            )
+            val linePx = (fontSize * dm.scaledDensity * 1.2f).toInt()
+            return linePx + 2 * dpCandidates(itemPaddingVertical)
         }
 
     private val compactTopRowHeightPx: Int
@@ -741,16 +521,11 @@ class CandidatesView(
         preeditUi.root.visibility = GONE
         t9PinyinRowWindow.clear()
         t9RenderedPinyinWindowStart = 0
-        t9RenderedPinyinItems = emptyList()
-        t9CandidatePanelWidthState.reset()
         lastRenderedT9Focus = T9CandidateFocus.BOTTOM
         setPinyinRowVisible(false)
         service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
         updateT9FocusIndicator()
         candidatesUi.update(paged, orientation)
-        t9FixedCandidatesUi.update(paged)
-        t9FixedCandidatesUi.root.visibility = GONE
-        candidatesUi.root.visibility = VISIBLE
         visibility = INVISIBLE
     }
 
@@ -781,12 +556,6 @@ class CandidatesView(
         refreshT9Ui()
     }
 
-    fun hideT9CandidateUiImmediately() {
-        t9RefreshScheduler.cancel()
-        showAfterPositioned = false
-        t9CandidateUiRenderer.hideImmediately()
-    }
-
     fun getHighlightedT9Pinyin(): String? = t9PinyinRowWindow.highlightedPinyin()
 
     fun commitT9HanziShortcut(index: Int): Boolean = selectT9ShownHanziCandidate(index)
@@ -807,8 +576,7 @@ class CandidatesView(
         if (!service.isChineseT9InputModeActive()) return null
         if (service.getT9CompositionKeyCount() <= 0) return null
         val shown = t9ShownPaged ?: paged
-        val snapshot = service.getChineseT9InputSnapshot(inputPanel)
-        val preview = service.getT9PresentationState(snapshot, inputPanel, shown)
+        val preview = service.getT9PresentationState(inputPanel, shown)
             .topReading
             ?.toString()
             .orEmpty()
@@ -901,7 +669,6 @@ class CandidatesView(
         }
         pinyinBarAdapter.setHighlightActive(topFocused)
         candidatesUi.setHighlightActive(!topFocused)
-        t9FixedCandidatesUi.setHighlightActive(!topFocused)
         lastRenderedT9Focus = focus
     }
 
@@ -1024,7 +791,7 @@ class CandidatesView(
         data: FcitxEvent.PagedCandidateEvent.Data
     ): T9PagedCandidates {
         val signature = buildT9CandidateSignature(data)
-        t9PendingPunctuationPager.update(signature, data.candidates.withIndex().toList(), currentT9CandidatePageBudget())
+        t9PendingPunctuationPager.update(signature, data.candidates.withIndex().toList(), t9HanziCharacterBudget)
         val selectedIndex = data.cursorIndex.coerceIn(data.candidates.indices)
         val page = t9PendingPunctuationPager.selectPageContainingOriginalIndex(selectedIndex)
             ?: return T9PagedCandidates.passthrough(data)
@@ -1049,9 +816,8 @@ class CandidatesView(
             cursorIndex = page.cursorIndexForOriginalIndex(selectedIndex)
         )
 
-    private fun buildT9CandidateSignature(
-        data: FcitxEvent.PagedCandidateEvent.Data
-    ) = T9CandidateSnapshots.pagerSnapshot(data, currentT9CandidatePageBudget().key)
+    private fun buildT9CandidateSignature(data: FcitxEvent.PagedCandidateEvent.Data): String =
+        T9CandidateSnapshots.pagerContent(data, t9HanziCharacterBudget)
 
     private fun applyT9BulkFilteredPage(page: T9CandidatePager.Page) {
         t9BulkFilteredPaged = if (page.candidates.isEmpty()) {
@@ -1105,29 +871,6 @@ class CandidatesView(
         t9ShownUsesLocalBudget = false
     }
 
-    private fun setCandidateRowStableFrame(enabled: Boolean) {
-        val targetHeight = if (enabled) t9CandidateRowHeightPx else ViewGroup.LayoutParams.WRAP_CONTENT
-        (candidateRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
-            if (params.height != targetHeight) {
-                params.height = targetHeight
-                candidateRowWrapper.layoutParams = params
-            }
-        }
-        val childTargetHeight = if (enabled) ViewGroup.LayoutParams.MATCH_PARENT else ViewGroup.LayoutParams.WRAP_CONTENT
-        (candidatesUi.root.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
-            if (params.height != childTargetHeight) {
-                params.height = childTargetHeight
-                candidatesUi.root.layoutParams = params
-            }
-        }
-        (t9FixedCandidatesUi.root.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
-            if (params.height != childTargetHeight) {
-                params.height = childTargetHeight
-                t9FixedCandidatesUi.root.layoutParams = params
-            }
-        }
-    }
-
     private fun showPinyinRowNow() {
         pinyinBarView.visibility = View.VISIBLE
         pinyinRowWrapper.visibility = View.VISIBLE
@@ -1155,15 +898,25 @@ class CandidatesView(
         pinyinBarView.scaleX = 1f
         pinyinBarView.translationY = 0f
         if (visible) {
-            syncPinyinRowWidthToCandidates()
+            val widthReady = syncPinyinRowWidthToCandidates()
             setPinyinRowHeight(pinyinBarRowHeightPx)
-            showPinyinRowNow()
-            return true
+            if (widthReady) {
+                showPinyinRowNow()
+                return true
+            } else {
+                pinyinBarView.visibility = View.INVISIBLE
+                pinyinRowWrapper.visibility = View.INVISIBLE
+                pinyinRowWrapper.post {
+                    if (!pinyinRowTargetVisible) return@post
+                    if (syncPinyinRowWidthToCandidates()) {
+                        showPinyinRowNow()
+                    }
+                }
+                return false
+            }
         } else {
             pinyinBarAdapter.clear()
             pinyinBarAdapter.scrollToStart()
-            t9RenderedPinyinItems = emptyList()
-            t9CandidatePanelWidthState.reset()
             pinyinBarView.visibility = View.GONE
             pinyinRowWrapper.visibility = View.GONE
             setPinyinRowHeight(0)
@@ -1173,12 +926,12 @@ class CandidatesView(
 
     private fun syncVisiblePinyinRowLayout(): Boolean {
         if (!pinyinRowTargetVisible) return true
-        syncPinyinRowWidthToCandidates()
+        val widthReady = syncPinyinRowWidthToCandidates()
         setPinyinRowHeight(pinyinBarRowHeightPx)
-        if (pinyinRowWrapper.visibility != View.VISIBLE || pinyinBarView.visibility != View.VISIBLE) {
+        if (widthReady && pinyinRowWrapper.visibility == View.INVISIBLE) {
             showPinyinRowNow()
         }
-        return true
+        return widthReady
     }
 
     private fun setPinyinRowHeight(height: Int) {
@@ -1193,135 +946,40 @@ class CandidatesView(
     }
 
     private fun syncPinyinRowWidthToCandidates(): Boolean {
-        // The pinyin row should feel attached to the Hanzi candidate bubble the user is choosing from.
-        // Current candidate width stays the primary anchor; visible pinyin chips may widen the same
-        // bubble only for the current frame, so paging to a one-candidate page does not inherit a
-        // large blank area from the previous page.
-        val candidateWidth = measuredCurrentT9CandidatePanelWidthPx()
-        val pinyinWidth = measuredCurrentT9PinyinPanelWidthPx()
-        val targetWidth = listOfNotNull(candidateWidth, pinyinWidth).maxOrNull()
-            ?.let { t9CandidatePanelWidthState.update(it) }
-            ?: firstPositiveCandidateRowWidth()
-            ?: t9CandidatePanelWidthState.currentOrNull()
-        if (targetWidth != null) {
-            setPinyinRowWidth(targetWidth)
-            return true
-        }
-        setPinyinRowWidth(ViewGroup.LayoutParams.WRAP_CONTENT)
-        return true
-    }
-
-    private fun setPinyinRowWidth(width: Int) {
-        val safeWidth = coerceT9PanelWidthToSafeBounds(width)
+        val candidateWidth = firstPositiveCandidateRowWidth()
+            ?: lastCandidateRowWidthPx.takeIf { it > 0 }
+            ?: return false
         (pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
-            if (params.width != safeWidth) {
-                params.width = safeWidth
+            if (params.width != candidateWidth) {
+                params.width = candidateWidth
                 pinyinRowWrapper.layoutParams = params
             }
         }
-        val barWidth = if (safeWidth == ViewGroup.LayoutParams.WRAP_CONTENT) {
-            FrameLayout.LayoutParams.WRAP_CONTENT
-        } else {
-            FrameLayout.LayoutParams.MATCH_PARENT
-        }
-        (pinyinBarView.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
-            if (params.width != barWidth) {
-                params.width = barWidth
-                pinyinBarView.layoutParams = params
-            }
-        }
+        return true
     }
 
     private fun firstPositiveCandidateRowWidth(): Int? {
-        t9FixedCandidatesUi.root.width.takeIf { it > 0 && t9FixedCandidatesUi.root.visibility == View.VISIBLE }
-            ?.let { return t9CandidatePanelWidthState.update(coerceT9PanelWidthToSafeBounds(it)) }
-        t9FixedCandidatesUi.root.measuredWidth.takeIf { it > 0 && t9FixedCandidatesUi.root.visibility == View.VISIBLE }
-            ?.let { return t9CandidatePanelWidthState.update(coerceT9PanelWidthToSafeBounds(it)) }
-        candidatesUi.root.width.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.update(coerceT9PanelWidthToSafeBounds(it)) }
-        candidatesUi.root.measuredWidth.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.update(coerceT9PanelWidthToSafeBounds(it)) }
-        candidateRowWrapper.width.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.update(coerceT9PanelWidthToSafeBounds(it)) }
-        candidateRowWrapper.measuredWidth.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.update(coerceT9PanelWidthToSafeBounds(it)) }
+        candidatesUi.root.width.takeIf { it > 0 }?.let { return rememberCandidateRowWidth(it) }
+        candidatesUi.root.measuredWidth.takeIf { it > 0 }?.let { return rememberCandidateRowWidth(it) }
+        candidateRowWrapper.width.takeIf { it > 0 }?.let { return rememberCandidateRowWidth(it) }
+        candidateRowWrapper.measuredWidth.takeIf { it > 0 }?.let { return rememberCandidateRowWidth(it) }
         return null
     }
 
-    private fun coerceT9PanelWidthToSafeBounds(width: Int): Int {
-        if (width == ViewGroup.LayoutParams.WRAP_CONTENT) return width
-        val maxPanelWidthPx = t9CandidateRowAvailableWidthPx()
-        return width.coerceIn(1, maxPanelWidthPx.coerceAtLeast(1))
-    }
-
-    private fun measuredCurrentT9CandidatePanelWidthPx(): Int? {
-        val shown = t9ShownPaged ?: paged
-        if (shown.candidates.isEmpty()) return null
-        val paint = t9CandidateMeasurePaint.apply {
-            textSize = fontSize * ctx.resources.displayMetrics.scaledDensity
-            InputUiFont.applyTo(this)
-        }
-        // Keep this measurement in lockstep with setupTextViewCandidates for the same edge-safety
-        // reason as the pager budget above.
-        val horizontalPaddingPx = dp(itemPaddingHorizontal) * 2
-        val itemSpacingPx = dp(candidateItemSpacing)
-        val shortcutWidthPx = paint.measureText("0")
-        val minItemWidthPx = (paint.textSize * T9_SHORTCUT_CANDIDATE_MIN_WIDTH_EM)
-            .roundToInt()
-            .coerceAtLeast(1)
-        val maxItemWidthPx = t9ShortcutCandidateMaxWidthPx(t9CandidateRowAvailableWidthPx())
-        val itemWidths = shown.candidates.map { candidate ->
-            measuredT9CandidateItemWidthPx(
-                text = candidate.text,
-                paint = paint,
-                shortcutWidthPx = shortcutWidthPx,
-                horizontalPaddingPx = horizontalPaddingPx,
-                minItemWidthPx = minItemWidthPx,
-                maxItemWidthPx = maxItemWidthPx,
-                itemSpacingPx = itemSpacingPx
-            )
-        }
-        val targetPanelWidthPx = T9CandidateRowLayout.rowWidth(
-            itemWidths = itemWidths,
-            itemSpacingPx = itemSpacingPx,
-            paginationWidthPx = t9PaginationWidthPx(),
-            hasPagination = currentT9CandidatePageShowsPagination(shown),
-            sidePaddingPx = t9CandidateHighlightOverflowPaddingPx * 2
-        )
-        val availablePanelWidthPx = t9CandidateRowAvailableWidthPx()
-        return targetPanelWidthPx.coerceAtMost(availablePanelWidthPx).coerceAtLeast(1)
-    }
-
-    private fun measuredCurrentT9PinyinPanelWidthPx(): Int? {
-        if (t9RenderedPinyinItems.isEmpty()) return null
-        val paint = t9CandidateMeasurePaint.apply {
-            textSize = compactTopRowFontSizeSp * ctx.resources.displayMetrics.scaledDensity
-            InputUiFont.applyTo(this)
-        }
-        val chipPaddingPx = dpCandidates(itemPaddingHorizontal)
-        val chipWidthPx = t9RenderedPinyinItems.withIndex().sumOf { (index, pinyin) ->
-            val textWidthPx = paint.measureText(pinyin).roundToInt()
-            val rightMarginPx = if (index == t9RenderedPinyinItems.lastIndex) 0 else chipPaddingPx
-            textWidthPx + chipPaddingPx * 2 + rightMarginPx
-        }
-        val availablePanelWidthPx = t9CandidateRowAvailableWidthPx()
-        val targetPanelWidthPx = chipWidthPx + t9CandidateHighlightOverflowPaddingPx * 2
-        return targetPanelWidthPx.coerceAtMost(availablePanelWidthPx).coerceAtLeast(1)
-    }
-
-    private fun currentT9CandidatePageShowsPagination(
-        shown: FcitxEvent.PagedCandidateEvent.Data = t9ShownPaged ?: paged
-    ): Boolean {
-        return showPaginationArrows && (shown.hasPrev || shown.hasNext)
+    private fun rememberCandidateRowWidth(width: Int): Int {
+        lastCandidateRowWidthPx = width
+        return width
     }
 
     private fun updatePinyinBar(candidates: List<String>, useT9: Boolean): Boolean {
         if (!useT9) {
             t9PinyinRowWindow.clear()
             t9RenderedPinyinWindowStart = 0
-            t9RenderedPinyinItems = emptyList()
             return setPinyinRowVisible(false)
         }
         if (candidates.isEmpty()) {
             t9PinyinRowWindow.clear()
             t9RenderedPinyinWindowStart = 0
-            t9RenderedPinyinItems = emptyList()
             return setPinyinRowVisible(false)
         }
         val state = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.window") {
@@ -1338,7 +996,6 @@ class CandidatesView(
     }
 
     private fun renderPinyinWindow(state: T9PinyinRowWindow.VisibleState): Boolean {
-        t9RenderedPinyinItems = state.items
         val changed = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.submit") {
             pinyinBarAdapter.submitList(state.items, state.highlightedIndex)
         }
@@ -1373,9 +1030,6 @@ class CandidatesView(
     }
 
     private fun showWhenPositioned(contentReady: Boolean) {
-        if (contentReady && visibility == VISIBLE && !showAfterPositioned && !shouldUpdatePosition) {
-            return
-        }
         if (!contentReady && visibility != VISIBLE) {
             showAfterPositioned = true
             shouldUpdatePosition = true
@@ -1519,21 +1173,19 @@ class CandidatesView(
         // After layout, give pinyin bar the same width as candidates so it scrolls inside bubble2
         bubble2Wrapper.viewTreeObserver.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {
             override fun onGlobalLayout() {
-                val targetWidth = if (pinyinRowTargetVisible) {
-                    t9CandidatePanelWidthState.currentOrNull()
-                } else {
-                    null
+                val cw = candidatesUi.root.width
+                if (cw > 0) {
+                    lastCandidateRowWidthPx = cw
                 }
-                val cw = when {
-                    t9FixedCandidatesUi.root.visibility == View.VISIBLE -> t9FixedCandidatesUi.root.width
-                    else -> candidatesUi.root.width
-                }
-                val stableWidth = targetWidth
-                    ?: cw.takeIf { it > 0 }?.let { t9CandidatePanelWidthState.update(coerceT9PanelWidthToSafeBounds(it)) }
-                    ?: return
-                if ((pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.width != stableWidth) {
-                    setPinyinRowWidth(stableWidth)
+                if (cw > 0 && (pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.width != cw) {
+                    (pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.width = cw
                     pinyinRowWrapper.requestLayout()
+                }
+                if (cw > 0 &&
+                    pinyinRowTargetVisible &&
+                    pinyinRowWrapper.visibility == View.INVISIBLE
+                ) {
+                    showPinyinRowNow()
                 }
             }
         })
@@ -1558,7 +1210,7 @@ class CandidatesView(
     override fun setVisibility(visibility: Int) {
         if (visibility != VISIBLE) {
             showAfterPositioned = false
-            touchEventReceiverWindow.dismissDeferred()
+            touchEventReceiverWindow.dismiss()
         }
         super.setVisibility(visibility)
     }
@@ -1573,12 +1225,5 @@ class CandidatesView(
     companion object {
         private const val T9_BULK_FILTER_LIMIT = 80
         private const val T9_PINYIN_TO_HANZI_GAP_DP = 2
-        private const val T9_MEASURED_ROW_EDGE_GAP_DP = 4
-        // Keep this in sync with PaginationUi's two 10dp icons; pager and renderer share it so
-        // pages with arrows do not fit more Hanzi than the row can actually render.
-        private const val T9_PAGINATION_WIDTH_DP = 20
-        private const val T9_SHORTCUT_CANDIDATE_MIN_WIDTH_EM = 0.95f
-        private const val T9_SHORTCUT_CANDIDATE_MAX_WIDTH_RATIO = 0.42f
-        private const val T9_MEASURED_BUDGET_UNIT_TEXT = "测"
     }
 }

@@ -32,47 +32,6 @@ class T9PagedCandidates(
 }
 
 class T9CandidatePager {
-    data class Budget(
-        val value: Int,
-        val key: Any = value,
-        val itemCost: (FcitxEvent.Candidate) -> Int,
-        val hardValue: Int = value,
-        val hardItemCost: (FcitxEvent.Candidate) -> Int = itemCost,
-        val itemSpacing: Int = 0,
-        val paginationCost: Int = 0,
-        val sidePadding: Int = 0,
-        val protectedMinItems: Int = 0,
-        val canProtectItem: (FcitxEvent.Candidate) -> Boolean = { false }
-    ) {
-        fun pageCost(
-            candidates: List<IndexedValue<FcitxEvent.Candidate>>,
-            hasPrev: Boolean,
-            hasNext: Boolean,
-            hard: Boolean = false
-        ): Int =
-            T9CandidateRowLayout.rowWidth(
-                itemWidths = candidates.map { candidate ->
-                    val cost = if (hard) hardItemCost(candidate.value) else itemCost(candidate.value)
-                    cost.coerceAtLeast(1)
-                },
-                itemSpacingPx = itemSpacing,
-                paginationWidthPx = paginationCost,
-                hasPagination = paginationCost > 0 &&
-                    T9CandidateRowLayout.paginationVisible(hasPrev, hasNext),
-                sidePaddingPx = sidePadding
-            )
-
-        companion object {
-            fun character(characterBudget: Int): Budget {
-                val normalizedBudget = T9CandidateBudget.normalizedBudget(characterBudget)
-                return Budget(
-                    value = normalizedBudget,
-                    key = normalizedBudget,
-                    itemCost = { candidate -> T9CandidateBudget.candidateCost(candidate.text) }
-                )
-            }
-        }
-    }
 
     data class Page(
         val candidates: List<IndexedValue<FcitxEvent.Candidate>>,
@@ -107,11 +66,9 @@ class T9CandidatePager {
             )
     }
 
-    private var signature: Any? = null
-    private var budget = Budget(value = 0, itemCost = { 1 })
-    private var budgetKey: Any = 0
-    private val pages = mutableListOf<List<IndexedValue<FcitxEvent.Candidate>>>()
-    private val pageEndOffsets = mutableListOf<Int>()
+    private var signature = ""
+    private var budget = 0
+    private var pages: List<List<IndexedValue<FcitxEvent.Candidate>>> = emptyList()
 
     var pageIndex = 0
         private set
@@ -123,43 +80,32 @@ class T9CandidatePager {
         get() = candidates.isNotEmpty()
 
     fun reset() {
-        signature = null
-        budget = Budget(value = 0, itemCost = { 1 })
-        budgetKey = 0
-        pages.clear()
-        pageEndOffsets.clear()
+        signature = ""
+        budget = 0
+        pages = emptyList()
         pageIndex = 0
         candidates = emptyList()
     }
 
     fun update(
-        signature: Any,
+        signature: String,
         candidates: List<IndexedValue<FcitxEvent.Candidate>>,
         characterBudget: Int
-    ) = update(signature, candidates, Budget.character(characterBudget))
-
-    fun update(
-        signature: Any,
-        candidates: List<IndexedValue<FcitxEvent.Candidate>>,
-        budget: Budget
     ) {
-        if (this.signature == signature && budgetKey == budget.key) return
+        val normalizedBudget = T9CandidateBudget.normalizedBudget(characterBudget)
+        if (this.signature == signature && budget == normalizedBudget) return
         this.signature = signature
-        this.budget = budget
-        this.budgetKey = budget.key
+        this.budget = normalizedBudget
         this.candidates = candidates
-        pages.clear()
-        pageEndOffsets.clear()
+        pages = buildPages(candidates, normalizedBudget)
         pageIndex = 0
     }
 
     fun currentPage(): Page? = pageAt(pageIndex)
 
     fun pageAt(index: Int): Page? {
-        if (candidates.isEmpty()) return null
-        val targetIndex = index.coerceAtLeast(0)
-        if (!ensurePage(targetIndex)) return null
-        val safeIndex = targetIndex.coerceAtMost(pages.lastIndex)
+        if (pages.isEmpty()) return null
+        val safeIndex = index.coerceIn(0, pages.lastIndex)
         pageIndex = safeIndex
         return pageFor(safeIndex)
     }
@@ -167,19 +113,10 @@ class T9CandidatePager {
     fun offset(delta: Int): Page? = pageAt(pageIndex + delta)
 
     fun selectPageContainingOriginalIndex(originalIndex: Int): Page? {
-        if (candidates.isEmpty()) return null
-        var nextIndex = -1
-        var index = 0
-        while (ensurePage(index)) {
-            if (pages[index].any { it.index == originalIndex }) {
-                nextIndex = index
-                break
-            }
-            index++
-        }
-        if (nextIndex < 0) {
-            nextIndex = pageIndex.coerceIn(pages.indices)
-        }
+        if (pages.isEmpty()) return null
+        val nextIndex = pages.indexOfFirst { page ->
+            page.any { it.index == originalIndex }
+        }.takeIf { it >= 0 } ?: pageIndex.coerceIn(pages.indices)
         pageIndex = nextIndex
         return pageFor(nextIndex)
     }
@@ -189,47 +126,30 @@ class T9CandidatePager {
             candidates = pages[index],
             index = index,
             hasPrev = index > 0,
-            hasNext = pageEndOffsets[index] < candidates.size
+            hasNext = index < pages.lastIndex
         )
 
-    private fun ensurePage(index: Int): Boolean {
-        while (pages.size <= index) {
-            if (!buildNextPage()) return false
-        }
-        return true
-    }
-
-    private fun buildNextPage(): Boolean {
-        val start = pageEndOffsets.lastOrNull() ?: 0
-        if (start >= candidates.size) return false
+    private fun buildPages(
+        candidates: List<IndexedValue<FcitxEvent.Candidate>>,
+        budget: Int
+    ): List<List<IndexedValue<FcitxEvent.Candidate>>> {
+        if (candidates.isEmpty()) return emptyList()
+        val pages = mutableListOf<MutableList<IndexedValue<FcitxEvent.Candidate>>>()
         var current = mutableListOf<IndexedValue<FcitxEvent.Candidate>>()
-        var canProtectCurrentPage = true
-        var offset = start
-        val hasPrev = pages.isNotEmpty()
-        while (offset < candidates.size) {
-            val candidate = candidates[offset]
-            val nextPage = current + candidate
-            val hasNext = offset + 1 < candidates.size
-            val used = budget.pageCost(nextPage, hasPrev, hasNext)
-            val hardUsed = budget.pageCost(nextPage, hasPrev, hasNext, hard = true)
-            val canProtectCandidate = budget.canProtectItem(candidate.value)
-            if (current.isNotEmpty() && used > budget.value) {
-                val canUseProtectedSlot =
-                    current.size < budget.protectedMinItems &&
-                        canProtectCurrentPage &&
-                        canProtectCandidate &&
-                        hardUsed <= budget.hardValue
-                if (!canUseProtectedSlot) {
-                    break
-                }
+        var used = 0
+        candidates.forEach { candidate ->
+            val length = T9CandidateBudget.candidateCost(candidate.value.text)
+            if (current.isNotEmpty() && used + length > budget) {
+                pages += current
+                current = mutableListOf()
+                used = 0
             }
             current += candidate
-            canProtectCurrentPage = canProtectCurrentPage && canProtectCandidate
-            offset++
+            used += length
         }
-        if (current.isEmpty()) return false
-        pages += current
-        pageEndOffsets += offset
-        return true
+        if (current.isNotEmpty()) {
+            pages += current
+        }
+        return pages
     }
 }

@@ -5,76 +5,37 @@
 
 package org.fcitx.fcitx5.android.input.t9
 
-data class ChineseT9InputSnapshot(
-    val rawSequence: String,
-    val digitSequence: String,
-    val currentSegment: String,
-    val fullComposition: String,
-    val model: T9CompositionModel,
-    val keyCount: Int,
-    val filterPrefixes: List<String>,
-    val hasPendingPinyinSelection: Boolean,
-    val sessionRevision: Long
-) {
-    fun presentationKey(
-        pendingPunctuationText: String?,
-        inputPreedit: String,
-        candidateComment: String,
-        candidateCursorIndex: Int
-    ): ChineseT9PresentationSnapshotKey =
-        ChineseT9PresentationSnapshotKey(
-            pendingPunctuationText = pendingPunctuationText,
-            rawSequence = rawSequence,
-            digitSequence = digitSequence,
-            currentSegment = currentSegment,
-            fullComposition = fullComposition,
-            model = model,
-            inputPreedit = inputPreedit,
-            candidateComment = candidateComment,
-            candidateCursorIndex = candidateCursorIndex,
-            sessionRevision = sessionRevision
-        )
-}
-
 data class ChineseT9PresentationSnapshotKey(
     val pendingPunctuationText: String?,
-    val rawSequence: String,
-    val digitSequence: String,
-    val currentSegment: String,
-    val fullComposition: String,
-    val model: T9CompositionModel,
     val inputPreedit: String,
     val candidateComment: String,
     val candidateCursorIndex: Int,
-    val sessionRevision: Long
+    val rawSequence: String,
+    val digitSequence: String,
+    val currentSegment: String,
+    val fullComposition: String,
+    val model: T9CompositionModel
+)
+
+data class ChineseT9PresentationSnapshot(
+    val key: ChineseT9PresentationSnapshotKey,
+    val state: T9PresentationState
 )
 
 class ChineseT9PresentationSnapshotCache {
-    private val snapshots = object : LinkedHashMap<ChineseT9PresentationSnapshotKey, T9PresentationState>(
-        MaxSnapshots,
-        0.75f,
-        true
-    ) {
-        override fun removeEldestEntry(
-            eldest: MutableMap.MutableEntry<ChineseT9PresentationSnapshotKey, T9PresentationState>?
-        ): Boolean = size > MaxSnapshots
-    }
+    private var snapshot: ChineseT9PresentationSnapshot? = null
 
     fun getOrBuild(
         key: ChineseT9PresentationSnapshotKey,
         build: () -> T9PresentationState
     ): T9PresentationState {
-        snapshots[key]?.let { return it }
+        snapshot?.takeIf { it.key == key }?.let { return it.state }
         return build().also { state ->
-            snapshots[key] = state
+            snapshot = ChineseT9PresentationSnapshot(key, state)
         }
     }
 
     fun reset() {
-        snapshots.clear()
-    }
-
-    companion object {
-        private const val MaxSnapshots = 16
+        snapshot = null
     }
 }

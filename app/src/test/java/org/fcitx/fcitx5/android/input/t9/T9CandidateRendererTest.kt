@@ -54,43 +54,6 @@ class T9CandidateRendererTest {
     }
 
     @Test
-    fun t9HiddenCommentChangeDoesNotPatchCandidateRow() {
-        val previous = state(
-            panel = panel("n"),
-            candidates = paged("你", comment = "ni")
-        )
-        val next = state(
-            panel = panel("ni"),
-            candidates = paged("你", comment = "ni hao")
-        )
-
-        val patch = T9CandidateRenderer.diff(previous, next)
-
-        assertTrue(patch.preedit)
-        assertFalse(patch.candidates)
-        assertFalse(patch.candidateContent)
-        assertFalse(patch.pinyin)
-        assertFalse(patch.visibility)
-    }
-
-    @Test
-    fun nonT9CommentChangePatchesCandidateRow() {
-        val previous = state(
-            candidates = paged("你", comment = "ni"),
-            showShortcutLabels = false
-        )
-        val next = state(
-            candidates = paged("你", comment = "ni hao"),
-            showShortcutLabels = false
-        )
-
-        val patch = T9CandidateRenderer.diff(previous, next)
-
-        assertTrue(patch.candidates)
-        assertTrue(patch.candidateContent)
-    }
-
-    @Test
     fun pinyinContentChangeRefreshesFocusForNewChips() {
         val previous = state(pinyinOptions = listOf("a"))
         val next = state(pinyinOptions = listOf("ai"))
@@ -102,17 +65,15 @@ class T9CandidateRendererTest {
     }
 
     private fun state(
-        panel: FcitxEvent.InputPanelEvent.Data = FcitxEvent.InputPanelEvent.Data(),
         candidates: FcitxEvent.PagedCandidateEvent.Data = paged("a"),
         pinyinOptions: List<String> = listOf("a"),
-        shouldShow: Boolean = true,
-        showShortcutLabels: Boolean = true
+        shouldShow: Boolean = true
     ): T9CandidateRenderState =
         T9CandidateRenderState(
-            panel = panel,
+            panel = FcitxEvent.InputPanelEvent.Data(),
             candidates = candidates,
             orientation = FloatingCandidatesOrientation.Horizontal,
-            showShortcutLabels = showShortcutLabels,
+            showShortcutLabels = true,
             pinyinOptions = pinyinOptions,
             pinyinUseT9 = true,
             focus = T9CandidateFocus.BOTTOM,
@@ -122,28 +83,16 @@ class T9CandidateRendererTest {
 
     private fun paged(
         text: String,
-        cursor: Int = 0,
-        comment: String = ""
+        cursor: Int = 0
     ): FcitxEvent.PagedCandidateEvent.Data =
         FcitxEvent.PagedCandidateEvent.Data(
             candidates = arrayOf(
-                FcitxEvent.Candidate(label = "", text = text, comment = comment),
+                FcitxEvent.Candidate(label = "", text = text, comment = ""),
                 FcitxEvent.Candidate(label = "", text = "b", comment = "")
             ),
             cursorIndex = cursor,
             layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
             hasPrev = false,
             hasNext = false
-        )
-
-    private fun panel(preedit: String): FcitxEvent.InputPanelEvent.Data =
-        FcitxEvent.InputPanelEvent.Data(
-            org.fcitx.fcitx5.android.core.FormattedText(
-                strings = arrayOf(preedit),
-                flags = intArrayOf(org.fcitx.fcitx5.android.core.TextFormatFlag.NoFlag.flag),
-                cursor = -1
-            ),
-            org.fcitx.fcitx5.android.core.FormattedText.Empty,
-            org.fcitx.fcitx5.android.core.FormattedText.Empty
         )
 }

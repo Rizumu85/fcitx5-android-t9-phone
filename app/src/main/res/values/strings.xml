@@ -112,7 +112,6 @@
     <string name="status_area_theme">Theme</string>
     <string name="status_action">Action</string>
     <string name="rime_status_menu">Dictionary Switch</string>
-    <string name="status_action_current_item">%1$s · Current</string>
     <string name="key_ripple_effect">Enable key ripple effect</string>
     <string name="key_border">Enable key border</string>
     <string name="brightness">Brightness</string>
@@ -337,7 +336,7 @@
     <string name="candidates_item_spacing">Spacing between candidate items</string>
     <string name="candidates_small_row_percent">First/second row height (% of candidate row)</string>
     <string name="candidates_t9_top_bottom_row_ratio">T9 top/bottom row height ratio</string>
-    <string name="candidates_t9_hanzi_character_budget">T9 candidate bubble width</string>
+    <string name="candidates_t9_hanzi_character_budget">T9 Hanzi row character budget</string>
     <string name="restart_fcitx_instance">Restart fcitx instance</string>
     <string name="restart_fcitx_instance_confirm">Fcitx instance will be destroyed and reinitialized. Proceed?</string>
     <string name="ignore_system_window_insets">Ignore system WindowInsets</string>

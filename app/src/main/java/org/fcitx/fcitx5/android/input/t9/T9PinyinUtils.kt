@@ -13,16 +13,6 @@ package org.fcitx.fcitx5.android.input.t9
 object T9PinyinUtils {
 
     private val digitToGroup = "ADGJMPTW"  // index 0..7 for digit 2..9
-    private const val maxPinyinLookupCacheEntries = 128
-    private val pinyinLookupCache = object : LinkedHashMap<String, List<String>>(
-        maxPinyinLookupCacheEntries,
-        0.75f,
-        true
-    ) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<String>>?): Boolean =
-            size > maxPinyinLookupCacheEntries
-    }
-
     private fun digitToGroupChar(digit: Char): Char =
         if (digit in '2'..'9') digitToGroup[digit - '2'] else digit
 
@@ -261,24 +251,6 @@ object T9PinyinUtils {
         put("WTAM", "xuan,yuan,zuan")
     }
 
-    private val pinyinByGroup = pinyinMap.mapValues { (_, value) ->
-        value.split(",")
-    }
-
-    private val groupToDigit = mapOf(
-        'A' to '2', 'D' to '3', 'G' to '4', 'J' to '5',
-        'M' to '6', 'P' to '7', 'T' to '8', 'W' to '9'
-    )
-
-    private val pinyinToDigits = buildMap {
-        pinyinByGroup.forEach { (group, pinyinList) ->
-            val digits = group.map { g -> groupToDigit[g] ?: g }.joinToString("")
-            pinyinList.forEach { pinyin ->
-                putIfAbsent(pinyin, digits)
-            }
-        }
-    }
-
     /**
      * Returns candidate pinyin for the given T9 digit sequence (only digits 2-9, no apostrophe).
      * Prefixes from length 6 down to 1 are looked up; results are merged and deduplicated by order.
@@ -287,33 +259,38 @@ object T9PinyinUtils {
         if (t9DigitSequence.isNullOrEmpty()) return emptyList()
         val digits = t9DigitSequence.filter { it in '2'..'9' }
         if (digits.isEmpty()) return emptyList()
-        synchronized(pinyinLookupCache) {
-            pinyinLookupCache[digits]?.let { return it }
-        }
         val groupSeq = groupSequenceFromDigits(digits)
         val result = mutableListOf<String>()
         for (len in groupSeq.length downTo 1) {
             val prefix = groupSeq.substring(0, len)
-            pinyinByGroup[prefix]?.let { value ->
-                value.forEach { p ->
+            pinyinMap[prefix]?.let { value ->
+                value.split(",").forEach { p ->
                     if (p !in result) result.add(p)
                 }
             }
         }
-        val cached = result.toList()
-        synchronized(pinyinLookupCache) {
-            pinyinLookupCache[digits] = cached
-        }
-        return cached
+        return result
     }
 
     fun matchedPrefixLength(t9DigitSequence: String?, pinyin: String?): Int {
         if (t9DigitSequence.isNullOrEmpty() || pinyin.isNullOrEmpty()) return 0
         val digits = t9DigitSequence.filter { it in '2'..'9' }
         if (digits.isEmpty()) return 0
-        val pinyinDigits = pinyinToDigits[pinyin] ?: return 0
-        return if (digits.startsWith(pinyinDigits)) pinyinDigits.length else 0
+        val groupSeq = groupSequenceFromDigits(digits)
+        for (len in groupSeq.length downTo 1) {
+            val prefix = groupSeq.substring(0, len)
+            val matches = pinyinMap[prefix]?.split(",") ?: continue
+            if (matches.any { it == pinyin }) {
+                return len
+            }
+        }
+        return 0
     }
+
+    private val groupToDigit = mapOf(
+        'A' to '2', 'D' to '3', 'G' to '4', 'J' to '5',
+        'M' to '6', 'P' to '7', 'T' to '8', 'W' to '9'
+    )
 
     /**
      * Returns the T9 digit sequence (2-9) that corresponds to the given pinyin.
@@ -321,6 +298,12 @@ object T9PinyinUtils {
      */
     fun pinyinToT9Keys(pinyin: String?): String {
         if (pinyin.isNullOrEmpty()) return ""
-        return pinyinToDigits[pinyin].orEmpty()
+        for ((key, value) in pinyinMap) {
+            val pinyinList = value.split(",")
+            if (pinyinList.any { it == pinyin }) {
+                return key.map { g -> groupToDigit[g] ?: g }.joinToString("")
+            }
+        }
+        return ""
     }
 }
