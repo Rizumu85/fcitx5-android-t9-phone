@@ -188,6 +188,8 @@ class CandidatesView(
         }
     )
     private val t9LocalBudgetPager = T9CandidatePager()
+    private var t9LocalBudgetSignature = ""
+    private var t9LocalBudgetNoPageSignature = ""
     private var t9ShownUsesLocalBudget = false
     private var t9ShownUsesSmartEnglish = false
     private val t9SmartEnglishPager = T9CandidatePager()
@@ -891,12 +893,19 @@ class CandidatesView(
         data: FcitxEvent.PagedCandidateEvent.Data
     ): FcitxEvent.PagedCandidateEvent.Data? {
         if (data.candidates.isEmpty()) return null
-        val indexedCandidates = t9BulkCandidateLoader.dedupeDisplayCandidates(data.candidates.withIndex().toList())
         val signature = buildT9CandidateSignature(data)
-        t9LocalBudgetPager.update(signature, indexedCandidates, t9HanziCharacterBudget)
+        if (signature == t9LocalBudgetNoPageSignature) return null
+        if (signature != t9LocalBudgetSignature) {
+            val indexedCandidates = t9BulkCandidateLoader.dedupeDisplayCandidates(data.candidates.withIndex().toList())
+            t9LocalBudgetPager.update(signature, indexedCandidates, t9HanziCharacterBudget)
+            t9LocalBudgetSignature = signature
+        }
         val page = t9LocalBudgetPager.currentPage() ?: return null
         if (page.candidates.size == data.candidates.size && !page.hasPrev && !page.hasNext) {
-            resetT9LocalBudgetState()
+            t9LocalBudgetNoPageSignature = signature
+            t9LocalBudgetPager.reset()
+            t9LocalBudgetSignature = ""
+            t9ShownUsesLocalBudget = false
             return null
         }
         return FcitxEvent.PagedCandidateEvent.Data(
@@ -1042,6 +1051,8 @@ class CandidatesView(
 
     private fun resetT9LocalBudgetState() {
         t9LocalBudgetPager.reset()
+        t9LocalBudgetSignature = ""
+        t9LocalBudgetNoPageSignature = ""
         t9ShownUsesLocalBudget = false
     }
 

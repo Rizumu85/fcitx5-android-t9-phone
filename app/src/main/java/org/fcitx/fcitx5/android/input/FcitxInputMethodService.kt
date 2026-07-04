@@ -77,7 +77,7 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionSession
 import org.fcitx.fcitx5.android.input.t9.ChineseT9RimeBridge
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHandler
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
-import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9Controller
+import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9Coordinator
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocusController
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
@@ -160,7 +160,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 T9PunctuationSession.Set.ENGLISH -> PhysicalT9KeyHandler.PunctuationSet.ENGLISH
             }
         override val hasSmartEnglishDigits: Boolean
-            get() = smartEnglishController.hasDigits
+            get() = smartEnglishCoordinator.hasDigits
         override val hasMultiTapPendingChar: Boolean
             get() = multiTapPendingChar != null
         override val hasTopPinyinCandidates: Boolean
@@ -215,8 +215,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             this@FcitxInputMethodService.showSmartEnglishPunctuationCandidates()
 
         override fun appendSmartEnglishDigit(digit: Int) {
-            preloadSmartEnglishDictionary()
-            smartEnglishController.appendDigit(digit)
+            smartEnglishCoordinator.appendDigit(digit)
         }
 
         override fun resetSmartEnglishT9() = this@FcitxInputMethodService.resetSmartEnglishT9()
@@ -546,10 +545,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private val smartEnglishT9ChangeListener =
         ManagedPreference.OnChangeListener<Boolean> { _, value ->
             smartEnglishT9 = value
-            resetSmartEnglishT9()
-            if (value) {
-                preloadSmartEnglishDictionary()
-            }
+            smartEnglishCoordinator.onEnabledChanged(value)
         }
     private val physicalLongPressDelayChangeListener =
         ManagedPreference.OnChangeListener<Int> { _, value ->
@@ -676,9 +672,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         keyboardPrefs.passwordInputPreview.registerOnChangeListener(passwordInputPreviewChangeListener)
         prefs.candidates.registerOnChangeListener(recreateCandidatesViewListener)
         ThemeManager.addOnChangedListener(onThemeChangeListener)
-        if (smartEnglishT9) {
-            preloadSmartEnglishDictionary()
-        }
+        smartEnglishCoordinator.warmupIfEnabled()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             postFcitxJob {
                 SubtypeManager.syncWith(enabledIme())
@@ -1642,20 +1636,28 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var multiTapLastTime = 0L
     private var multiTapIndex = 0
     private var multiTapPendingChar: Char? = null
-    private val smartEnglishController = SmartEnglishT9Controller(
-        candidateLimit = SmartEnglishCandidateLimit,
-        noMatchText = SmartEnglishNoMatchText,
-        isActive = ::isSmartEnglishT9Active,
-        shouldLearnWords = ::shouldLearnEnglishWords,
-        commitText = ::commitText,
-        refreshUi = { candidatesView?.refreshT9Ui() }
-    )
-    private var smartEnglishPreloadStarted = false
+    private val smartEnglishCoordinator: SmartEnglishT9Coordinator by lazy {
+        SmartEnglishT9Coordinator(
+            candidateLimit = SmartEnglishCandidateLimit,
+            noMatchText = SmartEnglishNoMatchText,
+            scope = lifecycleScope,
+            isEnabled = { smartEnglishT9 },
+            isActive = ::isSmartEnglishT9Active,
+            shouldLearnWords = ::shouldLearnEnglishWords,
+            commitText = ::commitText,
+            refreshUi = { candidatesView?.refreshT9Ui() },
+            resetPendingDigit = ::resetSmartEnglishPendingDigit
+        )
+    }
     private val MULTITAP_TIMEOUT = 1200L  // Increased from 500ms for easier typing
 
     private val t9PunctuationSession = T9PunctuationSession()
 
     private val chineseT9Session = ChineseT9CompositionSession()
+
+    private fun resetSmartEnglishPendingDigit() {
+        physicalT9KeyHandler.resetSmartEnglishPendingDigit()
+    }
 
     private val multiTapMap = mapOf(
         KeyEvent.KEYCODE_1 to ",.?!'\"-@/:",  // English punctuation (comma first)
@@ -1687,7 +1689,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             currentInputConnection?.setComposingText(applyEnglishCase(pendingChar).toString(), 1)
             return
         }
-        inputView?.showModeIndicatorBadge(smartEnglishController.caseLabel)
+        inputView?.showModeIndicatorBadge(smartEnglishCoordinator.caseLabel)
     }
 
 
@@ -1783,17 +1785,17 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return true
     }
 
-    private fun applyEnglishCase(char: Char): Char = smartEnglishController.applyCase(char)
+    private fun applyEnglishCase(char: Char): Char = smartEnglishCoordinator.applyCase(char)
 
-    private fun consumeEnglishShiftOnce() = smartEnglishController.consumeShiftOnce()
+    private fun consumeEnglishShiftOnce() = smartEnglishCoordinator.consumeShiftOnce()
 
     private fun handleEnglishStarShortPress() {
-        smartEnglishController.toggleShiftOnce()
+        smartEnglishCoordinator.toggleShiftOnce()
         showEnglishCaseStateOrRefreshPending()
     }
 
     private fun handleEnglishStarLongPress() {
-        smartEnglishController.toggleCaps()
+        smartEnglishCoordinator.toggleCaps()
         showEnglishCaseStateOrRefreshPending()
     }
 
@@ -1887,58 +1889,36 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun toggleSmartEnglishT9() {
         smartEnglishT9 = !smartEnglishT9
         keyboardPrefs.smartEnglishT9.setValue(smartEnglishT9)
-        resetSmartEnglishT9()
-        if (smartEnglishT9) {
-            preloadSmartEnglishDictionary()
-        }
+        smartEnglishCoordinator.onEnabledChanged(smartEnglishT9)
         inputView?.showModeIndicatorBadge(if (smartEnglishT9) "T9" else "abc")
     }
 
-    private fun preloadSmartEnglishDictionary() {
-        if (smartEnglishController.isDictionaryReady || smartEnglishPreloadStarted) return
-        smartEnglishPreloadStarted = true
-        lifecycleScope.launch(Dispatchers.IO) {
-            smartEnglishController.preloadDictionary()
-            withContext(Dispatchers.Main.immediate) {
-                smartEnglishPreloadStarted = false
-                if (isSmartEnglishT9Active() && smartEnglishController.hasDigits) {
-                    candidatesView?.refreshT9Ui()
-                }
-            }
-        }
-    }
-
     private fun resetSmartEnglishT9() {
-        physicalT9KeyHandler.resetSmartEnglishPendingDigit()
-        smartEnglishController.reset()
+        smartEnglishCoordinator.reset()
     }
 
     fun getSmartEnglishT9Paged(): FcitxEvent.PagedCandidateEvent.Data? =
-        smartEnglishController.paged()
+        smartEnglishCoordinator.paged()
 
     fun getSmartEnglishT9Presentation(): T9PresentationState? =
-        smartEnglishController.presentation(::formattedT9Text)
+        smartEnglishCoordinator.presentation(::formattedT9Text)
 
     fun moveSmartEnglishCandidate(delta: Int): Boolean =
-        smartEnglishController.moveCandidate(delta)
+        smartEnglishCoordinator.moveCandidate(delta)
 
     fun setSmartEnglishCandidateIndex(index: Int): Boolean =
-        smartEnglishController.setCandidateIndex(index)
+        smartEnglishCoordinator.setCandidateIndex(index)
 
     fun commitSmartEnglishCandidate(index: Int? = null): Boolean {
-        val committed = smartEnglishController.commitCandidate(index)
-        if (committed) {
-            physicalT9KeyHandler.resetSmartEnglishPendingDigit()
-        }
-        return committed
+        return smartEnglishCoordinator.commitCandidate(index)
     }
 
     private fun recordEnglishLearningChar(char: Char) {
-        smartEnglishController.recordLearningChar(char)
+        smartEnglishCoordinator.recordLearningChar(char)
     }
 
     private fun flushEnglishLearningWord() {
-        smartEnglishController.flushLearningWord()
+        smartEnglishCoordinator.flushLearningWord()
     }
 
     private fun shouldLearnEnglishWords(): Boolean {
@@ -1958,7 +1938,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun handleSmartEnglishBackspace(): Boolean {
-        return smartEnglishController.backspace()
+        return smartEnglishCoordinator.backspace()
     }
 
     /**
@@ -2053,8 +2033,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             T9InputMode.ENGLISH -> T9InputMode.NUMBER
             T9InputMode.NUMBER -> T9InputMode.CHINESE
         }
-        if (currentT9Mode == T9InputMode.ENGLISH && smartEnglishT9) {
-            preloadSmartEnglishDictionary()
+        if (currentT9Mode == T9InputMode.ENGLISH) {
+            smartEnglishCoordinator.onModeEntered()
         }
         
         val modeName = getCurrentT9ModeLabel()
@@ -2904,6 +2884,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         updateSelectionBackCallback(attribute.initialSelStart != attribute.initialSelEnd)
         resetComposingState()
         resetPhysicalSelectionState()
+        smartEnglishCoordinator.warmupIfEnabled()
         val flags = CapabilityFlags.fromEditorInfo(attribute)
         val fcitxFlags = if (shouldKeepTemporaryPasswordModeOnRestart(restarting, flags)) {
             passwordModeCapabilityFlags(flags)

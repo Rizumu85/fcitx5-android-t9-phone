@@ -49,7 +49,7 @@ class T9BulkCandidateLoader(
             append(prefixSignature).append('|')
             append(characterBudget()).append('|')
             append(preedit).append('|')
-            append(candidates.joinToString(separator = "\n") { "${it.text}|${it.comment}" })
+            append(candidates.contentHashCode())
         }
     }
 
