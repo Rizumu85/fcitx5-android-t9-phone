@@ -907,6 +907,7 @@ class CandidatesView(
     private fun showPinyinRowNow() {
         pinyinBarView.visibility = View.VISIBLE
         pinyinRowWrapper.visibility = View.VISIBLE
+        pinyinRowWrapper.post(::updatePinyinOverflowHintFromLayout)
         if (showAfterPositioned) {
             showWhenPositioned(true)
         }
@@ -967,6 +968,9 @@ class CandidatesView(
         setPinyinRowHeight(pinyinBarRowHeightPx)
         if (widthReady && pinyinRowWrapper.visibility == View.INVISIBLE) {
             showPinyinRowNow()
+        }
+        if (widthReady) {
+            pinyinRowWrapper.post(::updatePinyinOverflowHintFromLayout)
         }
         return widthReady
     }
@@ -1039,6 +1043,20 @@ class CandidatesView(
         }
     }
 
+    private fun updatePinyinOverflowHintFromLayout() {
+        if (!pinyinRowTargetVisible || pinyinRowWrapper.visibility != View.VISIBLE) {
+            updatePinyinOverflowHint(false)
+            return
+        }
+        updatePinyinOverflowHint(t9PinyinHasRightOverflow || pinyinBarHasScrollableRightContent())
+    }
+
+    private fun pinyinBarHasScrollableRightContent(): Boolean {
+        val viewportWidth = pinyinBarView.width.takeIf { it > 0 } ?: return false
+        val contentWidth = pinyinBarView.getChildAt(0)?.width?.takeIf { it > 0 } ?: return false
+        return contentWidth - pinyinBarView.scrollX > viewportWidth + dp(T9_PINYIN_ROW_OVERFLOW_EPSILON_DP)
+    }
+
     private fun pinyinRowMaxWidthPx(): Int {
         val parentWidthPx = parentSize[0].roundToInt()
             .takeIf { it > 0 }
@@ -1103,6 +1121,7 @@ class CandidatesView(
         val changed = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.submit") {
             pinyinBarAdapter.submitList(state.items, state.highlightedIndex)
         }
+        pinyinRowWrapper.post(::updatePinyinOverflowHintFromLayout)
         val ready = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.visibility") {
             setPinyinRowVisible(true)
         }
@@ -1334,5 +1353,6 @@ class CandidatesView(
         private const val T9_PINYIN_TO_HANZI_GAP_DP = 2
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
         private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 18
+        private const val T9_PINYIN_ROW_OVERFLOW_EPSILON_DP = 2
     }
 }
