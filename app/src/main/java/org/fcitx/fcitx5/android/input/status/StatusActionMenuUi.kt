@@ -136,13 +136,7 @@ class StatusActionMenuUi(
         gravity = Gravity.CENTER_VERTICAL
         includeFontPadding = false
         setSingleLine(false)
-        setTextColor(
-            if (activeStyle != ActiveStyle.None) {
-                theme.genericActiveForegroundColor
-            } else {
-                theme.keyTextColor
-            }
-        )
+        setTextColor(rowTextColor(activeStyle))
         setPadding(ctx.dp(16), 0, ctx.dp(16), 0)
         InputUiFont.applyTo(this)
         if (activeStyle == ActiveStyle.CurrentScheme) {
@@ -156,8 +150,15 @@ class StatusActionMenuUi(
     private fun activeIndicatorDrawable() =
         ContextCompat.getDrawable(ctx, R.drawable.ic_baseline_check_24)?.let { drawable ->
             DrawableCompat.wrap(drawable.mutate()).also {
-                DrawableCompat.setTint(it, theme.genericActiveForegroundColor)
+                DrawableCompat.setTint(it, theme.genericActiveBackgroundColor)
             }
+        }
+
+    private fun rowTextColor(activeStyle: ActiveStyle): Int =
+        when (activeStyle) {
+            ActiveStyle.Checked -> theme.genericActiveForegroundColor
+            ActiveStyle.CurrentScheme,
+            ActiveStyle.None -> theme.keyTextColor
         }
 
     private fun separatorView() = FrameLayout(ctx).apply {
