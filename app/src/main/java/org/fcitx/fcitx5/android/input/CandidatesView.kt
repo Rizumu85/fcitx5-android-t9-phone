@@ -1113,8 +1113,7 @@ class CandidatesView(
             return
         }
         updatePinyinOverflowHint(
-            !t9PinyinOverflowHintSuppressedByFocus &&
-                (t9PinyinHasRightOverflow || pinyinBarHasScrollableRightContent())
+            !t9PinyinOverflowHintSuppressedByFocus && t9PinyinHasRightOverflow
         )
     }
 
@@ -1122,12 +1121,6 @@ class CandidatesView(
         if (t9PinyinOverflowHintSuppressedByFocus) return
         t9PinyinOverflowHintSuppressedByFocus = true
         updatePinyinOverflowHint(false)
-    }
-
-    private fun pinyinBarHasScrollableRightContent(): Boolean {
-        val viewportWidth = pinyinBarView.width.takeIf { it > 0 } ?: return false
-        val contentWidth = pinyinBarView.getChildAt(0)?.width?.takeIf { it > 0 } ?: return false
-        return contentWidth - pinyinBarView.scrollX > viewportWidth + dp(T9_PINYIN_ROW_OVERFLOW_EPSILON_DP)
     }
 
     private fun pinyinRowMaxWidthPx(): Int {
@@ -1454,7 +1447,6 @@ class CandidatesView(
         private const val T9_PINYIN_TO_HANZI_GAP_DP = 2
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
         private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 18
-        private const val T9_PINYIN_ROW_OVERFLOW_EPSILON_DP = 2
         private const val T9_PINYIN_ROW_FOCUSED_END_GAP_DP = 10
     }
 }
