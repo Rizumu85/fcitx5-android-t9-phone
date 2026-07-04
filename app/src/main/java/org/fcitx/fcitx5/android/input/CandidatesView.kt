@@ -562,6 +562,12 @@ class CandidatesView(
         refreshT9Ui()
     }
 
+    fun hideT9CandidateUiImmediately() {
+        t9RefreshScheduler.cancel()
+        showAfterPositioned = false
+        t9CandidateUiRenderer.hideImmediately()
+    }
+
     fun getHighlightedT9Pinyin(): String? = t9PinyinRowWindow.highlightedPinyin()
 
     fun commitT9HanziShortcut(index: Int): Boolean = selectT9ShownHanziCandidate(index)

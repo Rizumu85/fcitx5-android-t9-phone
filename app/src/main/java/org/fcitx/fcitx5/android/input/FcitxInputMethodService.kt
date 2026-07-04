@@ -2066,14 +2066,33 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         val sym = KeySym.fromKeyEvent(event)
         if (sym != null) {
             if (t9InputModeEnabled && currentT9Mode == T9InputMode.CHINESE && event.action == KeyEvent.ACTION_DOWN) {
+                val hadChineseT9Composition = getT9CompositionKeyCount() > 0
+                var changedChineseT9Composition = false
+                var deletedFinalChineseT9Key = false
                 when (event.keyCode) {
-                    KeyEvent.KEYCODE_DEL -> chineseT9Session.backspace()
-                    KeyEvent.KEYCODE_1 -> chineseT9Session.appendSeparator()
+                    KeyEvent.KEYCODE_DEL -> {
+                        chineseT9Session.backspace()
+                        changedChineseT9Composition = hadChineseT9Composition
+                        deletedFinalChineseT9Key = hadChineseT9Composition && getT9CompositionKeyCount() <= 0
+                    }
+                    KeyEvent.KEYCODE_1 -> {
+                        chineseT9Session.appendSeparator()
+                        changedChineseT9Composition = true
+                    }
                     else -> PhysicalT9KeyPolicy.t9Digit(event.keyCode)
                         ?.takeIf { it in 2..9 }
-                        ?.let { chineseT9Session.appendDigit('0' + it) }
+                        ?.let {
+                            chineseT9Session.appendDigit('0' + it)
+                            changedChineseT9Composition = true
+                        }
                 }
-                candidatesView?.waitForT9EngineCandidatesThenRefresh()
+                when {
+                    // Product decision: deleting the final T9 pinyin should remove the whole
+                    // candidate bubble immediately, not render an empty intermediate row while
+                    // waiting for Rime to report candidate changes.
+                    deletedFinalChineseT9Key -> candidatesView?.hideT9CandidateUiImmediately()
+                    changedChineseT9Composition -> candidatesView?.waitForT9EngineCandidatesThenRefresh()
+                }
             }
             val states = KeyStates.fromKeyEvent(event)
             val up = event.action == KeyEvent.ACTION_UP
