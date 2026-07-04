@@ -24,7 +24,6 @@ import androidx.annotation.Size
 import androidx.recyclerview.widget.RecyclerView
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.FcitxEvent
-import org.fcitx.fcitx5.android.core.FormattedText
 import org.fcitx.fcitx5.android.daemon.FcitxConnection
 import org.fcitx.fcitx5.android.daemon.launchOnReady
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
@@ -35,10 +34,10 @@ import org.fcitx.fcitx5.android.input.preedit.PreeditUi
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidateLoadingState
 import org.fcitx.fcitx5.android.input.t9.T9BulkCandidateLoader
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
-import org.fcitx.fcitx5.android.input.t9.T9CandidatePresentationPlanner
 import org.fcitx.fcitx5.android.input.t9.T9CandidatePager
 import org.fcitx.fcitx5.android.input.t9.T9CandidateRenderer
 import org.fcitx.fcitx5.android.input.t9.T9CandidateRenderState
+import org.fcitx.fcitx5.android.input.t9.T9CandidateUiStateBuilder
 import org.fcitx.fcitx5.android.input.t9.T9PinyinChipAdapter
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
 import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
@@ -198,6 +197,98 @@ class CandidatesView(
         postRefresh = { block -> postOnAnimation(block) },
         refreshNow = ::updateUi
     )
+    private val t9CandidateUiStateBuilder = T9CandidateUiStateBuilder(object : T9CandidateUiStateBuilder.Delegate {
+        override fun syncT9CompositionWithInputPanel(inputPanel: FcitxEvent.InputPanelEvent.Data) {
+            service.syncT9CompositionWithInputPanel(inputPanel)
+        }
+
+        override fun isChineseT9InputModeActive(): Boolean = service.isChineseT9InputModeActive()
+
+        override fun isSmartEnglishT9InputModeActive(): Boolean = service.isSmartEnglishT9InputModeActive()
+
+        override fun getSmartEnglishT9Paged(): FcitxEvent.PagedCandidateEvent.Data? =
+            service.getSmartEnglishT9Paged()
+
+        override fun buildSmartEnglishPaged(
+            data: FcitxEvent.PagedCandidateEvent.Data
+        ): FcitxEvent.PagedCandidateEvent.Data = this@CandidatesView.buildSmartEnglishPaged(data)
+
+        override fun getT9ResolvedPinyinFilterPrefixes(): List<String> =
+            service.getT9ResolvedPinyinFilterPrefixes()
+
+        override fun getPendingT9PunctuationPaged(): FcitxEvent.PagedCandidateEvent.Data? =
+            service.getPendingT9PunctuationPaged()
+
+        override fun buildT9PendingPunctuationPaged(
+            data: FcitxEvent.PagedCandidateEvent.Data
+        ): FcitxEvent.PagedCandidateEvent.Data = this@CandidatesView.buildT9PendingPunctuationPaged(data)
+
+        override fun hasPendingT9PinyinSelection(): Boolean = service.hasPendingT9PinyinSelection()
+
+        override fun getT9CompositionKeyCount(): Int = service.getT9CompositionKeyCount()
+
+        override fun resetT9BulkFilterState() {
+            this@CandidatesView.resetT9BulkFilterState()
+        }
+
+        override fun requestT9BulkFilteredCandidatesIfNeeded(chineseT9Active: Boolean, prefixes: List<String>) {
+            this@CandidatesView.requestT9BulkFilteredCandidatesIfNeeded(chineseT9Active, prefixes)
+        }
+
+        override fun filterPagedByT9PinyinPrefixes(
+            data: FcitxEvent.PagedCandidateEvent.Data,
+            prefixes: List<String>
+        ): Pair<FcitxEvent.PagedCandidateEvent.Data, String?> =
+            this@CandidatesView.filterPagedByT9PinyinPrefixes(data, prefixes)
+
+        override fun buildLocalBudgetedPagedFromCurrentPage(
+            data: FcitxEvent.PagedCandidateEvent.Data
+        ): FcitxEvent.PagedCandidateEvent.Data? =
+            this@CandidatesView.buildLocalBudgetedPagedFromCurrentPage(data)
+
+        override fun resetT9LocalBudgetState() {
+            this@CandidatesView.resetT9LocalBudgetState()
+        }
+
+        override fun buildT9CursorContextSignature(prefixes: List<String>): String =
+            this@CandidatesView.buildT9CursorContextSignature(prefixes)
+
+        override fun applyT9HanziCursor(
+            data: FcitxEvent.PagedCandidateEvent.Data,
+            cursorContextSignature: String
+        ): FcitxEvent.PagedCandidateEvent.Data =
+            this@CandidatesView.applyT9HanziCursor(data, cursorContextSignature)
+
+        override fun buildOriginalIndicesForPendingPunctuation(
+            shown: FcitxEvent.PagedCandidateEvent.Data
+        ): IntArray = this@CandidatesView.buildOriginalIndicesForPendingPunctuation(shown)
+
+        override fun buildOriginalIndicesForSmartEnglish(
+            shown: FcitxEvent.PagedCandidateEvent.Data
+        ): IntArray = this@CandidatesView.buildOriginalIndicesForSmartEnglish(shown)
+
+        override fun buildOriginalIndicesForPaged(
+            shown: FcitxEvent.PagedCandidateEvent.Data
+        ): IntArray = this@CandidatesView.buildOriginalIndicesForPaged(shown)
+
+        override fun getSmartEnglishT9Presentation(): T9PresentationState? =
+            service.getSmartEnglishT9Presentation()
+
+        override fun getT9PresentationState(
+            inputPanel: FcitxEvent.InputPanelEvent.Data,
+            effectivePaged: FcitxEvent.PagedCandidateEvent.Data
+        ): T9PresentationState = service.getT9PresentationState(inputPanel, effectivePaged)
+
+        override fun clearHiddenChineseT9CompositionIfCandidateUiSuppressed() {
+            service.clearHiddenChineseT9CompositionIfCandidateUiSuppressed()
+        }
+
+        override fun effectiveT9CandidateFocus(
+            pinyinOptions: List<String>,
+            useT9PinyinRow: Boolean
+        ): T9CandidateFocus =
+            this@CandidatesView.effectiveT9CandidateFocus(pinyinOptions, useT9PinyinRow)
+    })
     private var pinyinRowTargetVisible = false
 
     private data class T9MatchedCandidates(
@@ -533,19 +624,6 @@ class CandidatesView(
         return selectT9ShownHanziCandidate(shownIndex)
     }
 
-    private fun evaluateVisibility(
-        topReading: FormattedText?,
-        pinyinRowVisible: Boolean,
-        hasVisibleCandidates: Boolean
-    ): Boolean {
-        return inputPanel.preedit.isNotEmpty() ||
-                hasVisibleCandidates ||
-                inputPanel.auxUp.isNotEmpty() ||
-                inputPanel.auxDown.isNotEmpty() ||
-                topReading?.isNotEmpty() == true ||
-                pinyinRowVisible
-    }
-
     private fun updateT9FocusIndicator() {
         val topFocused = service.getT9CandidateFocus() == T9CandidateFocus.TOP
         pinyinBarAdapter.setHighlightActive(topFocused)
@@ -553,177 +631,36 @@ class CandidatesView(
     }
 
     private fun updateUi() = T9ResponsivenessTrace.measure("CandidatesView.updateUi") {
-        buildT9CandidateUiState()?.let(::renderT9State)
+        buildT9CandidateUiState()?.let { result ->
+            applyT9ShownState(result.shownState)
+            renderT9State(result.renderState)
+        }
     }
 
-    private fun buildT9CandidateUiState(): T9CandidateRenderState? =
-        T9ResponsivenessTrace.measure("CandidatesView.updateUi.buildState") {
-        if (t9InputModeEnabled) {
-            T9ResponsivenessTrace.measure("CandidatesView.updateUi.syncComposition") {
-                service.syncT9CompositionWithInputPanel(inputPanel)
-            }
-        }
-        val chineseT9Active = t9InputModeEnabled && service.isChineseT9InputModeActive()
-        val smartEnglishRawPaged = service.getSmartEnglishT9Paged()
-        val smartEnglishPaged = T9ResponsivenessTrace.measure("CandidatesView.updateUi.smartEnglishPage") {
-            smartEnglishRawPaged?.let(::buildSmartEnglishPaged)
-        }
-        val t9FilterPrefixes = if (chineseT9Active) {
-            service.getT9ResolvedPinyinFilterPrefixes()
-        } else {
-            emptyList()
-        }
-        val pendingPunctuationPaged = if (chineseT9Active || service.isSmartEnglishT9InputModeActive()) {
-            service.getPendingT9PunctuationPaged()
-        } else {
-            null
-        }
-        val pendingPunctuationBudgetedPaged = T9ResponsivenessTrace.measure(
-            "CandidatesView.updateUi.punctuationPage"
-        ) {
-            pendingPunctuationPaged?.let(::buildT9PendingPunctuationPaged)
-        }
-        val pendingT9PinyinSelection = chineseT9Active && service.hasPendingT9PinyinSelection()
-        val compositionKeyCount = service.getT9CompositionKeyCount()
-        val waitForChineseT9Candidates = chineseT9CandidateLoadingState.shouldWaitForCandidates(
-            chineseT9Active = chineseT9Active,
-            compositionKeyCount = compositionKeyCount,
-            hasPendingPunctuation = pendingPunctuationPaged != null,
-            pendingPinyinSelection = pendingT9PinyinSelection,
-            rawCandidatesEmpty = paged.candidates.isEmpty()
-        )
-        if (waitForChineseT9Candidates && visibility == VISIBLE) {
-            return@measure null
-        }
-        val suppressEmptyT9Candidates = chineseT9Active &&
-            pendingPunctuationPaged == null &&
-            compositionKeyCount <= 0
-        if (suppressEmptyT9Candidates || pendingT9PinyinSelection || waitForChineseT9Candidates) {
-            resetT9BulkFilterState()
-        } else if (pendingPunctuationPaged == null) {
-            T9ResponsivenessTrace.measure("CandidatesView.updateUi.bulkRequest") {
-                requestT9BulkFilteredCandidatesIfNeeded(chineseT9Active, t9FilterPrefixes)
-            }
-        } else {
-            resetT9BulkFilterState()
-        }
-        val filteredPaged = T9ResponsivenessTrace.measure("CandidatesView.updateUi.filterPaged") {
-            if (suppressEmptyT9Candidates || pendingT9PinyinSelection || waitForChineseT9Candidates) {
-                FcitxEvent.PagedCandidateEvent.Data.Empty to null
-            } else if (chineseT9Active) {
-                filterPagedByT9PinyinPrefixes(paged, t9FilterPrefixes)
-            } else {
-                paged to null
-            }
-        }
-        val localBudgetedPaged = if (
-            !suppressEmptyT9Candidates &&
-            !pendingT9PinyinSelection &&
-            pendingPunctuationPaged == null &&
-            chineseT9Active &&
-            t9FilterPrefixes.isEmpty() &&
-            t9BulkFilteredPaged == null &&
-            !waitForChineseT9Candidates
-        ) {
-            T9ResponsivenessTrace.measure("CandidatesView.updateUi.localBudgetPage") {
-                buildLocalBudgetedPagedFromCurrentPage(paged)
-            }
-        } else {
-            resetT9LocalBudgetState()
-            null
-        }
-        val presentationPlan = T9ResponsivenessTrace.measure("CandidatesView.updateUi.presentationPlan") {
-            T9CandidatePresentationPlanner.plan(
-                T9CandidatePresentationPlanner.Input(
-                    rawPaged = paged,
-                    filteredPaged = filteredPaged.first,
-                    filteredMatchedPrefix = filteredPaged.second,
-                    smartEnglishPaged = smartEnglishPaged,
-                    pendingPunctuationPaged = pendingPunctuationBudgetedPaged,
-                    localBudgetedPaged = localBudgetedPaged,
-                    bulkFilteredPaged = t9BulkFilteredPaged,
-                    bulkFilteredMatchedPrefix = t9BulkFilteredMatchedPrefix,
-                    bulkFilterPending = t9BulkCandidateLoader.pending,
-                    chineseT9Active = chineseT9Active,
-                    suppressEmptyCandidates = suppressEmptyT9Candidates,
-                    pendingPinyinSelection = pendingT9PinyinSelection,
-                    waitForChineseCandidates = waitForChineseT9Candidates
-                )
-            )
-        }
-        val cursorContextSignature = buildT9CursorContextSignature(t9FilterPrefixes)
-        val effectivePaged = T9ResponsivenessTrace.measure("CandidatesView.updateUi.cursor") {
-            if (presentationPlan.applyChineseCursor) {
-                applyT9HanziCursor(presentationPlan.cursorSource, cursorContextSignature)
-            } else {
-                presentationPlan.cursorSource
-            }
-        }
-        t9ShownPaged = effectivePaged
-        t9ShownUsesSmartEnglish = presentationPlan.usesSmartEnglish
-        t9ShownUsesPendingPunctuation = presentationPlan.usesPendingPunctuation
-        t9ShownUsesBulkSelection = presentationPlan.usesBulkSelection
-        t9ShownUsesLocalBudget = presentationPlan.usesLocalBudget
-        t9ShownMatchedPrefix = presentationPlan.matchedPrefix
-        t9ShownOriginalIndices = T9ResponsivenessTrace.measure("CandidatesView.updateUi.originalIndices") {
-            when (presentationPlan.originalIndexSource) {
-                T9CandidatePresentationPlanner.OriginalIndexSource.PENDING_PUNCTUATION ->
-                    buildOriginalIndicesForPendingPunctuation(effectivePaged)
-                T9CandidatePresentationPlanner.OriginalIndexSource.SMART_ENGLISH ->
-                    buildOriginalIndicesForSmartEnglish(effectivePaged)
-                T9CandidatePresentationPlanner.OriginalIndexSource.BULK_FILTERED ->
-                    t9BulkFilteredOriginalIndices
-                T9CandidatePresentationPlanner.OriginalIndexSource.PENDING_BULK_DISPLAY ->
-                    IntArray(effectivePaged.candidates.size) { -1 }
-                T9CandidatePresentationPlanner.OriginalIndexSource.LOCAL_BUDGET ->
-                    buildOriginalIndicesForPaged(presentationPlan.candidateSource)
-                T9CandidatePresentationPlanner.OriginalIndexSource.PAGED ->
-                    buildOriginalIndicesForPaged(effectivePaged)
-            }
-        }
-        val t9State = T9ResponsivenessTrace.measure("CandidatesView.updateUi.presentationState") {
-            service.getSmartEnglishT9Presentation() ?: if (chineseT9Active) {
-                service.getT9PresentationState(inputPanel, effectivePaged)
-            } else {
-                null
-            }
-        }
-        val nextPreferAboveCursorAnchor = t9InputModeEnabled &&
-            service.isChineseT9InputModeActive() &&
-            (
-                pendingPunctuationPaged != null ||
-                    compositionKeyCount > 0 ||
-                    t9State?.topReading?.isNotEmpty() == true ||
-                    t9State?.pinyinRowVisible == true
-                )
-        val panelToShow = if (suppressEmptyT9Candidates) {
-            service.clearHiddenChineseT9CompositionIfCandidateUiSuppressed()
-            FcitxEvent.InputPanelEvent.Data()
-        } else {
-            t9State?.topReading?.let {
-                FcitxEvent.InputPanelEvent.Data(it, inputPanel.auxUp, inputPanel.auxDown)
-            } ?: inputPanel
-        }
-        val pinyinOptions = t9State?.pinyinOptions ?: emptyList()
-        T9CandidateRenderState(
-            panel = panelToShow,
-            candidates = effectivePaged,
-            orientation = orientation,
-            showShortcutLabels = shouldShowT9BottomShortcutLabels(effectivePaged),
-            pinyinOptions = pinyinOptions,
-            pinyinUseT9 = chineseT9Active,
-            focus = effectiveT9CandidateFocus(
-                pinyinOptions = pinyinOptions,
-                useT9PinyinRow = chineseT9Active
-            ),
-            preferAboveCursorAnchor = nextPreferAboveCursorAnchor,
-            shouldShow = shouldShowT9CandidateUi(
-                suppressEmptyT9Candidates = suppressEmptyT9Candidates,
-                waitForChineseT9Candidates = waitForChineseT9Candidates,
-                t9State = t9State,
-                effectivePaged = effectivePaged
+    private fun buildT9CandidateUiState(): T9CandidateUiStateBuilder.Result? =
+        t9CandidateUiStateBuilder.build(
+            T9CandidateUiStateBuilder.Input(
+                t9InputModeEnabled = t9InputModeEnabled,
+                inputPanel = inputPanel,
+                rawPaged = paged,
+                orientation = orientation,
+                currentlyVisible = visibility == VISIBLE,
+                loadingState = chineseT9CandidateLoadingState,
+                bulkFilteredPaged = t9BulkFilteredPaged,
+                bulkFilteredOriginalIndices = t9BulkFilteredOriginalIndices,
+                bulkFilteredMatchedPrefix = t9BulkFilteredMatchedPrefix,
+                bulkFilterPending = t9BulkCandidateLoader.pending
             )
         )
+
+    private fun applyT9ShownState(shownState: T9CandidateUiStateBuilder.ShownState) {
+        t9ShownPaged = shownState.paged
+        t9ShownOriginalIndices = shownState.originalIndices
+        t9ShownUsesSmartEnglish = shownState.usesSmartEnglish
+        t9ShownUsesPendingPunctuation = shownState.usesPendingPunctuation
+        t9ShownUsesBulkSelection = shownState.usesBulkSelection
+        t9ShownUsesLocalBudget = shownState.usesLocalBudget
+        t9ShownMatchedPrefix = shownState.matchedPrefix
     }
 
     private fun renderT9State(next: T9CandidateRenderState) {
@@ -786,18 +723,6 @@ class CandidatesView(
         }
         return T9CandidateFocus.BOTTOM
     }
-
-    private fun shouldShowT9CandidateUi(
-        suppressEmptyT9Candidates: Boolean,
-        waitForChineseT9Candidates: Boolean,
-        t9State: T9PresentationState?,
-        effectivePaged: FcitxEvent.PagedCandidateEvent.Data
-    ): Boolean =
-        !suppressEmptyT9Candidates && !waitForChineseT9Candidates && evaluateVisibility(
-            t9State?.topReading,
-            t9State?.pinyinRowVisible == true,
-            effectivePaged.candidates.isNotEmpty()
-        )
 
     private fun shouldShowT9BottomShortcutLabels(
         data: FcitxEvent.PagedCandidateEvent.Data
