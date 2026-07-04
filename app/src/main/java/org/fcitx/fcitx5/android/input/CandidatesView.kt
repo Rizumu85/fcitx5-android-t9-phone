@@ -474,7 +474,9 @@ class CandidatesView(
             textSize = fontSize * ctx.resources.displayMetrics.scaledDensity
             InputUiFont.applyTo(this)
         }
-        val horizontalPaddingPx = dpCandidates(itemPaddingHorizontal) * 2
+        // Candidate paging must use the same dp rounding as the TextViews; truncating here lets
+        // ten T9 shortcuts accumulate enough error to leak one or two Hanzi past the safe edge.
+        val horizontalPaddingPx = dp(itemPaddingHorizontal) * 2
         val itemSpacingPx = dp(candidateItemSpacing)
         val shortcutWidthPx = paint.measureText("0")
         val protectedMinItems = T9CandidateBudget.normalizedBudget(t9HanziCharacterBudget)
@@ -1202,13 +1204,14 @@ class CandidatesView(
     }
 
     private fun setPinyinRowWidth(width: Int) {
+        val safeWidth = coerceT9PanelWidthToSafeBounds(width)
         (pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
-            if (params.width != width) {
-                params.width = width
+            if (params.width != safeWidth) {
+                params.width = safeWidth
                 pinyinRowWrapper.layoutParams = params
             }
         }
-        val barWidth = if (width == ViewGroup.LayoutParams.WRAP_CONTENT) {
+        val barWidth = if (safeWidth == ViewGroup.LayoutParams.WRAP_CONTENT) {
             FrameLayout.LayoutParams.WRAP_CONTENT
         } else {
             FrameLayout.LayoutParams.MATCH_PARENT
@@ -1223,14 +1226,21 @@ class CandidatesView(
 
     private fun firstPositiveCandidateRowWidth(): Int? {
         t9FixedCandidatesUi.root.width.takeIf { it > 0 && t9FixedCandidatesUi.root.visibility == View.VISIBLE }
-            ?.let { return t9CandidatePanelWidthState.update(it) }
+            ?.let { return t9CandidatePanelWidthState.update(coerceT9PanelWidthToSafeBounds(it)) }
         t9FixedCandidatesUi.root.measuredWidth.takeIf { it > 0 && t9FixedCandidatesUi.root.visibility == View.VISIBLE }
-            ?.let { return t9CandidatePanelWidthState.update(it) }
-        candidatesUi.root.width.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.update(it) }
-        candidatesUi.root.measuredWidth.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.update(it) }
-        candidateRowWrapper.width.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.update(it) }
-        candidateRowWrapper.measuredWidth.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.update(it) }
+            ?.let { return t9CandidatePanelWidthState.update(coerceT9PanelWidthToSafeBounds(it)) }
+        candidatesUi.root.width.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.update(coerceT9PanelWidthToSafeBounds(it)) }
+        candidatesUi.root.measuredWidth.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.update(coerceT9PanelWidthToSafeBounds(it)) }
+        candidateRowWrapper.width.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.update(coerceT9PanelWidthToSafeBounds(it)) }
+        candidateRowWrapper.measuredWidth.takeIf { it > 0 }?.let { return t9CandidatePanelWidthState.update(coerceT9PanelWidthToSafeBounds(it)) }
         return null
+    }
+
+    private fun coerceT9PanelWidthToSafeBounds(width: Int): Int {
+        if (width == ViewGroup.LayoutParams.WRAP_CONTENT) return width
+        val maxPanelWidthPx =
+            t9CandidateAvailableContentWidthPx(reservePagination = false) + t9CandidateHighlightOverflowPaddingPx * 2
+        return width.coerceIn(1, maxPanelWidthPx.coerceAtLeast(1))
     }
 
     private fun measuredCurrentT9CandidatePanelWidthPx(): Int? {
@@ -1240,7 +1250,9 @@ class CandidatesView(
             textSize = fontSize * ctx.resources.displayMetrics.scaledDensity
             InputUiFont.applyTo(this)
         }
-        val horizontalPaddingPx = dpCandidates(itemPaddingHorizontal) * 2
+        // Keep this measurement in lockstep with setupTextViewCandidates for the same edge-safety
+        // reason as the pager budget above.
+        val horizontalPaddingPx = dp(itemPaddingHorizontal) * 2
         val itemSpacingPx = dp(candidateItemSpacing)
         val shortcutWidthPx = paint.measureText("0")
         val minItemWidthPx = (paint.textSize * T9_SHORTCUT_CANDIDATE_MIN_WIDTH_EM)
@@ -1514,7 +1526,7 @@ class CandidatesView(
                     else -> candidatesUi.root.width
                 }
                 val stableWidth = targetWidth
-                    ?: cw.takeIf { it > 0 }?.let { t9CandidatePanelWidthState.update(it) }
+                    ?: cw.takeIf { it > 0 }?.let { t9CandidatePanelWidthState.update(coerceT9PanelWidthToSafeBounds(it)) }
                     ?: return
                 if ((pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.width != stableWidth) {
                     setPinyinRowWidth(stableWidth)
@@ -1559,7 +1571,9 @@ class CandidatesView(
         private const val T9_BULK_FILTER_LIMIT = 80
         private const val T9_PINYIN_TO_HANZI_GAP_DP = 2
         private const val T9_MEASURED_ROW_EDGE_GAP_DP = 4
-        private const val T9_PAGINATION_RESERVE_WIDTH_DP = 18
+        // Pagination is rendered by real icon views, so the budget must reserve their measured
+        // footprint plus slack; otherwise paged rows can occasionally cross the visual safety gap.
+        private const val T9_PAGINATION_RESERVE_WIDTH_DP = 24
         private const val T9_SHORTCUT_CANDIDATE_MIN_WIDTH_EM = 0.95f
         private const val T9_SHORTCUT_CANDIDATE_MAX_WIDTH_RATIO = 0.42f
         private const val T9_MEASURED_BUDGET_UNIT_TEXT = "测"
