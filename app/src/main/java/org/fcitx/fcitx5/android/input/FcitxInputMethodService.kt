@@ -78,6 +78,8 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9RimeBridge
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHandler
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9Controller
+import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
+import org.fcitx.fcitx5.android.input.t9.T9CandidateFocusController
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
 import org.fcitx.fcitx5.android.input.t9.T9PinyinUtils
 import org.fcitx.fcitx5.android.input.t9.T9PunctuationSession
@@ -480,7 +482,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         composing.clear()
         composingText = FormattedText.Empty
         clearT9CompositionState()
-        t9CandidateFocus = T9CandidateFocus.BOTTOM
+        t9CandidateFocusController.reset()
     }
 
     private fun resetPhysicalSelectionState() {
@@ -1612,12 +1614,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         CHINESE_COMPOSING  // 中文已输入
     }
 
-    enum class T9CandidateFocus {
-        TOP,
-        BOTTOM
-    }
-
-    private var t9CandidateFocus = T9CandidateFocus.BOTTOM
+    private val t9CandidateFocusController = T9CandidateFocusController(
+        onFocusChanged = { candidatesView?.syncT9CandidateFocus() }
+    )
     private var t9ConsumedNavigationKeyUp: Int? = null
     private var physicalSelectionMode = false
     private var physicalSelectionActionPanelActive = false
@@ -1708,11 +1707,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
     }
 
-    fun getT9CandidateFocus(): T9CandidateFocus = t9CandidateFocus
+    fun getT9CandidateFocus(): T9CandidateFocus = t9CandidateFocusController.current
 
     fun moveT9CandidateFocus(newFocus: T9CandidateFocus) {
-        t9CandidateFocus = newFocus
-        candidatesView?.syncT9CandidateFocus()
+        t9CandidateFocusController.moveTo(newFocus)
     }
 
     fun getT9CandidateFocusIndicatorColor(): Int = highlightColor

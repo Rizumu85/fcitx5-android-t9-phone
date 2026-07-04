@@ -33,6 +33,7 @@ import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.candidates.floating.PagedCandidatesUi
 import org.fcitx.fcitx5.android.input.preedit.PreeditUi
 import org.fcitx.fcitx5.android.input.t9.T9BulkCandidateLoader
+import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidatePresentationPlanner
 import org.fcitx.fcitx5.android.input.t9.T9CandidatePager
 import org.fcitx.fcitx5.android.input.t9.T9PinyinChipAdapter
@@ -208,7 +209,7 @@ class CandidatesView(
             if (service.isSmartEnglishT9InputModeActive()) {
                 commitSmartEnglishShortcut(shownIndex)
             } else {
-                service.moveT9CandidateFocus(FcitxInputMethodService.T9CandidateFocus.BOTTOM)
+                service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
                 updateT9FocusIndicator()
                 selectT9ShownHanziCandidate(shownIndex)
             }
@@ -254,7 +255,7 @@ class CandidatesView(
             gravity = Gravity.BOTTOM or Gravity.START
         })
         setOnClickListener {
-            service.moveT9CandidateFocus(FcitxInputMethodService.T9CandidateFocus.TOP)
+            service.moveT9CandidateFocus(T9CandidateFocus.TOP)
             updateT9FocusIndicator()
         }
         isFocusable = false
@@ -273,7 +274,7 @@ class CandidatesView(
             FrameLayout.LayoutParams.WRAP_CONTENT
         ))
         setOnClickListener {
-            service.moveT9CandidateFocus(FcitxInputMethodService.T9CandidateFocus.BOTTOM)
+            service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
             updateT9FocusIndicator()
         }
         isFocusable = false
@@ -385,7 +386,7 @@ class CandidatesView(
         preeditUi.update(inputPanel)
         preeditUi.root.visibility = GONE
         setPinyinRowVisible(false)
-        service.moveT9CandidateFocus(FcitxInputMethodService.T9CandidateFocus.BOTTOM)
+        service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
         updateT9FocusIndicator()
         candidatesUi.update(paged, orientation)
         visibility = INVISIBLE
@@ -394,7 +395,7 @@ class CandidatesView(
     fun prepareForT9CompositionReplay() {
         paged = FcitxEvent.PagedCandidateEvent.Data.Empty
         resetT9BulkFilterState()
-        service.moveT9CandidateFocus(FcitxInputMethodService.T9CandidateFocus.TOP)
+        service.moveT9CandidateFocus(T9CandidateFocus.TOP)
         refreshT9Ui()
     }
 
@@ -537,7 +538,7 @@ class CandidatesView(
     }
 
     private fun updateT9FocusIndicator() {
-        val topFocused = service.getT9CandidateFocus() == FcitxInputMethodService.T9CandidateFocus.TOP
+        val topFocused = service.getT9CandidateFocus() == T9CandidateFocus.TOP
         pinyinBarAdapter.setHighlightActive(topFocused)
         candidatesUi.setHighlightActive(!topFocused)
     }
@@ -1058,7 +1059,7 @@ class CandidatesView(
                 return false
             }
         } else {
-            service.moveT9CandidateFocus(FcitxInputMethodService.T9CandidateFocus.BOTTOM)
+            service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
             pinyinBarAdapter.clear()
             pinyinBarAdapter.scrollToStart()
             pinyinBarView.visibility = View.GONE
