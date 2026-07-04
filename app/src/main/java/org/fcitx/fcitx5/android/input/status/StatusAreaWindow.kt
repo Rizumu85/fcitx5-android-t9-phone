@@ -142,7 +142,8 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
                 windowManager.attachWindow(
                     StatusActionMenuWindow(
                         StatusAreaEntry.titleForActionMenu(context, entry.action),
-                        actions
+                        actions,
+                        StatusAreaEntry.activeMenuLabelForAction(entry.action)
                     )
                 )
             }

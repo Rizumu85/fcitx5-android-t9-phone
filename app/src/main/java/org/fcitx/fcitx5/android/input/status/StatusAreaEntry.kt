@@ -75,6 +75,11 @@ sealed class StatusAreaEntry(
             return labelForAction(context, action)
         }
 
+        fun activeMenuLabelForAction(action: Action): String? {
+            if (!action.isRimeSchemeSwitchAction()) return null
+            return action.displayLabel().ifEmpty { null }
+        }
+
         fun fromAction(context: Context, it: Action): Fcitx {
             val active = it.icon.endsWith("-active") || it.isChecked
             return Fcitx(it, labelForAction(context, it), drawableFromIconName(it.icon), active)

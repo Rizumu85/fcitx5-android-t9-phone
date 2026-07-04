@@ -6,8 +6,11 @@
 package org.fcitx.fcitx5.android.input.status
 
 import org.fcitx.fcitx5.android.core.Action
+import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Companion.activeMenuLabelForAction
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Companion.isRimeSchemeSwitchAction
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -29,6 +32,23 @@ class StatusAreaEntryTest {
         )
 
         assertTrue(schemeSwitch.isRimeSchemeSwitchAction())
+    }
+
+    @Test
+    fun rimeSchemeSwitchProvidesActiveMenuLabel() {
+        val schemeSwitch = action(name = "fcitx-rime-im", shortText = "雾凇拼音")
+
+        assertEquals("雾凇拼音", activeMenuLabelForAction(schemeSwitch))
+    }
+
+    @Test
+    fun nonSchemeRimeActionsDoNotProvideActiveMenuLabel() {
+        val rimeOptionMenu = action(
+            name = "fcitx-rime-luna_pinyin-select-ascii_punct",
+            shortText = "Current"
+        )
+
+        assertNull(activeMenuLabelForAction(rimeOptionMenu))
     }
 
     @Test

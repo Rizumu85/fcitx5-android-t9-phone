@@ -19,7 +19,8 @@ import org.mechdancer.dependency.manager.must
 
 class StatusActionMenuWindow(
     private val menuTitle: String,
-    private val actions: Array<Action>
+    private val actions: Array<Action>,
+    private val activeMenuLabel: String? = null
 ) : InputWindow.ExtendedInputWindow<StatusActionMenuWindow>() {
 
     private val service: FcitxInputMethodService by manager.inputMethodService()
@@ -28,7 +29,7 @@ class StatusActionMenuWindow(
     private val windowManager: InputWindowManager by manager.must()
 
     private val ui by lazy {
-        StatusActionMenuUi(context, theme, actions) { action ->
+        StatusActionMenuUi(context, theme, actions, activeMenuLabel) { action ->
             activateAction(action)
         }
     }

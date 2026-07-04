@@ -28,6 +28,7 @@ class StatusActionMenuUi(
     override val ctx: Context,
     private val theme: Theme,
     private val actions: Array<Action>,
+    private val activeMenuLabel: String?,
     private val onActionClick: (Action) -> Unit
 ) : Ui {
 
@@ -37,6 +38,8 @@ class StatusActionMenuUi(
         orientation = LinearLayout.VERTICAL
         setPadding(ctx.dp(10), ctx.dp(6), ctx.dp(10), ctx.dp(6))
     }
+
+    private var activeRow: View? = null
 
     override val root = ScrollView(ctx).apply {
         backgroundColor = theme.barColor
@@ -58,8 +61,12 @@ class StatusActionMenuUi(
                     list.addView(separatorView())
                 }
                 is MenuItem.ActionRow -> {
+                    val row = actionRow(item.action, item.label, item.active)
+                    if (item.active) {
+                        activeRow = row
+                    }
                     list.addView(
-                        actionRow(item.action, item.label),
+                        row,
                         LinearLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ctx.dp(46)
@@ -69,6 +76,11 @@ class StatusActionMenuUi(
                         }
                     )
                 }
+            }
+        }
+        activeRow?.let { row ->
+            root.post {
+                root.scrollTo(0, (row.top - ctx.dp(6)).coerceAtLeast(0))
             }
         }
     }
@@ -88,26 +100,29 @@ class StatusActionMenuUi(
                 items.add(MenuItem.Separator)
             }
             pendingSeparator = false
-            items.add(MenuItem.ActionRow(action, label))
+            items.add(MenuItem.ActionRow(action, label, isActiveMenuItem(action, label)))
         }
         return items
     }
 
     private sealed class MenuItem {
-        data class ActionRow(val action: Action, val label: String) : MenuItem()
+        data class ActionRow(val action: Action, val label: String, val active: Boolean) : MenuItem()
         object Separator : MenuItem()
     }
 
-    private fun actionRow(action: Action, label: String) = TextView(ctx).apply {
+    private fun isActiveMenuItem(action: Action, label: String): Boolean =
+        action.isChecked || activeMenuLabel?.let { it == label } == true
+
+    private fun actionRow(action: Action, label: String, active: Boolean) = TextView(ctx).apply {
         text = label
         textSize = 15f
         gravity = Gravity.CENTER_VERTICAL
         includeFontPadding = false
         setSingleLine(false)
-        setTextColor(if (action.isChecked) theme.genericActiveForegroundColor else theme.keyTextColor)
+        setTextColor(if (active) theme.genericActiveForegroundColor else theme.keyTextColor)
         setPadding(ctx.dp(16), 0, ctx.dp(16), 0)
         InputUiFont.applyTo(this)
-        background = rowBackground(action.isChecked)
+        background = rowBackground(active)
         setOnClickListener { onActionClick(action) }
     }
 
