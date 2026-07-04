@@ -250,9 +250,8 @@ class PagedCandidatesUi(
         if (shortcutLabelPaddingApplied == enabled) return
         shortcutLabelPaddingApplied = enabled
         val verticalPadding = if (enabled) highlightOverflowPaddingPx else 0
-        // T9 candidates use a scaled two-line label. RecyclerView/Flexbox measures the unscaled
-        // TextView, so the bubble needs a tiny vertical safety inset to keep focus from being
-        // clipped by the rounded outline.
+        // T9 shortcut labels are a compact two-line surface. Keep a tiny bubble inset so font
+        // metrics and the focus outline do not get clipped at the RecyclerView boundary.
         root.setPadding(
             highlightOverflowPaddingPx,
             verticalPadding,
