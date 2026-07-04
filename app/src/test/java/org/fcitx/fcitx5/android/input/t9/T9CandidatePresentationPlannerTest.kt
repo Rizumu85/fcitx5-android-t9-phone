@@ -6,6 +6,7 @@
 package org.fcitx.fcitx5.android.input.t9
 
 import org.fcitx.fcitx5.android.core.FcitxEvent
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -17,8 +18,8 @@ class T9CandidatePresentationPlannerTest {
     @Test
     fun pendingPunctuationOverridesSmartEnglishCandidates() {
         val raw = paged("raw")
-        val smart = paged("smart")
-        val punctuation = paged(".")
+        val smart = page("smart", 4)
+        val punctuation = page(".", 2)
 
         val plan = T9CandidatePresentationPlanner.plan(
             baseInput(
@@ -31,12 +32,12 @@ class T9CandidatePresentationPlannerTest {
         assertSame(punctuation, plan.cursorSource)
         assertTrue(plan.usesPendingPunctuation)
         assertFalse(plan.usesSmartEnglish)
-        assertEquals(T9CandidatePresentationPlanner.OriginalIndexSource.PENDING_PUNCTUATION, plan.originalIndexSource)
+        assertArrayEquals(intArrayOf(2), plan.cursorSource.originalIndices)
     }
 
     @Test
     fun bulkFilteredChineseCandidatesUseBulkSelectionIndices() {
-        val bulk = paged("你")
+        val bulk = page("你", 9)
 
         val plan = T9CandidatePresentationPlanner.plan(
             baseInput(
@@ -51,12 +52,12 @@ class T9CandidatePresentationPlannerTest {
         assertTrue(plan.applyChineseCursor)
         assertTrue(plan.usesBulkSelection)
         assertEquals("ni", plan.matchedPrefix)
-        assertEquals(T9CandidatePresentationPlanner.OriginalIndexSource.BULK_FILTERED, plan.originalIndexSource)
+        assertArrayEquals(intArrayOf(9), plan.cursorSource.originalIndices)
     }
 
     @Test
     fun pendingBulkDisplayDoesNotExposeOriginalIndices() {
-        val bulk = paged("你")
+        val bulk = page("你", 9)
 
         val plan = T9CandidatePresentationPlanner.plan(
             baseInput(
@@ -66,9 +67,9 @@ class T9CandidatePresentationPlannerTest {
             )
         )
 
-        assertSame(bulk, plan.candidateSource)
+        assertSame(bulk.data, plan.candidateSource.data)
         assertFalse(plan.usesBulkSelection)
-        assertEquals(T9CandidatePresentationPlanner.OriginalIndexSource.PENDING_BULK_DISPLAY, plan.originalIndexSource)
+        assertArrayEquals(intArrayOf(-1), plan.cursorSource.originalIndices)
     }
 
     @Test
@@ -80,18 +81,18 @@ class T9CandidatePresentationPlannerTest {
             )
         )
 
-        assertSame(FcitxEvent.PagedCandidateEvent.Data.Empty, plan.cursorSource)
+        assertSame(T9PagedCandidates.Empty, plan.cursorSource)
         assertFalse(plan.applyChineseCursor)
-        assertEquals(T9CandidatePresentationPlanner.OriginalIndexSource.PAGED, plan.originalIndexSource)
+        assertArrayEquals(intArrayOf(), plan.cursorSource.originalIndices)
     }
 
     private fun baseInput(
         rawPaged: FcitxEvent.PagedCandidateEvent.Data = paged("raw"),
-        filteredPaged: FcitxEvent.PagedCandidateEvent.Data = rawPaged,
-        smartEnglishPaged: FcitxEvent.PagedCandidateEvent.Data? = null,
-        pendingPunctuationPaged: FcitxEvent.PagedCandidateEvent.Data? = null,
-        localBudgetedPaged: FcitxEvent.PagedCandidateEvent.Data? = null,
-        bulkFilteredPaged: FcitxEvent.PagedCandidateEvent.Data? = null,
+        filteredPaged: T9PagedCandidates = T9PagedCandidates.passthrough(rawPaged),
+        smartEnglishPaged: T9PagedCandidates? = null,
+        pendingPunctuationPaged: T9PagedCandidates? = null,
+        localBudgetedPaged: T9PagedCandidates? = null,
+        bulkFilteredPaged: T9PagedCandidates? = null,
         bulkFilteredMatchedPrefix: String? = null,
         bulkFilterPending: Boolean = false,
         chineseT9Active: Boolean = false,
@@ -122,5 +123,11 @@ class T9CandidatePresentationPlannerTest {
             layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
             hasPrev = false,
             hasNext = false
+        )
+
+    private fun page(text: String, originalIndex: Int): T9PagedCandidates =
+        T9PagedCandidates(
+            data = paged(text),
+            originalIndices = intArrayOf(originalIndex)
         )
 }

@@ -44,37 +44,35 @@ class ChineseT9CandidatePipeline(
     fun filterPagedByPinyinPrefixes(
         data: FcitxEvent.PagedCandidateEvent.Data,
         prefixes: List<String>
-    ): Pair<FcitxEvent.PagedCandidateEvent.Data, String?> {
-        if (prefixes.isEmpty() || data.candidates.isEmpty()) return data to null
+    ): Pair<T9PagedCandidates, String?> {
+        if (prefixes.isEmpty() || data.candidates.isEmpty()) {
+            return T9PagedCandidates.passthrough(data) to null
+        }
         val matched = matchCandidates(data.candidates.withIndex().toList(), prefixes)
         if (matched.candidates.isEmpty()) {
-            return data.copy(candidates = emptyArray(), cursorIndex = -1) to null
+            return T9PagedCandidates(
+                data = data.copy(candidates = emptyArray(), cursorIndex = -1),
+                originalIndices = intArrayOf()
+            ) to null
         }
         val pager = T9CandidatePager()
         pager.update("filtered", matched.candidates, characterBudget())
-        val page = pager.currentPage() ?: return data to matched.prefix
+        val page = pager.currentPage() ?: return T9PagedCandidates.passthrough(data) to matched.prefix
         if (page.candidates.size == data.candidates.size &&
             page.candidates.indices.all { page.candidates[it].index == it }
         ) {
-            return data to matched.prefix
+            return T9PagedCandidates.passthrough(data) to matched.prefix
         }
-        val filteredCandidates = page.candidates.map { it.value }
-        val originallyHighlighted = data.candidates.getOrNull(data.cursorIndex)
-        val newCursor = originallyHighlighted
-            ?.let { filteredCandidates.indexOf(it) }
-            ?.takeIf { it >= 0 }
-            ?: 0
-        return data.copy(
-            candidates = filteredCandidates.toTypedArray(),
-            cursorIndex = newCursor,
-            hasPrev = page.hasPrev,
-            hasNext = page.hasNext || data.hasNext
+        return page.toPagedCandidates(
+            layoutHint = data.layoutHint,
+            cursorIndex = page.cursorIndexForOriginalIndex(data.cursorIndex),
+            hasExternalNext = data.hasNext
         ) to matched.prefix
     }
 
     fun buildLocalBudgetedPagedFromCurrentPage(
         data: FcitxEvent.PagedCandidateEvent.Data
-    ): FcitxEvent.PagedCandidateEvent.Data? {
+    ): T9PagedCandidates? {
         if (data.candidates.isEmpty()) return null
         val signature = buildCandidateSignature(data)
         if (signature == localBudgetNoPageSignature) return null
@@ -90,12 +88,11 @@ class ChineseT9CandidatePipeline(
             localBudgetSignature = ""
             return null
         }
-        return FcitxEvent.PagedCandidateEvent.Data(
-            candidates = page.candidates.map { it.value }.toTypedArray(),
-            cursorIndex = 0,
+        return page.toPagedCandidates(
             layoutHint = data.layoutHint,
-            hasPrev = data.hasPrev || page.hasPrev,
-            hasNext = data.hasNext || page.hasNext
+            cursorIndex = 0,
+            hasExternalPrev = data.hasPrev,
+            hasExternalNext = data.hasNext
         )
     }
 
@@ -130,52 +127,6 @@ class ChineseT9CandidatePipeline(
             append(preedit).append('|')
             append(prefixes.joinToString(separator = "/"))
         }
-
-    fun buildOriginalIndicesForPaged(
-        shown: FcitxEvent.PagedCandidateEvent.Data,
-        rawPaged: FcitxEvent.PagedCandidateEvent.Data
-    ): IntArray {
-        if (shown.candidates.isEmpty()) return intArrayOf()
-        if (shown.candidates.contentEquals(rawPaged.candidates)) {
-            return IntArray(shown.candidates.size) { it }
-        }
-        val seenByCandidate = mutableMapOf<FcitxEvent.Candidate, Int>()
-        return IntArray(shown.candidates.size) { shownIndex ->
-            val target = shown.candidates[shownIndex]
-            val targetSeen = seenByCandidate.getOrDefault(target, 0)
-            seenByCandidate[target] = targetSeen + 1
-            var seen = 0
-            rawPaged.candidates.forEachIndexed { rawIndex, rawCandidate ->
-                if (rawCandidate == target) {
-                    if (seen == targetSeen) return@IntArray rawIndex
-                    seen += 1
-                }
-            }
-            -1
-        }
-    }
-
-    fun originalCandidateIndexForShown(
-        shown: FcitxEvent.PagedCandidateEvent.Data,
-        shownIndex: Int,
-        rawPaged: FcitxEvent.PagedCandidateEvent.Data,
-        shownOriginalIndices: IntArray
-    ): Int? {
-        shownOriginalIndices.getOrNull(shownIndex)?.takeIf { it >= 0 }?.let { return it }
-        val target = shown.candidates.getOrNull(shownIndex) ?: return null
-        if (shown.candidates.contentEquals(rawPaged.candidates)) return shownIndex
-        val sameCandidateBeforeTarget = shown.candidates
-            .take(shownIndex)
-            .count { it == target }
-        var seen = 0
-        rawPaged.candidates.forEachIndexed { rawIndex, rawCandidate ->
-            if (rawCandidate == target) {
-                if (seen == sameCandidateBeforeTarget) return rawIndex
-                seen += 1
-            }
-        }
-        return null
-    }
 
     private fun matchCandidates(
         candidates: List<IndexedValue<FcitxEvent.Candidate>>,

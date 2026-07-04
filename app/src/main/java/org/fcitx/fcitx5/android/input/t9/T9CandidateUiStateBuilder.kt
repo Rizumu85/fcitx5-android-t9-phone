@@ -25,8 +25,7 @@ class T9CandidateUiStateBuilder(
         val orientation: FloatingCandidatesOrientation,
         val currentlyVisible: Boolean,
         val loadingState: ChineseT9CandidateLoadingState,
-        val bulkFilteredPaged: FcitxEvent.PagedCandidateEvent.Data?,
-        val bulkFilteredOriginalIndices: IntArray,
+        val bulkFilteredPaged: T9PagedCandidates?,
         val bulkFilteredMatchedPrefix: String?,
         val bulkFilterPending: Boolean
     )
@@ -51,10 +50,10 @@ class T9CandidateUiStateBuilder(
         fun isChineseT9InputModeActive(): Boolean
         fun isSmartEnglishT9InputModeActive(): Boolean
         fun getSmartEnglishT9Paged(): FcitxEvent.PagedCandidateEvent.Data?
-        fun buildSmartEnglishPaged(data: FcitxEvent.PagedCandidateEvent.Data): FcitxEvent.PagedCandidateEvent.Data
+        fun buildSmartEnglishPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates
         fun getT9ResolvedPinyinFilterPrefixes(): List<String>
         fun getPendingT9PunctuationPaged(): FcitxEvent.PagedCandidateEvent.Data?
-        fun buildT9PendingPunctuationPaged(data: FcitxEvent.PagedCandidateEvent.Data): FcitxEvent.PagedCandidateEvent.Data
+        fun buildT9PendingPunctuationPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates
         fun hasPendingT9PinyinSelection(): Boolean
         fun getT9CompositionKeyCount(): Int
         fun resetT9BulkFilterState()
@@ -62,19 +61,16 @@ class T9CandidateUiStateBuilder(
         fun filterPagedByT9PinyinPrefixes(
             data: FcitxEvent.PagedCandidateEvent.Data,
             prefixes: List<String>
-        ): Pair<FcitxEvent.PagedCandidateEvent.Data, String?>
+        ): Pair<T9PagedCandidates, String?>
         fun buildLocalBudgetedPagedFromCurrentPage(
             data: FcitxEvent.PagedCandidateEvent.Data
-        ): FcitxEvent.PagedCandidateEvent.Data?
+        ): T9PagedCandidates?
         fun resetT9LocalBudgetState()
         fun buildT9CursorContextSignature(prefixes: List<String>): String
         fun applyT9HanziCursor(
             data: FcitxEvent.PagedCandidateEvent.Data,
             cursorContextSignature: String
         ): FcitxEvent.PagedCandidateEvent.Data
-        fun buildOriginalIndicesForPendingPunctuation(shown: FcitxEvent.PagedCandidateEvent.Data): IntArray
-        fun buildOriginalIndicesForSmartEnglish(shown: FcitxEvent.PagedCandidateEvent.Data): IntArray
-        fun buildOriginalIndicesForPaged(shown: FcitxEvent.PagedCandidateEvent.Data): IntArray
         fun getSmartEnglishT9Presentation(): T9PresentationState?
         fun getT9PresentationState(
             inputPanel: FcitxEvent.InputPanelEvent.Data,
@@ -165,11 +161,11 @@ class T9CandidateUiStateBuilder(
             }
             val filteredPaged = T9ResponsivenessTrace.measure("CandidatesView.updateUi.filterPaged") {
                 if (suppressEmptyT9Candidates || pendingT9PinyinSelection || waitForChineseT9Candidates) {
-                    FcitxEvent.PagedCandidateEvent.Data.Empty to null
+                    T9PagedCandidates.Empty to null
                 } else if (chineseT9Active) {
                     delegate.filterPagedByT9PinyinPrefixes(input.rawPaged, t9FilterPrefixes)
                 } else {
-                    input.rawPaged to null
+                    T9PagedCandidates.passthrough(input.rawPaged) to null
                 }
             }
             val localBudgetedPaged = if (
@@ -210,27 +206,12 @@ class T9CandidateUiStateBuilder(
             val effectivePaged = T9ResponsivenessTrace.measure("CandidatesView.updateUi.cursor") {
                 if (presentationPlan.applyChineseCursor) {
                     val cursorContextSignature = delegate.buildT9CursorContextSignature(t9FilterPrefixes)
-                    delegate.applyT9HanziCursor(presentationPlan.cursorSource, cursorContextSignature)
+                    delegate.applyT9HanziCursor(presentationPlan.cursorSource.data, cursorContextSignature)
                 } else {
-                    presentationPlan.cursorSource
+                    presentationPlan.cursorSource.data
                 }
             }
-            val originalIndices = T9ResponsivenessTrace.measure("CandidatesView.updateUi.originalIndices") {
-                when (presentationPlan.originalIndexSource) {
-                    T9CandidatePresentationPlanner.OriginalIndexSource.PENDING_PUNCTUATION ->
-                        delegate.buildOriginalIndicesForPendingPunctuation(effectivePaged)
-                    T9CandidatePresentationPlanner.OriginalIndexSource.SMART_ENGLISH ->
-                        delegate.buildOriginalIndicesForSmartEnglish(effectivePaged)
-                    T9CandidatePresentationPlanner.OriginalIndexSource.BULK_FILTERED ->
-                        input.bulkFilteredOriginalIndices
-                    T9CandidatePresentationPlanner.OriginalIndexSource.PENDING_BULK_DISPLAY ->
-                        IntArray(effectivePaged.candidates.size) { -1 }
-                    T9CandidatePresentationPlanner.OriginalIndexSource.LOCAL_BUDGET ->
-                        delegate.buildOriginalIndicesForPaged(presentationPlan.candidateSource)
-                    T9CandidatePresentationPlanner.OriginalIndexSource.PAGED ->
-                        delegate.buildOriginalIndicesForPaged(effectivePaged)
-                }
-            }
+            val originalIndices = presentationPlan.cursorSource.originalIndices
             val t9State = T9ResponsivenessTrace.measure("CandidatesView.updateUi.presentationState") {
                 when (surface) {
                     Surface.CHINESE -> delegate.getT9PresentationState(input.inputPanel, effectivePaged)

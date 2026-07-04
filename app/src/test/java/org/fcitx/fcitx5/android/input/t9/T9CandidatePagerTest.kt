@@ -66,6 +66,36 @@ class T9CandidatePagerTest {
         assertEquals(2, pager.pageIndex)
     }
 
+    @Test
+    fun pageBuildsPagedCandidatesWithOriginalIndices() {
+        val pager = T9CandidatePager()
+        pager.update(
+            signature = "initial",
+            candidates = listOf(
+                IndexedValue(7, candidate("一二三")),
+                IndexedValue(9, candidate("四五")),
+                IndexedValue(11, candidate("六"))
+            ),
+            characterBudget = 4
+        )
+
+        val second = pager.offset(1)
+        assertNotNull(second)
+        second!!
+
+        val shown = second.toPagedCandidates(
+            layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
+            cursorIndex = second.cursorIndexForOriginalIndex(11),
+            hasExternalNext = true
+        )
+
+        assertEquals(listOf("四五", "六"), shown.data.candidates.map { it.text })
+        assertEquals(1, shown.data.cursorIndex)
+        assertTrue(shown.data.hasPrev)
+        assertTrue(shown.data.hasNext)
+        assertArrayEquals(intArrayOf(9, 11), shown.originalIndices)
+    }
+
     private fun candidate(text: String): FcitxEvent.Candidate =
         FcitxEvent.Candidate(label = "", text = text, comment = "")
 }

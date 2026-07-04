@@ -90,7 +90,7 @@ class T9CandidateUiStateBuilderTest {
 
         override fun buildSmartEnglishPaged(
             data: FcitxEvent.PagedCandidateEvent.Data
-        ): FcitxEvent.PagedCandidateEvent.Data = data
+        ): T9PagedCandidates = T9PagedCandidates.passthrough(data)
 
         override fun getT9ResolvedPinyinFilterPrefixes(): List<String> {
             getResolvedPrefixesCount += 1
@@ -101,7 +101,7 @@ class T9CandidateUiStateBuilderTest {
 
         override fun buildT9PendingPunctuationPaged(
             data: FcitxEvent.PagedCandidateEvent.Data
-        ): FcitxEvent.PagedCandidateEvent.Data = data
+        ): T9PagedCandidates = T9PagedCandidates.passthrough(data)
 
         override fun hasPendingT9PinyinSelection(): Boolean {
             hasPendingPinyinSelectionCount += 1
@@ -122,14 +122,14 @@ class T9CandidateUiStateBuilderTest {
         override fun filterPagedByT9PinyinPrefixes(
             data: FcitxEvent.PagedCandidateEvent.Data,
             prefixes: List<String>
-        ): Pair<FcitxEvent.PagedCandidateEvent.Data, String?> {
+        ): Pair<T9PagedCandidates, String?> {
             filterPagedByPrefixesCount += 1
-            return data to null
+            return T9PagedCandidates.passthrough(data) to null
         }
 
         override fun buildLocalBudgetedPagedFromCurrentPage(
             data: FcitxEvent.PagedCandidateEvent.Data
-        ): FcitxEvent.PagedCandidateEvent.Data? = null
+        ): T9PagedCandidates? = null
 
         override fun resetT9LocalBudgetState() = Unit
 
@@ -145,18 +145,6 @@ class T9CandidateUiStateBuilderTest {
             applyHanziCursorCount += 1
             return data
         }
-
-        override fun buildOriginalIndicesForPendingPunctuation(
-            shown: FcitxEvent.PagedCandidateEvent.Data
-        ): IntArray = IntArray(shown.candidates.size) { it }
-
-        override fun buildOriginalIndicesForSmartEnglish(
-            shown: FcitxEvent.PagedCandidateEvent.Data
-        ): IntArray = IntArray(shown.candidates.size) { it }
-
-        override fun buildOriginalIndicesForPaged(
-            shown: FcitxEvent.PagedCandidateEvent.Data
-        ): IntArray = IntArray(shown.candidates.size) { it }
 
         override fun getSmartEnglishT9Presentation(): T9PresentationState? {
             getSmartEnglishPresentationCount += 1
@@ -188,7 +176,6 @@ class T9CandidateUiStateBuilderTest {
             currentlyVisible = false,
             loadingState = ChineseT9CandidateLoadingState(),
             bulkFilteredPaged = null,
-            bulkFilteredOriginalIndices = intArrayOf(),
             bulkFilteredMatchedPrefix = null,
             bulkFilterPending = false
         )

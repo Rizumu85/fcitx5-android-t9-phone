@@ -29,20 +29,20 @@ class ChineseT9CandidatePipelineTest {
 
         assertNotNull(first)
         first!!
-        assertEquals(listOf("一二三"), first.candidates.map { it.text })
-        assertArrayEquals(intArrayOf(0), pipeline.buildOriginalIndicesForPaged(first, raw))
-        assertFalse(first.hasPrev)
-        assertTrue(first.hasNext)
+        assertEquals(listOf("一二三"), first.data.candidates.map { it.text })
+        assertArrayEquals(intArrayOf(0), first.originalIndices)
+        assertFalse(first.data.hasPrev)
+        assertTrue(first.data.hasNext)
 
         assertTrue(pipeline.offsetLocalBudgetedPage(1))
         val second = pipeline.buildLocalBudgetedPagedFromCurrentPage(raw)
 
         assertNotNull(second)
         second!!
-        assertEquals(listOf("四五", "六"), second.candidates.map { it.text })
-        assertArrayEquals(intArrayOf(1, 2), pipeline.buildOriginalIndicesForPaged(second, raw))
-        assertTrue(second.hasPrev)
-        assertFalse(second.hasNext)
+        assertEquals(listOf("四五", "六"), second.data.candidates.map { it.text })
+        assertArrayEquals(intArrayOf(1, 2), second.originalIndices)
+        assertTrue(second.data.hasPrev)
+        assertFalse(second.data.hasNext)
         assertFalse(pipeline.offsetLocalBudgetedPage(1))
     }
 
@@ -56,47 +56,18 @@ class ChineseT9CandidatePipelineTest {
     }
 
     @Test
-    fun originalIndicesTrackDuplicateCandidatesByOccurrence() {
+    fun pinyinPrefixFilteringCarriesOriginalIndices() {
         val pipeline = pipeline()
-        val duplicated = candidate("重")
         val raw = paged(
-            duplicated,
-            candidate("中"),
-            duplicated,
-            candidate("终")
+            candidate("你", comment = "ni"),
+            candidate("呢", comment = "ne"),
+            candidate("泥", comment = "ni")
         )
-        val shown = paged(duplicated, duplicated, candidate("终"))
+        val (shown, matchedPrefix) = pipeline.filterPagedByPinyinPrefixes(raw, listOf("ni"))
 
-        assertArrayEquals(
-            intArrayOf(0, 2, 3),
-            pipeline.buildOriginalIndicesForPaged(shown, raw)
-        )
-        assertEquals(
-            2,
-            pipeline.originalCandidateIndexForShown(
-                shown = shown,
-                shownIndex = 1,
-                rawPaged = raw,
-                shownOriginalIndices = intArrayOf(-1, -1, -1)
-            )
-        )
-    }
-
-    @Test
-    fun explicitOriginalIndicesTakePriorityWhenSelectingShownCandidate() {
-        val pipeline = pipeline()
-        val raw = paged(candidate("甲"), candidate("乙"), candidate("丙"))
-        val shown = paged(candidate("丙"))
-
-        assertEquals(
-            2,
-            pipeline.originalCandidateIndexForShown(
-                shown = shown,
-                shownIndex = 0,
-                rawPaged = raw,
-                shownOriginalIndices = intArrayOf(2)
-            )
-        )
+        assertEquals("ni", matchedPrefix)
+        assertEquals(listOf("你", "泥"), shown.data.candidates.map { it.text })
+        assertArrayEquals(intArrayOf(0, 2), shown.originalIndices)
     }
 
     @Test
@@ -141,10 +112,11 @@ class ChineseT9CandidatePipelineTest {
         val (filtered, matchedPrefix) = pipeline.filterPagedByPinyinPrefixes(raw, listOf("zh", "n"))
 
         assertEquals("n", matchedPrefix)
-        assertEquals(listOf("一", "二", "三", "四"), filtered.candidates.map { it.text })
-        assertEquals(0, filtered.cursorIndex)
-        assertFalse(filtered.hasPrev)
-        assertTrue(filtered.hasNext)
+        assertEquals(listOf("一", "二", "三", "四"), filtered.data.candidates.map { it.text })
+        assertArrayEquals(intArrayOf(0, 1, 2, 3), filtered.originalIndices)
+        assertEquals(0, filtered.data.cursorIndex)
+        assertFalse(filtered.data.hasPrev)
+        assertTrue(filtered.data.hasNext)
     }
 
     private fun pipeline(
