@@ -32,6 +32,7 @@ import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.candidates.floating.PagedCandidatesUi
 import org.fcitx.fcitx5.android.input.preedit.PreeditUi
+import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidateLoadingState
 import org.fcitx.fcitx5.android.input.t9.T9BulkCandidateLoader
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidatePresentationPlanner
@@ -107,7 +108,7 @@ class CandidatesView(
     private var shouldUpdatePosition = false
     private var showAfterPositioned = false
     private var preferAboveCursorAnchor = false
-    private var waitingForT9EngineCandidates = false
+    private val chineseT9CandidateLoadingState = ChineseT9CandidateLoadingState()
 
     /**
      * layout update may or may not cause [CandidatesView]'s size [onSizeChanged],
@@ -369,9 +370,10 @@ class CandidatesView(
             }
             is FcitxEvent.PagedCandidateEvent -> {
                 paged = it.data
-                if (it.data.candidates.isNotEmpty() || service.getT9CompositionKeyCount() <= 0) {
-                    waitingForT9EngineCandidates = false
-                }
+                chineseT9CandidateLoadingState.onEngineCandidates(
+                    data = it.data,
+                    compositionKeyCount = service.getT9CompositionKeyCount()
+                )
                 refreshT9Ui()
             }
             else -> {}
@@ -387,7 +389,7 @@ class CandidatesView(
         t9ShownUsesSmartEnglish = false
         t9SmartEnglishPager.reset()
         lastT9RenderState = null
-        waitingForT9EngineCandidates = false
+        chineseT9CandidateLoadingState.reset()
         preeditUi.update(inputPanel)
         preeditUi.root.visibility = GONE
         setPinyinRowVisible(false)
@@ -417,8 +419,10 @@ class CandidatesView(
     }
 
     fun waitForT9EngineCandidatesThenRefresh() {
-        waitingForT9EngineCandidates = service.isChineseT9InputModeActive() &&
-            service.getT9CompositionKeyCount() > 0
+        chineseT9CandidateLoadingState.startIfNeeded(
+            chineseT9Active = service.isChineseT9InputModeActive(),
+            compositionKeyCount = service.getT9CompositionKeyCount()
+        )
         refreshT9Ui()
     }
 
@@ -580,17 +584,20 @@ class CandidatesView(
             pendingPunctuationPaged?.let(::buildT9PendingPunctuationPaged)
         }
         val pendingT9PinyinSelection = chineseT9Active && service.hasPendingT9PinyinSelection()
-        val waitForChineseT9Candidates = chineseT9Active &&
-            service.getT9CompositionKeyCount() > 0 &&
-            pendingPunctuationPaged == null &&
-            !pendingT9PinyinSelection &&
-            (waitingForT9EngineCandidates || paged.candidates.isEmpty())
+        val compositionKeyCount = service.getT9CompositionKeyCount()
+        val waitForChineseT9Candidates = chineseT9CandidateLoadingState.shouldWaitForCandidates(
+            chineseT9Active = chineseT9Active,
+            compositionKeyCount = compositionKeyCount,
+            hasPendingPunctuation = pendingPunctuationPaged != null,
+            pendingPinyinSelection = pendingT9PinyinSelection,
+            rawCandidatesEmpty = paged.candidates.isEmpty()
+        )
         if (waitForChineseT9Candidates && visibility == VISIBLE) {
             return@measure null
         }
         val suppressEmptyT9Candidates = chineseT9Active &&
             pendingPunctuationPaged == null &&
-            service.getT9CompositionKeyCount() <= 0
+            compositionKeyCount <= 0
         if (suppressEmptyT9Candidates || pendingT9PinyinSelection || waitForChineseT9Candidates) {
             resetT9BulkFilterState()
         } else if (pendingPunctuationPaged == null) {
@@ -685,7 +692,7 @@ class CandidatesView(
             service.isChineseT9InputModeActive() &&
             (
                 pendingPunctuationPaged != null ||
-                    service.getT9CompositionKeyCount() > 0 ||
+                    compositionKeyCount > 0 ||
                     t9State?.topReading?.isNotEmpty() == true ||
                     t9State?.pinyinRowVisible == true
                 )
