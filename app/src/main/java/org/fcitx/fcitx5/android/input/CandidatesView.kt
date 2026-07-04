@@ -43,6 +43,7 @@ import org.fcitx.fcitx5.android.input.t9.T9CandidatePanelFrame
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidatePager
 import org.fcitx.fcitx5.android.input.t9.T9CandidatePanelWidthState
+import org.fcitx.fcitx5.android.input.t9.T9CandidateRowLayout
 import org.fcitx.fcitx5.android.input.t9.T9CandidateSnapshots
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiStateBuilder
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiRenderer
@@ -377,7 +378,7 @@ class CandidatesView(
         highlightCornerRadiusPx = dp(windowRadius),
         itemSpacingPx = dp(candidateItemSpacing),
         maxCandidateWidthPx = {
-            t9ShortcutCandidateMaxWidthPx(t9CandidateAvailableContentWidthPx(reservePagination = true))
+            t9ShortcutCandidateMaxWidthPx(t9CandidateRowAvailableWidthPx())
         },
         onCandidateClick = { shownIndex ->
             if (service.isSmartEnglishT9InputModeActive()) {
@@ -468,7 +469,7 @@ class CandidatesView(
     private fun dpCandidates(value: Int): Int = (value * ctx.resources.displayMetrics.density).toInt()
 
     private fun currentT9CandidatePageBudget(): T9CandidatePager.Budget {
-        val hardAvailableWidthPx = t9CandidateAvailableContentWidthPx(reservePagination = true)
+        val hardAvailableWidthPx = t9CandidateRowAvailableWidthPx()
         if (hardAvailableWidthPx <= 0) {
             return T9CandidatePager.Budget.character(t9HanziCharacterBudget)
         }
@@ -480,6 +481,7 @@ class CandidatesView(
         // ten T9 shortcuts accumulate enough error to leak one or two Hanzi past the safe edge.
         val horizontalPaddingPx = dp(itemPaddingHorizontal) * 2
         val itemSpacingPx = dp(candidateItemSpacing)
+        val paginationWidthPx = t9PaginationWidthPx()
         val shortcutWidthPx = paint.measureText("0")
         val protectedMinItems = T9CandidateBudget.normalizedBudget(t9HanziCharacterBudget)
         val minItemWidthPx = (paint.textSize * T9_SHORTCUT_CANDIDATE_MIN_WIDTH_EM).roundToInt()
@@ -526,6 +528,9 @@ class CandidatesView(
                     itemSpacingPx = itemSpacingPx
                 )
             },
+            itemSpacing = itemSpacingPx,
+            paginationCost = paginationWidthPx,
+            sidePadding = t9CandidateHighlightOverflowPaddingPx * 2,
             protectedMinItems = protectedMinItems,
             canProtectItem = { candidate -> isT9SingleUnitCandidate(candidate.text) }
         )
@@ -545,7 +550,7 @@ class CandidatesView(
         val itemWidthPx = (contentWidthPx + horizontalPaddingPx)
             .coerceAtLeast(minItemWidthPx)
             .coerceAtMost(maxItemWidthPx)
-        return itemWidthPx + itemSpacingPx
+        return itemWidthPx
     }
 
     private fun isT9SingleUnitCandidate(text: String): Boolean {
@@ -565,13 +570,19 @@ class CandidatesView(
             paint.measureText("0")
         ).roundToInt()
         val oneUnitCandidatePx = (measuredUnitPx + horizontalPaddingPx)
-            .coerceAtLeast(minItemWidthPx) + itemSpacingPx
-        return (budget * oneUnitCandidatePx)
+            .coerceAtLeast(minItemWidthPx)
+        return T9CandidateRowLayout.rowWidth(
+            itemWidths = List(budget) { oneUnitCandidatePx },
+            itemSpacingPx = itemSpacingPx,
+            paginationWidthPx = 0,
+            hasPagination = false,
+            sidePaddingPx = t9CandidateHighlightOverflowPaddingPx * 2
+        )
             .coerceAtLeast(1)
     }
 
     private fun t9ShortcutCandidateMaxWidthPx(
-        availableWidthPx: Int = t9CandidateAvailableContentWidthPx(reservePagination = false)
+        availableWidthPx: Int = t9CandidateRowAvailableWidthPx()
     ): Int {
         val minItemWidthPx = (fontSize * ctx.resources.displayMetrics.scaledDensity * T9_SHORTCUT_CANDIDATE_MIN_WIDTH_EM)
             .roundToInt()
@@ -581,23 +592,18 @@ class CandidatesView(
             .coerceAtLeast(minItemWidthPx)
     }
 
-    private fun t9CandidateAvailableContentWidthPx(reservePagination: Boolean): Int {
+    private fun t9CandidateRowAvailableWidthPx(): Int {
         val parentWidthPx = predictedParentWidthPx()
         val windowSidePaddingPx = dp(windowPadding) * 2
-        val fixedRowSidePaddingPx = t9CandidateHighlightOverflowPaddingPx * 2
         val edgeGapPx = dp(T9_MEASURED_ROW_EDGE_GAP_DP) * 2
-        val paginationReservePx = if (reservePagination && showPaginationArrows) {
-            dp(T9_PAGINATION_RESERVE_WIDTH_DP)
-        } else {
-            0
-        }
         return (parentWidthPx - horizontalMarginPx * 2 -
             windowSidePaddingPx -
-            fixedRowSidePaddingPx -
-            edgeGapPx -
-            paginationReservePx
+            edgeGapPx
             ).coerceAtLeast(0)
     }
+
+    private fun t9PaginationWidthPx(): Int =
+        if (showPaginationArrows) dp(T9_PAGINATION_WIDTH_DP) else 0
 
     private fun predictedParentWidthPx(): Int {
         parentSize[0].roundToInt().takeIf { it > 0 }?.let { return it }
@@ -1240,8 +1246,7 @@ class CandidatesView(
 
     private fun coerceT9PanelWidthToSafeBounds(width: Int): Int {
         if (width == ViewGroup.LayoutParams.WRAP_CONTENT) return width
-        val maxPanelWidthPx =
-            t9CandidateAvailableContentWidthPx(reservePagination = false) + t9CandidateHighlightOverflowPaddingPx * 2
+        val maxPanelWidthPx = t9CandidateRowAvailableWidthPx()
         return width.coerceIn(1, maxPanelWidthPx.coerceAtLeast(1))
     }
 
@@ -1260,10 +1265,8 @@ class CandidatesView(
         val minItemWidthPx = (paint.textSize * T9_SHORTCUT_CANDIDATE_MIN_WIDTH_EM)
             .roundToInt()
             .coerceAtLeast(1)
-        val maxItemWidthPx = t9ShortcutCandidateMaxWidthPx(
-            t9CandidateAvailableContentWidthPx(reservePagination = currentT9CandidatePageShowsPagination(shown))
-        )
-        val candidateContentWidthPx = shown.candidates.sumOf { candidate ->
+        val maxItemWidthPx = t9ShortcutCandidateMaxWidthPx(t9CandidateRowAvailableWidthPx())
+        val itemWidths = shown.candidates.map { candidate ->
             measuredT9CandidateItemWidthPx(
                 text = candidate.text,
                 paint = paint,
@@ -1274,16 +1277,14 @@ class CandidatesView(
                 itemSpacingPx = itemSpacingPx
             )
         }
-        val fixedRowSidePaddingPx = t9CandidateHighlightOverflowPaddingPx * 2
-        val paginationReservePx = if (currentT9CandidatePageShowsPagination(shown)) {
-            dp(T9_PAGINATION_RESERVE_WIDTH_DP)
-        } else {
-            0
-        }
-        val availablePanelWidthPx =
-            t9CandidateAvailableContentWidthPx(reservePagination = false) + fixedRowSidePaddingPx
-        val targetPanelWidthPx =
-            candidateContentWidthPx + fixedRowSidePaddingPx + paginationReservePx
+        val targetPanelWidthPx = T9CandidateRowLayout.rowWidth(
+            itemWidths = itemWidths,
+            itemSpacingPx = itemSpacingPx,
+            paginationWidthPx = t9PaginationWidthPx(),
+            hasPagination = currentT9CandidatePageShowsPagination(shown),
+            sidePaddingPx = t9CandidateHighlightOverflowPaddingPx * 2
+        )
+        val availablePanelWidthPx = t9CandidateRowAvailableWidthPx()
         return targetPanelWidthPx.coerceAtMost(availablePanelWidthPx).coerceAtLeast(1)
     }
 
@@ -1299,10 +1300,8 @@ class CandidatesView(
             val rightMarginPx = if (index == t9RenderedPinyinItems.lastIndex) 0 else chipPaddingPx
             textWidthPx + chipPaddingPx * 2 + rightMarginPx
         }
-        val fixedRowSidePaddingPx = t9CandidateHighlightOverflowPaddingPx * 2
-        val availablePanelWidthPx =
-            t9CandidateAvailableContentWidthPx(reservePagination = false) + fixedRowSidePaddingPx
-        val targetPanelWidthPx = chipWidthPx + fixedRowSidePaddingPx
+        val availablePanelWidthPx = t9CandidateRowAvailableWidthPx()
+        val targetPanelWidthPx = chipWidthPx + t9CandidateHighlightOverflowPaddingPx * 2
         return targetPanelWidthPx.coerceAtMost(availablePanelWidthPx).coerceAtLeast(1)
     }
 
@@ -1575,9 +1574,9 @@ class CandidatesView(
         private const val T9_BULK_FILTER_LIMIT = 80
         private const val T9_PINYIN_TO_HANZI_GAP_DP = 2
         private const val T9_MEASURED_ROW_EDGE_GAP_DP = 4
-        // Pagination is rendered by real icon views, so the budget must reserve their measured
-        // footprint plus slack; otherwise paged rows can occasionally cross the visual safety gap.
-        private const val T9_PAGINATION_RESERVE_WIDTH_DP = 24
+        // Keep this in sync with PaginationUi's two 10dp icons; pager and renderer share it so
+        // pages with arrows do not fit more Hanzi than the row can actually render.
+        private const val T9_PAGINATION_WIDTH_DP = 20
         private const val T9_SHORTCUT_CANDIDATE_MIN_WIDTH_EM = 0.95f
         private const val T9_SHORTCUT_CANDIDATE_MAX_WIDTH_RATIO = 0.42f
         private const val T9_MEASURED_BUDGET_UNIT_TEXT = "测"

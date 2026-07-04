@@ -133,6 +133,36 @@ class T9CandidatePagerTest {
     }
 
     @Test
+    fun measuredBudgetIncludesRowSpacingSidePaddingAndPagination() {
+        val pager = T9CandidatePager()
+        pager.update(
+            signature = "row",
+            candidates = (0 until 4).map { index -> IndexedValue(index, candidate(index.toString())) },
+            budget = T9CandidatePager.Budget(
+                value = 68,
+                key = "row",
+                itemCost = { 20 },
+                itemSpacing = 4,
+                paginationCost = 12,
+                sidePadding = 4
+            )
+        )
+
+        val first = pager.currentPage()
+        assertNotNull(first)
+        first!!
+        assertEquals(listOf("0", "1"), first.candidates.map { it.value.text })
+        assertTrue(first.hasNext)
+
+        val second = pager.offset(1)
+        assertNotNull(second)
+        second!!
+        assertEquals(listOf("2", "3"), second.candidates.map { it.value.text })
+        assertTrue(second.hasPrev)
+        assertFalse(second.hasNext)
+    }
+
+    @Test
     fun selectsPageContainingOriginalIndex() {
         val pager = T9CandidatePager()
         pager.update(

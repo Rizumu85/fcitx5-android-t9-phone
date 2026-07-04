@@ -38,9 +38,30 @@ class T9CandidatePager {
         val itemCost: (FcitxEvent.Candidate) -> Int,
         val hardValue: Int = value,
         val hardItemCost: (FcitxEvent.Candidate) -> Int = itemCost,
+        val itemSpacing: Int = 0,
+        val paginationCost: Int = 0,
+        val sidePadding: Int = 0,
         val protectedMinItems: Int = 0,
         val canProtectItem: (FcitxEvent.Candidate) -> Boolean = { false }
     ) {
+        fun pageCost(
+            candidates: List<IndexedValue<FcitxEvent.Candidate>>,
+            hasPrev: Boolean,
+            hasNext: Boolean,
+            hard: Boolean = false
+        ): Int =
+            T9CandidateRowLayout.rowWidth(
+                itemWidths = candidates.map { candidate ->
+                    val cost = if (hard) hardItemCost(candidate.value) else itemCost(candidate.value)
+                    cost.coerceAtLeast(1)
+                },
+                itemSpacingPx = itemSpacing,
+                paginationWidthPx = paginationCost,
+                hasPagination = paginationCost > 0 &&
+                    T9CandidateRowLayout.paginationVisible(hasPrev, hasNext),
+                sidePaddingPx = sidePadding
+            )
+
         companion object {
             fun character(characterBudget: Int): Budget {
                 val normalizedBudget = T9CandidateBudget.normalizedBudget(characterBudget)
@@ -182,28 +203,27 @@ class T9CandidatePager {
         val start = pageEndOffsets.lastOrNull() ?: 0
         if (start >= candidates.size) return false
         var current = mutableListOf<IndexedValue<FcitxEvent.Candidate>>()
-        var used = 0
-        var hardUsed = 0
         var canProtectCurrentPage = true
         var offset = start
+        val hasPrev = pages.isNotEmpty()
         while (offset < candidates.size) {
             val candidate = candidates[offset]
-            val length = budget.itemCost(candidate.value).coerceAtLeast(1)
-            val hardLength = budget.hardItemCost(candidate.value).coerceAtLeast(1)
+            val nextPage = current + candidate
+            val hasNext = offset + 1 < candidates.size
+            val used = budget.pageCost(nextPage, hasPrev, hasNext)
+            val hardUsed = budget.pageCost(nextPage, hasPrev, hasNext, hard = true)
             val canProtectCandidate = budget.canProtectItem(candidate.value)
-            if (current.isNotEmpty() && used + length > budget.value) {
+            if (current.isNotEmpty() && used > budget.value) {
                 val canUseProtectedSlot =
                     current.size < budget.protectedMinItems &&
                         canProtectCurrentPage &&
                         canProtectCandidate &&
-                        hardUsed + hardLength <= budget.hardValue
+                        hardUsed <= budget.hardValue
                 if (!canUseProtectedSlot) {
                     break
                 }
             }
             current += candidate
-            used += length
-            hardUsed += hardLength
             canProtectCurrentPage = canProtectCurrentPage && canProtectCandidate
             offset++
         }
