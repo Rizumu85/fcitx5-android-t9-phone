@@ -394,8 +394,8 @@ class CandidatesView(
         }
     }
     private val pinyinRowWrapper = FrameLayout(ctx).apply {
-        clipChildren = false
-        clipToPadding = false
+        clipChildren = true
+        clipToPadding = true
         addView(pinyinBarView, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             pinyinBarRowHeightPx
@@ -912,11 +912,29 @@ class CandidatesView(
     }
 
     private fun showPinyinRowNow() {
+        setPinyinRowHeight(pinyinBarRowHeightPx)
         pinyinBarView.visibility = View.VISIBLE
         pinyinRowWrapper.visibility = View.VISIBLE
         schedulePinyinOverflowHintUpdate()
         if (showAfterPositioned) {
+            showWhenPinyinRowIsLaidOut()
+        }
+    }
+
+    private fun showWhenPinyinRowIsLaidOut() {
+        if (isVisiblePinyinRowLaidOut()) {
             showWhenPositioned(true)
+            return
+        }
+        pinyinRowWrapper.requestLayout()
+        pinyinRowWrapper.post {
+            if (!pinyinRowTargetVisible || !showAfterPositioned) return@post
+            if (isVisiblePinyinRowLaidOut()) {
+                showWhenPositioned(true)
+            } else {
+                shouldUpdatePosition = true
+                requestLayout()
+            }
         }
     }
 
@@ -939,16 +957,23 @@ class CandidatesView(
         pinyinBarView.scaleX = 1f
         pinyinBarView.translationY = 0f
         if (visible) {
+            val wasVisible = pinyinRowWrapper.visibility == View.VISIBLE &&
+                pinyinBarView.visibility == View.VISIBLE
             val widthReady = syncPinyinRowWidthToCandidates()
             setPinyinRowHeight(pinyinBarRowHeightPx)
-            if (widthReady) {
+            if (widthReady && wasVisible && isVisiblePinyinRowLaidOut()) {
                 showPinyinRowNow()
                 return true
             } else {
+                // Product requirement: the pinyin row must never spill into the Hanzi row. When
+                // first shown, Android can draw children before LinearLayout has consumed the new
+                // row height; keep the whole candidate window hidden until a real layout pass
+                // confirms the row has positive height.
                 pinyinBarView.visibility = View.INVISIBLE
                 pinyinRowWrapper.visibility = View.INVISIBLE
                 pinyinRowWrapper.post {
                     if (!pinyinRowTargetVisible) return@post
+                    setPinyinRowHeight(pinyinBarRowHeightPx)
                     if (syncPinyinRowWidthToCandidates()) {
                         showPinyinRowNow()
                     }
@@ -980,10 +1005,17 @@ class CandidatesView(
         if (widthReady) {
             schedulePinyinOverflowHintUpdate()
         }
-        return widthReady
+        return widthReady && isVisiblePinyinRowLaidOut()
     }
 
     private fun setPinyinRowHeight(height: Int) {
+        pinyinRowWrapper.minimumHeight = height
+        (pinyinBarView.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+            if (params.height != height) {
+                params.height = height
+                pinyinBarView.layoutParams = params
+            }
+        }
         (pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
             val bottomMargin = if (height > 0) pinyinToHanziGapPx else 0
             if (params.height != height || params.bottomMargin != bottomMargin) {
@@ -992,6 +1024,12 @@ class CandidatesView(
                 pinyinRowWrapper.layoutParams = params
             }
         }
+    }
+
+    private fun isVisiblePinyinRowLaidOut(): Boolean {
+        if (!pinyinRowTargetVisible) return true
+        if (pinyinRowWrapper.visibility != View.VISIBLE || pinyinBarView.visibility != View.VISIBLE) return false
+        return pinyinRowWrapper.height >= pinyinBarRowHeightPx && pinyinBarView.height >= pinyinBarRowHeightPx
     }
 
     private fun syncPinyinRowWidthToCandidates(): Boolean {
@@ -1351,6 +1389,9 @@ class CandidatesView(
                     pinyinRowWrapper.visibility == View.INVISIBLE
                 ) {
                     showPinyinRowNow()
+                }
+                if (pinyinRowTargetVisible && showAfterPositioned && isVisiblePinyinRowLaidOut()) {
+                    showWhenPositioned(true)
                 }
             }
         })
