@@ -450,7 +450,12 @@ class CandidatesView(
         }
 
     private val compactTopRowHeightPx: Int
-        get() = oneCandidateRowHeightPx * t9TopBottomRowRatioPercent / 100
+        get() {
+            val ratioHeight = oneCandidateRowHeightPx * t9TopBottomRowRatioPercent / 100
+            val dm = ctx.resources.displayMetrics
+            val fontBounds = (compactTopRowFontSizeSp * dm.scaledDensity * 1.35f).roundToInt()
+            return maxOf(ratioHeight, fontBounds + 2 * dpCandidates(itemPaddingVertical))
+        }
 
     /** First compact row: preedit/pinyin preview. */
     private val preeditRowHeightPx: Int get() = compactTopRowHeightPx
@@ -494,9 +499,8 @@ class CandidatesView(
         applyCandidateBubbleShadow()
     }
 
-    /** Bubble 2: second + third rows; width = max of those rows. */
-    private val bubble2Wrapper = LinearLayout(ctx).apply {
-        orientation = LinearLayout.VERTICAL
+    /** Bubble 2: deterministic T9 rows; pinyin row is top, Hanzi row is explicitly offset below it. */
+    private val bubble2Wrapper = FrameLayout(ctx).apply {
         setPadding(dp(windowPadding), dp(windowPadding), dp(windowPadding), dp(windowPadding))
         background = makeBubbleBackground()
         clipToOutline = true
@@ -917,24 +921,7 @@ class CandidatesView(
         pinyinRowWrapper.visibility = View.VISIBLE
         schedulePinyinOverflowHintUpdate()
         if (showAfterPositioned) {
-            showWhenPinyinRowIsLaidOut()
-        }
-    }
-
-    private fun showWhenPinyinRowIsLaidOut() {
-        if (isVisiblePinyinRowLaidOut()) {
             showWhenPositioned(true)
-            return
-        }
-        pinyinRowWrapper.requestLayout()
-        pinyinRowWrapper.post {
-            if (!pinyinRowTargetVisible || !showAfterPositioned) return@post
-            if (isVisiblePinyinRowLaidOut()) {
-                showWhenPositioned(true)
-            } else {
-                shouldUpdatePosition = true
-                requestLayout()
-            }
         }
     }
 
@@ -957,18 +944,15 @@ class CandidatesView(
         pinyinBarView.scaleX = 1f
         pinyinBarView.translationY = 0f
         if (visible) {
-            val wasVisible = pinyinRowWrapper.visibility == View.VISIBLE &&
-                pinyinBarView.visibility == View.VISIBLE
             val widthReady = syncPinyinRowWidthToCandidates()
             setPinyinRowHeight(pinyinBarRowHeightPx)
-            if (widthReady && wasVisible && isVisiblePinyinRowLaidOut()) {
+            if (widthReady) {
                 showPinyinRowNow()
                 return true
             } else {
-                // Product requirement: the pinyin row must never spill into the Hanzi row. When
-                // first shown, Android can draw children before LinearLayout has consumed the new
-                // row height; keep the whole candidate window hidden until a real layout pass
-                // confirms the row has positive height.
+                // Product requirement: the pinyin row must never spill into the Hanzi row. Keep
+                // its vertical reservation deterministic even while width is waiting for the
+                // candidate row's first measured pass.
                 pinyinBarView.visibility = View.INVISIBLE
                 pinyinRowWrapper.visibility = View.INVISIBLE
                 pinyinRowWrapper.post {
@@ -1005,7 +989,7 @@ class CandidatesView(
         if (widthReady) {
             schedulePinyinOverflowHintUpdate()
         }
-        return widthReady && isVisiblePinyinRowLaidOut()
+        return widthReady
     }
 
     private fun setPinyinRowHeight(height: Int) {
@@ -1016,20 +1000,22 @@ class CandidatesView(
                 pinyinBarView.layoutParams = params
             }
         }
-        (pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
-            val bottomMargin = if (height > 0) pinyinToHanziGapPx else 0
-            if (params.height != height || params.bottomMargin != bottomMargin) {
+        (pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+            if (params.height != height) {
                 params.height = height
-                params.bottomMargin = bottomMargin
                 pinyinRowWrapper.layoutParams = params
             }
         }
+        setCandidateRowTopOffset(if (height > 0) height + pinyinToHanziGapPx else 0)
     }
 
-    private fun isVisiblePinyinRowLaidOut(): Boolean {
-        if (!pinyinRowTargetVisible) return true
-        if (pinyinRowWrapper.visibility != View.VISIBLE || pinyinBarView.visibility != View.VISIBLE) return false
-        return pinyinRowWrapper.height >= pinyinBarRowHeightPx && pinyinBarView.height >= pinyinBarRowHeightPx
+    private fun setCandidateRowTopOffset(offset: Int) {
+        (candidateRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+            if (params.topMargin != offset) {
+                params.topMargin = offset
+                candidateRowWrapper.layoutParams = params
+            }
+        }
     }
 
     private fun syncPinyinRowWidthToCandidates(): Boolean {
@@ -1037,7 +1023,7 @@ class CandidatesView(
             ?: lastCandidateRowWidthPx.takeIf { it > 0 }
             ?: return false
         val width = maxOf(candidateWidth, minimumPopulatedPinyinRowWidthPx() ?: 0)
-        (pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
+        (pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
             if (params.width != width) {
                 params.width = width
                 pinyinRowWrapper.layoutParams = params
@@ -1334,17 +1320,16 @@ class CandidatesView(
             preeditRowHeightPx
         ).apply { gravity = Gravity.START or Gravity.TOP })
 
-        // Pinyin bar: width 0 so bubble2 width is driven only by candidates; we sync width after layout
-        bubble2Wrapper.addView(pinyinRowWrapper, LinearLayout.LayoutParams(
+        // Pinyin bar: width 0 so bubble2 width is driven only by candidates; we sync width after layout.
+        bubble2Wrapper.addView(pinyinRowWrapper, FrameLayout.LayoutParams(
             0,
             pinyinBarRowHeightPx
         ).apply {
             gravity = Gravity.START or Gravity.TOP
-            bottomMargin = pinyinToHanziGapPx
         })
-        bubble2Wrapper.addView(candidateRowWrapper, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
+        bubble2Wrapper.addView(candidateRowWrapper, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
         ).apply { gravity = Gravity.START or Gravity.TOP })
         candidatesUi.root.addItemDecoration(object : RecyclerView.ItemDecoration() {
             override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
@@ -1381,17 +1366,14 @@ class CandidatesView(
                 val targetWidth = cw.takeIf { it > 0 }
                     ?.let { maxOf(it, minimumPopulatedPinyinRowWidthPx() ?: 0) }
                     ?: return
-                if ((pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.width != targetWidth) {
-                    (pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.width = targetWidth
+                if ((pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.width != targetWidth) {
+                    (pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.width = targetWidth
                     pinyinRowWrapper.requestLayout()
                 }
                 if (pinyinRowTargetVisible &&
                     pinyinRowWrapper.visibility == View.INVISIBLE
                 ) {
                     showPinyinRowNow()
-                }
-                if (pinyinRowTargetVisible && showAfterPositioned && isVisiblePinyinRowLaidOut()) {
-                    showWhenPositioned(true)
                 }
             }
         })
