@@ -11,6 +11,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.text.Spanned
 import android.text.style.RelativeSizeSpan
+import android.text.style.SubscriptSpan
 import android.view.Gravity
 import android.view.View
 import android.widget.TextView
@@ -37,7 +38,7 @@ class LabeledCandidateItemUi(
     private var lastCandidateLabel = ""
     private var lastCandidateText = ""
     private var lastCandidateComment = ""
-    private var lastUsesShortcutLabel = false
+    private var lastUsesTallShortcutLayout = false
 
     override val root = textView {
         setupTextView(this)
@@ -72,13 +73,15 @@ class LabeledCandidateItemUi(
             0
         }
         val usesShortcutLabel = t9InputModeEnabled && shortcutLabel != null
-        lastUsesShortcutLabel = usesShortcutLabel
+        val usesTallShortcutLayout = usesShortcutLabel && candidate.text.isLatinShortcutCandidate()
+        lastUsesTallShortcutLayout = usesTallShortcutLayout
         root.includeFontPadding = !usesShortcutLabel
         root.setLineSpacing(0f, if (usesShortcutLabel) T9_SHORTCUT_LINE_SPACING else 1f)
-        root.minHeight = if (usesShortcutLabel) {
-            // T9 shortcut labels must look like the old compact two-line chips, but subscript
-            // spans and vertical scaling ask TextView to draw outside its measured height.
-            // Reserve the height explicitly so the rounded candidate bubble never clips them.
+        root.minHeight = if (usesTallShortcutLayout) {
+            // Latin T9 shortcut labels must look like compact two-line chips, but subscript spans
+            // and vertical scaling draw outside TextView's measured height. Reserve that height
+            // only for Latin candidates; Chinese single-character pages should keep their
+            // hand-tuned compact bubble height.
             val verticalPadding = root.paddingTop + root.paddingBottom
             val textHeight = root.textSize * (1f + SHORTCUT_LABEL_SCALE) * T9_SHORTCUT_HEIGHT_MULTIPLIER
             (textHeight + verticalPadding).toInt()
@@ -130,6 +133,14 @@ class LabeledCandidateItemUi(
                     length,
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                 )
+                if (!lastUsesTallShortcutLayout) {
+                    setSpan(
+                        SubscriptSpan(),
+                        start,
+                        length,
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                }
             }
             if (!t9InputModeEnabled && candidate.comment.isNotBlank()) {
                 append(" ")
@@ -156,7 +167,7 @@ class LabeledCandidateItemUi(
     private fun updateHighlight(active: Boolean) {
         val targetAlpha = if (active) 255 else 0
         val targetScale = if (active) ACTIVE_HIGHLIGHT_SCALE else 1f
-        val targetScaleY = if (lastUsesShortcutLabel) 1f else targetScale
+        val targetScaleY = if (lastUsesTallShortcutLayout) 1f else targetScale
         if (lastActive == active && activeBackground.alpha == targetAlpha) {
             root.scaleX = targetScale
             root.scaleY = targetScaleY
@@ -174,5 +185,8 @@ class LabeledCandidateItemUi(
         private const val SHORTCUT_CANDIDATE_MIN_WIDTH_EM = 1.35f
         private const val T9_SHORTCUT_LINE_SPACING = 0.86f
         private const val T9_SHORTCUT_HEIGHT_MULTIPLIER = 1.15f
+
+        private fun String.isLatinShortcutCandidate(): Boolean =
+            isNotEmpty() && all { it in 'A'..'Z' || it in 'a'..'z' || it == '\'' || it == '-' }
     }
 }
