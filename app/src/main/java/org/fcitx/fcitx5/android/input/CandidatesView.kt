@@ -1034,7 +1034,7 @@ class CandidatesView(
         val candidateWidth = firstPositiveCandidateRowWidth()
             ?: lastCandidateRowWidthPx.takeIf { it > 0 }
             ?: return false
-        val width = maxOf(candidateWidth, minimumPopulatedPinyinRowWidthPx() ?: 0)
+        val width = maxOf(candidateWidth, populatedPinyinRowWidthPx() ?: 0)
         (pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
             if (params.width != width) {
                 params.width = width
@@ -1044,11 +1044,12 @@ class CandidatesView(
         return true
     }
 
-    private fun minimumPopulatedPinyinRowWidthPx(): Int? {
-        if (t9PinyinOptionCount <= T9_PINYIN_ROW_MIN_VISIBLE_CHIPS) return null
-        val visiblePinyin = t9RenderedPinyinItems
-            .take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS)
-            .takeIf { it.size >= T9_PINYIN_ROW_MIN_VISIBLE_CHIPS }
+    private fun populatedPinyinRowWidthPx(): Int? {
+        val visiblePinyin = if (t9PinyinOptionCount > T9_PINYIN_ROW_MIN_VISIBLE_CHIPS) {
+            t9RenderedPinyinItems.take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS)
+        } else {
+            t9RenderedPinyinItems
+        }.takeIf { it.isNotEmpty() }
             ?: return null
         val reservesOverflowHint = shouldReservePinyinOverflowHintSpace()
         val paint = t9PinyinMeasurePaint.apply {
@@ -1060,10 +1061,9 @@ class CandidatesView(
             val rightMarginPx = if (index != visiblePinyin.lastIndex || reservesOverflowHint) chipPaddingPx else 0
             textWidthPx + chipPaddingPx * 2 + rightMarginPx
         }
-        // Product decision: the pinyin row should keep a small usability floor without exposing
-        // a clipped fifth chip. A quiet edge ellipsis signals overflow while preserving the
-        // bubble shape the user preferred before the layout experiments. Reserve that hint from
-        // candidate count, because scroll overflow is only known after this width has been chosen.
+        // Product decision: the pinyin row should never show a clipped first frame. Short lists
+        // reserve their full visible content; long lists reserve four chips plus a quiet ellipsis
+        // so the bubble keeps the stable width the user preferred before the layout experiments.
         val overflowHintWidthPx = if (reservesOverflowHint) pinyinOverflowHintReservedWidthPx() else 0
         return (chipWidthPx + overflowHintWidthPx)
             .coerceAtMost(pinyinRowMaxWidthPx())
@@ -1403,7 +1403,7 @@ class CandidatesView(
                     lastCandidateRowWidthPx = cw
                 }
                 val targetWidth = cw.takeIf { it > 0 }
-                    ?.let { maxOf(it, minimumPopulatedPinyinRowWidthPx() ?: 0) }
+                    ?.let { maxOf(it, populatedPinyinRowWidthPx() ?: 0) }
                     ?: return
                 if ((pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.width != targetWidth) {
                     (pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.width = targetWidth
