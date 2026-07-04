@@ -1073,6 +1073,12 @@ class CandidatesView(
             return true
         }
         pinyinRowTargetVisible = visible
+        if (visible &&
+            pinyinRowWrapper.visibility == View.VISIBLE &&
+            pinyinBarView.visibility == View.VISIBLE
+        ) {
+            return syncVisiblePinyinRowLayout()
+        }
         pinyinBarView.alpha = 1f
         pinyinBarView.scaleX = 1f
         pinyinBarView.translationY = 0f

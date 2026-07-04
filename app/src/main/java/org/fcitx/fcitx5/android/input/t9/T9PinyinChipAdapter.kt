@@ -68,13 +68,22 @@ class T9PinyinChipAdapter(
         private set
 
     fun submitList(newCandidates: List<String>): Boolean {
-        val changed = pinyins != newCandidates
-        pinyins = newCandidates
-        highlightedIndex = highlightedIndex.coerceIn(0, (pinyins.lastIndex).coerceAtLeast(0))
-        if (changed) {
-            updateChips()
+        val oldPinyins = pinyins
+        val oldHighlightedIndex = highlightedIndex
+        val nextPinyins = newCandidates.toList()
+        val nextHighlightedIndex = highlightedIndex.coerceIn(0, (nextPinyins.lastIndex).coerceAtLeast(0))
+        val plan = T9PinyinChipUpdatePlanner.plan(
+            oldItems = oldPinyins,
+            newItems = nextPinyins,
+            oldHighlightedIndex = oldHighlightedIndex,
+            newHighlightedIndex = nextHighlightedIndex
+        )
+        pinyins = nextPinyins
+        highlightedIndex = nextHighlightedIndex
+        if (plan.changed) {
+            updateChips(plan)
         }
-        return changed
+        return plan.changed
     }
 
     fun clear() {
@@ -101,7 +110,9 @@ class T9PinyinChipAdapter(
     }
 
     fun scrollToStart() {
-        root.scrollTo(0, 0)
+        if (root.scrollX != 0) {
+            root.scrollTo(0, 0)
+        }
     }
 
     fun scrollToHighlighted() {
@@ -118,21 +129,15 @@ class T9PinyinChipAdapter(
         }
     }
 
-    private fun updateChips() {
+    private fun updateChips(plan: T9PinyinChipUpdatePlanner.Plan) {
         syncChipCount(pinyins.size)
-        pinyins.forEachIndexed { index, pinyin ->
-            bindChip(index, pinyin)
+        plan.bindIndices.forEach { index ->
+            pinyins.getOrNull(index)?.let { bindChip(index, it) }
         }
-        updateAllChips()
+        plan.styleIndices.forEach(::updateChipAt)
     }
 
     private fun syncChipCount(targetSize: Int) {
-        while (chips.size > targetSize) {
-            val lastIndex = chips.lastIndex
-            container.removeViewAt(lastIndex)
-            chips.removeAt(lastIndex)
-            chipBackgrounds.removeAt(lastIndex)
-        }
         while (chips.size < targetSize) {
             val chip = createChip()
             val background = createChipBackground()
@@ -140,6 +145,12 @@ class T9PinyinChipAdapter(
             chips += chip
             chipBackgrounds += background
             container.addView(chip, chipLayoutParams(chips.lastIndex))
+        }
+        chips.forEachIndexed { index, chip ->
+            val targetVisibility = if (index < targetSize) View.VISIBLE else View.GONE
+            if (chip.visibility != targetVisibility) {
+                chip.visibility = targetVisibility
+            }
         }
     }
 
