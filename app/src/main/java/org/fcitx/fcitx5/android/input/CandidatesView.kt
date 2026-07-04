@@ -37,12 +37,15 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidateLoadingState
 import org.fcitx.fcitx5.android.input.t9.T9BulkCandidateLoader
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidatePager
+import org.fcitx.fcitx5.android.input.t9.T9CandidateSnapshots
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiStateBuilder
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiRenderer
 import org.fcitx.fcitx5.android.input.t9.T9PagedCandidates
 import org.fcitx.fcitx5.android.input.t9.T9PinyinChipAdapter
+import org.fcitx.fcitx5.android.input.t9.T9PinyinRowWindow
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
 import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
+import org.fcitx.fcitx5.android.input.t9.T9SmartEnglishPageCache
 import org.fcitx.fcitx5.android.input.t9.T9UiRefreshScheduler
 import splitties.dimensions.dp
 import splitties.views.dsl.constraintlayout.below
@@ -193,7 +196,12 @@ class CandidatesView(
     )
     private var t9ShownUsesLocalBudget = false
     private var t9ShownUsesSmartEnglish = false
-    private val t9SmartEnglishPager = T9CandidatePager()
+    private val t9PinyinRowWindow = T9PinyinRowWindow()
+    private var t9RenderedPinyinWindowStart = 0
+    private var lastRenderedT9Focus = T9CandidateFocus.BOTTOM
+    private val t9SmartEnglishPageCache = T9SmartEnglishPageCache(
+        characterBudget = { t9HanziCharacterBudget }
+    )
     private val t9RefreshScheduler = T9UiRefreshScheduler(
         postRefresh = { block -> postOnAnimation(block) },
         refreshNow = ::updateUi
@@ -358,6 +366,7 @@ class CandidatesView(
             verticalPaddingPx = dpCandidates(itemPaddingVertical),
             rowHeightPx = pinyinBarRowHeightPx,
             cornerRadiusPx = dpCandidates(windowRadius).toFloat(),
+            precreatedChipCount = T9PinyinRowWindow.DEFAULT_MAX_VISIBLE_ITEMS,
             onChipClick = {
                 service.commitT9PinyinSelection(it)
                 updateT9FocusIndicator()
@@ -504,12 +513,15 @@ class CandidatesView(
         paged = FcitxEvent.PagedCandidateEvent.Data.Empty
         resetT9BulkFilterState()
         t9ShownUsesSmartEnglish = false
-        t9SmartEnglishPager.reset()
+        t9SmartEnglishPageCache.reset()
         chineseT9CandidatePipeline.reset()
         t9CandidateUiRenderer.reset()
         chineseT9CandidateLoadingState.reset()
         preeditUi.update(inputPanel)
         preeditUi.root.visibility = GONE
+        t9PinyinRowWindow.clear()
+        t9RenderedPinyinWindowStart = 0
+        lastRenderedT9Focus = T9CandidateFocus.BOTTOM
         setPinyinRowVisible(false)
         service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
         updateT9FocusIndicator()
@@ -544,7 +556,7 @@ class CandidatesView(
         refreshT9Ui()
     }
 
-    fun getHighlightedT9Pinyin(): String? = pinyinBarAdapter.getHighlightedPinyin()
+    fun getHighlightedT9Pinyin(): String? = t9PinyinRowWindow.highlightedPinyin()
 
     fun commitT9HanziShortcut(index: Int): Boolean = selectT9ShownHanziCandidate(index)
 
@@ -577,11 +589,15 @@ class CandidatesView(
     }
 
     fun moveHighlightedT9Pinyin(delta: Int): Boolean {
-        val moved = pinyinBarAdapter.moveHighlightedIndex(delta)
-        if (moved) {
+        val state = t9PinyinRowWindow.move(delta) ?: return false
+        val previousWindowStart = t9RenderedPinyinWindowStart
+        renderPinyinWindow(state)
+        if (state.windowStart == previousWindowStart) {
             pinyinBarAdapter.scrollToHighlighted()
+        } else {
+            pinyinBarAdapter.scrollToStart()
         }
-        return moved
+        return true
     }
 
     fun moveHighlightedT9BottomCandidate(delta: Int): Boolean {
@@ -613,7 +629,7 @@ class CandidatesView(
     }
 
     fun offsetT9BottomCandidatePage(delta: Int): Boolean {
-        if (t9ShownUsesSmartEnglish && t9SmartEnglishPager.hasCandidates) {
+        if (t9ShownUsesSmartEnglish && t9SmartEnglishPageCache.hasCandidates) {
             if (offsetSmartEnglishCandidatePage(delta)) return true
         }
         if (t9ShownUsesPendingPunctuation && t9PendingPunctuationPager.hasCandidates) {
@@ -647,8 +663,13 @@ class CandidatesView(
         focus: T9CandidateFocus = service.getT9CandidateFocus()
     ) {
         val topFocused = focus == T9CandidateFocus.TOP
+        if (topFocused && lastRenderedT9Focus != T9CandidateFocus.TOP) {
+            t9PinyinRowWindow.resetHighlight()?.let(::renderPinyinWindow)
+            pinyinBarAdapter.scrollToStart()
+        }
         pinyinBarAdapter.setHighlightActive(topFocused)
         candidatesUi.setHighlightActive(!topFocused)
+        lastRenderedT9Focus = focus
     }
 
     private fun updateUi() = T9ResponsivenessTrace.measure("CandidatesView.updateUi") {
@@ -757,24 +778,14 @@ class CandidatesView(
     }
 
     private fun offsetSmartEnglishCandidatePage(delta: Int): Boolean {
-        val page = t9SmartEnglishPager.offset(delta) ?: return false
+        val page = t9SmartEnglishPageCache.offset(delta) ?: return false
         val nextOriginalIndex = page.candidates.firstOrNull()?.index ?: return false
         return service.setSmartEnglishCandidateIndex(nextOriginalIndex)
     }
 
     private fun buildSmartEnglishPaged(
         data: FcitxEvent.PagedCandidateEvent.Data
-    ): T9PagedCandidates {
-        val signature = buildT9CandidateSignature(data)
-        t9SmartEnglishPager.update(signature, data.candidates.withIndex().toList(), t9HanziCharacterBudget)
-        val selectedIndex = data.cursorIndex.coerceIn(data.candidates.indices)
-        val page = t9SmartEnglishPager.selectPageContainingOriginalIndex(selectedIndex)
-            ?: return T9PagedCandidates.passthrough(data)
-        return page.toPagedCandidates(
-            layoutHint = data.layoutHint,
-            cursorIndex = page.cursorIndexForOriginalIndex(selectedIndex)
-        )
-    }
+    ): T9PagedCandidates = t9SmartEnglishPageCache.build(data)
 
     private fun buildT9PendingPunctuationPaged(
         data: FcitxEvent.PagedCandidateEvent.Data
@@ -806,12 +817,7 @@ class CandidatesView(
         )
 
     private fun buildT9CandidateSignature(data: FcitxEvent.PagedCandidateEvent.Data): String =
-        buildString {
-            append(t9HanziCharacterBudget).append('|')
-            data.candidates.forEach {
-                append(it.label).append('|').append(it.text).append('|').append(it.comment).append('\n')
-            }
-        }
+        T9CandidateSnapshots.pagerContent(data, t9HanziCharacterBudget)
 
     private fun applyT9BulkFilteredPage(page: T9CandidatePager.Page) {
         t9BulkFilteredPaged = if (page.candidates.isEmpty()) {
@@ -967,16 +973,41 @@ class CandidatesView(
 
     private fun updatePinyinBar(candidates: List<String>, useT9: Boolean): Boolean {
         if (!useT9) {
+            t9PinyinRowWindow.clear()
+            t9RenderedPinyinWindowStart = 0
             return setPinyinRowVisible(false)
         }
         if (candidates.isEmpty()) {
+            t9PinyinRowWindow.clear()
+            t9RenderedPinyinWindowStart = 0
             return setPinyinRowVisible(false)
         }
-        val changed = pinyinBarAdapter.submitList(candidates)
-        val ready = setPinyinRowVisible(true)
-        if (changed) {
-            pinyinBarAdapter.scrollToStart()
+        val state = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.window") {
+            t9PinyinRowWindow.submit(candidates)
         }
+        val previousWindowStart = t9RenderedPinyinWindowStart
+        val ready = renderPinyinWindow(state)
+        if (state.windowStart != previousWindowStart) {
+            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.scroll") {
+                pinyinBarAdapter.scrollToStart()
+            }
+        }
+        return ready
+    }
+
+    private fun renderPinyinWindow(state: T9PinyinRowWindow.VisibleState): Boolean {
+        val changed = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.submit") {
+            pinyinBarAdapter.submitList(state.items, state.highlightedIndex)
+        }
+        val ready = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.visibility") {
+            setPinyinRowVisible(true)
+        }
+        if (changed) {
+            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.scroll") {
+                pinyinBarAdapter.scrollToStart()
+            }
+        }
+        t9RenderedPinyinWindowStart = state.windowStart
         return ready
     }
 

@@ -24,9 +24,41 @@ class T9CandidateUiRendererTest {
         assertEquals(1, delegate.syncPinyinLayoutCount)
     }
 
+    @Test
+    fun unchangedPendingVisibilityDoesNotRequestLayoutAgain() {
+        val delegate = FakeDelegate(pinyinReady = false)
+        val renderer = T9CandidateUiRenderer(delegate)
+
+        renderer.render(state(candidates = paged("a")))
+        renderer.render(state(candidates = paged("a")))
+
+        assertEquals(listOf(false), delegate.showRequests)
+        assertEquals(0, delegate.hideCount)
+    }
+
+    @Test
+    fun pendingVisibilityRequestsAgainWhenContentBecomesReady() {
+        val delegate = FakeDelegate(pinyinReady = false)
+        val renderer = T9CandidateUiRenderer(delegate)
+
+        renderer.render(state(candidates = paged("a")))
+        delegate.pinyinReady = true
+        renderer.render(state(candidates = paged("alphabet")))
+
+        assertEquals(listOf(false, true), delegate.showRequests)
+    }
+
     private class FakeDelegate : T9CandidateUiRenderer.Delegate {
+        constructor()
+        constructor(pinyinReady: Boolean) {
+            this.pinyinReady = pinyinReady
+        }
+
         var renderPinyinCount = 0
         var syncPinyinLayoutCount = 0
+        var pinyinReady = true
+        val showRequests = mutableListOf<Boolean>()
+        var hideCount = 0
 
         override fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean) = Unit
 
@@ -40,19 +72,23 @@ class T9CandidateUiRendererTest {
 
         override fun renderPinyin(pinyinOptions: List<String>, pinyinUseT9: Boolean): Boolean {
             renderPinyinCount += 1
-            return true
+            return pinyinReady
         }
 
         override fun syncPinyinLayout(): Boolean {
             syncPinyinLayoutCount += 1
-            return true
+            return pinyinReady
         }
 
         override fun renderFocus(focus: T9CandidateFocus) = Unit
 
-        override fun showWhenPositioned(contentReady: Boolean) = Unit
+        override fun showWhenPositioned(contentReady: Boolean) {
+            showRequests += contentReady
+        }
 
-        override fun hideCandidateUi() = Unit
+        override fun hideCandidateUi() {
+            hideCount += 1
+        }
     }
 
     private fun state(

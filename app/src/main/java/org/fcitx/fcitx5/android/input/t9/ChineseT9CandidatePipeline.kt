@@ -154,12 +154,7 @@ class ChineseT9CandidatePipeline(
     }
 
     private fun buildCandidateSignature(data: FcitxEvent.PagedCandidateEvent.Data): String =
-        buildString {
-            append(characterBudget()).append('|')
-            data.candidates.forEach {
-                append(it.label).append('|').append(it.text).append('|').append(it.comment).append('\n')
-            }
-        }
+        T9CandidateSnapshots.pagerContent(data, characterBudget())
 
     private fun buildShownCandidateSignature(data: FcitxEvent.PagedCandidateEvent.Data): String =
         buildString {

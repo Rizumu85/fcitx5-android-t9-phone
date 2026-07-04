@@ -11,6 +11,12 @@ import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrie
 class T9CandidateUiRenderer(
     private val delegate: Delegate
 ) {
+    private data class VisibilityRequest(
+        val shouldShow: Boolean,
+        val contentReady: Boolean,
+        val preferAboveCursorAnchor: Boolean
+    )
+
     interface Delegate {
         fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean)
         fun renderPreedit(panel: FcitxEvent.InputPanelEvent.Data)
@@ -27,14 +33,18 @@ class T9CandidateUiRenderer(
     }
 
     private var previousState: T9CandidateRenderState? = null
+    private var previousVisibilityRequest: VisibilityRequest? = null
 
     fun reset() {
         previousState = null
+        previousVisibilityRequest = null
     }
 
     fun render(next: T9CandidateRenderState) {
         val patch = T9CandidateRenderer.diff(previousState, next)
-        delegate.setPreferAboveCursorAnchor(next.preferAboveCursorAnchor)
+        if (previousState?.preferAboveCursorAnchor != next.preferAboveCursorAnchor) {
+            delegate.setPreferAboveCursorAnchor(next.preferAboveCursorAnchor)
+        }
         if (patch.preedit) {
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPreedit") {
                 delegate.renderPreedit(next.panel)
@@ -60,14 +70,19 @@ class T9CandidateUiRenderer(
                     delegate.syncPinyinLayout()
                 }
             }
-            else -> true
+            else -> previousVisibilityRequest?.contentReady ?: true
         }
         if (patch.focus) {
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderFocus") {
                 delegate.renderFocus(next.focus)
             }
         }
-        if (patch.visibility) {
+        val visibilityRequest = VisibilityRequest(
+            shouldShow = next.shouldShow,
+            contentReady = pinyinRowReady,
+            preferAboveCursorAnchor = next.preferAboveCursorAnchor
+        )
+        if (patch.visibility || previousVisibilityRequest != visibilityRequest) {
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderVisibility") {
                 if (next.shouldShow) {
                     delegate.showWhenPositioned(pinyinRowReady)
@@ -75,10 +90,7 @@ class T9CandidateUiRenderer(
                     delegate.hideCandidateUi()
                 }
             }
-        } else if (next.shouldShow && !pinyinRowReady) {
-            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderVisibility") {
-                delegate.showWhenPositioned(false)
-            }
+            previousVisibilityRequest = visibilityRequest
         }
         previousState = next
     }

@@ -19,54 +19,17 @@ data class T9CandidateRenderState(
     val preferAboveCursorAnchor: Boolean,
     val shouldShow: Boolean
 ) {
-    val preeditSignature: String = buildPreeditSignature(panel)
-    val candidateSignature: String = buildCandidateSignature(candidates, orientation, showShortcutLabels)
-    val candidateContentSignature: String = buildCandidateContentSignature(candidates, orientation, showShortcutLabels)
-    val pinyinSignature: String = buildPinyinSignature(pinyinOptions, pinyinUseT9)
-    val visibilitySignature: String = "$shouldShow|$preferAboveCursorAnchor"
-
-    companion object {
-        private fun buildPreeditSignature(data: FcitxEvent.InputPanelEvent.Data): String =
-            buildString {
-                append(data.preedit).append('\n')
-                append(data.auxUp).append('\n')
-                append(data.auxDown)
-            }
-
-        private fun buildCandidateSignature(
-            data: FcitxEvent.PagedCandidateEvent.Data,
-            orientation: FloatingCandidatesOrientation,
-            showShortcutLabels: Boolean
-        ): String =
-            buildString {
-                append(buildCandidateContentSignature(data, orientation, showShortcutLabels))
-                append("cursor=").append(data.cursorIndex)
-            }
-
-        private fun buildCandidateContentSignature(
-            data: FcitxEvent.PagedCandidateEvent.Data,
-            orientation: FloatingCandidatesOrientation,
-            showShortcutLabels: Boolean
-        ): String =
-            buildString {
-                append(orientation.name).append('|')
-                append(showShortcutLabels).append('|')
-                append(data.layoutHint.name).append('|')
-                append(data.hasPrev).append('|').append(data.hasNext).append('\n')
-                data.candidates.forEach {
-                    append(it.label).append('|')
-                    append(it.text).append('|')
-                    append(it.comment).append('\n')
-                }
-            }
-
-        private fun buildPinyinSignature(candidates: List<String>, useT9: Boolean): String =
-            buildString {
-                append(useT9).append('|')
-                candidates.forEach {
-                    append(it).append('\n')
-                }
-            }
+    val preeditSnapshot: T9PreeditSnapshot by lazy(LazyThreadSafetyMode.NONE) {
+        T9CandidateSnapshots.preedit(panel)
+    }
+    val candidateSnapshot: T9CandidatePageSnapshot by lazy(LazyThreadSafetyMode.NONE) {
+        T9CandidateSnapshots.renderCandidates(candidates, orientation, showShortcutLabels)
+    }
+    val pinyinSnapshot: T9PinyinSnapshot by lazy(LazyThreadSafetyMode.NONE) {
+        T9CandidateSnapshots.pinyin(pinyinOptions, pinyinUseT9)
+    }
+    val visibilitySnapshot: T9VisibilitySnapshot by lazy(LazyThreadSafetyMode.NONE) {
+        T9CandidateSnapshots.visibility(shouldShow, preferAboveCursorAnchor)
     }
 }
 
@@ -94,15 +57,18 @@ object T9CandidateRenderer {
                 visibility = true
             )
         }
-        val candidateContentChanged = previous.candidateContentSignature != next.candidateContentSignature
-        val pinyinChanged = previous.pinyinSignature != next.pinyinSignature
+        val previousCandidate = previous.candidateSnapshot
+        val nextCandidate = next.candidateSnapshot
+        val candidateContentChanged = previousCandidate.contentSignature != nextCandidate.contentSignature
+        val pinyinChanged = previous.pinyinSnapshot != next.pinyinSnapshot
         return T9CandidateRenderPatch(
-            preedit = previous.preeditSignature != next.preeditSignature,
-            candidates = previous.candidateSignature != next.candidateSignature,
+            preedit = previous.preeditSnapshot != next.preeditSnapshot,
+            candidates = candidateContentChanged ||
+                previousCandidate.cursorSignature != nextCandidate.cursorSignature,
             candidateContent = candidateContentChanged,
             pinyin = pinyinChanged,
             focus = previous.focus != next.focus || pinyinChanged,
-            visibility = previous.visibilitySignature != next.visibilitySignature
+            visibility = previous.visibilitySnapshot != next.visibilitySnapshot
         )
     }
 }

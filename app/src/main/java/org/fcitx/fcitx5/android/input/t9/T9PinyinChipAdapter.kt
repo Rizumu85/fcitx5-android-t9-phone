@@ -24,6 +24,7 @@ class T9PinyinChipAdapter(
     private val verticalPaddingPx: Int,
     private val rowHeightPx: Int,
     private val cornerRadiusPx: Float,
+    private val precreatedChipCount: Int = 0,
     private val onChipClick: (String) -> Unit
 ) {
 
@@ -64,14 +65,18 @@ class T9PinyinChipAdapter(
         ))
     }
 
+    init {
+        ensureChipCapacity(precreatedChipCount)
+    }
+
     var highlightedIndex: Int = 0
         private set
 
-    fun submitList(newCandidates: List<String>): Boolean {
+    fun submitList(newCandidates: List<String>, newHighlightedIndex: Int = highlightedIndex): Boolean {
         val oldPinyins = pinyins
         val oldHighlightedIndex = highlightedIndex
         val nextPinyins = newCandidates.toList()
-        val nextHighlightedIndex = highlightedIndex.coerceIn(0, (nextPinyins.lastIndex).coerceAtLeast(0))
+        val nextHighlightedIndex = newHighlightedIndex.coerceIn(0, (nextPinyins.lastIndex).coerceAtLeast(0))
         val plan = T9PinyinChipUpdatePlanner.plan(
             oldItems = oldPinyins,
             newItems = nextPinyins,
@@ -80,7 +85,7 @@ class T9PinyinChipAdapter(
         )
         pinyins = nextPinyins
         highlightedIndex = nextHighlightedIndex
-        if (plan.changed) {
+        if (plan.changed || plan.styleIndices.isNotEmpty()) {
             updateChips(plan)
         }
         return plan.changed
@@ -138,19 +143,24 @@ class T9PinyinChipAdapter(
     }
 
     private fun syncChipCount(targetSize: Int) {
-        while (chips.size < targetSize) {
-            val chip = createChip()
-            val background = createChipBackground()
-            chip.background = background
-            chips += chip
-            chipBackgrounds += background
-            container.addView(chip, chipLayoutParams(chips.lastIndex))
-        }
+        ensureChipCapacity(targetSize)
         chips.forEachIndexed { index, chip ->
             val targetVisibility = if (index < targetSize) View.VISIBLE else View.GONE
             if (chip.visibility != targetVisibility) {
                 chip.visibility = targetVisibility
             }
+        }
+    }
+
+    private fun ensureChipCapacity(targetSize: Int) {
+        while (chips.size < targetSize) {
+            val chip = createChip()
+            val background = createChipBackground()
+            chip.background = background
+            chip.visibility = View.GONE
+            chips += chip
+            chipBackgrounds += background
+            container.addView(chip, chipLayoutParams(chips.lastIndex))
         }
     }
 
