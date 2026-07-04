@@ -139,7 +139,12 @@ class T9CandidatePager {
         var used = 0
         candidates.forEach { candidate ->
             val length = T9CandidateBudget.candidateCost(candidate.value.text)
-            if (current.isNotEmpty() && used + length > budget) {
+            // T9 pages map directly to the physical 1-0 shortcuts, so a page must never expose
+            // more candidates than the user can select by number even when short English words
+            // would fit the character budget.
+            if (current.isNotEmpty() &&
+                (used + length > budget || current.size >= T9CandidateBudget.MAX_CANDIDATES_PER_PAGE)
+            ) {
                 pages += current
                 current = mutableListOf()
                 used = 0

@@ -96,6 +96,32 @@ class T9CandidatePagerTest {
         assertArrayEquals(intArrayOf(9, 11), shown.originalIndices)
     }
 
+    @Test
+    fun capsPageSizeToPhysicalShortcutCount() {
+        val pager = T9CandidatePager()
+        val shortWords = listOf(
+            "and", "ane", "bod", "boe", "cod", "coe",
+            "amd", "ame", "bof", "con", "boo", "bon"
+        )
+        pager.update(
+            signature = "short-english",
+            candidates = shortWords.mapIndexed { index, word -> IndexedValue(index, candidate(word)) },
+            characterBudget = 24
+        )
+
+        val first = pager.currentPage()
+        assertNotNull(first)
+        first!!
+        assertEquals(10, first.candidates.size)
+        assertTrue(first.hasNext)
+
+        val second = pager.offset(1)
+        assertNotNull(second)
+        second!!
+        assertEquals(listOf("boo", "bon"), second.candidates.map { it.value.text })
+        assertArrayEquals(intArrayOf(10, 11), second.originalIndices)
+    }
+
     private fun candidate(text: String): FcitxEvent.Candidate =
         FcitxEvent.Candidate(label = "", text = text, comment = "")
 }

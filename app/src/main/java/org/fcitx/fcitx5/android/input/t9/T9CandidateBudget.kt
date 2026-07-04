@@ -6,6 +6,7 @@ package org.fcitx.fcitx5.android.input.t9
 object T9CandidateBudget {
     private const val MIN = 4
     private const val MAX = 24
+    const val MAX_CANDIDATES_PER_PAGE = 10
     const val ENGLISH_WORD_COST = 2
     const val EMOJI_COST = 1
 

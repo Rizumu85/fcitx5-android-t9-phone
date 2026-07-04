@@ -61,6 +61,7 @@ class PagedCandidatesUi(
 
     private val highlightOverflowPaddingPx =
         (highlightCornerRadiusPx * 0.35f).roundToInt().coerceAtLeast(ctx.dp(2))
+    private var shortcutLabelPaddingApplied = false
 
     private sealed class Row {
         data class Candidate(
@@ -219,6 +220,7 @@ class PagedCandidatesUi(
             highlightActive = highlightActive,
             showShortcutLabels = showShortcutLabels
         )
+        updateShortcutLabelOverflowPadding(showShortcutLabels)
         renderRows = newRows
         when {
             layoutChanged -> candidatesAdapter.notifyDataSetChanged()
@@ -242,6 +244,21 @@ class PagedCandidatesUi(
             DiffUtil.calculateDiff(rowDiff(oldRows, newRows))
                 .dispatchUpdatesTo(candidatesAdapter)
         }
+    }
+
+    private fun updateShortcutLabelOverflowPadding(enabled: Boolean) {
+        if (shortcutLabelPaddingApplied == enabled) return
+        shortcutLabelPaddingApplied = enabled
+        val verticalPadding = if (enabled) highlightOverflowPaddingPx else 0
+        // T9 candidates use a scaled two-line label. RecyclerView/Flexbox measures the unscaled
+        // TextView, so the bubble needs a tiny vertical safety inset to keep focus from being
+        // clipped by the rounded outline.
+        root.setPadding(
+            highlightOverflowPaddingPx,
+            verticalPadding,
+            highlightOverflowPaddingPx,
+            verticalPadding
+        )
     }
 
     companion object {
