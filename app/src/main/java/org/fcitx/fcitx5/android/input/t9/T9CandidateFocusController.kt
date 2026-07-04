@@ -21,6 +21,7 @@ class T9CandidateFocusController(
     }
 
     fun moveTo(focus: T9CandidateFocus) {
+        if (current == focus) return
         current = focus
         onFocusChanged()
     }

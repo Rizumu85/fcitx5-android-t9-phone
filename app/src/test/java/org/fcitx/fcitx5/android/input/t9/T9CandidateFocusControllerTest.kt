@@ -22,6 +22,11 @@ class T9CandidateFocusControllerTest {
         assertEquals(T9CandidateFocus.TOP, controller.current)
         assertEquals(1, notifications)
 
+        controller.moveTo(T9CandidateFocus.TOP)
+
+        assertEquals(T9CandidateFocus.TOP, controller.current)
+        assertEquals(1, notifications)
+
         controller.reset()
 
         assertEquals(T9CandidateFocus.BOTTOM, controller.current)

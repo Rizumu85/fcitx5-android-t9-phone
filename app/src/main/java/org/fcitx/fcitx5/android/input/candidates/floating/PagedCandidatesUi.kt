@@ -63,9 +63,17 @@ class PagedCandidatesUi(
         (highlightCornerRadiusPx * 0.35f).roundToInt().coerceAtLeast(ctx.dp(2))
 
     private sealed class Row {
-        data class Candidate(val candidate: FcitxEvent.Candidate) : Row()
+        data class Candidate(
+            val position: Int,
+            val candidate: FcitxEvent.Candidate,
+            val active: Boolean,
+            val inactiveRow: Boolean,
+            val shortcutLabel: String?
+        ) : Row()
         data class Pagination(val hasPrev: Boolean, val hasNext: Boolean) : Row()
     }
+
+    private var renderRows: List<Row> = rowsFor(data, highlightActive, showShortcutLabels)
 
     sealed class UiHolder(open val ui: Ui) : RecyclerView.ViewHolder(ui.root) {
         class Candidate(override val ui: LabeledCandidateItemUi) : UiHolder(ui)
@@ -73,10 +81,12 @@ class PagedCandidatesUi(
     }
 
     private val candidatesAdapter = object : RecyclerView.Adapter<UiHolder>() {
-        override fun getItemCount() =
-            data.candidates.size + (if (showPaginationArrows && (data.hasPrev || data.hasNext)) 1 else 0)
+        override fun getItemCount() = renderRows.size
 
-        override fun getItemViewType(position: Int) = if (position < data.candidates.size) 0 else 1
+        override fun getItemViewType(position: Int) = when (renderRows[position]) {
+            is Row.Candidate -> 0
+            is Row.Pagination -> 1
+        }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): UiHolder {
             return when (viewType) {
@@ -98,16 +108,21 @@ class PagedCandidatesUi(
         override fun onBindViewHolder(holder: UiHolder, position: Int) {
             when (holder) {
                 is UiHolder.Candidate -> {
-                    bindCandidate(holder, position)
+                    val row = candidateRowAt(position)
+                    bindCandidate(holder, row)
                     holder.ui.root.setOnClickListener {
-                        onCandidateClick.invoke(position)
+                        row?.let { onCandidateClick.invoke(it.position) }
                     }
                     holder.ui.root.updateLayoutParams<FlexboxLayoutManager.LayoutParams> {
                         width = if (isVertical) MATCH_PARENT else WRAP_CONTENT
                     }
                 }
                 is UiHolder.Pagination -> {
-                    holder.ui.update(data)
+                    val row = renderRows.getOrNull(position) as? Row.Pagination
+                    holder.ui.update(
+                        hasPrev = row?.hasPrev ?: false,
+                        hasNext = row?.hasNext ?: false
+                    )
                     holder.ui.root.updateLayoutParams<FlexboxLayoutManager.LayoutParams> {
                         flexGrow = 1f
                         width = if (isVertical) MATCH_PARENT else WRAP_CONTENT
@@ -119,7 +134,7 @@ class PagedCandidatesUi(
 
         override fun onBindViewHolder(holder: UiHolder, position: Int, payloads: MutableList<Any>) {
             if (payloads.contains(SelectionPayload) && holder is UiHolder.Candidate) {
-                bindCandidateSelection(holder, position)
+                bindCandidateSelection(holder, candidateRowAt(position))
                 return
             }
             onBindViewHolder(holder, position)
@@ -132,25 +147,25 @@ class PagedCandidatesUi(
             super.onViewRecycled(holder)
         }
 
-        private fun bindCandidate(holder: UiHolder.Candidate, position: Int) {
-            val candidate = data.candidates[position]
+        private fun bindCandidate(holder: UiHolder.Candidate, row: Row.Candidate?) {
+            row ?: return
             holder.ui.update(
-                candidate,
-                active = highlightActive && position == data.cursorIndex,
-                inactiveRow = !highlightActive,
+                row.candidate,
+                active = row.active,
+                inactiveRow = row.inactiveRow,
                 t9InputModeEnabled = t9InputModeEnabled,
-                shortcutLabel = if (showShortcutLabels) shortcutLabelForPosition(position) else null
+                shortcutLabel = row.shortcutLabel
             )
         }
 
-        private fun bindCandidateSelection(holder: UiHolder.Candidate, position: Int) {
-            val candidate = data.candidates[position]
+        private fun bindCandidateSelection(holder: UiHolder.Candidate, row: Row.Candidate?) {
+            row ?: return
             holder.ui.updateSelection(
-                candidate,
-                active = highlightActive && position == data.cursorIndex,
-                inactiveRow = !highlightActive,
+                row.candidate,
+                active = row.active,
+                inactiveRow = row.inactiveRow,
                 t9InputModeEnabled = t9InputModeEnabled,
-                shortcutLabel = if (showShortcutLabels) shortcutLabelForPosition(position) else null
+                shortcutLabel = row.shortcutLabel
             )
         }
     }
@@ -180,17 +195,13 @@ class PagedCandidatesUi(
         orientation: FloatingCandidatesOrientation,
         showShortcutLabels: Boolean = false
     ) {
-        val oldData = this.data
-        val oldRows = rowsFor(oldData)
+        val oldRows = renderRows
         val oldVertical = isVertical
-        val oldShowShortcutLabels = this.showShortcutLabels
-        val oldCursorIndex = oldData.cursorIndex
         val nextVertical = when (orientation) {
             FloatingCandidatesOrientation.Automatic -> data.layoutHint == LayoutHint.Vertical
             else -> orientation == FloatingCandidatesOrientation.Vertical
         }
-        val layoutChanged = oldVertical != nextVertical ||
-            oldShowShortcutLabels != showShortcutLabels
+        val layoutChanged = oldVertical != nextVertical
         this.data = data
         this.showShortcutLabels = showShortcutLabels
         this.isVertical = nextVertical
@@ -203,10 +214,15 @@ class PagedCandidatesUi(
                 alignItems = if (showShortcutLabels) AlignItems.CENTER else AlignItems.BASELINE
             }
         }
-        val newRows = rowsFor(data)
+        val newRows = rowsFor(
+            data = data,
+            highlightActive = highlightActive,
+            showShortcutLabels = showShortcutLabels
+        )
+        renderRows = newRows
         when {
             layoutChanged -> candidatesAdapter.notifyDataSetChanged()
-            oldRows == newRows -> notifyCursorChanged(oldCursorIndex, data.cursorIndex)
+            oldRows == newRows -> Unit
             else -> DiffUtil.calculateDiff(rowDiff(oldRows, newRows))
                 .dispatchUpdatesTo(candidatesAdapter)
         }
@@ -214,9 +230,17 @@ class PagedCandidatesUi(
 
     fun setHighlightActive(active: Boolean) {
         if (highlightActive == active) return
+        val oldRows = renderRows
         highlightActive = active
-        if (data.candidates.isNotEmpty()) {
-            candidatesAdapter.notifyItemRangeChanged(0, data.candidates.size, SelectionPayload)
+        val newRows = rowsFor(
+            data = data,
+            highlightActive = highlightActive,
+            showShortcutLabels = showShortcutLabels
+        )
+        renderRows = newRows
+        if (oldRows != newRows) {
+            DiffUtil.calculateDiff(rowDiff(oldRows, newRows))
+                .dispatchUpdatesTo(candidatesAdapter)
         }
     }
 
@@ -229,22 +253,27 @@ class PagedCandidatesUi(
         private object SelectionPayload
     }
 
-    private fun rowsFor(data: FcitxEvent.PagedCandidateEvent.Data): List<Row> {
-        val rows = data.candidates.map { Row.Candidate(it) }.toMutableList<Row>()
+    private fun candidateRowAt(position: Int): Row.Candidate? =
+        renderRows.getOrNull(position) as? Row.Candidate
+
+    private fun rowsFor(
+        data: FcitxEvent.PagedCandidateEvent.Data,
+        highlightActive: Boolean,
+        showShortcutLabels: Boolean
+    ): List<Row> {
+        val rows = data.candidates.mapIndexed { position, candidate ->
+            Row.Candidate(
+                position = position,
+                candidate = candidate,
+                active = highlightActive && position == data.cursorIndex,
+                inactiveRow = !highlightActive,
+                shortcutLabel = if (showShortcutLabels) shortcutLabelForPosition(position) else null
+            )
+        }.toMutableList<Row>()
         if (showPaginationArrows && (data.hasPrev || data.hasNext)) {
             rows += Row.Pagination(data.hasPrev, data.hasNext)
         }
         return rows
-    }
-
-    private fun notifyCursorChanged(oldCursorIndex: Int, newCursorIndex: Int) {
-        if (oldCursorIndex == newCursorIndex) return
-        if (oldCursorIndex in data.candidates.indices) {
-            candidatesAdapter.notifyItemChanged(oldCursorIndex, SelectionPayload)
-        }
-        if (newCursorIndex in data.candidates.indices) {
-            candidatesAdapter.notifyItemChanged(newCursorIndex, SelectionPayload)
-        }
     }
 
     private fun rowDiff(oldRows: List<Row>, newRows: List<Row>) =
@@ -257,7 +286,7 @@ class PagedCandidatesUi(
                 val old = oldRows[oldItemPosition]
                 val new = newRows[newItemPosition]
                 return when {
-                    old is Row.Candidate && new is Row.Candidate -> old.candidate == new.candidate
+                    old is Row.Candidate && new is Row.Candidate -> old.position == new.position
                     old is Row.Pagination && new is Row.Pagination -> true
                     else -> false
                 }
@@ -265,5 +294,20 @@ class PagedCandidatesUi(
 
             override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean =
                 oldRows[oldItemPosition] == newRows[newItemPosition]
+
+            override fun getChangePayload(oldItemPosition: Int, newItemPosition: Int): Any? {
+                val old = oldRows[oldItemPosition]
+                val new = newRows[newItemPosition]
+                return if (
+                    old is Row.Candidate &&
+                    new is Row.Candidate &&
+                    old.candidate == new.candidate &&
+                    old.shortcutLabel == new.shortcutLabel
+                ) {
+                    SelectionPayload
+                } else {
+                    null
+                }
+            }
         }
 }

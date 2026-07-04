@@ -10,7 +10,6 @@ import android.content.res.ColorStateList
 import android.widget.ImageView
 import androidx.annotation.DrawableRes
 import org.fcitx.fcitx5.android.R
-import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.utils.styledFloat
 import splitties.dimensions.dp
@@ -52,8 +51,8 @@ class PaginationUi(override val ctx: Context, val theme: Theme) : Ui {
         })
     }
 
-    fun update(data: FcitxEvent.PagedCandidateEvent.Data) {
-        prevIcon.alpha = if (data.hasPrev) 1f else disabledAlpha
-        nextIcon.alpha = if (data.hasNext) 1f else disabledAlpha
+    fun update(hasPrev: Boolean, hasNext: Boolean) {
+        prevIcon.alpha = if (hasPrev) 1f else disabledAlpha
+        nextIcon.alpha = if (hasNext) 1f else disabledAlpha
     }
 }
