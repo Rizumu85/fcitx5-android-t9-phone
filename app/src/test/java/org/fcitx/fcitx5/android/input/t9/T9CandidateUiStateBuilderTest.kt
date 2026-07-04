@@ -31,6 +31,17 @@ class T9CandidateUiStateBuilderTest {
     }
 
     @Test
+    fun chineseSurfaceUsesStableBubblePlacement() {
+        val delegate = FakeDelegate(
+            chineseActive = true,
+            smartEnglishActive = false
+        )
+        val result = T9CandidateUiStateBuilder(delegate).build(input())
+
+        assertEquals(false, result?.renderState?.preferAboveCursorAnchor)
+    }
+
+    @Test
     fun smartEnglishSurfaceDoesNotRunChineseCompositionOrFilteringWork() {
         val delegate = FakeDelegate(
             chineseActive = false,

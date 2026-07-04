@@ -10,6 +10,7 @@ import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.text.TextPaint
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -198,6 +199,8 @@ class CandidatesView(
     private var t9ShownUsesSmartEnglish = false
     private val t9PinyinRowWindow = T9PinyinRowWindow()
     private var t9RenderedPinyinWindowStart = 0
+    private var t9RenderedPinyinItems: List<String> = emptyList()
+    private var t9PinyinOptionCount = 0
     private var lastRenderedT9Focus = T9CandidateFocus.BOTTOM
     private val t9SmartEnglishPageCache = T9SmartEnglishPageCache(
         characterBudget = { t9HanziCharacterBudget }
@@ -207,6 +210,7 @@ class CandidatesView(
         refreshNow = ::updateUi
     )
     private var lastCandidateRowWidthPx = 0
+    private val t9PinyinMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
     private val t9CandidateUiRenderer = T9CandidateUiRenderer(object : T9CandidateUiRenderer.Delegate {
         override fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean) {
             this@CandidatesView.preferAboveCursorAnchor = preferAboveCursorAnchor
@@ -521,6 +525,8 @@ class CandidatesView(
         preeditUi.root.visibility = GONE
         t9PinyinRowWindow.clear()
         t9RenderedPinyinWindowStart = 0
+        t9RenderedPinyinItems = emptyList()
+        t9PinyinOptionCount = 0
         lastRenderedT9Focus = T9CandidateFocus.BOTTOM
         setPinyinRowVisible(false)
         service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
@@ -917,6 +923,8 @@ class CandidatesView(
         } else {
             pinyinBarAdapter.clear()
             pinyinBarAdapter.scrollToStart()
+            t9RenderedPinyinItems = emptyList()
+            t9PinyinOptionCount = 0
             pinyinBarView.visibility = View.GONE
             pinyinRowWrapper.visibility = View.GONE
             setPinyinRowHeight(0)
@@ -949,13 +957,47 @@ class CandidatesView(
         val candidateWidth = firstPositiveCandidateRowWidth()
             ?: lastCandidateRowWidthPx.takeIf { it > 0 }
             ?: return false
+        val width = maxOf(candidateWidth, minimumPopulatedPinyinRowWidthPx() ?: 0)
         (pinyinRowWrapper.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
-            if (params.width != candidateWidth) {
-                params.width = candidateWidth
+            if (params.width != width) {
+                params.width = width
                 pinyinRowWrapper.layoutParams = params
             }
         }
         return true
+    }
+
+    private fun minimumPopulatedPinyinRowWidthPx(): Int? {
+        if (t9PinyinOptionCount <= T9_PINYIN_ROW_MIN_VISIBLE_CHIPS) return null
+        val visiblePinyin = t9RenderedPinyinItems
+            .take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS)
+            .takeIf { it.size >= T9_PINYIN_ROW_MIN_VISIBLE_CHIPS }
+            ?: return null
+        val paint = t9PinyinMeasurePaint.apply {
+            textSize = compactTopRowFontSizeSp * ctx.resources.displayMetrics.scaledDensity
+        }
+        val chipPaddingPx = dpCandidates(itemPaddingHorizontal)
+        val chipWidthPx = visiblePinyin.withIndex().sumOf { (index, pinyin) ->
+            val textWidthPx = paint.measureText(pinyin).roundToInt()
+            val rightMarginPx = if (index == visiblePinyin.lastIndex) 0 else chipPaddingPx
+            textWidthPx + chipPaddingPx * 2 + rightMarginPx
+        }
+        // Product decision: keep the old bubble-sized Hanzi row, but give a populated pinyin row
+        // a small usability floor so a one-candidate final page does not hide almost every pinyin.
+        return chipWidthPx
+            .coerceAtMost(pinyinRowMaxWidthPx())
+            .coerceAtLeast(1)
+    }
+
+    private fun pinyinRowMaxWidthPx(): Int {
+        val parentWidthPx = parentSize[0].roundToInt()
+            .takeIf { it > 0 }
+            ?: ctx.resources.displayMetrics.widthPixels
+        val outerMaxWidthPx = maxWidth
+            .takeIf { it > 0 }
+            ?: (parentWidthPx - horizontalMarginPx * 2).coerceAtLeast(1)
+        return (outerMaxWidthPx - paddingLeft - paddingRight - dp(windowPadding) * 2)
+            .coerceAtLeast(1)
     }
 
     private fun firstPositiveCandidateRowWidth(): Int? {
@@ -975,13 +1017,18 @@ class CandidatesView(
         if (!useT9) {
             t9PinyinRowWindow.clear()
             t9RenderedPinyinWindowStart = 0
+            t9RenderedPinyinItems = emptyList()
+            t9PinyinOptionCount = 0
             return setPinyinRowVisible(false)
         }
         if (candidates.isEmpty()) {
             t9PinyinRowWindow.clear()
             t9RenderedPinyinWindowStart = 0
+            t9RenderedPinyinItems = emptyList()
+            t9PinyinOptionCount = 0
             return setPinyinRowVisible(false)
         }
+        t9PinyinOptionCount = candidates.size
         val state = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.window") {
             t9PinyinRowWindow.submit(candidates)
         }
@@ -996,6 +1043,7 @@ class CandidatesView(
     }
 
     private fun renderPinyinWindow(state: T9PinyinRowWindow.VisibleState): Boolean {
+        t9RenderedPinyinItems = state.items
         val changed = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.submit") {
             pinyinBarAdapter.submitList(state.items, state.highlightedIndex)
         }
@@ -1225,5 +1273,6 @@ class CandidatesView(
     companion object {
         private const val T9_BULK_FILTER_LIMIT = 80
         private const val T9_PINYIN_TO_HANZI_GAP_DP = 2
+        private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
     }
 }

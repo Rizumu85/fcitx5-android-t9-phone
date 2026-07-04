@@ -219,14 +219,10 @@ class T9CandidateUiStateBuilder(
                     Surface.OTHER -> null
                 }
             }
-            val nextPreferAboveCursorAnchor = input.t9InputModeEnabled &&
-                delegate.isChineseT9InputModeActive() &&
-                (
-                    pendingPunctuationPaged != null ||
-                        compositionKeyCount > 0 ||
-                        t9State?.topReading?.isNotEmpty() == true ||
-                        t9State?.pinyinRowVisible == true
-                    )
+            // Product decision: Chinese T9 should use the same stable bubble placement as Smart
+            // English. Anchoring above the cursor made Chinese composition feel like a different
+            // UI surface and was called out as visually wrong after the layout-experiment revert.
+            val nextPreferAboveCursorAnchor = false
             val panelToShow = if (suppressEmptyT9Candidates) {
                 delegate.clearHiddenChineseT9CompositionIfCandidateUiSuppressed()
                 FcitxEvent.InputPanelEvent.Data()
