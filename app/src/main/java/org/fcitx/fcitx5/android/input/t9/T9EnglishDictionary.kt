@@ -221,6 +221,7 @@ class T9EnglishDictionary {
         if (separator <= 0 || separator == raw.lastIndex) return null
         val word = raw.substring(0, separator)
         val frequency = raw.substring(separator + 1).toIntOrNull() ?: return null
+        if (frequency <= 0) return null
         return BuiltInWord(word, frequency)
     }
 
