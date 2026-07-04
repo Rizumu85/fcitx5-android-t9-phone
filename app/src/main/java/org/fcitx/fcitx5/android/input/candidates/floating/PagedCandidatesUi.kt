@@ -5,7 +5,6 @@
 
 package org.fcitx.fcitx5.android.input.candidates.floating
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
 import android.view.View
@@ -14,6 +13,7 @@ import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.TextView
 import androidx.core.view.updateLayoutParams
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.flexbox.AlignItems
 import com.google.android.flexbox.FlexDirection
@@ -62,6 +62,11 @@ class PagedCandidatesUi(
     private val highlightOverflowPaddingPx =
         (highlightCornerRadiusPx * 0.35f).roundToInt().coerceAtLeast(ctx.dp(2))
 
+    private sealed class Row {
+        data class Candidate(val candidate: FcitxEvent.Candidate) : Row()
+        data class Pagination(val hasPrev: Boolean, val hasNext: Boolean) : Row()
+    }
+
     sealed class UiHolder(open val ui: Ui) : RecyclerView.ViewHolder(ui.root) {
         class Candidate(override val ui: LabeledCandidateItemUi) : UiHolder(ui)
         class Pagination(override val ui: PaginationUi) : UiHolder(ui)
@@ -73,7 +78,7 @@ class PagedCandidatesUi(
         }
 
         override fun getItemId(position: Int): Long =
-            data.candidates.getOrNull(position).hashCode().toLong()
+            data.candidates.getOrNull(position)?.hashCode()?.toLong() ?: PaginationRowId
 
         override fun getItemCount() =
             data.candidates.size + (if (showPaginationArrows && (data.hasPrev || data.hasNext)) 1 else 0)
@@ -154,18 +159,25 @@ class PagedCandidatesUi(
         setPadding(highlightOverflowPaddingPx, 0, highlightOverflowPaddingPx, 0)
     }
 
-    @SuppressLint("NotifyDataSetChanged")
     fun update(
         data: FcitxEvent.PagedCandidateEvent.Data,
         orientation: FloatingCandidatesOrientation,
         showShortcutLabels: Boolean = false
     ) {
-        this.data = data
-        this.showShortcutLabels = showShortcutLabels
-        this.isVertical = when (orientation) {
+        val oldData = this.data
+        val oldRows = rowsFor(oldData)
+        val oldVertical = isVertical
+        val oldShowShortcutLabels = this.showShortcutLabels
+        val oldCursorIndex = oldData.cursorIndex
+        val nextVertical = when (orientation) {
             FloatingCandidatesOrientation.Automatic -> data.layoutHint == LayoutHint.Vertical
             else -> orientation == FloatingCandidatesOrientation.Vertical
         }
+        val layoutChanged = oldVertical != nextVertical ||
+            oldShowShortcutLabels != showShortcutLabels
+        this.data = data
+        this.showShortcutLabels = showShortcutLabels
+        this.isVertical = nextVertical
         candidatesLayoutManager.apply {
             if (isVertical) {
                 flexDirection = FlexDirection.COLUMN
@@ -175,20 +187,66 @@ class PagedCandidatesUi(
                 alignItems = if (showShortcutLabels) AlignItems.CENTER else AlignItems.BASELINE
             }
         }
-        candidatesAdapter.notifyDataSetChanged()
+        val newRows = rowsFor(data)
+        when {
+            layoutChanged -> candidatesAdapter.notifyDataSetChanged()
+            oldRows == newRows -> notifyCursorChanged(oldCursorIndex, data.cursorIndex)
+            else -> DiffUtil.calculateDiff(rowDiff(oldRows, newRows))
+                .dispatchUpdatesTo(candidatesAdapter)
+        }
     }
 
-    @SuppressLint("NotifyDataSetChanged")
     fun setHighlightActive(active: Boolean) {
         if (highlightActive == active) return
         highlightActive = active
-        candidatesAdapter.notifyDataSetChanged()
+        if (data.candidates.isNotEmpty()) {
+            candidatesAdapter.notifyItemRangeChanged(0, data.candidates.size)
+        }
     }
 
     companion object {
+        private const val PaginationRowId = Long.MIN_VALUE
         private val shortcutLabels = arrayOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
 
         private fun shortcutLabelForPosition(position: Int): String? =
             shortcutLabels.getOrNull(position)
     }
+
+    private fun rowsFor(data: FcitxEvent.PagedCandidateEvent.Data): List<Row> {
+        val rows = data.candidates.map { Row.Candidate(it) }.toMutableList<Row>()
+        if (showPaginationArrows && (data.hasPrev || data.hasNext)) {
+            rows += Row.Pagination(data.hasPrev, data.hasNext)
+        }
+        return rows
+    }
+
+    private fun notifyCursorChanged(oldCursorIndex: Int, newCursorIndex: Int) {
+        if (oldCursorIndex == newCursorIndex) return
+        if (oldCursorIndex in data.candidates.indices) {
+            candidatesAdapter.notifyItemChanged(oldCursorIndex)
+        }
+        if (newCursorIndex in data.candidates.indices) {
+            candidatesAdapter.notifyItemChanged(newCursorIndex)
+        }
+    }
+
+    private fun rowDiff(oldRows: List<Row>, newRows: List<Row>) =
+        object : DiffUtil.Callback() {
+            override fun getOldListSize(): Int = oldRows.size
+
+            override fun getNewListSize(): Int = newRows.size
+
+            override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                val old = oldRows[oldItemPosition]
+                val new = newRows[newItemPosition]
+                return when {
+                    old is Row.Candidate && new is Row.Candidate -> old.candidate == new.candidate
+                    old is Row.Pagination && new is Row.Pagination -> true
+                    else -> false
+                }
+            }
+
+            override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean =
+                oldRows[oldItemPosition] == newRows[newItemPosition]
+        }
 }
