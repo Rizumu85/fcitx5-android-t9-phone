@@ -97,10 +97,6 @@ class T9PinyinChipAdapter(
 
     fun getHighlightedPinyin(): String? = pinyins.getOrNull(highlightedIndex)
 
-    fun contentWidthPx(): Int? =
-        container.width.takeIf { it > 0 }
-            ?: container.measuredWidth.takeIf { it > 0 }
-
     fun setHighlightActive(active: Boolean) {
         if (highlightActive == active) return
         highlightActive = active

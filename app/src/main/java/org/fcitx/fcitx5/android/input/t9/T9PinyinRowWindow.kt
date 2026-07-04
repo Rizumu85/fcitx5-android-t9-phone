@@ -41,6 +41,9 @@ class T9PinyinRowWindow(
         return visibleState()
     }
 
+    fun currentState(): VisibleState? =
+        if (items.isEmpty()) null else visibleState()
+
     fun move(delta: Int): VisibleState? {
         if (items.isEmpty()) return null
         val nextIndex = (highlightedIndex + delta).coerceIn(0, items.lastIndex)

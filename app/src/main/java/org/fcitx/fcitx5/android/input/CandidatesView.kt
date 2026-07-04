@@ -702,6 +702,7 @@ class CandidatesView(
             t9PinyinRowWindow.resetHighlight()?.let(::renderPinyinWindow)
             pinyinBarAdapter.scrollToStart()
         } else if (!topFocused) {
+            t9PinyinRowWindow.currentState()?.let(::renderPinyinWindow)
             pinyinRowWrapper.post(::updatePinyinOverflowHintFromLayout)
         }
         pinyinBarAdapter.setHighlightActive(topFocused)
@@ -1041,6 +1042,14 @@ class CandidatesView(
         val visiblePinyin = t9RenderedPinyinItems.takeIf { it.isNotEmpty() }
             ?: return null
         val maxWidthPx = pinyinRowMaxWidthPx()
+        if (visiblePinyin.size > T9_PINYIN_ROW_MIN_VISIBLE_CHIPS) {
+            return pinyinItemsWidthPx(
+                visiblePinyin.take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS),
+                reservesOverflowHint = true
+            )
+                .coerceAtMost(maxWidthPx)
+                .coerceAtLeast(1)
+        }
         val fullContentWidthPx = pinyinItemsWidthPx(
             visiblePinyin,
             reservesOverflowHint = false
@@ -1077,23 +1086,7 @@ class CandidatesView(
     }
 
     private fun shouldShowPinyinOverflowHint(): Boolean =
-        pinyinRenderedContentExceedsViewport()
-
-    private fun pinyinRenderedContentExceedsViewport(): Boolean {
-        if (t9RenderedPinyinItems.isEmpty()) return false
-        val viewportWidthPx = pinyinRowViewportWidthPx() ?: pinyinRowMaxWidthPx()
-        val contentWidthPx = pinyinBarAdapter.contentWidthPx()
-            ?: pinyinItemsWidthPx(t9RenderedPinyinItems, reservesOverflowHint = false)
-        // Product decision: do not show a hint for ordinary short rows, but when a long pinyin
-        // filter row is squeezed to its exact measured edge, Android text layout and focus scale
-        // can still clip the final chip. Treat that edge as hidden content.
-        val edgeGuardPx = if (t9RenderedPinyinItems.size > T9_PINYIN_ROW_MIN_VISIBLE_CHIPS) {
-            dp(T9_PINYIN_ROW_OVERFLOW_EDGE_GUARD_DP)
-        } else {
-            0
-        }
-        return contentWidthPx + edgeGuardPx > viewportWidthPx
-    }
+        t9RenderedPinyinItems.size > T9_PINYIN_ROW_MIN_VISIBLE_CHIPS
 
     private fun pinyinRowViewportWidthPx(): Int? {
         pinyinRowWrapper.width.takeIf { it > 0 }?.let { return it }
@@ -1119,7 +1112,7 @@ class CandidatesView(
             pinyinOverflowHint.visibility = targetVisibility
         }
         val rightPadding = when {
-            visible -> pinyinOverflowHintRightPaddingPx()
+            visible -> pinyinOverflowHintReservedWidthPx()
             service.getT9CandidateFocus() == T9CandidateFocus.TOP && pinyinRowTargetVisible ->
                 dp(T9_PINYIN_ROW_FOCUSED_END_GAP_DP)
             else -> 0
@@ -1128,20 +1121,6 @@ class CandidatesView(
             pinyinBarView.setPadding(0, 0, rightPadding, 0)
         }
         pinyinBarView.clipToPadding = rightPadding > 0
-    }
-
-    private fun pinyinOverflowHintRightPaddingPx(): Int {
-        val hintWidthPx = pinyinOverflowHintReservedWidthPx()
-        val viewportWidthPx = pinyinRowViewportWidthPx() ?: return hintWidthPx
-        val comfortablePrefixWidthPx = pinyinItemsWidthPx(
-            t9RenderedPinyinItems.take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS),
-            reservesOverflowHint = false
-        ) + dp(T9_PINYIN_ROW_OVERFLOW_CHIP_GAP_DP)
-        // Product decision: when the ellipsis is visible it is the overflow affordance, so we
-        // avoid also exposing a clipped fifth chip as a second, noisier hint.
-        return (viewportWidthPx - comfortablePrefixWidthPx)
-            .coerceAtLeast(hintWidthPx)
-            .coerceAtMost(viewportWidthPx)
     }
 
     private fun schedulePinyinOverflowHintUpdate() {
@@ -1244,11 +1223,19 @@ class CandidatesView(
 
     private fun renderPinyinWindow(state: T9PinyinRowWindow.VisibleState): Boolean {
         t9RenderedPinyinItems = state.items
-        updatePinyinOverflowHint(
-            service.getT9CandidateFocus() != T9CandidateFocus.TOP && shouldShowPinyinOverflowHint()
+        val hintVisible = service.getT9CandidateFocus() != T9CandidateFocus.TOP && shouldShowPinyinOverflowHint()
+        updatePinyinOverflowHint(hintVisible)
+        val displayedItems = if (hintVisible) {
+            state.items.take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS)
+        } else {
+            state.items
+        }
+        val displayedHighlight = state.highlightedIndex.coerceIn(
+            0,
+            (displayedItems.lastIndex).coerceAtLeast(0)
         )
         val changed = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.submit") {
-            pinyinBarAdapter.submitList(state.items, state.highlightedIndex)
+            pinyinBarAdapter.submitList(displayedItems, displayedHighlight)
         }
         schedulePinyinOverflowHintUpdate()
         val ready = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.visibility") {
@@ -1483,8 +1470,6 @@ class CandidatesView(
         private const val T9_PINYIN_TO_HANZI_GAP_DP = 2
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
         private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 18
-        private const val T9_PINYIN_ROW_OVERFLOW_EDGE_GUARD_DP = 8
-        private const val T9_PINYIN_ROW_OVERFLOW_CHIP_GAP_DP = 12
         private const val T9_PINYIN_ROW_FOCUSED_END_GAP_DP = 10
     }
 }
