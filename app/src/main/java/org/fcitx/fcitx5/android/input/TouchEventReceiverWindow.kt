@@ -27,8 +27,10 @@ class TouchEventReceiverWindow(
     }
 
     private var isWindowShowing = false
+    private var dismissGeneration = 0
 
     fun showAt(x: Int, y: Int, w: Int, h: Int) {
+        dismissGeneration += 1
         isWindowShowing = true
         if (window.isShowing) {
             window.update(x, y, w, h)
@@ -49,6 +51,21 @@ class TouchEventReceiverWindow(
     }
 
     fun dismiss() {
+        dismissGeneration += 1
+        dismissNow()
+    }
+
+    fun dismissDeferred() {
+        if (!isWindowShowing) return
+        val generation = ++dismissGeneration
+        contentView.post {
+            if (dismissGeneration == generation) {
+                dismissNow()
+            }
+        }
+    }
+
+    private fun dismissNow() {
         if (isWindowShowing) {
             isWindowShowing = false
             window.dismiss()

@@ -5,6 +5,9 @@
 
 package org.fcitx.fcitx5.android.input.t9
 
+import java.util.concurrent.Executor
+import java.util.concurrent.Executors
+import java.util.concurrent.ConcurrentHashMap
 import timber.log.Timber
 
 object T9ResponsivenessTrace {
@@ -23,7 +26,8 @@ object T9ResponsivenessTrace {
             get() = if (count == 0) 0 else totalNanos / count
     }
 
-    private data class Config(
+    @PublishedApi
+    internal data class Config(
         val enabled: Boolean = false,
         val slowThresholdNanos: Long = SlowSectionThresholdNanos,
         val aggregationWindow: Int = DefaultAggregationWindow
@@ -34,17 +38,47 @@ object T9ResponsivenessTrace {
         var slowCount: Int = 0,
         var totalNanos: Long = 0L,
         var minNanos: Long = Long.MAX_VALUE,
-        var maxNanos: Long = 0L
+        var maxNanos: Long = 0L,
+        var firstSlowSampleNanos: Long? = null
     ) {
-        fun add(elapsedNanos: Long, slowThresholdNanos: Long) {
+        fun add(
+            section: String,
+            elapsedNanos: Long,
+            slowThresholdNanos: Long,
+            aggregationWindow: Int
+        ): RecordResult? = synchronized(this) {
             count += 1
             totalNanos += elapsedNanos
             minNanos = minOf(minNanos, elapsedNanos)
             maxNanos = maxOf(maxNanos, elapsedNanos)
-            if (elapsedNanos >= slowThresholdNanos) slowCount += 1
+            if (elapsedNanos >= slowThresholdNanos) {
+                slowCount += 1
+                if (firstSlowSampleNanos == null) {
+                    firstSlowSampleNanos = elapsedNanos
+                }
+            }
+            if (count < aggregationWindow) {
+                null
+            } else {
+                RecordResult(
+                    summary = toSummary(section),
+                    firstSlowSampleNanos = firstSlowSampleNanos
+                ).also {
+                    reset()
+                }
+            }
         }
 
-        fun toSummary(section: String): SectionSummary = SectionSummary(
+        private fun reset() {
+            count = 0
+            slowCount = 0
+            totalNanos = 0L
+            minNanos = Long.MAX_VALUE
+            maxNanos = 0L
+            firstSlowSampleNanos = null
+        }
+
+        private fun toSummary(section: String): SectionSummary = SectionSummary(
             section = section,
             count = count,
             slowCount = slowCount,
@@ -54,38 +88,48 @@ object T9ResponsivenessTrace {
         )
     }
 
-    private val lock = Any()
-    private val stats = mutableMapOf<String, MutableSectionStats>()
+    @PublishedApi
+    internal data class RecordResult(
+        val summary: SectionSummary,
+        val firstSlowSampleNanos: Long?
+    )
+
+    private val summaryLock = Any()
+    private val stats = ConcurrentHashMap<String, MutableSectionStats>()
     private val latestSummaries = linkedMapOf<String, SectionSummary>()
+    private val logExecutor: Executor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "T9ResponsivenessTrace").apply { isDaemon = true }
+    }
 
     @Volatile
-    private var config = Config()
+    @PublishedApi
+    internal var config = Config()
 
     fun configure(
         enabled: Boolean,
         slowThresholdNanos: Long = SlowSectionThresholdNanos,
         aggregationWindow: Int = DefaultAggregationWindow
     ) {
-        synchronized(lock) {
-            config = Config(
-                enabled = enabled,
-                slowThresholdNanos = slowThresholdNanos.coerceAtLeast(1L),
-                aggregationWindow = aggregationWindow.coerceAtLeast(1)
-            )
-            stats.clear()
+        config = Config(
+            enabled = enabled,
+            slowThresholdNanos = slowThresholdNanos.coerceAtLeast(1L),
+            aggregationWindow = aggregationWindow.coerceAtLeast(1)
+        )
+        stats.clear()
+        synchronized(summaryLock) {
             latestSummaries.clear()
         }
     }
 
     fun reset() {
-        synchronized(lock) {
-            stats.clear()
+        stats.clear()
+        synchronized(summaryLock) {
             latestSummaries.clear()
         }
     }
 
     fun latestSummaries(): List<SectionSummary> =
-        synchronized(lock) {
+        synchronized(summaryLock) {
             latestSummaries.values.toList()
         }
 
@@ -96,56 +140,67 @@ object T9ResponsivenessTrace {
     internal fun slowThresholdNanos(): Long = config.slowThresholdNanos
 
     inline fun <T> measure(section: String, block: () -> T): T {
-        if (!enabled()) return block()
+        val activeConfig = config
+        if (!activeConfig.enabled) return block()
         val start = System.nanoTime()
         return try {
             block()
         } finally {
             val elapsed = System.nanoTime() - start
-            if (elapsed >= slowThresholdNanos()) {
-                logSlowSample(section, elapsed)
+            recordForMeasure(section, elapsed, activeConfig)?.let { result ->
+                result.firstSlowSampleNanos?.let { logSlowSample(section, it) }
+                logSummary(result.summary)
             }
-            record(section, elapsed)?.let(::logSummary)
         }
     }
 
+    internal fun record(section: String, elapsedNanos: Long): SectionSummary? =
+        recordForMeasure(section, elapsedNanos, config)?.summary
+
     @PublishedApi
-    internal fun record(section: String, elapsedNanos: Long): SectionSummary? {
-        val activeConfig = config
+    internal fun recordForMeasure(section: String, elapsedNanos: Long, activeConfig: Config): RecordResult? {
         if (!activeConfig.enabled) return null
-        return synchronized(lock) {
-            val sectionStats = stats.getOrPut(section) { MutableSectionStats() }
-            sectionStats.add(elapsedNanos, activeConfig.slowThresholdNanos)
-            if (sectionStats.count >= activeConfig.aggregationWindow) {
-                sectionStats.toSummary(section).also {
-                    stats.remove(section)
-                    latestSummaries[section] = it
-                }
-            } else {
-                null
+        val result = stats.getOrPut(section) { MutableSectionStats() }.add(
+            section = section,
+            elapsedNanos = elapsedNanos,
+            slowThresholdNanos = activeConfig.slowThresholdNanos,
+            aggregationWindow = activeConfig.aggregationWindow
+        ) ?: return null
+        synchronized(summaryLock) {
+            latestSummaries[result.summary.section] = result.summary
+            while (latestSummaries.size > MAX_LATEST_SUMMARIES) {
+                val first = latestSummaries.keys.firstOrNull() ?: break
+                latestSummaries.remove(first)
             }
         }
+        return result
     }
 
     @PublishedApi
     internal fun logSummary(summary: SectionSummary) {
-        Timber.d(
-            "T9 responsiveness: %s count=%d avg=%.2f ms min=%.2f ms max=%.2f ms slow=%d",
-            summary.section,
-            summary.count,
-            summary.averageNanos / 1_000_000.0,
-            summary.minNanos / 1_000_000.0,
-            summary.maxNanos / 1_000_000.0,
-            summary.slowCount
-        )
+        logExecutor.execute {
+            Timber.d(
+                "T9 responsiveness: %s count=%d avg=%.2f ms min=%.2f ms max=%.2f ms slow=%d",
+                summary.section,
+                summary.count,
+                summary.averageNanos / 1_000_000.0,
+                summary.minNanos / 1_000_000.0,
+                summary.maxNanos / 1_000_000.0,
+                summary.slowCount
+            )
+        }
     }
 
     @PublishedApi
     internal fun logSlowSample(section: String, elapsedNanos: Long) {
-        Timber.d(
-            "T9 responsiveness slow sample: %s took %.2f ms",
-            section,
-            elapsedNanos / 1_000_000.0
-        )
+        logExecutor.execute {
+            Timber.d(
+                "T9 responsiveness slow sample: %s took %.2f ms",
+                section,
+                elapsedNanos / 1_000_000.0
+            )
+        }
     }
+
+    private const val MAX_LATEST_SUMMARIES = 96
 }

@@ -112,6 +112,7 @@
     <string name="status_area_theme">皮肤主题</string>
     <string name="status_action">功能</string>
     <string name="rime_status_menu">词库切换</string>
+    <string name="status_action_current_item">%1$s · 当前</string>
     <string name="key_ripple_effect">启用按键水波纹特效</string>
     <string name="key_border">启用按键边框</string>
     <string name="brightness">亮度</string>
@@ -336,7 +337,7 @@
     <string name="candidates_item_spacing">候选词项之间的间距</string>
     <string name="candidates_small_row_percent">第一/二行高度（占候选行%）</string>
     <string name="candidates_t9_top_bottom_row_ratio">T9上下行高度比例</string>
-    <string name="candidates_t9_hanzi_character_budget">T9汉字行字符预算</string>
+    <string name="candidates_t9_hanzi_character_budget">T9候选气泡宽度</string>
     <string name="restart_fcitx_instance">重启 Fcitx 实例</string>
     <string name="restart_fcitx_instance_confirm">Fcitx 实例将被销毁并重新初始化。继续吗？</string>
     <string name="ignore_system_window_insets">忽略系统窗口边衬区 (WindowInsets)</string>

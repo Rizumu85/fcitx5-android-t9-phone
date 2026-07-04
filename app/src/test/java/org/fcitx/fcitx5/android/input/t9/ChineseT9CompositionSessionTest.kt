@@ -74,4 +74,34 @@ class ChineseT9CompositionSessionTest {
         assertEquals("26", session.unresolvedDigits)
         assertEquals("26", session.rawPreedit)
     }
+
+    @Test
+    fun revisionChangesWhenPresentationStateChanges() {
+        val session = ChineseT9CompositionSession()
+        val initial = session.revision
+
+        session.appendDigit('6')
+        val afterDigit = session.revision
+        session.syncFromPreedit("6")
+
+        assertTrue(afterDigit > initial)
+        assertEquals(afterDigit, session.revision)
+
+        session.selectPinyin("m")!!
+
+        assertTrue(session.revision > afterDigit)
+    }
+
+    @Test
+    fun emptyDisplayPreeditDoesNotClearAuthoritativeTypedDigits() {
+        val session = ChineseT9CompositionSession()
+        session.appendDigit('6')
+        session.syncFromPreedit("o")
+
+        session.syncFromPreedit("")
+
+        assertEquals("6", session.rawSequence())
+        assertEquals("6", session.currentSegment { raw, _ -> raw })
+        assertEquals(1, session.keyCount())
+    }
 }

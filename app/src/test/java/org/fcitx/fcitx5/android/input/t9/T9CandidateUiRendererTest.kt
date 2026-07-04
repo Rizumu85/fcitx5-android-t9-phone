@@ -13,15 +13,15 @@ import org.junit.Test
 class T9CandidateUiRendererTest {
 
     @Test
-    fun candidateContentChangeSyncsPinyinLayoutWithoutRebindingPinyinContent() {
+    fun visiblePinyinRowIsEnsuredOnEveryRender() {
         val delegate = FakeDelegate()
         val renderer = T9CandidateUiRenderer(delegate)
 
         renderer.render(state(candidates = paged("a")))
         renderer.render(state(candidates = paged("alphabet")))
 
-        assertEquals(1, delegate.renderPinyinCount)
-        assertEquals(1, delegate.syncPinyinLayoutCount)
+        assertEquals(2, delegate.renderPinyinCount)
+        assertEquals(0, delegate.syncPinyinLayoutCount)
     }
 
     @Test
@@ -37,15 +37,71 @@ class T9CandidateUiRendererTest {
     }
 
     @Test
-    fun pendingVisibilityRequestsAgainWhenContentBecomesReady() {
+    fun pendingVisibilityRequestsAgainWhenEnsuredPinyinContentBecomesReady() {
         val delegate = FakeDelegate(pinyinReady = false)
         val renderer = T9CandidateUiRenderer(delegate)
 
         renderer.render(state(candidates = paged("a")))
         delegate.pinyinReady = true
-        renderer.render(state(candidates = paged("alphabet")))
+        renderer.render(state(candidates = paged("a")))
 
         assertEquals(listOf(false, true), delegate.showRequests)
+    }
+
+    @Test
+    fun visibleCandidateContentChangeDoesNotRequestVisibilityAgain() {
+        val delegate = FakeDelegate()
+        val renderer = T9CandidateUiRenderer(delegate)
+
+        renderer.render(state(candidates = paged("a")))
+        renderer.render(state(candidates = paged("alphabet")))
+
+        assertEquals(listOf(true), delegate.showRequests)
+    }
+
+    @Test
+    fun hidingPanelSkipsInternalPinyinRowCollapse() {
+        val delegate = FakeDelegate()
+        val renderer = T9CandidateUiRenderer(delegate)
+
+        renderer.render(state(candidates = paged("a"), pinyinOptions = listOf("a")))
+        renderer.render(state(candidates = emptyPaged(), pinyinOptions = emptyList(), shouldShow = false))
+
+        assertEquals(listOf("renderPinyin", "show", "hide"), delegate.events)
+        assertEquals(1, delegate.renderPinyinCount)
+        assertEquals(1, delegate.hideCount)
+    }
+
+    @Test
+    fun immediateHideDoesNotRenderChildRowsAndAllowsNextShow() {
+        val delegate = FakeDelegate()
+        val renderer = T9CandidateUiRenderer(delegate)
+
+        val visible = state(candidates = paged("a"), pinyinOptions = listOf("a"))
+        renderer.render(visible)
+        renderer.hideImmediately()
+        renderer.render(visible)
+
+        assertEquals(listOf("renderPinyin", "show", "hide", "renderPinyin", "show"), delegate.events)
+        assertEquals(2, delegate.renderPinyinCount)
+        assertEquals(1, delegate.hideCount)
+    }
+
+    @Test
+    fun nonChineseT9FrameClearsStalePinyinRow() {
+        val delegate = FakeDelegate()
+        val renderer = T9CandidateUiRenderer(delegate)
+
+        renderer.render(
+            state(
+                candidates = paged("hello"),
+                pinyinOptions = emptyList(),
+                pinyinUseT9 = false
+            )
+        )
+
+        assertEquals(listOf("renderPinyin", "show"), delegate.events)
+        assertEquals(1, delegate.renderPinyinCount)
     }
 
     private class FakeDelegate : T9CandidateUiRenderer.Delegate {
@@ -59,6 +115,7 @@ class T9CandidateUiRendererTest {
         var pinyinReady = true
         val showRequests = mutableListOf<Boolean>()
         var hideCount = 0
+        val events = mutableListOf<String>()
 
         override fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean) = Unit
 
@@ -71,11 +128,13 @@ class T9CandidateUiRendererTest {
         ) = Unit
 
         override fun renderPinyin(pinyinOptions: List<String>, pinyinUseT9: Boolean): Boolean {
+            events += "renderPinyin"
             renderPinyinCount += 1
             return pinyinReady
         }
 
         override fun syncPinyinLayout(): Boolean {
+            events += "syncPinyinLayout"
             syncPinyinLayoutCount += 1
             return pinyinReady
         }
@@ -83,27 +142,32 @@ class T9CandidateUiRendererTest {
         override fun renderFocus(focus: T9CandidateFocus) = Unit
 
         override fun showWhenPositioned(contentReady: Boolean) {
+            events += "show"
             showRequests += contentReady
         }
 
         override fun hideCandidateUi() {
+            events += "hide"
             hideCount += 1
         }
     }
 
     private fun state(
-        candidates: FcitxEvent.PagedCandidateEvent.Data
+        candidates: FcitxEvent.PagedCandidateEvent.Data,
+        pinyinOptions: List<String> = listOf("a"),
+        shouldShow: Boolean = true,
+        pinyinUseT9: Boolean = true
     ): T9CandidateRenderState =
         T9CandidateRenderState(
             panel = FcitxEvent.InputPanelEvent.Data(),
             candidates = candidates,
             orientation = FloatingCandidatesOrientation.Horizontal,
             showShortcutLabels = true,
-            pinyinOptions = listOf("a"),
-            pinyinUseT9 = true,
+            pinyinOptions = pinyinOptions,
+            pinyinUseT9 = pinyinUseT9,
             focus = T9CandidateFocus.BOTTOM,
             preferAboveCursorAnchor = true,
-            shouldShow = true
+            shouldShow = shouldShow
         )
 
     private fun paged(text: String): FcitxEvent.PagedCandidateEvent.Data =
@@ -117,4 +181,7 @@ class T9CandidateUiRendererTest {
             hasPrev = false,
             hasNext = false
         )
+
+    private fun emptyPaged(): FcitxEvent.PagedCandidateEvent.Data =
+        FcitxEvent.PagedCandidateEvent.Data.Empty
 }

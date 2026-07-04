@@ -9,17 +9,21 @@ import org.fcitx.fcitx5.android.core.FcitxEvent
 
 class ChineseT9CandidatePipeline(
     private val characterBudget: () -> Int,
+    private val pageBudget: (() -> T9CandidatePager.Budget)? = null,
     private val candidateMatchesPrefix: (candidate: FcitxEvent.Candidate, prefix: String) -> Boolean
 ) {
     private val localBudgetPager = T9CandidatePager()
-    private var localBudgetSignature = ""
-    private var localBudgetNoPageSignature = ""
+    private var localBudgetSignature: T9CandidatePagerSnapshot? = null
+    private var localBudgetNoPageSignature: T9CandidatePagerSnapshot? = null
+    private var filterCacheKey: FilterCacheKey? = null
+    private var filterCacheResult: Pair<T9PagedCandidates, String?>? = null
     private var shownCandidateSignature = ""
     private var shownCursorContextSignature = ""
     private var hanziCursorIndex = -1
 
     fun reset() {
         resetLocalBudget()
+        resetFilterCache()
         shownCandidateSignature = ""
         shownCursorContextSignature = ""
         hanziCursorIndex = -1
@@ -27,8 +31,13 @@ class ChineseT9CandidatePipeline(
 
     fun resetLocalBudget() {
         localBudgetPager.reset()
-        localBudgetSignature = ""
-        localBudgetNoPageSignature = ""
+        localBudgetSignature = null
+        localBudgetNoPageSignature = null
+    }
+
+    private fun resetFilterCache() {
+        filterCacheKey = null
+        filterCacheResult = null
     }
 
     val hasLocalBudgetCandidates: Boolean
@@ -46,46 +55,62 @@ class ChineseT9CandidatePipeline(
         prefixes: List<String>
     ): Pair<T9PagedCandidates, String?> {
         if (prefixes.isEmpty() || data.candidates.isEmpty()) {
+            resetFilterCache()
             return T9PagedCandidates.passthrough(data) to null
         }
+        val key = FilterCacheKey(
+            candidates = buildCandidateSnapshot(data),
+            prefixes = prefixes.toList()
+        )
+        if (key == filterCacheKey) {
+            filterCacheResult?.let { return it }
+        }
         val matched = matchCandidates(data.candidates.withIndex().toList(), prefixes)
-        if (matched.candidates.isEmpty()) {
-            return T9PagedCandidates(
+        val result = if (matched.candidates.isEmpty()) {
+            T9PagedCandidates(
                 data = data.copy(candidates = emptyArray(), cursorIndex = -1),
                 originalIndices = intArrayOf()
             ) to null
+        } else {
+            val pager = T9CandidatePager()
+            pager.update("filtered", matched.candidates, currentBudget())
+            val page = pager.currentPage()
+            if (page == null) {
+                T9PagedCandidates.passthrough(data) to matched.prefix
+            } else if (
+                page.candidates.size == data.candidates.size &&
+                page.candidates.indices.all { page.candidates[it].index == it }
+            ) {
+                T9PagedCandidates.passthrough(data) to matched.prefix
+            } else {
+                page.toPagedCandidates(
+                    layoutHint = data.layoutHint,
+                    cursorIndex = page.cursorIndexForOriginalIndex(data.cursorIndex),
+                    hasExternalNext = data.hasNext
+                ) to matched.prefix
+            }
         }
-        val pager = T9CandidatePager()
-        pager.update("filtered", matched.candidates, characterBudget())
-        val page = pager.currentPage() ?: return T9PagedCandidates.passthrough(data) to matched.prefix
-        if (page.candidates.size == data.candidates.size &&
-            page.candidates.indices.all { page.candidates[it].index == it }
-        ) {
-            return T9PagedCandidates.passthrough(data) to matched.prefix
-        }
-        return page.toPagedCandidates(
-            layoutHint = data.layoutHint,
-            cursorIndex = page.cursorIndexForOriginalIndex(data.cursorIndex),
-            hasExternalNext = data.hasNext
-        ) to matched.prefix
+        filterCacheKey = key
+        filterCacheResult = result
+        return result
     }
 
     fun buildLocalBudgetedPagedFromCurrentPage(
         data: FcitxEvent.PagedCandidateEvent.Data
     ): T9PagedCandidates? {
         if (data.candidates.isEmpty()) return null
-        val signature = buildCandidateSignature(data)
+        val signature = buildCandidateSnapshot(data)
         if (signature == localBudgetNoPageSignature) return null
         if (signature != localBudgetSignature) {
             val indexedCandidates = dedupeDisplayCandidates(data.candidates.withIndex().toList())
-            localBudgetPager.update(signature, indexedCandidates, characterBudget())
+            localBudgetPager.update(signature, indexedCandidates, currentBudget())
             localBudgetSignature = signature
         }
         val page = localBudgetPager.currentPage() ?: return null
         if (page.candidates.size == data.candidates.size && !page.hasPrev && !page.hasNext) {
             localBudgetNoPageSignature = signature
             localBudgetPager.reset()
-            localBudgetSignature = ""
+            localBudgetSignature = null
             return null
         }
         return page.toPagedCandidates(
@@ -153,8 +178,13 @@ class ChineseT9CandidatePipeline(
         }
     }
 
-    private fun buildCandidateSignature(data: FcitxEvent.PagedCandidateEvent.Data): String =
-        T9CandidateSnapshots.pagerContent(data, characterBudget())
+    private fun buildCandidateSnapshot(
+        data: FcitxEvent.PagedCandidateEvent.Data
+    ): T9CandidatePagerSnapshot =
+        T9CandidateSnapshots.pagerSnapshot(data, currentBudget().key)
+
+    private fun currentBudget(): T9CandidatePager.Budget =
+        pageBudget?.invoke() ?: T9CandidatePager.Budget.character(characterBudget())
 
     private fun buildShownCandidateSignature(data: FcitxEvent.PagedCandidateEvent.Data): String =
         buildString {
@@ -163,4 +193,9 @@ class ChineseT9CandidatePipeline(
             }
             append(data.hasPrev).append('|').append(data.hasNext)
         }
+
+    private data class FilterCacheKey(
+        val candidates: T9CandidatePagerSnapshot,
+        val prefixes: List<String>
+    )
 }

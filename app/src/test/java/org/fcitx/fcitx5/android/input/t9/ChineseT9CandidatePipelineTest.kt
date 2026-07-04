@@ -71,6 +71,30 @@ class ChineseT9CandidatePipelineTest {
     }
 
     @Test
+    fun pinyinPrefixFilteringReusesSameCandidateSnapshot() {
+        var matchCalls = 0
+        val pipeline = ChineseT9CandidatePipeline(
+            characterBudget = { 10 },
+            candidateMatchesPrefix = { candidate, prefix ->
+                matchCalls += 1
+                candidate.comment == prefix
+            }
+        )
+        val raw = paged(
+            candidate("你", comment = "ni"),
+            candidate("呢", comment = "ne"),
+            candidate("泥", comment = "ni")
+        )
+
+        val first = pipeline.filterPagedByPinyinPrefixes(raw, listOf("ni"))
+        val second = pipeline.filterPagedByPinyinPrefixes(raw, listOf("ni"))
+
+        assertEquals(listOf("你", "泥"), first.first.data.candidates.map { it.text })
+        assertEquals(listOf("你", "泥"), second.first.data.candidates.map { it.text })
+        assertEquals(3, matchCalls)
+    }
+
+    @Test
     fun hanziCursorPersistsAcrossSameContextAndResetsWhenContextChanges() {
         val pipeline = pipeline()
         val raw = paged(

@@ -26,6 +26,9 @@ class ChineseT9CompositionSession {
     var model = T9CompositionModel()
         private set
 
+    var revision: Long = 0
+        private set
+
     private var observedNonEmptyPreedit = false
     private var ignoreEmptyPreeditUntilReplay = false
 
@@ -46,7 +49,7 @@ class ChineseT9CompositionSession {
 
     fun clear() {
         tracker.clear()
-        model = T9CompositionModel()
+        setModel(T9CompositionModel())
         observedNonEmptyPreedit = false
         ignoreEmptyPreeditUntilReplay = false
     }
@@ -75,7 +78,7 @@ class ChineseT9CompositionSession {
 
     fun updateFromTracker(preserveResolved: Boolean = model.hasResolvedSegments) {
         val unresolvedDigits = tracker.getCurrentSegment()
-        model = if (preserveResolved) {
+        val nextModel = if (preserveResolved) {
             val resolvedSource = model.resolvedSegments.joinToString("") { it.sourceDigits }
             val rawPreedit = if (
                 resolvedSource.isNotEmpty() &&
@@ -98,11 +101,13 @@ class ChineseT9CompositionSession {
                 rawPreedit = tracker.getFullComposition()
             )
         }
+        setModel(nextModel)
     }
 
     fun syncFromPreedit(rawPreedit: String) {
         if (rawPreedit.isEmpty()) {
             if (ignoreEmptyPreeditUntilReplay) return
+            if (!tracker.isEmpty()) return
             if (observedNonEmptyPreedit && hasState()) {
                 clear()
             }
@@ -111,7 +116,7 @@ class ChineseT9CompositionSession {
         ignoreEmptyPreeditUntilReplay = false
         observedNonEmptyPreedit = true
         if (tracker.isEmpty() && !model.hasResolvedSegments && model.rawPreedit.isEmpty()) {
-            model = model.copy(rawPreedit = rawPreedit)
+            setModel(model.copy(rawPreedit = rawPreedit))
         }
     }
 
@@ -159,11 +164,13 @@ class ChineseT9CompositionSession {
             .takeIf { it.contains('\'') }
             ?: newResolved.joinToString("") { it.sourceDigits } + restoredUnresolved
         tracker.replace(restoredRawPreedit)
-        model = T9CompositionModel(
-            resolvedSegments = newResolved,
-            unresolvedDigits = restoredUnresolved,
-            rawPreedit = restoredRawPreedit,
-            pendingSelection = null,
+        setModel(
+            T9CompositionModel(
+                resolvedSegments = newResolved,
+                unresolvedDigits = restoredUnresolved,
+                rawPreedit = restoredRawPreedit,
+                pendingSelection = null,
+            )
         )
         return PopResolvedSegmentResult(
             segment = last,
@@ -173,9 +180,11 @@ class ChineseT9CompositionSession {
     }
 
     fun markAllResolvedSegmentsEngineUnbacked(rawPreedit: String) {
-        model = model.copy(
-            resolvedSegments = model.resolvedSegments.map { it.copy(engineBacked = false) },
-            rawPreedit = rawPreedit
+        setModel(
+            model.copy(
+                resolvedSegments = model.resolvedSegments.map { it.copy(engineBacked = false) },
+                rawPreedit = rawPreedit
+            )
         )
     }
 
@@ -196,12 +205,14 @@ class ChineseT9CompositionSession {
         }
         val unresolvedDigits = tracker.getCurrentSegment()
         val newResolved = model.resolvedSegments + selectedSegment
-        model = model.copy(
-            resolvedSegments = newResolved,
-            unresolvedDigits = unresolvedDigits,
-            rawPreedit = rawBeforeSelection.takeIf { hadManualSeparator }
-                ?: newResolved.joinToString("") { it.sourceDigits } + unresolvedDigits,
-            pendingSelection = T9PendingSelection(selectedSegment, unresolvedDigits)
+        setModel(
+            model.copy(
+                resolvedSegments = newResolved,
+                unresolvedDigits = unresolvedDigits,
+                rawPreedit = rawBeforeSelection.takeIf { hadManualSeparator }
+                    ?: newResolved.joinToString("") { it.sourceDigits } + unresolvedDigits,
+                pendingSelection = T9PendingSelection(selectedSegment, unresolvedDigits)
+            )
         )
         return PinyinSelectionRequest(
             selectedSegment = selectedSegment,
@@ -229,9 +240,11 @@ class ChineseT9CompositionSession {
                 it.segment.sourceDigits == selectedSegment.sourceDigits &&
                 it.remainingDigits == remainingDigits
         }
-        model = model.copy(
-            resolvedSegments = resolved,
-            pendingSelection = nextPending
+        setModel(
+            model.copy(
+                resolvedSegments = resolved,
+                pendingSelection = nextPending
+            )
         )
     }
 
@@ -244,7 +257,7 @@ class ChineseT9CompositionSession {
             pending.segment.sourceDigits == selectedSegment.sourceDigits &&
             pending.remainingDigits == remainingDigits
         ) {
-            model = model.copy(pendingSelection = null)
+            setModel(model.copy(pendingSelection = null))
         }
     }
 
@@ -268,11 +281,13 @@ class ChineseT9CompositionSession {
         val rawPreedit = removeResolvedPrefixFromRawSource(rawSequence(), consumedResolved)
         val remainingUnresolvedDigits = firstUnresolvedRawSegment(rawPreedit, remainingResolved)
         tracker.replace(rawPreedit)
-        model = model.copy(
-            resolvedSegments = remainingResolved,
-            unresolvedDigits = remainingUnresolvedDigits,
-            rawPreedit = rawPreedit,
-            pendingSelection = null
+        setModel(
+            model.copy(
+                resolvedSegments = remainingResolved,
+                unresolvedDigits = remainingUnresolvedDigits,
+                rawPreedit = rawPreedit,
+                pendingSelection = null
+            )
         )
         return rawPreedit
     }
@@ -297,12 +312,20 @@ class ChineseT9CompositionSession {
             clear()
         } else {
             tracker.replace(remainingDigits)
-            model = T9CompositionModel(
-                unresolvedDigits = remainingDigits,
-                rawPreedit = remainingDigits
+            setModel(
+                T9CompositionModel(
+                    unresolvedDigits = remainingDigits,
+                    rawPreedit = remainingDigits
+                )
             )
         }
         return true
+    }
+
+    private fun setModel(next: T9CompositionModel) {
+        if (model == next) return
+        model = next
+        revision += 1
     }
 
     private fun defaultFirstUnresolvedRawSegment(

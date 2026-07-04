@@ -55,6 +55,8 @@ otherwise.
 
 ## User Retest Checklist
 
+- [ ] Confirm Chinese T9 pinyin candidates keep their row width after paging to
+  a Hanzi page that has only one visible candidate.
 - [ ] Confirm game/emulator physical-key mappings pass through without IME
   input.
 - [ ] Confirm smart English T9 shows words or compact no-match state, not raw

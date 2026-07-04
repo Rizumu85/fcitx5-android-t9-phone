@@ -8,10 +8,11 @@ package org.fcitx.fcitx5.android.input.t9
 import org.fcitx.fcitx5.android.core.FcitxEvent
 
 class T9SmartEnglishPageCache(
+    private val pageBudget: (() -> T9CandidatePager.Budget)? = null,
     private val characterBudget: () -> Int
 ) {
     private val pager = T9CandidatePager()
-    private var contentSignature = ""
+    private var contentSignature: T9CandidatePagerSnapshot? = null
     private var cachedCursorIndex = Int.MIN_VALUE
     private var cachedPaged: T9PagedCandidates? = null
 
@@ -20,14 +21,14 @@ class T9SmartEnglishPageCache(
 
     fun reset() {
         pager.reset()
-        contentSignature = ""
+        contentSignature = null
         cachedCursorIndex = Int.MIN_VALUE
         cachedPaged = null
     }
 
     fun build(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates {
-        val budget = characterBudget()
-        val signature = T9CandidateSnapshots.pagerContent(data, budget)
+        val budget = currentBudget()
+        val signature = T9CandidateSnapshots.pagerSnapshot(data, budget.key)
         val selectedIndex = data.candidates.indices
             .takeIf { !it.isEmpty() }
             ?.let { data.cursorIndex.coerceIn(it) }
@@ -45,7 +46,7 @@ class T9SmartEnglishPageCache(
         val next = pager.selectPageContainingOriginalIndex(selectedIndex)
             ?.let { page ->
                 page.toPagedCandidates(
-                layoutHint = data.layoutHint,
+                    layoutHint = data.layoutHint,
                     cursorIndex = page.cursorIndexForOriginalIndex(selectedIndex)
                 )
             }
@@ -60,4 +61,7 @@ class T9SmartEnglishPageCache(
         cachedCursorIndex = Int.MIN_VALUE
         return page
     }
+
+    private fun currentBudget(): T9CandidatePager.Budget =
+        pageBudget?.invoke() ?: T9CandidatePager.Budget.character(characterBudget())
 }

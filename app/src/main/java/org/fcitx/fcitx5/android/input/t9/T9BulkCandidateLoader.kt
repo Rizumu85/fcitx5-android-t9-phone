@@ -9,6 +9,7 @@ import org.fcitx.fcitx5.android.core.FcitxEvent
 
 class T9BulkCandidateLoader(
     private val characterBudget: () -> Int,
+    private val pageBudget: (() -> T9CandidatePager.Budget)? = null,
     private val candidateMatchesPrefix: (candidate: FcitxEvent.Candidate, prefix: String) -> Boolean
 ) {
 
@@ -47,7 +48,7 @@ class T9BulkCandidateLoader(
         val prefixSignature = prefixes.joinToString(separator = "/")
         return buildString {
             append(prefixSignature).append('|')
-            append(characterBudget()).append('|')
+            append(currentBudget().key).append('|')
             append(preedit).append('|')
             append(candidates.contentHashCode())
         }
@@ -80,7 +81,7 @@ class T9BulkCandidateLoader(
             matchCandidates(parsedCandidates, prefixes)
         }
         pending = false
-        pager.update(signature, match.candidates, characterBudget())
+        pager.update(signature, match.candidates, currentBudget())
         return PageResult(match.prefix, pager.currentPage())
     }
 
@@ -125,4 +126,7 @@ class T9BulkCandidateLoader(
         }
         return MatchResult(null, emptyList())
     }
+
+    private fun currentBudget(): T9CandidatePager.Budget =
+        pageBudget?.invoke() ?: T9CandidatePager.Budget.character(characterBudget())
 }

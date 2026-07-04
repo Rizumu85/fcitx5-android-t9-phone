@@ -6,13 +6,13 @@ package org.fcitx.fcitx5.android.input.t9
 object T9CandidateBudget {
     private const val MIN = 4
     private const val MAX = 24
-    const val ENGLISH_WORD_COST = 2
+    const val ENGLISH_WORD_MIN_COST = 1
     const val EMOJI_COST = 1
 
     fun normalizedBudget(value: Int): Int = value.coerceIn(MIN, MAX)
 
     fun candidateCost(text: String): Int {
-        if (isEnglishWord(text)) return ENGLISH_WORD_COST
+        englishWordCost(text)?.let { return it }
         if (text.isEmpty()) return 1
 
         val codePoints = text.codePoints().toArray()
@@ -42,11 +42,18 @@ object T9CandidateBudget {
         return cost.coerceAtLeast(1)
     }
 
-    private fun isEnglishWord(text: String): Boolean {
+    private fun englishWordCost(text: String): Int? {
         val trimmed = text.trim()
-        if (trimmed.isEmpty()) return false
-        return trimmed.all { it in 'A'..'Z' || it in 'a'..'z' || it == '\'' || it == '-' } &&
+        if (trimmed.isEmpty()) return null
+        val isWord = trimmed.all { it in 'A'..'Z' || it in 'a'..'z' || it == '\'' || it == '-' } &&
             trimmed.any { it in 'A'..'Z' || it in 'a'..'z' }
+        if (!isWord) return null
+        return when {
+            trimmed.length <= 1 -> ENGLISH_WORD_MIN_COST
+            trimmed.length <= 8 -> ENGLISH_WORD_MIN_COST + 1
+            trimmed.length <= 14 -> ENGLISH_WORD_MIN_COST + 2
+            else -> ENGLISH_WORD_MIN_COST + 3
+        }
     }
 
     private fun skipEmojiCluster(codePoints: IntArray, start: Int): Int {

@@ -59,9 +59,9 @@ sealed class StatusAreaEntry(
         }
 
         fun labelForAction(context: Context, action: Action): String {
+            if (action.isRimeSchemaMenuAction()) return context.getString(R.string.rime_status_menu)
             val directLabel = action.shortText.trim().ifEmpty { action.longText.trim() }
             if (directLabel.isNotEmpty()) return directLabel
-            if (action.isRimeAction()) return context.getString(R.string.rime_status_menu)
             return action.name.trim().ifEmpty { context.getString(R.string.status_action) }
         }
 
@@ -72,7 +72,7 @@ sealed class StatusAreaEntry(
         }
 
         fun titleForActionMenu(context: Context, action: Action): String {
-            if (action.isRimeAction()) return context.getString(R.string.rime_status_menu)
+            if (action.isRimeSchemaMenuAction()) return context.getString(R.string.rime_status_menu)
             return labelForAction(context, action)
         }
 
@@ -81,18 +81,7 @@ sealed class StatusAreaEntry(
             return Fcitx(it, labelForAction(context, it), drawableFromIconName(it.icon), active)
         }
 
-        private fun Action.isRimeAction(): Boolean {
-            if (name.startsWith("fcitx-rime") || icon.startsWith("fcitx_rime")) {
-                return true
-            }
-            return menu?.any {
-                it.name.startsWith("fcitx-rime") ||
-                    it.icon.startsWith("fcitx_rime") ||
-                    it.shortText.equals("Deploy", ignoreCase = true) ||
-                    it.shortText.equals("Synchronize", ignoreCase = true) ||
-                    it.shortText == "重新部署" ||
-                    it.shortText == "同步"
-            } ?: false
-        }
+        fun Action.isRimeSchemaMenuAction(): Boolean =
+            name == "fcitx-rime-im"
     }
 }

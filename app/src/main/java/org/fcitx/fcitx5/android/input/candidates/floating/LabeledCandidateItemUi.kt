@@ -10,8 +10,8 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.text.Spanned
+import android.text.TextUtils
 import android.text.style.RelativeSizeSpan
-import android.text.style.SubscriptSpan
 import android.view.Gravity
 import android.view.View
 import android.widget.TextView
@@ -21,6 +21,7 @@ import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.data.theme.Theme
 import splitties.views.dsl.core.Ui
 import splitties.views.dsl.core.textView
+import kotlin.math.roundToInt
 
 class LabeledCandidateItemUi(
     override val ctx: Context,
@@ -38,9 +39,11 @@ class LabeledCandidateItemUi(
     private var lastCandidateLabel = ""
     private var lastCandidateText = ""
     private var lastCandidateComment = ""
+    private var defaultMinHeight = 0
 
     override val root = textView {
         setupTextView(this)
+        defaultMinHeight = minHeight
         background = activeBackground
         isFocusable = false
         isFocusableInTouchMode = false
@@ -54,25 +57,42 @@ class LabeledCandidateItemUi(
         active: Boolean,
         inactiveRow: Boolean = false,
         t9InputModeEnabled: Boolean = false,
-        shortcutLabel: String? = null
+        shortcutLabel: String? = null,
+        shortcutMaxWidthPx: Int? = null
     ) {
-        root.gravity = if (t9InputModeEnabled && shortcutLabel != null) {
+        val t9Shortcut = t9InputModeEnabled && shortcutLabel != null
+        root.gravity = if (t9Shortcut) {
             Gravity.CENTER
         } else {
             Gravity.CENTER_VERTICAL
         }
-        root.textAlignment = if (t9InputModeEnabled && shortcutLabel != null) {
+        root.textAlignment = if (t9Shortcut) {
             View.TEXT_ALIGNMENT_CENTER
         } else {
             View.TEXT_ALIGNMENT_GRAVITY
         }
-        root.minWidth = if (t9InputModeEnabled && shortcutLabel != null) {
+        root.minWidth = if (t9Shortcut) {
             (root.textSize * SHORTCUT_CANDIDATE_MIN_WIDTH_EM).toInt()
         } else {
             0
         }
-        root.includeFontPadding = !(t9InputModeEnabled && shortcutLabel != null)
-        root.setLineSpacing(0f, if (t9InputModeEnabled && shortcutLabel != null) 0.82f else 1f)
+        root.maxWidth = if (t9Shortcut) {
+            shortcutMaxWidthPx ?: (ctx.resources.displayMetrics.widthPixels * SHORTCUT_CANDIDATE_MAX_WIDTH_SCREEN_RATIO).toInt()
+        } else {
+            Int.MAX_VALUE
+        }
+        root.ellipsize = if (t9Shortcut) TextUtils.TruncateAt.END else null
+        root.includeFontPadding = true
+        root.setLineSpacing(0f, if (t9Shortcut) SHORTCUT_LINE_SPACING_MULTIPLIER else 1f)
+        if (t9Shortcut) {
+            root.setMinLines(SHORTCUT_LINE_COUNT)
+            root.maxLines = SHORTCUT_LINE_COUNT
+            root.minHeight = shortcutCandidateMinHeight()
+        } else {
+            root.setMinLines(0)
+            root.maxLines = Int.MAX_VALUE
+            root.minHeight = defaultMinHeight
+        }
         updateSelection(
             candidate = candidate,
             active = active,
@@ -118,25 +138,21 @@ class LabeledCandidateItemUi(
                     length,
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                 )
-                setSpan(
-                    SubscriptSpan(),
-                    start,
-                    length,
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                )
             }
             if (!t9InputModeEnabled && candidate.comment.isNotBlank()) {
                 append(" ")
                 color(altFg) { append(candidate.comment) }
             }
         }
-        if (candidate.label != lastCandidateLabel ||
+        val renderedLabel = if (t9InputModeEnabled) "" else candidate.label
+        val renderedComment = if (t9InputModeEnabled) "" else candidate.comment
+        if (renderedLabel != lastCandidateLabel ||
             candidate.text != lastCandidateText ||
-            candidate.comment != lastCandidateComment
+            renderedComment != lastCandidateComment
         ) {
-            lastCandidateLabel = candidate.label
+            lastCandidateLabel = renderedLabel
             lastCandidateText = candidate.text
-            lastCandidateComment = candidate.comment
+            lastCandidateComment = renderedComment
             lastActive = false
             activeBackground.alpha = 0
             root.scaleX = 1f
@@ -161,9 +177,18 @@ class LabeledCandidateItemUi(
         root.scaleY = targetScale
     }
 
+    private fun shortcutCandidateMinHeight(): Int {
+        val textHeight = root.textSize * SHORTCUT_LINE_COUNT * SHORTCUT_LINE_SPACING_MULTIPLIER
+        return (textHeight + root.paddingTop + root.paddingBottom).roundToInt()
+            .coerceAtLeast(defaultMinHeight)
+    }
+
     companion object {
         private const val ACTIVE_HIGHLIGHT_SCALE = 1.07f
         private const val SHORTCUT_LABEL_SCALE = 0.45f
-        private const val SHORTCUT_CANDIDATE_MIN_WIDTH_EM = 1.35f
+        private const val SHORTCUT_CANDIDATE_MIN_WIDTH_EM = 0.95f
+        private const val SHORTCUT_CANDIDATE_MAX_WIDTH_SCREEN_RATIO = 0.42f
+        private const val SHORTCUT_LINE_COUNT = 2
+        private const val SHORTCUT_LINE_SPACING_MULTIPLIER = 0.9f
     }
 }
