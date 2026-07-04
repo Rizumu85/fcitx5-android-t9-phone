@@ -6,20 +6,18 @@
 package org.fcitx.fcitx5.android.input.candidates.floating
 
 import android.content.Context
-import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
-import android.text.Spanned
-import android.text.style.RelativeSizeSpan
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.text.buildSpannedString
 import androidx.core.text.color
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.data.theme.Theme
 import splitties.views.dsl.core.Ui
-import splitties.views.dsl.core.textView
 
 class LabeledCandidateItemUi(
     override val ctx: Context,
@@ -39,14 +37,53 @@ class LabeledCandidateItemUi(
     private var lastCandidateComment = ""
     private var lastUsesShortcutLabel = false
 
-    override val root = textView {
+    private val candidateText = TextView(ctx).apply {
         setupTextView(this)
+        isSingleLine = true
+        includeFontPadding = false
+        gravity = Gravity.CENTER
+    }
+    private val shortcutText = TextView(ctx).apply {
+        setTextSize(TypedValue.COMPLEX_UNIT_PX, candidateText.textSize * SHORTCUT_LABEL_SCALE)
+        typeface = candidateText.typeface
+        isSingleLine = true
+        includeFontPadding = false
+        gravity = Gravity.CENTER
+        visibility = View.GONE
+    }
+
+    private val itemPaddingLeft = candidateText.paddingLeft
+    private val itemPaddingTop = candidateText.paddingTop
+    private val itemPaddingRight = candidateText.paddingRight
+    private val itemPaddingBottom = candidateText.paddingBottom
+
+    override val root = LinearLayout(ctx).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER
+        setPadding(itemPaddingLeft, itemPaddingTop, itemPaddingRight, itemPaddingBottom)
         background = activeBackground
         isFocusable = false
         isFocusableInTouchMode = false
+        clipChildren = false
+        clipToPadding = false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             defaultFocusHighlightEnabled = false
         }
+        candidateText.setPadding(0, 0, 0, 0)
+        addView(
+            candidateText,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+        addView(
+            shortcutText,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
     }
 
     fun update(
@@ -56,26 +93,18 @@ class LabeledCandidateItemUi(
         t9InputModeEnabled: Boolean = false,
         shortcutLabel: String? = null
     ) {
-        root.gravity = if (t9InputModeEnabled && shortcutLabel != null) {
-            Gravity.CENTER
-        } else {
-            Gravity.CENTER_VERTICAL
-        }
-        root.textAlignment = if (t9InputModeEnabled && shortcutLabel != null) {
-            View.TEXT_ALIGNMENT_CENTER
-        } else {
-            View.TEXT_ALIGNMENT_GRAVITY
-        }
-        root.minWidth = if (t9InputModeEnabled && shortcutLabel != null) {
-            (root.textSize * SHORTCUT_CANDIDATE_MIN_WIDTH_EM).toInt()
+        val usesShortcutLabel = t9InputModeEnabled && shortcutLabel != null
+        lastUsesShortcutLabel = usesShortcutLabel
+        root.gravity = if (usesShortcutLabel) Gravity.CENTER else Gravity.CENTER_VERTICAL
+        root.minimumWidth = if (usesShortcutLabel) {
+            (candidateText.textSize * SHORTCUT_CANDIDATE_MIN_WIDTH_EM).toInt()
         } else {
             0
         }
-        val usesShortcutLabel = t9InputModeEnabled && shortcutLabel != null
-        lastUsesShortcutLabel = usesShortcutLabel
-        root.includeFontPadding = !usesShortcutLabel
-        root.setLineSpacing(0f, if (usesShortcutLabel) T9_SHORTCUT_LINE_SPACING else 1f)
-        root.minHeight = 0
+        // T9 shortcut chips use real child views instead of newline spans. RecyclerView/Flexbox
+        // sometimes reuses and measures candidates before the final draw pass; keeping text and
+        // shortcut labels as separate measured children prevents page-flip-only clipping.
+        shortcutText.visibility = if (usesShortcutLabel) View.VISIBLE else View.GONE
         updateSelection(
             candidate = candidate,
             active = active,
@@ -103,29 +132,23 @@ class LabeledCandidateItemUi(
             else -> theme.candidateTextColor
         }
         val altFg = if (active) theme.genericActiveForegroundColor else theme.candidateCommentColor
-        root.text = buildSpannedString {
-            // Hide label and comment in T9 mode for cleaner display
-            if (!t9InputModeEnabled) {
+        if (t9InputModeEnabled && shortcutLabel != null) {
+            candidateText.setTextColor(fg)
+            candidateText.text = candidate.text
+            shortcutText.setTextColor(if (active) theme.genericActiveForegroundColor else theme.candidateCommentColor)
+            shortcutText.text = shortcutLabel
+            shortcutText.visibility = View.VISIBLE
+        } else {
+            candidateText.text = buildSpannedString {
                 color(labelFg) { append(candidate.label) }
-            }
-            color(fg) { append(candidate.text) }
-            if (t9InputModeEnabled && shortcutLabel != null) {
-                append('\n')
-                val start = length
-                color(if (active) theme.genericActiveForegroundColor else theme.candidateCommentColor) {
-                    append(shortcutLabel)
+                color(fg) { append(candidate.text) }
+                if (candidate.comment.isNotBlank()) {
+                    append(" ")
+                    color(altFg) { append(candidate.comment) }
                 }
-                setSpan(
-                    RelativeSizeSpan(SHORTCUT_LABEL_SCALE),
-                    start,
-                    length,
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                )
             }
-            if (!t9InputModeEnabled && candidate.comment.isNotBlank()) {
-                append(" ")
-                color(altFg) { append(candidate.comment) }
-            }
+            shortcutText.text = ""
+            shortcutText.visibility = View.GONE
         }
         if (candidate.label != lastCandidateLabel ||
             candidate.text != lastCandidateText ||
@@ -147,9 +170,8 @@ class LabeledCandidateItemUi(
     private fun updateHighlight(active: Boolean) {
         val targetAlpha = if (active) 255 else 0
         val targetScale = if (active) ACTIVE_HIGHLIGHT_SCALE else 1f
-        // Shortcut-number chips must stay inside TextView's measured box. Subscript spans and
-        // vertical scaling can draw outside Flexbox/RecyclerView measurements, which clips T9
-        // candidates in mixed Chinese/Rime-English pages.
+        // T9 shortcut chips are two measured rows. Scaling only horizontally keeps the familiar
+        // focus width without lying to the parent layout about vertical bounds.
         val targetScaleY = if (lastUsesShortcutLabel) 1f else targetScale
         if (lastActive == active && activeBackground.alpha == targetAlpha) {
             root.scaleX = targetScale
@@ -166,6 +188,5 @@ class LabeledCandidateItemUi(
         private const val ACTIVE_HIGHLIGHT_SCALE = 1.07f
         private const val SHORTCUT_LABEL_SCALE = 0.45f
         private const val SHORTCUT_CANDIDATE_MIN_WIDTH_EM = 1.35f
-        private const val T9_SHORTCUT_LINE_SPACING = 0.86f
     }
 }
