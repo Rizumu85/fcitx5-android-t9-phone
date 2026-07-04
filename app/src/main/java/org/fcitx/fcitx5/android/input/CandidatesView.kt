@@ -386,8 +386,7 @@ class CandidatesView(
         text = "\u2026"
         textSize = compactTopRowFontSizeSp
         InputUiFont.applyTo(this)
-        setTextColor(theme.candidateTextColor)
-        alpha = 0.72f
+        setTextColor(theme.candidateCommentColor)
         gravity = Gravity.CENTER
         includeFontPadding = false
         isFocusable = false
@@ -1120,7 +1119,7 @@ class CandidatesView(
             pinyinOverflowHint.visibility = targetVisibility
         }
         val rightPadding = when {
-            visible -> pinyinOverflowHintReservedWidthPx()
+            visible -> pinyinOverflowHintRightPaddingPx()
             service.getT9CandidateFocus() == T9CandidateFocus.TOP && pinyinRowTargetVisible ->
                 dp(T9_PINYIN_ROW_FOCUSED_END_GAP_DP)
             else -> 0
@@ -1129,6 +1128,20 @@ class CandidatesView(
             pinyinBarView.setPadding(0, 0, rightPadding, 0)
         }
         pinyinBarView.clipToPadding = rightPadding > 0
+    }
+
+    private fun pinyinOverflowHintRightPaddingPx(): Int {
+        val hintWidthPx = pinyinOverflowHintReservedWidthPx()
+        val viewportWidthPx = pinyinRowViewportWidthPx() ?: return hintWidthPx
+        val comfortablePrefixWidthPx = pinyinItemsWidthPx(
+            t9RenderedPinyinItems.take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS),
+            reservesOverflowHint = true
+        )
+        // Product decision: when the ellipsis is visible it is the overflow affordance, so we
+        // avoid also exposing a clipped fifth chip as a second, noisier hint.
+        return (viewportWidthPx - comfortablePrefixWidthPx)
+            .coerceAtLeast(hintWidthPx)
+            .coerceAtMost(viewportWidthPx)
     }
 
     private fun schedulePinyinOverflowHintUpdate() {
