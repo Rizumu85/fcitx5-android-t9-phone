@@ -985,8 +985,11 @@ class CandidatesView(
         }
         val peekWidthPx = peekPinyin?.let { pinyin ->
             val textWidthPx = paint.measureText(pinyin).roundToInt()
-            ((textWidthPx + chipPaddingPx * 2) * T9_PINYIN_ROW_PEEK_CHIP_RATIO)
+            val chipBodyWidthPx = textWidthPx + chipPaddingPx * 2
+            (chipBodyWidthPx * T9_PINYIN_ROW_PEEK_CHIP_RATIO)
                 .roundToInt()
+                .coerceAtLeast(dp(T9_PINYIN_ROW_MIN_PEEK_DP))
+                .coerceAtMost(chipBodyWidthPx)
         } ?: 0
         // Product decision: keep the old bubble-sized Hanzi row, but give a populated pinyin row
         // a small usability floor. Showing part of the next chip makes overflow feel scrollable
@@ -1284,6 +1287,7 @@ class CandidatesView(
         private const val T9_BULK_FILTER_LIMIT = 80
         private const val T9_PINYIN_TO_HANZI_GAP_DP = 2
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
-        private const val T9_PINYIN_ROW_PEEK_CHIP_RATIO = 0.5f
+        private const val T9_PINYIN_ROW_PEEK_CHIP_RATIO = 0.75f
+        private const val T9_PINYIN_ROW_MIN_PEEK_DP = 18
     }
 }
