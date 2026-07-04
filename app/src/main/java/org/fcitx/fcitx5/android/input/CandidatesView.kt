@@ -1484,7 +1484,7 @@ class CandidatesView(
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
         private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 18
         private const val T9_PINYIN_ROW_OVERFLOW_EDGE_GUARD_DP = 8
-        private const val T9_PINYIN_ROW_OVERFLOW_CHIP_GAP_DP = 4
+        private const val T9_PINYIN_ROW_OVERFLOW_CHIP_GAP_DP = 12
         private const val T9_PINYIN_ROW_FOCUSED_END_GAP_DP = 10
     }
 }
