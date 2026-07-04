@@ -35,6 +35,9 @@ class T9EnglishDictionary {
     @Volatile
     private var builtInReady = false
 
+    val isReady: Boolean
+        get() = builtInReady
+
     init {
         reloadLearnedWordsIfChanged()
     }

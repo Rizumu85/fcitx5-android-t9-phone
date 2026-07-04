@@ -43,9 +43,17 @@ class SmartEnglishT9Session(
     fun rawCandidates(): List<String> =
         if (digits.isEmpty()) emptyList() else candidateProvider(digits.toString(), candidateLimit)
 
-    fun visibleCandidates(transform: (String) -> String): List<String> {
-        val words = rawCandidates().map(transform)
-        return words.ifEmpty { listOf(noMatchText) }
+    fun visibleCandidates(
+        candidates: List<String> = rawCandidates(),
+        showNoMatch: Boolean = true,
+        transform: (String) -> String
+    ): List<String> {
+        val words = candidates.map(transform)
+        return when {
+            words.isNotEmpty() -> words
+            showNoMatch -> listOf(noMatchText)
+            else -> emptyList()
+        }
     }
 
     fun inputPreviewText(candidates: List<String> = rawCandidates()): String {

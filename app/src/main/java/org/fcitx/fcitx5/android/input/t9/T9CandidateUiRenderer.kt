@@ -20,7 +20,7 @@ class T9CandidateUiRenderer(
             showShortcutLabels: Boolean
         )
         fun renderPinyin(pinyinOptions: List<String>, pinyinUseT9: Boolean): Boolean
-        fun renderFocus()
+        fun renderFocus(focus: T9CandidateFocus)
         fun showWhenPositioned(contentReady: Boolean)
         fun hideCandidateUi()
     }
@@ -57,7 +57,7 @@ class T9CandidateUiRenderer(
         }
         if (patch.focus) {
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderFocus") {
-                delegate.renderFocus()
+                delegate.renderFocus(next.focus)
             }
         }
         if (patch.visibility) {

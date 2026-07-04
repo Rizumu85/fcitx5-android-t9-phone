@@ -12,6 +12,7 @@ class SmartEnglishT9Controller private constructor(
     private val dictionary: T9EnglishDictionary?,
     candidateProvider: (digits: String, limit: Int) -> List<String>,
     private val learnWord: (String) -> Unit,
+    private val dictionaryReady: () -> Boolean,
     candidateLimit: Int,
     noMatchText: String,
     private val isActive: () -> Boolean,
@@ -45,6 +46,7 @@ class SmartEnglishT9Controller private constructor(
         dictionary = dictionary,
         candidateProvider = dictionary::candidatesFor,
         learnWord = dictionary::learn,
+        dictionaryReady = dictionary::isReady,
         candidateLimit = candidateLimit,
         noMatchText = noMatchText,
         isActive = isActive,
@@ -56,6 +58,7 @@ class SmartEnglishT9Controller private constructor(
     constructor(
         candidateProvider: (digits: String, limit: Int) -> List<String>,
         learnWord: (String) -> Unit = {},
+        dictionaryReady: () -> Boolean = { true },
         candidateLimit: Int,
         noMatchText: String,
         isActive: () -> Boolean,
@@ -66,6 +69,7 @@ class SmartEnglishT9Controller private constructor(
         dictionary = null,
         candidateProvider = candidateProvider,
         learnWord = learnWord,
+        dictionaryReady = dictionaryReady,
         candidateLimit = candidateLimit,
         noMatchText = noMatchText,
         isActive = isActive,
@@ -84,6 +88,9 @@ class SmartEnglishT9Controller private constructor(
             CaseState.CAPS -> "ABC"
         }
 
+    val isDictionaryReady: Boolean
+        get() = dictionaryReady()
+
     fun preloadDictionary() {
         dictionary?.preload()
     }
@@ -100,9 +107,16 @@ class SmartEnglishT9Controller private constructor(
 
     fun paged(): FcitxEvent.PagedCandidateEvent.Data? {
         if (!isActive() || !session.hasDigits) return null
-        val shown = session.visibleCandidates(::applyCaseToWord).map {
+        val rawCandidates = session.rawCandidates()
+        if (!isDictionaryReady && rawCandidates.isEmpty()) return null
+        val shown = session.visibleCandidates(
+            candidates = rawCandidates,
+            showNoMatch = isDictionaryReady,
+            transform = ::applyCaseToWord
+        ).map {
             FcitxEvent.Candidate(label = "", text = it, comment = "")
         }
+        if (shown.isEmpty()) return null
         val cursor = session.cursor.coerceIn(shown.indices)
         return FcitxEvent.PagedCandidateEvent.Data(
             candidates = shown.toTypedArray(),
@@ -115,7 +129,9 @@ class SmartEnglishT9Controller private constructor(
 
     fun presentation(formatText: (String) -> FormattedText?): T9PresentationState? {
         if (!isActive() || !session.hasDigits) return null
-        val preview = session.inputPreviewText()
+        val rawCandidates = session.rawCandidates()
+        if (!isDictionaryReady && rawCandidates.isEmpty()) return null
+        val preview = session.inputPreviewText(rawCandidates)
         return T9PresentationState(
             topReading = formatText(applyCaseToWord(preview)),
             pinyinOptions = emptyList()

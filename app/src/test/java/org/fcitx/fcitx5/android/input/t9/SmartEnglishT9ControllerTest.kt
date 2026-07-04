@@ -66,6 +66,29 @@ class SmartEnglishT9ControllerTest {
     }
 
     @Test
+    fun loadingDictionarySuppressesEmptyFallbackUi() {
+        val host = FakeHost(dictionaryReady = false)
+        val controller = host.controller()
+
+        controller.appendDigit(9)
+
+        assertEquals(null, controller.paged())
+        assertEquals(null, controller.presentation {
+            FormattedText(arrayOf(it), intArrayOf(TextFormatFlag.NoFlag.flag), -1)
+        })
+    }
+
+    @Test
+    fun loadingDictionaryStillShowsEssentialWords() {
+        val host = FakeHost(dictionaryReady = false)
+        val controller = host.controller()
+
+        controller.appendDigit(4)
+
+        assertEquals("I", controller.paged()?.candidates?.single()?.text)
+    }
+
+    @Test
     fun learningFlushesCompletedWordsWhenEnabled() {
         val host = FakeHost(learn = true)
         val controller = host.controller()
@@ -77,7 +100,8 @@ class SmartEnglishT9ControllerTest {
 
     private class FakeHost(
         var active: Boolean = true,
-        var learn: Boolean = false
+        var learn: Boolean = false,
+        var dictionaryReady: Boolean = true
     ) {
         private val candidates = mapOf(
             "2" to listOf("a"),
@@ -91,6 +115,7 @@ class SmartEnglishT9ControllerTest {
         fun controller(): SmartEnglishT9Controller = SmartEnglishT9Controller(
             candidateProvider = { digits, limit -> candidates[digits].orEmpty().take(limit) },
             learnWord = { learnedWords += it },
+            dictionaryReady = { dictionaryReady },
             candidateLimit = 10,
             noMatchText = "No match",
             isActive = { active },

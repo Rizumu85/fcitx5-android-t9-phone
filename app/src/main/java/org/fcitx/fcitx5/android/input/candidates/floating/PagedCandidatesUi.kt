@@ -73,13 +73,6 @@ class PagedCandidatesUi(
     }
 
     private val candidatesAdapter = object : RecyclerView.Adapter<UiHolder>() {
-        init {
-            setHasStableIds(true)
-        }
-
-        override fun getItemId(position: Int): Long =
-            data.candidates.getOrNull(position)?.hashCode()?.toLong() ?: PaginationRowId
-
         override fun getItemCount() =
             data.candidates.size + (if (showPaginationArrows && (data.hasPrev || data.hasNext)) 1 else 0)
 
@@ -228,7 +221,6 @@ class PagedCandidatesUi(
     }
 
     companion object {
-        private const val PaginationRowId = Long.MIN_VALUE
         private val shortcutLabels = arrayOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
 
         private fun shortcutLabelForPosition(position: Int): String? =

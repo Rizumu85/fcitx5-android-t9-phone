@@ -215,6 +215,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             this@FcitxInputMethodService.showSmartEnglishPunctuationCandidates()
 
         override fun appendSmartEnglishDigit(digit: Int) {
+            preloadSmartEnglishDictionary()
             smartEnglishController.appendDigit(digit)
         }
 
@@ -546,6 +547,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         ManagedPreference.OnChangeListener<Boolean> { _, value ->
             smartEnglishT9 = value
             resetSmartEnglishT9()
+            if (value) {
+                preloadSmartEnglishDictionary()
+            }
         }
     private val physicalLongPressDelayChangeListener =
         ManagedPreference.OnChangeListener<Int> { _, value ->
@@ -672,6 +676,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         keyboardPrefs.passwordInputPreview.registerOnChangeListener(passwordInputPreviewChangeListener)
         prefs.candidates.registerOnChangeListener(recreateCandidatesViewListener)
         ThemeManager.addOnChangedListener(onThemeChangeListener)
+        if (smartEnglishT9) {
+            preloadSmartEnglishDictionary()
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             postFcitxJob {
                 SubtypeManager.syncWith(enabledIme())
@@ -1643,6 +1650,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         commitText = ::commitText,
         refreshUi = { candidatesView?.refreshT9Ui() }
     )
+    private var smartEnglishPreloadStarted = false
     private val MULTITAP_TIMEOUT = 1200L  // Increased from 500ms for easier typing
 
     private val t9PunctuationSession = T9PunctuationSession()
@@ -1887,9 +1895,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun preloadSmartEnglishDictionary() {
+        if (smartEnglishController.isDictionaryReady || smartEnglishPreloadStarted) return
+        smartEnglishPreloadStarted = true
         lifecycleScope.launch(Dispatchers.IO) {
             smartEnglishController.preloadDictionary()
             withContext(Dispatchers.Main.immediate) {
+                smartEnglishPreloadStarted = false
                 if (isSmartEnglishT9Active() && smartEnglishController.hasDigits) {
                     candidatesView?.refreshT9Ui()
                 }

@@ -221,8 +221,8 @@ class CandidatesView(
         override fun renderPinyin(pinyinOptions: List<String>, pinyinUseT9: Boolean): Boolean =
             updatePinyinBar(pinyinOptions, pinyinUseT9)
 
-        override fun renderFocus() {
-            updateT9FocusIndicator()
+        override fun renderFocus(focus: T9CandidateFocus) {
+            updateT9FocusIndicator(focus)
         }
 
         override fun showWhenPositioned(contentReady: Boolean) {
@@ -606,19 +606,12 @@ class CandidatesView(
                     return service.setSmartEnglishCandidateIndex(originalIndex)
                 }
                 t9HanziCursorIndex = next
-                val updated = shown.copy(cursorIndex = next)
-                t9ShownPaged = updated
-                candidatesUi.update(
-                    updated,
-                    orientation,
-                    showShortcutLabels = shouldShowT9BottomShortcutLabels(updated)
-                )
+                t9ShownPaged = shown.copy(cursorIndex = next)
                 if (t9ShownUsesPendingPunctuation) {
                     val originalIndex = t9ShownOriginalIndices.getOrNull(next) ?: next
                     service.previewPendingT9PunctuationCandidate(originalIndex)
-                } else {
-                    refreshT9Ui()
                 }
+                refreshT9Ui()
                 true
             }
             next >= shown.candidates.size && shown.hasNext -> {
@@ -662,8 +655,10 @@ class CandidatesView(
         return selectT9ShownHanziCandidate(shownIndex)
     }
 
-    private fun updateT9FocusIndicator() {
-        val topFocused = service.getT9CandidateFocus() == T9CandidateFocus.TOP
+    private fun updateT9FocusIndicator(
+        focus: T9CandidateFocus = service.getT9CandidateFocus()
+    ) {
+        val topFocused = focus == T9CandidateFocus.TOP
         pinyinBarAdapter.setHighlightActive(topFocused)
         candidatesUi.setHighlightActive(!topFocused)
     }
