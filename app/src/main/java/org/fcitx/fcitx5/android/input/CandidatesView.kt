@@ -37,6 +37,7 @@ import org.fcitx.fcitx5.android.input.t9.T9CandidatePresentationPlanner
 import org.fcitx.fcitx5.android.input.t9.T9CandidatePager
 import org.fcitx.fcitx5.android.input.t9.T9PinyinChipAdapter
 import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
+import org.fcitx.fcitx5.android.input.t9.T9UiRefreshScheduler
 import splitties.dimensions.dp
 import splitties.views.dsl.constraintlayout.below
 import splitties.views.dsl.constraintlayout.bottomOfParent
@@ -187,6 +188,10 @@ class CandidatesView(
     private var t9ShownUsesLocalBudget = false
     private var t9ShownUsesSmartEnglish = false
     private val t9SmartEnglishPager = T9CandidatePager()
+    private val t9RefreshScheduler = T9UiRefreshScheduler(
+        postRefresh = { block -> postOnAnimation(block) },
+        refreshNow = ::updateUi
+    )
     private var pinyinRowTargetVisible = false
 
     private data class T9MatchedCandidates(
@@ -355,20 +360,21 @@ class CandidatesView(
         when (it) {
             is FcitxEvent.InputPanelEvent -> {
                 inputPanel = it.data
-                updateUi()
+                t9RefreshScheduler.refreshImmediately()
             }
             is FcitxEvent.PagedCandidateEvent -> {
                 paged = it.data
                 if (it.data.candidates.isNotEmpty() || service.getT9CompositionKeyCount() <= 0) {
                     waitingForT9EngineCandidates = false
                 }
-                updateUi()
+                t9RefreshScheduler.refreshImmediately()
             }
             else -> {}
         }
     }
 
     fun clearTransientState() {
+        t9RefreshScheduler.cancel()
         showAfterPositioned = false
         inputPanel = FcitxEvent.InputPanelEvent.Data()
         paged = FcitxEvent.PagedCandidateEvent.Data.Empty
@@ -401,13 +407,13 @@ class CandidatesView(
      * delete-reopen) that don't trigger a fcitx event and therefore wouldn't otherwise redraw.
      */
     fun refreshT9Ui() {
-        updateUi()
+        t9RefreshScheduler.requestRefresh()
     }
 
     fun waitForT9EngineCandidatesThenRefresh() {
         waitingForT9EngineCandidates = service.isChineseT9InputModeActive() &&
             service.getT9CompositionKeyCount() > 0
-        updateUi()
+        refreshT9Ui()
     }
 
     fun getHighlightedT9Pinyin(): String? = pinyinBarAdapter.getHighlightedPinyin()
