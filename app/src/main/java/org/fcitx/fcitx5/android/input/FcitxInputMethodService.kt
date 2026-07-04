@@ -77,8 +77,7 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionSession
 import org.fcitx.fcitx5.android.input.t9.ChineseT9RimeBridge
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHandler
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
-import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9Session
-import org.fcitx.fcitx5.android.input.t9.T9EnglishDictionary
+import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9Controller
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
 import org.fcitx.fcitx5.android.input.t9.T9PinyinUtils
 import org.fcitx.fcitx5.android.input.t9.T9ResolvedSegment
@@ -158,7 +157,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 T9PunctuationSet.ENGLISH -> PhysicalT9KeyHandler.PunctuationSet.ENGLISH
             }
         override val hasSmartEnglishDigits: Boolean
-            get() = smartEnglishSession.hasDigits
+            get() = smartEnglishController.hasDigits
         override val hasMultiTapPendingChar: Boolean
             get() = multiTapPendingChar != null
         override val hasTopPinyinCandidates: Boolean
@@ -213,8 +212,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             this@FcitxInputMethodService.showSmartEnglishPunctuationCandidates()
 
         override fun appendSmartEnglishDigit(digit: Int) {
-            smartEnglishSession.appendDigit(digit)
-            candidatesView?.refreshT9Ui()
+            smartEnglishController.appendDigit(digit)
         }
 
         override fun resetSmartEnglishT9() = this@FcitxInputMethodService.resetSmartEnglishT9()
@@ -1618,13 +1616,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         BOTTOM
     }
 
-    private enum class T9EnglishCaseState {
-        OFF,
-        SHIFT_ONCE,
-        CAPS
-    }
-
-    private var t9EnglishCaseState = T9EnglishCaseState.OFF
     private var t9CandidateFocus = T9CandidateFocus.BOTTOM
     private var t9ConsumedNavigationKeyUp: Int? = null
     private var physicalSelectionMode = false
@@ -1644,13 +1635,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var multiTapLastTime = 0L
     private var multiTapIndex = 0
     private var multiTapPendingChar: Char? = null
-    private val englishDictionary = T9EnglishDictionary()
-    private val smartEnglishSession = SmartEnglishT9Session(
-        dictionary = englishDictionary,
+    private val smartEnglishController = SmartEnglishT9Controller(
         candidateLimit = SmartEnglishCandidateLimit,
-        noMatchText = SmartEnglishNoMatchText
+        noMatchText = SmartEnglishNoMatchText,
+        isActive = ::isSmartEnglishT9Active,
+        shouldLearnWords = ::shouldLearnEnglishWords,
+        commitText = ::commitText,
+        refreshUi = { candidatesView?.refreshT9Ui() }
     )
-    private val englishLearningWord = StringBuilder()
     private val MULTITAP_TIMEOUT = 1200L  // Increased from 500ms for easier typing
 
     private enum class T9PunctuationSet {
@@ -1712,13 +1704,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             currentInputConnection?.setComposingText(applyEnglishCase(pendingChar).toString(), 1)
             return
         }
-        inputView?.showModeIndicatorBadge(
-            when (t9EnglishCaseState) {
-                T9EnglishCaseState.OFF -> "abc"
-                T9EnglishCaseState.SHIFT_ONCE -> "Abc"
-                T9EnglishCaseState.CAPS -> "ABC"
-            }
-        )
+        inputView?.showModeIndicatorBadge(smartEnglishController.caseLabel)
     }
 
 
@@ -1815,30 +1801,17 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return true
     }
 
-    private fun applyEnglishCase(char: Char): Char = when (t9EnglishCaseState) {
-        T9EnglishCaseState.OFF -> char
-        T9EnglishCaseState.SHIFT_ONCE, T9EnglishCaseState.CAPS -> char.uppercaseChar()
-    }
+    private fun applyEnglishCase(char: Char): Char = smartEnglishController.applyCase(char)
 
-    private fun consumeEnglishShiftOnce() {
-        if (t9EnglishCaseState == T9EnglishCaseState.SHIFT_ONCE) {
-            t9EnglishCaseState = T9EnglishCaseState.OFF
-        }
-    }
+    private fun consumeEnglishShiftOnce() = smartEnglishController.consumeShiftOnce()
 
     private fun handleEnglishStarShortPress() {
-        t9EnglishCaseState = when (t9EnglishCaseState) {
-            T9EnglishCaseState.OFF -> T9EnglishCaseState.SHIFT_ONCE
-            T9EnglishCaseState.SHIFT_ONCE, T9EnglishCaseState.CAPS -> T9EnglishCaseState.OFF
-        }
+        smartEnglishController.toggleShiftOnce()
         showEnglishCaseStateOrRefreshPending()
     }
 
     private fun handleEnglishStarLongPress() {
-        t9EnglishCaseState = when (t9EnglishCaseState) {
-            T9EnglishCaseState.OFF, T9EnglishCaseState.SHIFT_ONCE -> T9EnglishCaseState.CAPS
-            T9EnglishCaseState.CAPS -> T9EnglishCaseState.OFF
-        }
+        smartEnglishController.toggleCaps()
         showEnglishCaseStateOrRefreshPending()
     }
 
@@ -1985,9 +1958,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     private fun preloadSmartEnglishDictionary() {
         lifecycleScope.launch(Dispatchers.IO) {
-            englishDictionary.preload()
+            smartEnglishController.preloadDictionary()
             withContext(Dispatchers.Main.immediate) {
-                if (isSmartEnglishT9Active() && smartEnglishSession.hasDigits) {
+                if (isSmartEnglishT9Active() && smartEnglishController.hasDigits) {
                     candidatesView?.refreshT9Ui()
                 }
             }
@@ -1996,90 +1969,35 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     private fun resetSmartEnglishT9() {
         physicalT9KeyHandler.resetSmartEnglishPendingDigit()
-        smartEnglishSession.reset()
-        candidatesView?.refreshT9Ui()
+        smartEnglishController.reset()
     }
 
-    fun getSmartEnglishT9Paged(): FcitxEvent.PagedCandidateEvent.Data? {
-        if (!isSmartEnglishT9Active() || !smartEnglishSession.hasDigits) return null
-        val shown = smartEnglishSession.visibleCandidates(::applyEnglishCaseToWord).map {
-            FcitxEvent.Candidate(label = "", text = it, comment = "")
-        }
-        val cursor = smartEnglishSession.cursor.coerceIn(shown.indices)
-        return FcitxEvent.PagedCandidateEvent.Data(
-            candidates = shown.toTypedArray(),
-            cursorIndex = cursor,
-            layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
-            hasPrev = false,
-            hasNext = false
-        )
-    }
+    fun getSmartEnglishT9Paged(): FcitxEvent.PagedCandidateEvent.Data? =
+        smartEnglishController.paged()
 
-    fun getSmartEnglishT9Presentation(): T9PresentationState? {
-        if (!isSmartEnglishT9Active() || !smartEnglishSession.hasDigits) return null
-        val preview = smartEnglishSession.inputPreviewText()
-        return T9PresentationState(
-            topReading = formattedT9Text(applyEnglishCaseToWord(preview)),
-            pinyinOptions = emptyList()
-        )
-    }
+    fun getSmartEnglishT9Presentation(): T9PresentationState? =
+        smartEnglishController.presentation(::formattedT9Text)
 
-    fun moveSmartEnglishCandidate(delta: Int): Boolean {
-        if (!isSmartEnglishT9Active()) return false
-        if (!smartEnglishSession.moveCandidate(delta)) return false
-        candidatesView?.refreshT9Ui()
-        return true
-    }
+    fun moveSmartEnglishCandidate(delta: Int): Boolean =
+        smartEnglishController.moveCandidate(delta)
 
-    fun setSmartEnglishCandidateIndex(index: Int): Boolean {
-        if (!isSmartEnglishT9Active()) return false
-        if (!smartEnglishSession.setCandidateIndex(index)) return false
-        candidatesView?.refreshT9Ui()
-        return true
-    }
+    fun setSmartEnglishCandidateIndex(index: Int): Boolean =
+        smartEnglishController.setCandidateIndex(index)
 
     fun commitSmartEnglishCandidate(index: Int? = null): Boolean {
-        if (!isSmartEnglishT9Active() || !smartEnglishSession.hasDigits) return false
-        val selected = smartEnglishSession.selectedRawCandidate(index) ?: run {
-            resetSmartEnglishT9()
-            return true
+        val committed = smartEnglishController.commitCandidate(index)
+        if (committed) {
+            physicalT9KeyHandler.resetSmartEnglishPendingDigit()
         }
-        val committed = applyEnglishCaseToWord(selected)
-        commitText(committed)
-        resetSmartEnglishT9()
-        consumeEnglishShiftOnce()
-        return true
-    }
-
-    private fun applyEnglishCaseToWord(word: String): String = when (t9EnglishCaseState) {
-        T9EnglishCaseState.OFF -> word
-        T9EnglishCaseState.SHIFT_ONCE -> word.replaceFirstChar {
-            if (it.isLowerCase()) it.titlecase() else it.toString()
-        }
-        T9EnglishCaseState.CAPS -> word.uppercase()
+        return committed
     }
 
     private fun recordEnglishLearningChar(char: Char) {
-        if (!shouldLearnEnglishWords()) {
-            englishLearningWord.clear()
-            return
-        }
-        if (char in 'a'..'z' || char in 'A'..'Z') {
-            englishLearningWord.append(char.lowercaseChar())
-        } else {
-            flushEnglishLearningWord()
-        }
+        smartEnglishController.recordLearningChar(char)
     }
 
     private fun flushEnglishLearningWord() {
-        if (!shouldLearnEnglishWords()) {
-            englishLearningWord.clear()
-            return
-        }
-        if (englishLearningWord.isNotEmpty()) {
-            englishDictionary.learn(englishLearningWord.toString())
-            englishLearningWord.clear()
-        }
+        smartEnglishController.flushLearningWord()
     }
 
     private fun shouldLearnEnglishWords(): Boolean {
@@ -2099,9 +2017,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun handleSmartEnglishBackspace(): Boolean {
-        if (!isSmartEnglishT9Active() || !smartEnglishSession.backspace()) return false
-        candidatesView?.refreshT9Ui()
-        return true
+        return smartEnglishController.backspace()
     }
 
     /**
