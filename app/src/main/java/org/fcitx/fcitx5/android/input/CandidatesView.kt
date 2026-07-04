@@ -29,15 +29,15 @@ import org.fcitx.fcitx5.android.daemon.launchOnReady
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
 import org.fcitx.fcitx5.android.data.theme.Theme
+import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrientation
 import org.fcitx.fcitx5.android.input.candidates.floating.PagedCandidatesUi
 import org.fcitx.fcitx5.android.input.preedit.PreeditUi
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidateLoadingState
 import org.fcitx.fcitx5.android.input.t9.T9BulkCandidateLoader
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidatePager
-import org.fcitx.fcitx5.android.input.t9.T9CandidateRenderer
-import org.fcitx.fcitx5.android.input.t9.T9CandidateRenderState
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiStateBuilder
+import org.fcitx.fcitx5.android.input.t9.T9CandidateUiRenderer
 import org.fcitx.fcitx5.android.input.t9.T9PinyinChipAdapter
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
 import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
@@ -191,12 +191,50 @@ class CandidatesView(
     private val t9LocalBudgetPager = T9CandidatePager()
     private var t9ShownUsesLocalBudget = false
     private var t9ShownUsesSmartEnglish = false
-    private var lastT9RenderState: T9CandidateRenderState? = null
     private val t9SmartEnglishPager = T9CandidatePager()
     private val t9RefreshScheduler = T9UiRefreshScheduler(
         postRefresh = { block -> postOnAnimation(block) },
         refreshNow = ::updateUi
     )
+    private val t9CandidateUiRenderer = T9CandidateUiRenderer(object : T9CandidateUiRenderer.Delegate {
+        override fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean) {
+            this@CandidatesView.preferAboveCursorAnchor = preferAboveCursorAnchor
+        }
+
+        override fun renderPreedit(panel: FcitxEvent.InputPanelEvent.Data) {
+            preeditUi.update(panel)
+            preeditUi.root.visibility = if (preeditUi.visible) VISIBLE else GONE
+        }
+
+        override fun renderCandidates(
+            candidates: FcitxEvent.PagedCandidateEvent.Data,
+            orientation: FloatingCandidatesOrientation,
+            showShortcutLabels: Boolean
+        ) {
+            candidatesUi.update(
+                candidates,
+                orientation,
+                showShortcutLabels = showShortcutLabels
+            )
+        }
+
+        override fun renderPinyin(pinyinOptions: List<String>, pinyinUseT9: Boolean): Boolean =
+            updatePinyinBar(pinyinOptions, pinyinUseT9)
+
+        override fun renderFocus() {
+            updateT9FocusIndicator()
+        }
+
+        override fun showWhenPositioned(contentReady: Boolean) {
+            this@CandidatesView.showWhenPositioned(contentReady)
+        }
+
+        override fun hideCandidateUi() {
+            // RecyclerView won't update its items when ancestor view is GONE.
+            showAfterPositioned = false
+            visibility = INVISIBLE
+        }
+    })
     private val t9CandidateUiStateBuilder = T9CandidateUiStateBuilder(object : T9CandidateUiStateBuilder.Delegate {
         override fun syncT9CompositionWithInputPanel(inputPanel: FcitxEvent.InputPanelEvent.Data) {
             service.syncT9CompositionWithInputPanel(inputPanel)
@@ -479,7 +517,7 @@ class CandidatesView(
         resetT9BulkFilterState()
         t9ShownUsesSmartEnglish = false
         t9SmartEnglishPager.reset()
-        lastT9RenderState = null
+        t9CandidateUiRenderer.reset()
         chineseT9CandidateLoadingState.reset()
         preeditUi.update(inputPanel)
         preeditUi.root.visibility = GONE
@@ -633,7 +671,7 @@ class CandidatesView(
     private fun updateUi() = T9ResponsivenessTrace.measure("CandidatesView.updateUi") {
         buildT9CandidateUiState()?.let { result ->
             applyT9ShownState(result.shownState)
-            renderT9State(result.renderState)
+            t9CandidateUiRenderer.render(result.renderState)
         }
     }
 
@@ -661,55 +699,6 @@ class CandidatesView(
         t9ShownUsesBulkSelection = shownState.usesBulkSelection
         t9ShownUsesLocalBudget = shownState.usesLocalBudget
         t9ShownMatchedPrefix = shownState.matchedPrefix
-    }
-
-    private fun renderT9State(next: T9CandidateRenderState) {
-        val previous = lastT9RenderState
-        val patch = T9CandidateRenderer.diff(previous, next)
-        preferAboveCursorAnchor = next.preferAboveCursorAnchor
-        if (patch.preedit) {
-            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPreedit") {
-                preeditUi.update(next.panel)
-                preeditUi.root.visibility = if (preeditUi.visible) VISIBLE else GONE
-            }
-        }
-        if (patch.candidates) {
-            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates") {
-                candidatesUi.update(
-                    next.candidates,
-                    next.orientation,
-                    showShortcutLabels = next.showShortcutLabels
-                )
-            }
-        }
-        val pinyinRowReady = if (patch.pinyin) {
-            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin") {
-                updatePinyinBar(next.pinyinOptions, next.pinyinUseT9)
-            }
-        } else {
-            true
-        }
-        if (patch.focus) {
-            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderFocus") {
-                updateT9FocusIndicator()
-            }
-        }
-        if (patch.visibility) {
-            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderVisibility") {
-                if (next.shouldShow) {
-                    showWhenPositioned(pinyinRowReady)
-                } else {
-                    // RecyclerView won't update its items when ancestor view is GONE
-                    showAfterPositioned = false
-                    visibility = INVISIBLE
-                }
-            }
-        } else if (next.shouldShow && patch.pinyin && !pinyinRowReady) {
-            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderVisibility") {
-                showWhenPositioned(false)
-            }
-        }
-        lastT9RenderState = next
     }
 
     private fun effectiveT9CandidateFocus(
