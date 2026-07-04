@@ -549,6 +549,11 @@ class CandidatesView(
     }
 
     private fun updateUi() = T9ResponsivenessTrace.measure("CandidatesView.updateUi") {
+        buildT9CandidateUiState()?.let(::renderT9State)
+    }
+
+    private fun buildT9CandidateUiState(): T9CandidateRenderState? =
+        T9ResponsivenessTrace.measure("CandidatesView.updateUi.buildState") {
         if (t9InputModeEnabled) {
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.syncComposition") {
                 service.syncT9CompositionWithInputPanel(inputPanel)
@@ -581,7 +586,7 @@ class CandidatesView(
             !pendingT9PinyinSelection &&
             (waitingForT9EngineCandidates || paged.candidates.isEmpty())
         if (waitForChineseT9Candidates && visibility == VISIBLE) {
-            return
+            return@measure null
         }
         val suppressEmptyT9Candidates = chineseT9Active &&
             pendingPunctuationPaged == null &&
@@ -692,7 +697,7 @@ class CandidatesView(
                 FcitxEvent.InputPanelEvent.Data(it, inputPanel.auxUp, inputPanel.auxDown)
             } ?: inputPanel
         }
-        val renderState = T9CandidateRenderState(
+        T9CandidateRenderState(
             panel = panelToShow,
             candidates = effectivePaged,
             orientation = orientation,
@@ -708,7 +713,6 @@ class CandidatesView(
                 effectivePaged = effectivePaged
             )
         )
-        renderT9State(renderState)
     }
 
     private fun renderT9State(next: T9CandidateRenderState) {
