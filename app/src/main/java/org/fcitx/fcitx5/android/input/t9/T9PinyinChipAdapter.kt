@@ -97,6 +97,25 @@ class T9PinyinChipAdapter(
 
     fun getHighlightedPinyin(): String? = pinyins.getOrNull(highlightedIndex)
 
+    fun laidOutContentWidthPx(): Int? {
+        var hasMeasuredChip = false
+        val contentWidth = chips.withIndex().sumOf { (index, chip) ->
+            if (chip.visibility != View.VISIBLE) {
+                0
+            } else {
+                val chipWidth = chip.width.takeIf { it > 0 }
+                    ?: chip.measuredWidth.takeIf { it > 0 }
+                    ?: return@sumOf 0
+                hasMeasuredChip = true
+                val margin = (chip.layoutParams as? LinearLayout.LayoutParams)?.rightMargin ?: 0
+                chipWidth + margin
+            }
+        }
+        if (hasMeasuredChip) return contentWidth
+        return container.width.takeIf { it > 0 }
+            ?: container.measuredWidth.takeIf { it > 0 }
+    }
+
     fun setHighlightActive(active: Boolean) {
         if (highlightActive == active) return
         highlightActive = active

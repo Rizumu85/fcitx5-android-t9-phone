@@ -1018,7 +1018,7 @@ class CandidatesView(
         val candidateWidth = firstPositiveCandidateRowWidth()
             ?: lastCandidateRowWidthPx.takeIf { it > 0 }
             ?: return false
-        val width = maxOf(candidateWidth, populatedPinyinRowWidthPx() ?: 0)
+        val width = maxOf(candidateWidth, pinyinRowDesiredWidthPx() ?: 0)
         setPinyinRowWidth(width)
         return true
     }
@@ -1066,6 +1066,22 @@ class CandidatesView(
         return pinyinItemsWidthPx(compactPinyin, reservesOverflowHint = true)
             .coerceAtMost(maxWidthPx)
             .coerceAtLeast(1)
+    }
+
+    private fun pinyinRowDesiredWidthPx(): Int? {
+        val estimatedWidthPx = populatedPinyinRowWidthPx()
+        val measuredContentWidthPx = pinyinBarAdapter.laidOutContentWidthPx()
+        val measuredWidthPx = measuredContentWidthPx?.let { contentWidthPx ->
+            if (shouldShowPinyinOverflowHint()) {
+                contentWidthPx + dpCandidates(itemPaddingHorizontal) + pinyinOverflowHintReservedWidthPx()
+            } else {
+                contentWidthPx
+            }
+        }
+        return listOfNotNull(estimatedWidthPx, measuredWidthPx)
+            .maxOrNull()
+            ?.coerceAtMost(pinyinRowMaxWidthPx())
+            ?.coerceAtLeast(1)
     }
 
     private fun pinyinItemsWidthPx(
@@ -1242,6 +1258,14 @@ class CandidatesView(
             setPinyinRowVisible(true)
         }
         if (changed) {
+            // Product decision: folded pinyin chips must look stable without exposing a fifth chip.
+            // The first frame uses text estimates; this pass lets real TextView widths correct
+            // custom-font/fallback glyph differences before the user has to move focus.
+            pinyinRowWrapper.post {
+                if (pinyinRowTargetVisible) {
+                    syncVisiblePinyinRowLayout()
+                }
+            }
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.scroll") {
                 pinyinBarAdapter.scrollToStart()
             }
@@ -1417,7 +1441,7 @@ class CandidatesView(
                     lastCandidateRowWidthPx = cw
                 }
                 val targetWidth = cw.takeIf { it > 0 }
-                    ?.let { maxOf(it, populatedPinyinRowWidthPx() ?: 0) }
+                    ?.let { maxOf(it, pinyinRowDesiredWidthPx() ?: 0) }
                     ?: return
                 if ((pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.width != targetWidth ||
                     (pinyinBarView.layoutParams as? FrameLayout.LayoutParams)?.width != targetWidth
