@@ -99,6 +99,8 @@ class T9FixedCandidatesUi(
     }
 
     private fun render() {
+        val showPagination = showPaginationArrows && (data.hasPrev || data.hasNext)
+        val lastVisibleCandidateIndex = data.candidates.lastIndex.coerceAtMost(candidateItems.lastIndex)
         candidateItems.forEachIndexed { index, item ->
             val candidate = data.candidates.getOrNull(index)
             if (candidate == null) {
@@ -106,6 +108,10 @@ class T9FixedCandidatesUi(
                 return@forEachIndexed
             }
             item.root.visibility = View.VISIBLE
+            setCandidateRightMargin(
+                item.root,
+                if (index < lastVisibleCandidateIndex || showPagination) itemSpacingPx else 0
+            )
             item.update(
                 candidate = candidate,
                 active = highlightActive && index == data.cursorIndex,
@@ -114,9 +120,15 @@ class T9FixedCandidatesUi(
                 shortcutMaxWidthPx = maxCandidateWidthPx()
             )
         }
-        val showPagination = showPaginationArrows && (data.hasPrev || data.hasNext)
         paginationUi.root.visibility = if (showPagination) View.VISIBLE else View.GONE
         paginationUi.update(data.hasPrev, data.hasNext)
+    }
+
+    private fun setCandidateRightMargin(view: View, rightMargin: Int) {
+        val params = view.layoutParams as? LinearLayout.LayoutParams ?: return
+        if (params.rightMargin == rightMargin) return
+        params.rightMargin = rightMargin
+        view.layoutParams = params
     }
 
     private fun renderSelectionOnly() {

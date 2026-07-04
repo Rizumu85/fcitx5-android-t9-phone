@@ -376,7 +376,9 @@ class CandidatesView(
         showPaginationArrows = showPaginationArrows,
         highlightCornerRadiusPx = dp(windowRadius),
         itemSpacingPx = dp(candidateItemSpacing),
-        maxCandidateWidthPx = { t9ShortcutCandidateMaxWidthPx() },
+        maxCandidateWidthPx = {
+            t9ShortcutCandidateMaxWidthPx(t9CandidateAvailableContentWidthPx(reservePagination = true))
+        },
         onCandidateClick = { shownIndex ->
             if (service.isSmartEnglishT9InputModeActive()) {
                 commitSmartEnglishShortcut(shownIndex)
@@ -1258,7 +1260,9 @@ class CandidatesView(
         val minItemWidthPx = (paint.textSize * T9_SHORTCUT_CANDIDATE_MIN_WIDTH_EM)
             .roundToInt()
             .coerceAtLeast(1)
-        val maxItemWidthPx = t9ShortcutCandidateMaxWidthPx()
+        val maxItemWidthPx = t9ShortcutCandidateMaxWidthPx(
+            t9CandidateAvailableContentWidthPx(reservePagination = currentT9CandidatePageShowsPagination(shown))
+        )
         val candidateContentWidthPx = shown.candidates.sumOf { candidate ->
             measuredT9CandidateItemWidthPx(
                 text = candidate.text,
