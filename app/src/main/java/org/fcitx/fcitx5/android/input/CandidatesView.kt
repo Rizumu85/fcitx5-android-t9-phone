@@ -510,6 +510,10 @@ class CandidatesView(
         val shown = t9ShownPaged ?: return false
         val shownIndex = shown.cursorIndex
         if (shownIndex !in shown.candidates.indices) return false
+        if (t9ShownUsesSmartEnglish) {
+            val originalIndex = t9ShownOriginalIndices.getOrNull(shownIndex) ?: shownIndex
+            return service.commitSmartEnglishCandidate(originalIndex)
+        }
         return selectT9ShownHanziCandidate(shownIndex)
     }
 

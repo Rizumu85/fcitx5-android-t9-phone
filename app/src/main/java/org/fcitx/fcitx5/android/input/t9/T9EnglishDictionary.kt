@@ -32,14 +32,21 @@ class T9EnglishDictionary {
     private val builtInPrefixWordsByDigits by lazy(LazyThreadSafetyMode.PUBLICATION) {
         buildBuiltInPrefixWordsByDigits(builtInWordsByDigits)
     }
+    @Volatile
+    private var builtInReady = false
 
     init {
         reloadLearnedWordsIfChanged()
     }
 
     fun preload() {
+        if (builtInReady) return
         builtInWordsByDigits.size
         builtInPrefixWordsByDigits.size
+        synchronized(this) {
+            builtInReady = true
+            invalidateCandidateCache()
+        }
     }
 
     @Synchronized
@@ -65,14 +72,18 @@ class T9EnglishDictionary {
         learnedExactWordsByDigits[digits]
             ?.forEach { if (addCandidate(it)) return cacheCandidates(cacheKey, candidates) }
 
-        builtInWordsByDigits[digits]
-            ?.forEach { if (addCandidate(it.word)) return cacheCandidates(cacheKey, candidates) }
+        if (builtInReady) {
+            builtInWordsByDigits[digits]
+                ?.forEach { if (addCandidate(it.word)) return cacheCandidates(cacheKey, candidates) }
+        }
 
         learnedPrefixWordsByDigits[digits]
             ?.forEach { if (addCandidate(it)) return cacheCandidates(cacheKey, candidates) }
 
-        builtInPrefixWordsByDigits[digits]
-            ?.forEach { if (addCandidate(it.word)) return cacheCandidates(cacheKey, candidates) }
+        if (builtInReady) {
+            builtInPrefixWordsByDigits[digits]
+                ?.forEach { if (addCandidate(it.word)) return cacheCandidates(cacheKey, candidates) }
+        }
 
         return cacheCandidates(cacheKey, candidates)
     }

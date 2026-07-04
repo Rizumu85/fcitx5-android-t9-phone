@@ -84,6 +84,9 @@ object T9ResponsivenessTrace {
     @PublishedApi
     internal fun enabled(): Boolean = config.enabled
 
+    @PublishedApi
+    internal fun slowThresholdNanos(): Long = config.slowThresholdNanos
+
     inline fun <T> measure(section: String, block: () -> T): T {
         if (!enabled()) return block()
         val start = System.nanoTime()
@@ -91,6 +94,9 @@ object T9ResponsivenessTrace {
             block()
         } finally {
             val elapsed = System.nanoTime() - start
+            if (elapsed >= slowThresholdNanos()) {
+                logSlowSample(section, elapsed)
+            }
             record(section, elapsed)?.let(::logSummary)
         }
     }
@@ -122,6 +128,15 @@ object T9ResponsivenessTrace {
             summary.minNanos / 1_000_000.0,
             summary.maxNanos / 1_000_000.0,
             summary.slowCount
+        )
+    }
+
+    @PublishedApi
+    internal fun logSlowSample(section: String, elapsedNanos: Long) {
+        Timber.d(
+            "T9 responsiveness slow sample: %s took %.2f ms",
+            section,
+            elapsedNanos / 1_000_000.0
         )
     }
 }

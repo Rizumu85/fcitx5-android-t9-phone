@@ -1986,6 +1986,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun preloadSmartEnglishDictionary() {
         lifecycleScope.launch(Dispatchers.IO) {
             englishDictionary.preload()
+            withContext(Dispatchers.Main.immediate) {
+                if (isSmartEnglishT9Active() && smartEnglishSession.hasDigits) {
+                    candidatesView?.refreshT9Ui()
+                }
+            }
         }
     }
 
