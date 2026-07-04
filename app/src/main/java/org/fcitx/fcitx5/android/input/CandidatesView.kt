@@ -205,7 +205,6 @@ class CandidatesView(
     private val t9PinyinRowWindow = T9PinyinRowWindow()
     private var t9RenderedPinyinWindowStart = 0
     private var t9RenderedPinyinItems: List<String> = emptyList()
-    private var t9PinyinOptionCount = 0
     private var t9PinyinOverflowHintSuppressedByFocus = false
     private var lastRenderedT9Focus = T9CandidateFocus.BOTTOM
     private val t9SmartEnglishPageCache = T9SmartEnglishPageCache(
@@ -555,7 +554,6 @@ class CandidatesView(
         t9PinyinRowWindow.clear()
         t9RenderedPinyinWindowStart = 0
         t9RenderedPinyinItems = emptyList()
-        t9PinyinOptionCount = 0
         t9PinyinOverflowHintSuppressedByFocus = false
         updatePinyinOverflowHint(false)
         lastRenderedT9Focus = T9CandidateFocus.BOTTOM
@@ -635,13 +633,8 @@ class CandidatesView(
     fun moveHighlightedT9Pinyin(delta: Int): Boolean {
         val state = t9PinyinRowWindow.move(delta) ?: return false
         suppressPinyinOverflowHintForFocus()
-        val previousWindowStart = t9RenderedPinyinWindowStart
         renderPinyinWindow(state)
-        if (state.windowStart == previousWindowStart) {
-            pinyinBarAdapter.scrollToHighlighted()
-        } else {
-            pinyinBarAdapter.scrollToStart()
-        }
+        pinyinBarAdapter.scrollToHighlighted()
         return true
     }
 
@@ -978,7 +971,6 @@ class CandidatesView(
             pinyinBarAdapter.clear()
             pinyinBarAdapter.scrollToStart()
             t9RenderedPinyinItems = emptyList()
-            t9PinyinOptionCount = 0
             t9PinyinOverflowHintSuppressedByFocus = false
             updatePinyinOverflowHint(false)
             pinyinBarView.visibility = View.GONE
@@ -1081,11 +1073,22 @@ class CandidatesView(
     }
 
     private fun shouldShowPinyinOverflowHint(): Boolean =
-        pinyinRenderedContentExceedsMaxWidth()
+        pinyinRenderedContentExceedsViewport()
 
-    private fun pinyinRenderedContentExceedsMaxWidth(): Boolean {
+    private fun pinyinRenderedContentExceedsViewport(): Boolean {
         if (t9RenderedPinyinItems.isEmpty()) return false
-        return pinyinItemsWidthPx(t9RenderedPinyinItems, reservesOverflowHint = false) > pinyinRowMaxWidthPx()
+        val viewportWidthPx = pinyinRowViewportWidthPx() ?: pinyinRowMaxWidthPx()
+        return pinyinItemsWidthPx(t9RenderedPinyinItems, reservesOverflowHint = false) > viewportWidthPx
+    }
+
+    private fun pinyinRowViewportWidthPx(): Int? {
+        pinyinBarView.width.takeIf { it > 0 }?.let { return it }
+        pinyinRowWrapper.width.takeIf { it > 0 }?.let { return it }
+        (pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)
+            ?.width
+            ?.takeIf { it > 0 }
+            ?.let { return it }
+        return null
     }
 
     private fun pinyinOverflowHintReservedWidthPx(): Int {
@@ -1194,7 +1197,6 @@ class CandidatesView(
             t9PinyinRowWindow.clear()
             t9RenderedPinyinWindowStart = 0
             t9RenderedPinyinItems = emptyList()
-            t9PinyinOptionCount = 0
             t9PinyinOverflowHintSuppressedByFocus = false
             updatePinyinOverflowHint(false)
             return setPinyinRowVisible(false)
@@ -1203,12 +1205,10 @@ class CandidatesView(
             t9PinyinRowWindow.clear()
             t9RenderedPinyinWindowStart = 0
             t9RenderedPinyinItems = emptyList()
-            t9PinyinOptionCount = 0
             t9PinyinOverflowHintSuppressedByFocus = false
             updatePinyinOverflowHint(false)
             return setPinyinRowVisible(false)
         }
-        t9PinyinOptionCount = candidates.size
         val state = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.window") {
             t9PinyinRowWindow.submit(candidates)
         }
@@ -1415,6 +1415,7 @@ class CandidatesView(
                 if ((pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.width != targetWidth) {
                     (pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.width = targetWidth
                     pinyinRowWrapper.requestLayout()
+                    schedulePinyinOverflowHintUpdate()
                 }
                 if (pinyinRowTargetVisible &&
                     pinyinRowWrapper.visibility == View.INVISIBLE
