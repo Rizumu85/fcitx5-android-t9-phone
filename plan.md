@@ -58,7 +58,8 @@ otherwise.
 - [ ] Confirm Chinese T9 uses the same candidate bubble placement as Smart
   English after the layout-experiment revert.
 - [ ] Confirm a short final Hanzi candidate page does not clip a populated
-  pinyin row down to one or two chips, while normal short candidate bubbles keep
+  pinyin row down to one or two chips; it should show four full chips plus part
+  of the next chip as a scroll hint, while normal short candidate bubbles keep
   their previous visual width.
 - [ ] Confirm game/emulator physical-key mappings pass through without IME
   input.
