@@ -121,14 +121,20 @@ class T9PinyinChipAdapter(
     }
 
     fun scrollToHighlighted() {
+        scrollToHighlighted(null)
+    }
+
+    fun scrollToHighlighted(viewportWidthPx: Int?) {
         root.post {
-            scrollHighlightedIntoView()
+            scrollHighlightedIntoView(viewportWidthPx)
         }
     }
 
-    private fun scrollHighlightedIntoView() {
+    private fun scrollHighlightedIntoView(viewportWidthPx: Int?) {
         val chip = chips.getOrNull(highlightedIndex) ?: return
-        val viewportWidth = root.width.takeIf { it > 0 } ?: return
+        val viewportWidth = viewportWidthPx?.takeIf { it > 0 }
+            ?: root.width.takeIf { it > 0 }
+            ?: return
         val params = chip.layoutParams as? LinearLayout.LayoutParams
         val chipStart = chip.left
         val chipEnd = chip.right + (params?.rightMargin ?: 0)

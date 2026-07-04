@@ -634,7 +634,7 @@ class CandidatesView(
         val state = t9PinyinRowWindow.move(delta) ?: return false
         suppressPinyinOverflowHintForFocus()
         renderPinyinWindow(state)
-        pinyinBarAdapter.scrollToHighlighted()
+        pinyinBarAdapter.scrollToHighlighted(pinyinRowViewportWidthPx())
         return true
     }
 
@@ -1024,13 +1024,23 @@ class CandidatesView(
             ?: lastCandidateRowWidthPx.takeIf { it > 0 }
             ?: return false
         val width = maxOf(candidateWidth, populatedPinyinRowWidthPx() ?: 0)
+        setPinyinRowWidth(width)
+        return true
+    }
+
+    private fun setPinyinRowWidth(width: Int) {
+        (pinyinBarView.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+            if (params.width != width) {
+                params.width = width
+                pinyinBarView.layoutParams = params
+            }
+        }
         (pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
             if (params.width != width) {
                 params.width = width
                 pinyinRowWrapper.layoutParams = params
             }
         }
-        return true
     }
 
     private fun populatedPinyinRowWidthPx(): Int? {
@@ -1082,8 +1092,8 @@ class CandidatesView(
     }
 
     private fun pinyinRowViewportWidthPx(): Int? {
-        pinyinBarView.width.takeIf { it > 0 }?.let { return it }
         pinyinRowWrapper.width.takeIf { it > 0 }?.let { return it }
+        pinyinRowWrapper.measuredWidth.takeIf { it > 0 }?.let { return it }
         (pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)
             ?.width
             ?.takeIf { it > 0 }
@@ -1412,9 +1422,10 @@ class CandidatesView(
                 val targetWidth = cw.takeIf { it > 0 }
                     ?.let { maxOf(it, populatedPinyinRowWidthPx() ?: 0) }
                     ?: return
-                if ((pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.width != targetWidth) {
-                    (pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.width = targetWidth
-                    pinyinRowWrapper.requestLayout()
+                if ((pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.width != targetWidth ||
+                    (pinyinBarView.layoutParams as? FrameLayout.LayoutParams)?.width != targetWidth
+                ) {
+                    setPinyinRowWidth(targetWidth)
                     schedulePinyinOverflowHintUpdate()
                 }
                 if (pinyinRowTargetVisible &&
