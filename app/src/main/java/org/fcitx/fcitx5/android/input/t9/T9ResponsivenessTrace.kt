@@ -56,6 +56,7 @@ object T9ResponsivenessTrace {
 
     private val lock = Any()
     private val stats = mutableMapOf<String, MutableSectionStats>()
+    private val latestSummaries = linkedMapOf<String, SectionSummary>()
 
     @Volatile
     private var config = Config()
@@ -72,14 +73,21 @@ object T9ResponsivenessTrace {
                 aggregationWindow = aggregationWindow.coerceAtLeast(1)
             )
             stats.clear()
+            latestSummaries.clear()
         }
     }
 
     fun reset() {
         synchronized(lock) {
             stats.clear()
+            latestSummaries.clear()
         }
     }
+
+    fun latestSummaries(): List<SectionSummary> =
+        synchronized(lock) {
+            latestSummaries.values.toList()
+        }
 
     @PublishedApi
     internal fun enabled(): Boolean = config.enabled
@@ -111,6 +119,7 @@ object T9ResponsivenessTrace {
             if (sectionStats.count >= activeConfig.aggregationWindow) {
                 sectionStats.toSummary(section).also {
                     stats.remove(section)
+                    latestSummaries[section] = it
                 }
             } else {
                 null

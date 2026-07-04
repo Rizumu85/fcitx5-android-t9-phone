@@ -29,6 +29,7 @@ import org.fcitx.fcitx5.android.utils.startActivity
 import org.fcitx.fcitx5.android.utils.toast
 import timber.log.Timber
 import java.io.File
+import java.util.Locale
 
 class DeveloperFragment : PaddingPreferenceFragment() {
 
@@ -93,6 +94,13 @@ class DeveloperFragment : PaddingPreferenceFragment() {
                     true
                 }
             })
+            addPreference(R.string.t9_responsiveness_trace_report) {
+                AlertDialog.Builder(context)
+                    .setTitle(R.string.t9_responsiveness_trace_report)
+                    .setMessage(formatT9ResponsivenessReport())
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show()
+            }
             addPreference(R.string.restart_fcitx_instance) {
                 AlertDialog.Builder(context)
                     .setTitle(R.string.restart_fcitx_instance)
@@ -147,6 +155,25 @@ class DeveloperFragment : PaddingPreferenceFragment() {
                 Debug.dumpHprofData(hprofFile.absolutePath)
                 launcher.launch(fileName)
             }
+        }
+    }
+
+    private fun formatT9ResponsivenessReport(): String {
+        val summaries = T9ResponsivenessTrace.latestSummaries()
+            .sortedByDescending { it.averageNanos }
+        if (summaries.isEmpty()) {
+            return getString(R.string.t9_responsiveness_trace_report_empty)
+        }
+        return summaries.joinToString(separator = "\n") { summary ->
+            String.format(
+                Locale.US,
+                "%s: avg %.2f ms, max %.2f ms, slow %d/%d",
+                summary.section,
+                summary.averageNanos / 1_000_000.0,
+                summary.maxNanos / 1_000_000.0,
+                summary.slowCount,
+                summary.count
+            )
         }
     }
 

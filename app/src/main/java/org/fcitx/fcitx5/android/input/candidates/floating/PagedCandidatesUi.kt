@@ -105,14 +105,7 @@ class PagedCandidatesUi(
         override fun onBindViewHolder(holder: UiHolder, position: Int) {
             when (holder) {
                 is UiHolder.Candidate -> {
-                    val candidate = data.candidates[position]
-                    holder.ui.update(
-                        candidate,
-                        active = highlightActive && position == data.cursorIndex,
-                        inactiveRow = !highlightActive,
-                        t9InputModeEnabled = t9InputModeEnabled,
-                        shortcutLabel = if (showShortcutLabels) shortcutLabelForPosition(position) else null
-                    )
+                    bindCandidate(holder, position)
                     holder.ui.root.setOnClickListener {
                         onCandidateClick.invoke(position)
                     }
@@ -131,11 +124,30 @@ class PagedCandidatesUi(
             }
         }
 
+        override fun onBindViewHolder(holder: UiHolder, position: Int, payloads: MutableList<Any>) {
+            if (payloads.contains(SelectionPayload) && holder is UiHolder.Candidate) {
+                bindCandidate(holder, position)
+                return
+            }
+            onBindViewHolder(holder, position)
+        }
+
         override fun onViewRecycled(holder: UiHolder) {
             if (holder is UiHolder.Candidate) {
                 holder.ui.root.setOnClickListener(null)
             }
             super.onViewRecycled(holder)
+        }
+
+        private fun bindCandidate(holder: UiHolder.Candidate, position: Int) {
+            val candidate = data.candidates[position]
+            holder.ui.update(
+                candidate,
+                active = highlightActive && position == data.cursorIndex,
+                inactiveRow = !highlightActive,
+                t9InputModeEnabled = t9InputModeEnabled,
+                shortcutLabel = if (showShortcutLabels) shortcutLabelForPosition(position) else null
+            )
         }
     }
 
@@ -200,7 +212,7 @@ class PagedCandidatesUi(
         if (highlightActive == active) return
         highlightActive = active
         if (data.candidates.isNotEmpty()) {
-            candidatesAdapter.notifyItemRangeChanged(0, data.candidates.size)
+            candidatesAdapter.notifyItemRangeChanged(0, data.candidates.size, SelectionPayload)
         }
     }
 
@@ -210,6 +222,8 @@ class PagedCandidatesUi(
 
         private fun shortcutLabelForPosition(position: Int): String? =
             shortcutLabels.getOrNull(position)
+
+        private object SelectionPayload
     }
 
     private fun rowsFor(data: FcitxEvent.PagedCandidateEvent.Data): List<Row> {
@@ -223,10 +237,10 @@ class PagedCandidatesUi(
     private fun notifyCursorChanged(oldCursorIndex: Int, newCursorIndex: Int) {
         if (oldCursorIndex == newCursorIndex) return
         if (oldCursorIndex in data.candidates.indices) {
-            candidatesAdapter.notifyItemChanged(oldCursorIndex)
+            candidatesAdapter.notifyItemChanged(oldCursorIndex, SelectionPayload)
         }
         if (newCursorIndex in data.candidates.indices) {
-            candidatesAdapter.notifyItemChanged(newCursorIndex)
+            candidatesAdapter.notifyItemChanged(newCursorIndex, SelectionPayload)
         }
     }
 

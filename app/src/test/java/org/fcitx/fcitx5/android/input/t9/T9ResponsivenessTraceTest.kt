@@ -8,6 +8,7 @@ package org.fcitx.fcitx5.android.input.t9
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class T9ResponsivenessTraceTest {
@@ -54,5 +55,31 @@ class T9ResponsivenessTraceTest {
         T9ResponsivenessTrace.record("section", 1_000_000L)
         T9ResponsivenessTrace.record("section", 1_000_000L)
         assertNull(T9ResponsivenessTrace.record("section", 1_000_000L))
+    }
+
+    @Test
+    fun latestSummariesStoresFlushedWindows() {
+        T9ResponsivenessTrace.configure(enabled = true, aggregationWindow = 2)
+
+        T9ResponsivenessTrace.record("section", 1_000_000L)
+        T9ResponsivenessTrace.record("section", 3_000_000L)
+
+        val summaries = T9ResponsivenessTrace.latestSummaries()
+
+        assertEquals(1, summaries.size)
+        assertEquals("section", summaries.single().section)
+        assertEquals(2_000_000L, summaries.single().averageNanos)
+    }
+
+    @Test
+    fun resetClearsLatestSummaries() {
+        T9ResponsivenessTrace.configure(enabled = true, aggregationWindow = 1)
+        T9ResponsivenessTrace.record("section", 1_000_000L)
+
+        assertTrue(T9ResponsivenessTrace.latestSummaries().isNotEmpty())
+
+        T9ResponsivenessTrace.reset()
+
+        assertTrue(T9ResponsivenessTrace.latestSummaries().isEmpty())
     }
 }

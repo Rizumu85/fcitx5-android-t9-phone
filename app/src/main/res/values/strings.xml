@@ -91,6 +91,8 @@
     <string name="verbose_log_summary">Requires restart</string>
     <string name="t9_responsiveness_trace">Trace T9 responsiveness</string>
     <string name="t9_responsiveness_trace_summary">Log aggregated T9 timing summaries for debugging</string>
+    <string name="t9_responsiveness_trace_report">T9 responsiveness report</string>
+    <string name="t9_responsiveness_trace_report_empty">No aggregated T9 timing summaries yet. Turn on tracing, type for a while, then open this report again.</string>
     <string name="removed_x">Removed %1$s</string>
     <string name="added_x">Added %1$s</string>
     <string name="edited_x">Edited %1$s</string>
