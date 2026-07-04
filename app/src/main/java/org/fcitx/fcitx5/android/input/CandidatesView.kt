@@ -203,6 +203,8 @@ class CandidatesView(
     private var t9RenderedPinyinItems: List<String> = emptyList()
     private var t9PinyinOptionCount = 0
     private var t9PinyinHasRightOverflow = false
+    private var t9PinyinOverflowHintDismissed = false
+    private var t9PinyinHintSourceItems: List<String> = emptyList()
     private var lastRenderedT9Focus = T9CandidateFocus.BOTTOM
     private val t9SmartEnglishPageCache = T9SmartEnglishPageCache(
         characterBudget = { t9HanziCharacterBudget }
@@ -546,6 +548,8 @@ class CandidatesView(
         t9RenderedPinyinItems = emptyList()
         t9PinyinOptionCount = 0
         t9PinyinHasRightOverflow = false
+        t9PinyinOverflowHintDismissed = false
+        t9PinyinHintSourceItems = emptyList()
         updatePinyinOverflowHint(false)
         lastRenderedT9Focus = T9CandidateFocus.BOTTOM
         setPinyinRowVisible(false)
@@ -623,6 +627,7 @@ class CandidatesView(
 
     fun moveHighlightedT9Pinyin(delta: Int): Boolean {
         val state = t9PinyinRowWindow.move(delta) ?: return false
+        dismissPinyinOverflowHint()
         val previousWindowStart = t9RenderedPinyinWindowStart
         renderPinyinWindow(state)
         if (state.windowStart == previousWindowStart) {
@@ -697,6 +702,7 @@ class CandidatesView(
     ) {
         val topFocused = focus == T9CandidateFocus.TOP
         if (topFocused && lastRenderedT9Focus != T9CandidateFocus.TOP) {
+            dismissPinyinOverflowHint()
             t9PinyinRowWindow.resetHighlight()?.let(::renderPinyinWindow)
             pinyinBarAdapter.scrollToStart()
         }
@@ -954,6 +960,8 @@ class CandidatesView(
             t9RenderedPinyinItems = emptyList()
             t9PinyinOptionCount = 0
             t9PinyinHasRightOverflow = false
+            t9PinyinOverflowHintDismissed = false
+            t9PinyinHintSourceItems = emptyList()
             updatePinyinOverflowHint(false)
             pinyinBarView.visibility = View.GONE
             pinyinRowWrapper.visibility = View.GONE
@@ -1041,6 +1049,7 @@ class CandidatesView(
         if (pinyinBarView.paddingRight != rightPadding) {
             pinyinBarView.setPadding(0, 0, rightPadding, 0)
         }
+        pinyinBarView.clipToPadding = visible
     }
 
     private fun updatePinyinOverflowHintFromLayout() {
@@ -1048,7 +1057,19 @@ class CandidatesView(
             updatePinyinOverflowHint(false)
             return
         }
-        updatePinyinOverflowHint(t9PinyinHasRightOverflow || pinyinBarHasScrollableRightContent())
+        if (pinyinBarView.scrollX > dp(T9_PINYIN_ROW_OVERFLOW_EPSILON_DP)) {
+            t9PinyinOverflowHintDismissed = true
+        }
+        updatePinyinOverflowHint(
+            !t9PinyinOverflowHintDismissed &&
+                (t9PinyinHasRightOverflow || pinyinBarHasScrollableRightContent())
+        )
+    }
+
+    private fun dismissPinyinOverflowHint() {
+        if (t9PinyinOverflowHintDismissed) return
+        t9PinyinOverflowHintDismissed = true
+        updatePinyinOverflowHint(false)
     }
 
     private fun pinyinBarHasScrollableRightContent(): Boolean {
@@ -1088,6 +1109,8 @@ class CandidatesView(
             t9RenderedPinyinItems = emptyList()
             t9PinyinOptionCount = 0
             t9PinyinHasRightOverflow = false
+            t9PinyinOverflowHintDismissed = false
+            t9PinyinHintSourceItems = emptyList()
             updatePinyinOverflowHint(false)
             return setPinyinRowVisible(false)
         }
@@ -1097,8 +1120,14 @@ class CandidatesView(
             t9RenderedPinyinItems = emptyList()
             t9PinyinOptionCount = 0
             t9PinyinHasRightOverflow = false
+            t9PinyinOverflowHintDismissed = false
+            t9PinyinHintSourceItems = emptyList()
             updatePinyinOverflowHint(false)
             return setPinyinRowVisible(false)
+        }
+        if (candidates != t9PinyinHintSourceItems) {
+            t9PinyinHintSourceItems = candidates.toList()
+            t9PinyinOverflowHintDismissed = false
         }
         t9PinyinOptionCount = candidates.size
         val state = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.window") {
@@ -1117,7 +1146,7 @@ class CandidatesView(
     private fun renderPinyinWindow(state: T9PinyinRowWindow.VisibleState): Boolean {
         t9RenderedPinyinItems = state.items
         t9PinyinHasRightOverflow = state.windowStart + state.items.size < t9PinyinOptionCount
-        updatePinyinOverflowHint(t9PinyinHasRightOverflow)
+        updatePinyinOverflowHint(t9PinyinHasRightOverflow && !t9PinyinOverflowHintDismissed)
         val changed = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.submit") {
             pinyinBarAdapter.submitList(state.items, state.highlightedIndex)
         }
