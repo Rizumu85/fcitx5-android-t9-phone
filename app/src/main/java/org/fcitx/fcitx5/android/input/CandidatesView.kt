@@ -32,6 +32,7 @@ import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrientation
 import org.fcitx.fcitx5.android.input.candidates.floating.PagedCandidatesUi
 import org.fcitx.fcitx5.android.input.preedit.PreeditUi
+import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidatePipeline
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidateLoadingState
 import org.fcitx.fcitx5.android.input.t9.T9BulkCandidateLoader
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
@@ -170,9 +171,6 @@ class CandidatesView(
      * being sent to fcitx, otherwise taps on filtered rows would pick the wrong character.
      */
     private var t9ShownPaged: FcitxEvent.PagedCandidateEvent.Data? = null
-    private var t9ShownCandidateSignature = ""
-    private var t9ShownCursorContextSignature = ""
-    private var t9HanziCursorIndex = -1
     private var t9ShownOriginalIndices = intArrayOf()
     private var t9ShownUsesBulkSelection = false
     private var t9ShownMatchedPrefix: String? = null
@@ -181,15 +179,18 @@ class CandidatesView(
     private var t9BulkFilteredPaged: FcitxEvent.PagedCandidateEvent.Data? = null
     private var t9BulkFilteredOriginalIndices = intArrayOf()
     private var t9BulkFilteredMatchedPrefix: String? = null
+    private val chineseT9CandidatePipeline = ChineseT9CandidatePipeline(
+        characterBudget = { t9HanziCharacterBudget },
+        candidateMatchesPrefix = { candidate, prefix ->
+            service.candidateMatchesT9ResolvedPrefix(candidate, prefix)
+        }
+    )
     private val t9BulkCandidateLoader = T9BulkCandidateLoader(
         characterBudget = { t9HanziCharacterBudget },
         candidateMatchesPrefix = { candidate, prefix ->
             service.candidateMatchesT9ResolvedPrefix(candidate, prefix)
         }
     )
-    private val t9LocalBudgetPager = T9CandidatePager()
-    private var t9LocalBudgetSignature = ""
-    private var t9LocalBudgetNoPageSignature = ""
     private var t9ShownUsesLocalBudget = false
     private var t9ShownUsesSmartEnglish = false
     private val t9SmartEnglishPager = T9CandidatePager()
@@ -281,25 +282,25 @@ class CandidatesView(
             data: FcitxEvent.PagedCandidateEvent.Data,
             prefixes: List<String>
         ): Pair<FcitxEvent.PagedCandidateEvent.Data, String?> =
-            this@CandidatesView.filterPagedByT9PinyinPrefixes(data, prefixes)
+            chineseT9CandidatePipeline.filterPagedByPinyinPrefixes(data, prefixes)
 
         override fun buildLocalBudgetedPagedFromCurrentPage(
             data: FcitxEvent.PagedCandidateEvent.Data
         ): FcitxEvent.PagedCandidateEvent.Data? =
-            this@CandidatesView.buildLocalBudgetedPagedFromCurrentPage(data)
+            chineseT9CandidatePipeline.buildLocalBudgetedPagedFromCurrentPage(data)
 
         override fun resetT9LocalBudgetState() {
             this@CandidatesView.resetT9LocalBudgetState()
         }
 
         override fun buildT9CursorContextSignature(prefixes: List<String>): String =
-            this@CandidatesView.buildT9CursorContextSignature(prefixes)
+            chineseT9CandidatePipeline.buildCursorContextSignature(inputPanel.preedit.toString(), prefixes)
 
         override fun applyT9HanziCursor(
             data: FcitxEvent.PagedCandidateEvent.Data,
             cursorContextSignature: String
         ): FcitxEvent.PagedCandidateEvent.Data =
-            this@CandidatesView.applyT9HanziCursor(data, cursorContextSignature)
+            chineseT9CandidatePipeline.applyHanziCursor(data, cursorContextSignature)
 
         override fun buildOriginalIndicesForPendingPunctuation(
             shown: FcitxEvent.PagedCandidateEvent.Data
@@ -311,7 +312,7 @@ class CandidatesView(
 
         override fun buildOriginalIndicesForPaged(
             shown: FcitxEvent.PagedCandidateEvent.Data
-        ): IntArray = this@CandidatesView.buildOriginalIndicesForPaged(shown)
+        ): IntArray = chineseT9CandidatePipeline.buildOriginalIndicesForPaged(shown, paged)
 
         override fun getSmartEnglishT9Presentation(): T9PresentationState? =
             service.getSmartEnglishT9Presentation()
@@ -332,11 +333,6 @@ class CandidatesView(
             this@CandidatesView.effectiveT9CandidateFocus(pinyinOptions, useT9PinyinRow)
     })
     private var pinyinRowTargetVisible = false
-
-    private data class T9MatchedCandidates(
-        val prefix: String?,
-        val candidates: List<IndexedValue<FcitxEvent.Candidate>>
-    )
 
     private val showPaginationArrows by candidatesPrefs.showPaginationArrows
     private val candidatesUi = PagedCandidatesUi(
@@ -521,6 +517,7 @@ class CandidatesView(
         resetT9BulkFilterState()
         t9ShownUsesSmartEnglish = false
         t9SmartEnglishPager.reset()
+        chineseT9CandidatePipeline.reset()
         t9CandidateUiRenderer.reset()
         chineseT9CandidateLoadingState.reset()
         preeditUi.update(inputPanel)
@@ -609,8 +606,7 @@ class CandidatesView(
                     val originalIndex = t9ShownOriginalIndices.getOrNull(next) ?: next
                     return service.setSmartEnglishCandidateIndex(originalIndex)
                 }
-                t9HanziCursorIndex = next
-                t9ShownPaged = shown.copy(cursorIndex = next)
+                t9ShownPaged = chineseT9CandidatePipeline.moveHanziCursor(shown, next) ?: return false
                 if (t9ShownUsesPendingPunctuation) {
                     val originalIndex = t9ShownOriginalIndices.getOrNull(next) ?: next
                     service.previewPendingT9PunctuationCandidate(originalIndex)
@@ -638,7 +634,7 @@ class CandidatesView(
         if (t9ShownUsesBulkSelection && t9BulkCandidateLoader.hasCandidates) {
             if (offsetT9BulkFilteredCandidatePage(delta)) return true
         }
-        if (t9ShownUsesLocalBudget && t9LocalBudgetPager.hasCandidates) {
+        if (t9ShownUsesLocalBudget && chineseT9CandidatePipeline.hasLocalBudgetCandidates) {
             if (offsetT9LocalBudgetedCandidatePage(delta)) return true
         }
         val shown = t9ShownPaged ?: return false
@@ -722,72 +718,18 @@ class CandidatesView(
                     service.isChineseT9InputModeActive()
             )
 
-    private fun applyT9HanziCursor(
-        data: FcitxEvent.PagedCandidateEvent.Data,
-        cursorContextSignature: String
-    ): FcitxEvent.PagedCandidateEvent.Data {
-        val signature = buildString {
-            data.candidates.forEach {
-                append(it.label).append('|').append(it.text).append('|').append(it.comment).append('\n')
-            }
-            append(data.hasPrev).append('|').append(data.hasNext)
-        }
-        if (signature != t9ShownCandidateSignature ||
-            cursorContextSignature != t9ShownCursorContextSignature
-        ) {
-            t9ShownCandidateSignature = signature
-            t9ShownCursorContextSignature = cursorContextSignature
-            t9HanziCursorIndex = data.candidates.indices.firstOrNull() ?: -1
-        } else if (t9HanziCursorIndex !in data.candidates.indices) {
-            t9HanziCursorIndex = data.candidates.indices.firstOrNull() ?: -1
-        }
-        return if (data.cursorIndex == t9HanziCursorIndex) data else data.copy(cursorIndex = t9HanziCursorIndex)
-    }
-
-    private fun buildT9CursorContextSignature(prefixes: List<String>): String =
-        buildString {
-            append(inputPanel.preedit).append('|')
-            append(prefixes.joinToString(separator = "/"))
-        }
-
-    private fun filterPagedByT9PinyinPrefixes(
-        data: FcitxEvent.PagedCandidateEvent.Data,
-        prefixes: List<String>
-    ): Pair<FcitxEvent.PagedCandidateEvent.Data, String?> {
-        if (prefixes.isEmpty() || data.candidates.isEmpty()) return data to null
-        val matched = matchT9Candidates(data.candidates.withIndex().toList(), prefixes)
-        if (matched.candidates.isEmpty()) {
-            return data.copy(candidates = emptyArray(), cursorIndex = -1) to null
-        }
-        val pager = T9CandidatePager()
-        pager.update("filtered", matched.candidates, t9HanziCharacterBudget)
-        val page = pager.currentPage() ?: return data to matched.prefix
-        if (page.candidates.size == data.candidates.size &&
-            page.candidates.indices.all { page.candidates[it].index == it }
-        ) {
-            return data to matched.prefix
-        }
-        val filteredCandidates = page.candidates.map { it.value }
-        val originallyHighlighted = data.candidates.getOrNull(data.cursorIndex)
-        val newCursor = originallyHighlighted
-            ?.let { filteredCandidates.indexOf(it) }
-            ?.takeIf { it >= 0 }
-            ?: 0
-        return data.copy(
-            candidates = filteredCandidates.toTypedArray(),
-            cursorIndex = newCursor,
-            hasPrev = page.hasPrev,
-            hasNext = page.hasNext || data.hasNext
-        ) to matched.prefix
-    }
-
     private fun selectT9ShownHanziCandidate(shownIndex: Int): Boolean {
         val shown = t9ShownPaged ?: return false
         if (t9ShownUsesPendingPunctuation) {
             val originalIndex = t9ShownOriginalIndices.getOrNull(shownIndex) ?: shownIndex
             return service.commitPendingT9PunctuationCandidate(originalIndex)
         }
-        val originalIndex = originalCandidateIndexForShown(shown, shownIndex) ?: return false
+        val originalIndex = chineseT9CandidatePipeline.originalCandidateIndexForShown(
+            shown = shown,
+            shownIndex = shownIndex,
+            rawPaged = paged,
+            shownOriginalIndices = t9ShownOriginalIndices
+        ) ?: return false
         if (originalIndex < 0) return false
         val selectedCandidate = shown.candidates.getOrNull(shownIndex) ?: return false
         val prefixToConsume = t9ShownMatchedPrefix?.takeIf {
@@ -808,49 +750,6 @@ class CandidatesView(
         return true
     }
 
-    private fun originalCandidateIndexForShown(
-        shown: FcitxEvent.PagedCandidateEvent.Data,
-        shownIndex: Int
-    ): Int? {
-        t9ShownOriginalIndices.getOrNull(shownIndex)?.takeIf { it >= 0 }?.let { return it }
-        val target = shown.candidates.getOrNull(shownIndex) ?: return null
-        if (shown.candidates.contentEquals(paged.candidates)) return shownIndex
-        val sameCandidateBeforeTarget = shown.candidates
-            .take(shownIndex)
-            .count { it == target }
-        var seen = 0
-        paged.candidates.forEachIndexed { rawIndex, rawCandidate ->
-            if (rawCandidate == target) {
-                if (seen == sameCandidateBeforeTarget) return rawIndex
-                seen += 1
-            }
-        }
-        return null
-    }
-
-    private fun buildOriginalIndicesForPaged(
-        shown: FcitxEvent.PagedCandidateEvent.Data
-    ): IntArray {
-        if (shown.candidates.isEmpty()) return intArrayOf()
-        if (shown.candidates.contentEquals(paged.candidates)) {
-            return IntArray(shown.candidates.size) { it }
-        }
-        val seenByCandidate = mutableMapOf<FcitxEvent.Candidate, Int>()
-        return IntArray(shown.candidates.size) { shownIndex ->
-            val target = shown.candidates[shownIndex]
-            val targetSeen = seenByCandidate.getOrDefault(target, 0)
-            seenByCandidate[target] = targetSeen + 1
-            var seen = 0
-            paged.candidates.forEachIndexed { rawIndex, rawCandidate ->
-                if (rawCandidate == target) {
-                    if (seen == targetSeen) return@IntArray rawIndex
-                    seen += 1
-                }
-            }
-            -1
-        }
-    }
-
     private fun offsetT9BulkFilteredCandidatePage(delta: Int): Boolean {
         val page = t9BulkCandidateLoader.offset(delta) ?: return false
         applyT9BulkFilteredPage(page)
@@ -859,7 +758,7 @@ class CandidatesView(
     }
 
     private fun offsetT9LocalBudgetedCandidatePage(delta: Int): Boolean {
-        t9LocalBudgetPager.offset(delta) ?: return false
+        if (!chineseT9CandidatePipeline.offsetLocalBudgetedPage(delta)) return false
         refreshT9Ui()
         return true
     }
@@ -879,42 +778,6 @@ class CandidatesView(
         val page = t9SmartEnglishPager.offset(delta) ?: return false
         val nextOriginalIndex = page.candidates.firstOrNull()?.index ?: return false
         return service.setSmartEnglishCandidateIndex(nextOriginalIndex)
-    }
-
-    private fun matchT9Candidates(
-        candidates: List<IndexedValue<FcitxEvent.Candidate>>,
-        prefixes: List<String>
-    ): T9MatchedCandidates {
-        val result = t9BulkCandidateLoader.matchCandidates(candidates, prefixes)
-        return T9MatchedCandidates(result.prefix, result.candidates)
-    }
-
-    private fun buildLocalBudgetedPagedFromCurrentPage(
-        data: FcitxEvent.PagedCandidateEvent.Data
-    ): FcitxEvent.PagedCandidateEvent.Data? {
-        if (data.candidates.isEmpty()) return null
-        val signature = buildT9CandidateSignature(data)
-        if (signature == t9LocalBudgetNoPageSignature) return null
-        if (signature != t9LocalBudgetSignature) {
-            val indexedCandidates = t9BulkCandidateLoader.dedupeDisplayCandidates(data.candidates.withIndex().toList())
-            t9LocalBudgetPager.update(signature, indexedCandidates, t9HanziCharacterBudget)
-            t9LocalBudgetSignature = signature
-        }
-        val page = t9LocalBudgetPager.currentPage() ?: return null
-        if (page.candidates.size == data.candidates.size && !page.hasPrev && !page.hasNext) {
-            t9LocalBudgetNoPageSignature = signature
-            t9LocalBudgetPager.reset()
-            t9LocalBudgetSignature = ""
-            t9ShownUsesLocalBudget = false
-            return null
-        }
-        return FcitxEvent.PagedCandidateEvent.Data(
-            candidates = page.candidates.map { it.value }.toTypedArray(),
-            cursorIndex = 0,
-            layoutHint = data.layoutHint,
-            hasPrev = data.hasPrev || page.hasPrev,
-            hasNext = data.hasNext || page.hasNext
-        )
     }
 
     private fun buildSmartEnglishPaged(
@@ -1050,9 +913,7 @@ class CandidatesView(
     }
 
     private fun resetT9LocalBudgetState() {
-        t9LocalBudgetPager.reset()
-        t9LocalBudgetSignature = ""
-        t9LocalBudgetNoPageSignature = ""
+        chineseT9CandidatePipeline.resetLocalBudget()
         t9ShownUsesLocalBudget = false
     }
 
