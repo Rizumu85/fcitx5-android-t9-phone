@@ -9,6 +9,18 @@ otherwise.
 Rizum Guidelines are active for this project/thread until the user says
 otherwise.
 
+## Version Control Backups
+
+- After each conversation that changes files, commit and push the completed
+  changes so the work is backed up remotely.
+- Split commits by coherent change area. Do not mix unrelated UI, architecture,
+  documentation, release, or tooling edits into the same commit.
+- Before committing, inspect the worktree and stage only the files that belong
+  to that commit. Leave unrelated dirty files untouched.
+- If pushing is blocked by authentication, network, conflicts, or unfinished
+  work that should not be committed yet, report the blocker and the exact
+  pending files instead of silently leaving the backup undone.
+
 ## Project Context
 
 This app is a modified Fcitx5 for Android input method for physical T9-key
@@ -49,6 +61,10 @@ continuing.
 - Do not add speculative abstractions or configuration.
 - Remove only unused code introduced by the current change.
 - Mention unrelated issues instead of fixing them silently.
+- Add comments when they preserve an important product or architecture decision.
+  Prefer explaining why this approach exists, especially when it records a user
+  requirement or tradeoff. Avoid comments that merely narrate what the code is
+  already doing.
 
 ## Verification
 
