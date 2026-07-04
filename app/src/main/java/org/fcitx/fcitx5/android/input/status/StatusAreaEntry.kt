@@ -81,18 +81,12 @@ sealed class StatusAreaEntry(
             return Fcitx(it, labelForAction(context, it), drawableFromIconName(it.icon), active)
         }
 
-        private fun Action.isRimeAction(): Boolean {
-            if (name.startsWith("fcitx-rime") || icon.startsWith("fcitx_rime")) {
-                return true
-            }
-            return menu?.any {
-                it.name.startsWith("fcitx-rime") ||
-                    it.icon.startsWith("fcitx_rime") ||
-                    it.shortText.equals("Deploy", ignoreCase = true) ||
-                    it.shortText.equals("Synchronize", ignoreCase = true) ||
-                    it.shortText == "重新部署" ||
-                    it.shortText == "同步"
-            } ?: false
-        }
+        internal fun Action.isRimeAction(): Boolean =
+            name.startsWith("fcitx-rime") ||
+                icon.startsWith("fcitx_rime") ||
+                menu?.any {
+                    it.name.startsWith("fcitx-rime") ||
+                        it.icon.startsWith("fcitx_rime")
+                } == true
     }
 }
