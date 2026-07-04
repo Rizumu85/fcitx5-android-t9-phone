@@ -95,12 +95,13 @@ object T9CandidateRenderer {
             )
         }
         val candidateContentChanged = previous.candidateContentSignature != next.candidateContentSignature
+        val pinyinChanged = previous.pinyinSignature != next.pinyinSignature
         return T9CandidateRenderPatch(
             preedit = previous.preeditSignature != next.preeditSignature,
             candidates = previous.candidateSignature != next.candidateSignature,
             candidateContent = candidateContentChanged,
-            pinyin = previous.pinyinSignature != next.pinyinSignature || candidateContentChanged,
-            focus = previous.focus != next.focus,
+            pinyin = pinyinChanged || candidateContentChanged,
+            focus = previous.focus != next.focus || pinyinChanged || candidateContentChanged,
             visibility = previous.visibilitySignature != next.visibilitySignature
         )
     }

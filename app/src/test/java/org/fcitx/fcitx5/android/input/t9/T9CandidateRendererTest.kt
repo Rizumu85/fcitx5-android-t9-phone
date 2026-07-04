@@ -50,6 +50,18 @@ class T9CandidateRendererTest {
         assertTrue(patch.candidates)
         assertTrue(patch.candidateContent)
         assertTrue(patch.pinyin)
+        assertTrue(patch.focus)
+    }
+
+    @Test
+    fun pinyinContentChangeRefreshesFocusForNewChips() {
+        val previous = state(pinyinOptions = listOf("a"))
+        val next = state(pinyinOptions = listOf("ai"))
+
+        val patch = T9CandidateRenderer.diff(previous, next)
+
+        assertTrue(patch.pinyin)
+        assertTrue(patch.focus)
     }
 
     private fun state(

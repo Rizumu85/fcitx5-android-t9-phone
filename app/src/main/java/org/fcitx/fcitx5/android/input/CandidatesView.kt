@@ -697,14 +697,18 @@ class CandidatesView(
                 FcitxEvent.InputPanelEvent.Data(it, inputPanel.auxUp, inputPanel.auxDown)
             } ?: inputPanel
         }
+        val pinyinOptions = t9State?.pinyinOptions ?: emptyList()
         T9CandidateRenderState(
             panel = panelToShow,
             candidates = effectivePaged,
             orientation = orientation,
             showShortcutLabels = shouldShowT9BottomShortcutLabels(effectivePaged),
-            pinyinOptions = t9State?.pinyinOptions ?: emptyList(),
+            pinyinOptions = pinyinOptions,
             pinyinUseT9 = chineseT9Active,
-            focus = service.getT9CandidateFocus(),
+            focus = effectiveT9CandidateFocus(
+                pinyinOptions = pinyinOptions,
+                useT9PinyinRow = chineseT9Active
+            ),
             preferAboveCursorAnchor = nextPreferAboveCursorAnchor,
             shouldShow = shouldShowT9CandidateUi(
                 suppressEmptyT9Candidates = suppressEmptyT9Candidates,
@@ -762,6 +766,18 @@ class CandidatesView(
             }
         }
         lastT9RenderState = next
+    }
+
+    private fun effectiveT9CandidateFocus(
+        pinyinOptions: List<String>,
+        useT9PinyinRow: Boolean
+    ): T9CandidateFocus {
+        val current = service.getT9CandidateFocus()
+        if (useT9PinyinRow && pinyinOptions.isNotEmpty()) return current
+        if (current == T9CandidateFocus.TOP) {
+            service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
+        }
+        return T9CandidateFocus.BOTTOM
     }
 
     private fun shouldShowT9CandidateUi(
@@ -1078,10 +1094,8 @@ class CandidatesView(
         }
         val signature = t9BulkCandidateLoader.requestSignature(prefixes, inputPanel.preedit.toString(), paged.candidates)
         if (!t9BulkCandidateLoader.shouldRequest(signature)) return
-        val prefixChanged = t9BulkCandidateLoader.startRequest(prefixes, signature)
-        if (prefixChanged) {
-            t9BulkFilteredPaged = null
-        }
+        t9BulkCandidateLoader.startRequest(prefixes, signature)
+        t9BulkFilteredPaged = null
         t9BulkFilteredOriginalIndices = intArrayOf()
         t9BulkFilteredMatchedPrefix = null
         fcitx.launchOnReady { api ->
@@ -1144,7 +1158,6 @@ class CandidatesView(
                 return false
             }
         } else {
-            service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
             pinyinBarAdapter.clear()
             pinyinBarAdapter.scrollToStart()
             pinyinBarView.visibility = View.GONE
