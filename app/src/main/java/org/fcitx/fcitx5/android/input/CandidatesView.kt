@@ -914,7 +914,7 @@ class CandidatesView(
     private fun showPinyinRowNow() {
         pinyinBarView.visibility = View.VISIBLE
         pinyinRowWrapper.visibility = View.VISIBLE
-        pinyinRowWrapper.post(::updatePinyinOverflowHintFromLayout)
+        schedulePinyinOverflowHintUpdate()
         if (showAfterPositioned) {
             showWhenPositioned(true)
         }
@@ -978,7 +978,7 @@ class CandidatesView(
             showPinyinRowNow()
         }
         if (widthReady) {
-            pinyinRowWrapper.post(::updatePinyinOverflowHintFromLayout)
+            schedulePinyinOverflowHintUpdate()
         }
         return widthReady
     }
@@ -1045,11 +1045,25 @@ class CandidatesView(
         if (pinyinOverflowHint.visibility != targetVisibility) {
             pinyinOverflowHint.visibility = targetVisibility
         }
-        val rightPadding = if (visible) pinyinOverflowHintReservedWidthPx() else 0
+        val rightPadding = when {
+            visible -> pinyinOverflowHintReservedWidthPx()
+            t9PinyinOverflowHintSuppressedByFocus && pinyinRowTargetVisible ->
+                dp(T9_PINYIN_ROW_FOCUSED_END_GAP_DP)
+            else -> 0
+        }
         if (pinyinBarView.paddingRight != rightPadding) {
             pinyinBarView.setPadding(0, 0, rightPadding, 0)
         }
-        pinyinBarView.clipToPadding = visible
+        pinyinBarView.clipToPadding = rightPadding > 0
+    }
+
+    private fun schedulePinyinOverflowHintUpdate() {
+        pinyinRowWrapper.post {
+            updatePinyinOverflowHintFromLayout()
+            // First-show measurement can settle one frame after the row becomes visible; run a
+            // second lightweight pass so the overflow hint appears without waiting for focus moves.
+            pinyinRowWrapper.post(::updatePinyinOverflowHintFromLayout)
+        }
     }
 
     private fun updatePinyinOverflowHintFromLayout() {
@@ -1141,7 +1155,7 @@ class CandidatesView(
         val changed = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.submit") {
             pinyinBarAdapter.submitList(state.items, state.highlightedIndex)
         }
-        pinyinRowWrapper.post(::updatePinyinOverflowHintFromLayout)
+        schedulePinyinOverflowHintUpdate()
         val ready = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.visibility") {
             setPinyinRowVisible(true)
         }
@@ -1374,5 +1388,6 @@ class CandidatesView(
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
         private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 18
         private const val T9_PINYIN_ROW_OVERFLOW_EPSILON_DP = 2
+        private const val T9_PINYIN_ROW_FOCUSED_END_GAP_DP = 10
     }
 }
