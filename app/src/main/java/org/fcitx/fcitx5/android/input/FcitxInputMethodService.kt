@@ -81,8 +81,8 @@ import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9Coordinator
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocusController
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
+import org.fcitx.fcitx5.android.input.t9.T9PunctuationCoordinator
 import org.fcitx.fcitx5.android.input.t9.T9PinyinUtils
-import org.fcitx.fcitx5.android.input.t9.T9PunctuationSession
 import org.fcitx.fcitx5.android.input.t9.T9ResolvedSegment
 import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
 import org.fcitx.fcitx5.android.utils.InputMethodUtil
@@ -151,14 +151,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         override val compositionKeyCount: Int
             get() = getT9CompositionKeyCount()
         override val hasPendingPunctuation: Boolean
-            get() = t9PunctuationSession.isPending
+            get() = t9PunctuationCoordinator.isPending
         override val pendingPunctuationOneKeyDeferred: Boolean
-            get() = t9PunctuationSession.oneKeyDeferred
+            get() = t9PunctuationCoordinator.oneKeyDeferred
         override val pendingPunctuationSet: PhysicalT9KeyHandler.PunctuationSet
-            get() = when (t9PunctuationSession.set) {
-                T9PunctuationSession.Set.CHINESE -> PhysicalT9KeyHandler.PunctuationSet.CHINESE
-                T9PunctuationSession.Set.ENGLISH -> PhysicalT9KeyHandler.PunctuationSet.ENGLISH
-            }
+            get() = t9PunctuationCoordinator.physicalSet
         override val hasSmartEnglishDigits: Boolean
             get() = smartEnglishCoordinator.hasDigits
         override val hasMultiTapPendingChar: Boolean
@@ -176,7 +173,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 input.eventTime - input.downTime >= physicalLongPressDelay.toLong()
 
         override fun setPendingPunctuationOneKeyDeferred(value: Boolean) {
-            t9PunctuationSession.setOneKeyDeferred(value)
+            t9PunctuationCoordinator.setOneKeyDeferred(value)
         }
 
         override fun commitPendingPunctuationShortcut(keyCode: Int): Boolean =
@@ -467,7 +464,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     fun clearHiddenChineseT9CompositionIfCandidateUiSuppressed() {
         if (!t9InputModeEnabled || currentT9Mode != T9InputMode.CHINESE) return
-        if (t9PunctuationSession.isPending || getT9CompositionKeyCount() > 0) return
+        if (t9PunctuationCoordinator.isPending || getT9CompositionKeyCount() > 0) return
         clearT9CompositionState()
         clearTransientInputUiState()
         currentInputConnection?.finishComposingText()
@@ -841,7 +838,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (composing.isNotEmpty()) return false
         if (hasT9CompositionState()) return false
         if (multiTapPendingChar != null) return false
-        if (t9PunctuationSession.isPending) return false
+        if (t9PunctuationCoordinator.isPending) return false
 
         val lastSelection = selection.latest
         if (lastSelection.isNotEmpty()) return false
@@ -860,7 +857,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         composing.isEmpty() &&
             !hasT9CompositionState() &&
             multiTapPendingChar == null &&
-            !t9PunctuationSession.isPending
+            !t9PunctuationCoordinator.isPending
 
     private fun deleteBeforeCursorDirectly(): Boolean {
         val ic = currentInputConnection ?: return false
@@ -1216,7 +1213,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             currentInputConnection != null &&
             composing.isEmpty() &&
             !hasT9CompositionState() &&
-            !t9PunctuationSession.isPending &&
+            !t9PunctuationCoordinator.isPending &&
             multiTapPendingChar == null
 
     private fun performDeferredPhysicalOkShortPress(keyCode: Int) {
@@ -1651,7 +1648,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
     private val MULTITAP_TIMEOUT = 1200L  // Increased from 500ms for easier typing
 
-    private val t9PunctuationSession = T9PunctuationSession()
+    private val t9PunctuationCoordinator: T9PunctuationCoordinator = T9PunctuationCoordinator(
+        clearTransientInputUiState = ::clearTransientInputUiState,
+        refreshUi = { candidatesView?.refreshT9Ui() },
+        cancelTimeout = ::cancelT9PunctuationTimeout,
+        commitText = ::commitText
+    )
 
     private val chineseT9Session = ChineseT9CompositionSession()
 
@@ -1681,6 +1683,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     private val t9PunctuationTimeoutRunnable = Runnable {
         commitPendingT9Punctuation()
+    }
+
+    private fun cancelT9PunctuationTimeout() {
+        multiTapHandler.removeCallbacks(t9PunctuationTimeoutRunnable)
     }
 
     private fun showEnglishCaseStateOrRefreshPending() {
@@ -1799,66 +1805,36 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         showEnglishCaseStateOrRefreshPending()
     }
 
-    private fun showPendingT9Punctuation() {
-        clearTransientInputUiState()
-        candidatesView?.refreshT9Ui()
-        multiTapHandler.removeCallbacks(t9PunctuationTimeoutRunnable)
-    }
-
     private fun deferSmartEnglishPunctuationKey() {
-        t9PunctuationSession.deferEnglishKey()
+        t9PunctuationCoordinator.deferEnglishKey()
     }
 
     private fun showSmartEnglishPunctuationCandidates() {
-        t9PunctuationSession.showEnglishCandidates()
-        showPendingT9Punctuation()
+        t9PunctuationCoordinator.showEnglishCandidates()
     }
 
     fun getPendingT9PunctuationPaged(): FcitxEvent.PagedCandidateEvent.Data? =
-        t9PunctuationSession.paged()
+        t9PunctuationCoordinator.paged()
 
-    fun commitPendingT9PunctuationCandidate(index: Int): Boolean {
-        t9PunctuationSession.selectCandidate(index) ?: return false
-        return commitPendingT9Punctuation()
-    }
+    fun commitPendingT9PunctuationCandidate(index: Int): Boolean =
+        t9PunctuationCoordinator.selectAndCommitCandidate(index)
 
-    fun previewPendingT9PunctuationCandidate(index: Int): Boolean {
-        t9PunctuationSession.selectCandidate(index) ?: return false
-        candidatesView?.refreshT9Ui()
-        return true
-    }
+    fun previewPendingT9PunctuationCandidate(index: Int): Boolean =
+        t9PunctuationCoordinator.previewCandidate(index)
 
-    private fun handleChinesePunctuationKey(): Boolean {
-        multiTapHandler.removeCallbacks(t9PunctuationTimeoutRunnable)
-        t9PunctuationSession.handleChineseKey(
+    private fun handleChinesePunctuationKey(): Boolean =
+        t9PunctuationCoordinator.handleChineseKey(
             hasCompositionKeys = getT9CompositionKeyCount() > 0
-        ) ?: run {
-            return true
-        }
-        showPendingT9Punctuation()
-        return true
-    }
+        )
 
-    private fun togglePendingT9PunctuationSet(): Boolean {
-        t9PunctuationSession.toggleSet() ?: return false
-        showPendingT9Punctuation()
-        return true
-    }
+    private fun togglePendingT9PunctuationSet(): Boolean =
+        t9PunctuationCoordinator.toggleSet()
 
-    private fun commitPendingT9Punctuation(): Boolean {
-        multiTapHandler.removeCallbacks(t9PunctuationTimeoutRunnable)
-        val punctuation = t9PunctuationSession.commit() ?: return false
-        commitText(punctuation)
-        candidatesView?.refreshT9Ui()
-        return true
-    }
+    private fun commitPendingT9Punctuation(): Boolean =
+        t9PunctuationCoordinator.commit()
 
-    private fun cancelPendingT9Punctuation(): Boolean {
-        multiTapHandler.removeCallbacks(t9PunctuationTimeoutRunnable)
-        if (!t9PunctuationSession.cancel()) return false
-        candidatesView?.refreshT9Ui()
-        return true
-    }
+    private fun cancelPendingT9Punctuation(): Boolean =
+        t9PunctuationCoordinator.cancel()
 
     /**
      * Commit any pending multi-tap character
@@ -2267,7 +2243,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (!t9InputModeEnabled || currentT9Mode != T9InputMode.CHINESE) {
             return T9PresentationState(null, emptyList())
         }
-        t9PunctuationSession.pendingText?.let {
+        t9PunctuationCoordinator.pendingText?.let {
             return T9PresentationState(
                 topReading = formattedT9Text(it),
                 pinyinOptions = emptyList()
