@@ -80,7 +80,7 @@ class T9CandidateUiStateBuilderTest {
     }
 
     @Test
-    fun firstChineseLoadingStateCanShowLocalPinyinRowBeforeWindowIsVisible() {
+    fun firstChineseLoadingStateDefersLocalPinyinRowBeforeWindowIsVisible() {
         val loadingState = ChineseT9CandidateLoadingState().apply {
             startIfNeeded(chineseT9Active = true, compositionKeyCount = 1)
         }
@@ -101,11 +101,8 @@ class T9CandidateUiStateBuilderTest {
             )
         )
 
-        assertNotNull(result)
-        assertTrue(result!!.renderState.shouldShow)
-        assertEquals(listOf("a", "b", "c"), result.renderState.pinyinOptions)
-        assertTrue(result.renderState.candidates.candidates.isEmpty())
-        assertFalse(result.renderState.showShortcutLabels)
+        assertEquals(null, result)
+        assertEquals(0, delegate.getT9PresentationCount)
     }
 
     @Test

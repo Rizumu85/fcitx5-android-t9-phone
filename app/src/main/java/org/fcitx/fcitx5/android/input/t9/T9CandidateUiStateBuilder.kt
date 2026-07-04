@@ -133,8 +133,7 @@ class T9CandidateUiStateBuilder(
             }
             if (surface == Surface.CHINESE &&
                 waitForChineseT9Candidates &&
-                pendingPunctuationPaged == null &&
-                input.currentlyVisible
+                pendingPunctuationPaged == null
             ) {
                 return@measure null
             }
