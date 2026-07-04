@@ -40,7 +40,6 @@ class LabeledCandidateItemUi(
     private val candidateText = TextView(ctx).apply {
         setupTextView(this)
         isSingleLine = true
-        includeFontPadding = false
         gravity = Gravity.CENTER
     }
     private val shortcutText = TextView(ctx).apply {
@@ -101,9 +100,12 @@ class LabeledCandidateItemUi(
         } else {
             0
         }
+        candidateText.includeFontPadding = true
         // T9 shortcut chips use real child views instead of newline spans. RecyclerView/Flexbox
         // sometimes reuses and measures candidates before the final draw pass; keeping text and
-        // shortcut labels as separate measured children prevents page-flip-only clipping.
+        // shortcut labels as separate measured children prevents page-flip-only clipping. The
+        // main candidate line keeps font padding because the bundled UI font can draw tall Latin
+        // glyphs above TextView's tight bounds, which was visible in Rime's English candidates.
         shortcutText.visibility = if (usesShortcutLabel) View.VISIBLE else View.GONE
         updateSelection(
             candidate = candidate,
