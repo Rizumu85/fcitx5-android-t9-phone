@@ -59,9 +59,9 @@ sealed class StatusAreaEntry(
         }
 
         fun labelForAction(context: Context, action: Action): String {
+            if (action.isRimeAction()) return context.getString(R.string.rime_status_menu)
             val directLabel = action.shortText.trim().ifEmpty { action.longText.trim() }
             if (directLabel.isNotEmpty()) return directLabel
-            if (action.isRimeAction()) return context.getString(R.string.rime_status_menu)
             return action.name.trim().ifEmpty { context.getString(R.string.status_action) }
         }
 
