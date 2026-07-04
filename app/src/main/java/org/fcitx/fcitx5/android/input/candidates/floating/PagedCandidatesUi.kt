@@ -14,6 +14,7 @@ import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.TextView
 import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.flexbox.AlignItems
 import com.google.android.flexbox.FlexDirection
@@ -114,7 +115,7 @@ class PagedCandidatesUi(
                     holder.ui.root.setOnClickListener {
                         row?.let { onCandidateClick.invoke(it.position) }
                     }
-                    holder.ui.root.updateLayoutParams<FlexboxLayoutManager.LayoutParams> {
+                    holder.ui.root.updateLayoutParams<ViewGroup.LayoutParams> {
                         width = if (isVertical) MATCH_PARENT else WRAP_CONTENT
                     }
                 }
@@ -124,9 +125,11 @@ class PagedCandidatesUi(
                         hasPrev = row?.hasPrev ?: false,
                         hasNext = row?.hasNext ?: false
                     )
-                    holder.ui.root.updateLayoutParams<FlexboxLayoutManager.LayoutParams> {
-                        flexGrow = 1f
+                    holder.ui.root.updateLayoutParams<ViewGroup.LayoutParams> {
                         width = if (isVertical) MATCH_PARENT else WRAP_CONTENT
+                    }
+                    (holder.ui.root.layoutParams as? FlexboxLayoutManager.LayoutParams)?.apply {
+                        flexGrow = 1f
                         alignSelf = if (isVertical) AlignItems.STRETCH else AlignItems.CENTER
                     }
                 }
@@ -171,17 +174,19 @@ class PagedCandidatesUi(
         }
     }
 
-    private class CandidateFlexboxLayoutManager(context: Context) : FlexboxLayoutManager(context) {
-        var shortcutToolbarMode = false
+    private class ShortcutToolbarLayoutManager(context: Context) :
+        LinearLayoutManager(context, HORIZONTAL, false) {
 
-        override fun canScrollHorizontally(): Boolean = !shortcutToolbarMode && super.canScrollHorizontally()
+        override fun canScrollHorizontally(): Boolean = false
 
-        override fun canScrollVertically(): Boolean = !shortcutToolbarMode && super.canScrollVertically()
+        override fun canScrollVertically(): Boolean = false
     }
 
-    private val candidatesLayoutManager = CandidateFlexboxLayoutManager(ctx).apply {
+    private val flexboxLayoutManager = FlexboxLayoutManager(ctx).apply {
         flexWrap = FlexWrap.WRAP
     }
+    private val shortcutToolbarLayoutManager = ShortcutToolbarLayoutManager(ctx)
+    private var shortcutToolbarLayoutActive = false
 
     override val root = recyclerView {
         isFocusable = false
@@ -191,7 +196,7 @@ class PagedCandidatesUi(
             defaultFocusHighlightEnabled = false
         }
         adapter = candidatesAdapter
-        layoutManager = candidatesLayoutManager
+        layoutManager = flexboxLayoutManager
         overScrollMode = View.OVER_SCROLL_NEVER
         itemAnimator = null
         clipChildren = false
@@ -206,24 +211,18 @@ class PagedCandidatesUi(
     ) {
         val oldRows = renderRows
         val oldVertical = isVertical
-        val nextVertical = when (orientation) {
+        val oldShortcutLabels = this.showShortcutLabels
+        val nextVertical = if (showShortcutLabels) {
+            false
+        } else when (orientation) {
             FloatingCandidatesOrientation.Automatic -> data.layoutHint == LayoutHint.Vertical
             else -> orientation == FloatingCandidatesOrientation.Vertical
         }
-        val layoutChanged = oldVertical != nextVertical
+        val layoutChanged = oldVertical != nextVertical || oldShortcutLabels != showShortcutLabels
         this.data = data
         this.showShortcutLabels = showShortcutLabels
         this.isVertical = nextVertical
-        candidatesLayoutManager.apply {
-            shortcutToolbarMode = showShortcutLabels
-            if (isVertical) {
-                flexDirection = FlexDirection.COLUMN
-                alignItems = AlignItems.STRETCH
-            } else {
-                flexDirection = FlexDirection.ROW
-                alignItems = if (showShortcutLabels) AlignItems.CENTER else AlignItems.BASELINE
-            }
-        }
+        updateLayoutManager(showShortcutLabels)
         updateShortcutToolbarClipping(showShortcutLabels)
         val newRows = rowsFor(
             data = data,
@@ -238,7 +237,6 @@ class PagedCandidatesUi(
             else -> DiffUtil.calculateDiff(rowDiff(oldRows, newRows))
                 .dispatchUpdatesTo(candidatesAdapter)
         }
-        resetShortcutToolbarOffsetIfNeeded()
     }
 
     fun setHighlightActive(active: Boolean) {
@@ -273,22 +271,31 @@ class PagedCandidatesUi(
 
     private fun updateShortcutToolbarClipping(enabled: Boolean) {
         // T9 candidates are a paged toolbar, not a scrollable list. Clipping only in this mode
-        // prevents FlexboxLayoutManager's stale scroll offset from painting a page into the
-        // pinyin row while keeping normal floating candidates' focus overflow unchanged.
+        // keeps normal floating candidates' focus overflow unchanged.
         root.clipChildren = enabled
         root.clipToPadding = false
     }
 
-    private fun resetShortcutToolbarOffsetIfNeeded() {
-        if (!showShortcutLabels) return
-        root.stopScroll()
-        candidatesLayoutManager.scrollToPosition(0)
-        root.scrollTo(0, 0)
-        root.post {
-            if (!showShortcutLabels) return@post
-            root.stopScroll()
-            candidatesLayoutManager.scrollToPosition(0)
-            root.scrollTo(0, 0)
+    private fun updateLayoutManager(showShortcutLabels: Boolean) {
+        if (showShortcutLabels) {
+            if (!shortcutToolbarLayoutActive) {
+                shortcutToolbarLayoutActive = true
+                root.layoutManager = shortcutToolbarLayoutManager
+            }
+            return
+        }
+        if (shortcutToolbarLayoutActive) {
+            shortcutToolbarLayoutActive = false
+            root.layoutManager = flexboxLayoutManager
+        }
+        flexboxLayoutManager.apply {
+            if (isVertical) {
+                flexDirection = FlexDirection.COLUMN
+                alignItems = AlignItems.STRETCH
+            } else {
+                flexDirection = FlexDirection.ROW
+                alignItems = AlignItems.BASELINE
+            }
         }
     }
 
