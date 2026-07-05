@@ -40,6 +40,7 @@ import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidatePager
 import org.fcitx.fcitx5.android.input.t9.T9CandidateSnapshots
+import org.fcitx.fcitx5.android.input.t9.T9CandidateSurfaceLayout
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiSnapshotPipeline
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiStateBuilder
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiRenderer
@@ -236,6 +237,10 @@ class CandidatesView(
                 currentCandidateRowWidthSignature = rowSignature
                 lastCandidateRowWidthSignature = ""
                 lastCandidateRowWidthPx = 0
+                if (pinyinRowTargetVisible && t9RenderedPinyinItems.isNotEmpty()) {
+                    pinyinBarView.visibility = View.INVISIBLE
+                    pinyinRowWrapper.visibility = View.INVISIBLE
+                }
             }
             candidatesUi.update(
                 candidates,
@@ -988,9 +993,10 @@ class CandidatesView(
     }
 
     private fun syncPinyinRowWidthToCandidates(): Boolean {
-        val candidateWidth = currentCandidateRowWidthForPinyinPolicy()
+        val plan = currentSurfaceLayoutPlan()
+            ?.takeIf { it.contentReady }
             ?: return false
-        val width = maxOf(candidateWidth, pinyinRowDesiredWidthPx(candidateWidth) ?: 0)
+        val width = plan.rowWidthPx ?: return false
         setPinyinRowWidth(width)
         return true
     }
@@ -1010,55 +1016,26 @@ class CandidatesView(
         }
     }
 
-    private fun populatedPinyinRowWidthPx(
-        candidateRowWidthPx: Int? = null,
-        rowPlan: T9PinyinOverflowPolicy.Plan? = null
-    ): Int? {
+    private fun pinyinFullContentWidthPx(): Int? {
         val visiblePinyin = t9RenderedPinyinItems.takeIf { it.isNotEmpty() }
             ?: return null
-        val maxWidthPx = pinyinRowMaxWidthPx()
-        val fullContentWidthPx = pinyinItemsWidthPx(
+        return pinyinItemsWidthPx(
             visiblePinyin,
             reservesOverflowHint = false
         )
-        val plan = rowPlan ?: currentPinyinRowPlan(candidateRowWidthPx, fullContentWidthPx)
-        if (plan?.folded != true) {
-            return fullContentWidthPx
-                .coerceAtMost(maxWidthPx)
-                .coerceAtLeast(1)
-        }
-        if (visiblePinyin.size > T9_PINYIN_ROW_MIN_VISIBLE_CHIPS) {
-            return pinyinItemsWidthPx(
-                visiblePinyin.take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS),
-                reservesOverflowHint = true
-            )
-                .coerceAtMost(maxWidthPx)
-                .coerceAtLeast(1)
-        }
-        val compactPinyin = visiblePinyin.take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS)
+    }
+
+    private fun pinyinFoldedContentWidthPx(): Int? {
+        val compactPinyin = t9RenderedPinyinItems.take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS)
             .takeIf { it.isNotEmpty() }
             ?: return null
-        // Product decision: the pinyin row should never show a clipped first frame. Short lists
-        // reserve their full visible content; extreme long-content cases reserve four chips plus
-        // a quiet ellipsis so the bubble keeps the stable width the user preferred.
         return pinyinItemsWidthPx(compactPinyin, reservesOverflowHint = true)
-            .coerceAtMost(maxWidthPx)
-            .coerceAtLeast(1)
     }
 
     private fun pinyinRowDesiredWidthPx(candidateRowWidthPx: Int? = null): Int? {
-        val rowPlan = currentPinyinRowPlan(candidateRowWidthPx)
-        val estimatedWidthPx = populatedPinyinRowWidthPx(candidateRowWidthPx, rowPlan)
-        val measuredWidthPx = pinyinBarAdapter.laidOutContentWidthPx()?.takeIf {
-            // Folded rows must not resize after first paint; the fixed edge guard below is the
-            // budget that keeps the fourth chip complete without a second-frame width correction.
-            rowPlan?.folded != true
-        }
-        val widthPx = listOfNotNull(estimatedWidthPx, measuredWidthPx).maxOrNull()
-            ?: return null
-        return widthPx
-            .coerceAtMost(pinyinRowMaxWidthPx())
-            .coerceAtLeast(1)
+        return currentSurfaceLayoutPlan(candidateRowWidthPx)
+            ?.takeIf { it.contentReady }
+            ?.rowWidthPx
     }
 
     private fun pinyinItemsWidthPx(
@@ -1079,25 +1056,27 @@ class CandidatesView(
         return chipWidthPx + overflowHintWidthPx + foldedChipSafetyPx
     }
 
-    private fun currentPinyinRowPlan(
-        candidateRowWidthPx: Int? = null,
-        measuredFullContentWidthPx: Int? = null
-    ): T9PinyinOverflowPolicy.Plan? {
-        val visiblePinyin = t9RenderedPinyinItems
-        if (visiblePinyin.isEmpty()) return null
-        val fullContentWidthPx = measuredFullContentWidthPx
-            ?: pinyinItemsWidthPx(visiblePinyin, reservesOverflowHint = false)
-        return T9PinyinOverflowPolicy.plan(
-            pinyinCount = visiblePinyin.size,
-            fullContentWidthPx = fullContentWidthPx,
-            candidateRowWidthPx = candidateRowWidthPx
-                ?: currentCandidateRowWidthForPinyinPolicy()
-                ?: pinyinRowMaxWidthPx(),
-            maxRowWidthPx = pinyinRowMaxWidthPx(),
-            minVisibleChips = T9_PINYIN_ROW_MIN_VISIBLE_CHIPS,
-            pinyinRowFocused = service.getT9CandidateFocus() == T9CandidateFocus.TOP
+    private fun currentSurfaceLayoutPlan(
+        candidateRowWidthPx: Int? = null
+    ): T9CandidateSurfaceLayout.Plan? {
+        if (t9RenderedPinyinItems.isEmpty()) return null
+        val fullWidth = pinyinFullContentWidthPx() ?: return null
+        val foldedWidth = pinyinFoldedContentWidthPx() ?: return null
+        return T9CandidateSurfaceLayout.plan(
+            T9CandidateSurfaceLayout.Input(
+                candidateMeasuredWidthPx = candidateRowWidthPx ?: currentCandidateRowWidthForPinyinPolicy(),
+                pinyinCount = t9RenderedPinyinItems.size,
+                pinyinFullContentWidthPx = fullWidth,
+                pinyinFoldedContentWidthPx = foldedWidth,
+                maxRowWidthPx = pinyinRowMaxWidthPx(),
+                minVisiblePinyinChips = T9_PINYIN_ROW_MIN_VISIBLE_CHIPS,
+                pinyinRowFocused = service.getT9CandidateFocus() == T9CandidateFocus.TOP
+            )
         )
     }
+
+    private fun currentPinyinRowPlan(candidateRowWidthPx: Int? = null): T9PinyinOverflowPolicy.Plan? =
+        currentSurfaceLayoutPlan(candidateRowWidthPx)?.pinyin
 
     private fun currentCandidateRowWidthForPinyinPolicy(): Int? =
         lastCandidateRowWidthPx.takeIf {
