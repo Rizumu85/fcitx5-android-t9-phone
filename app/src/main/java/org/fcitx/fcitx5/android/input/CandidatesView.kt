@@ -49,6 +49,7 @@ import org.fcitx.fcitx5.android.input.t9.T9CandidateWidthBudget
 import org.fcitx.fcitx5.android.input.t9.T9PagedCandidates
 import org.fcitx.fcitx5.android.input.t9.T9PinyinChipAdapter
 import org.fcitx.fcitx5.android.input.t9.T9PinyinOverflowPolicy
+import org.fcitx.fcitx5.android.input.t9.T9PinyinRowWidthCalculator
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowWindow
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
 import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
@@ -1013,58 +1014,44 @@ class CandidatesView(
         }
     }
 
-    private fun pinyinFullContentWidthPx(): Int? {
+    private fun pinyinRowWidths(): T9PinyinRowWidthCalculator.Widths? {
         val visiblePinyin = t9RenderedPinyinItems.takeIf { it.isNotEmpty() }
             ?: return null
-        return pinyinItemsWidthPx(
-            visiblePinyin,
-            reservesOverflowHint = false
+        return T9PinyinRowWidthCalculator.calculate(
+            T9PinyinRowWidthCalculator.Input(
+                items = visiblePinyin,
+                minVisibleChips = T9_PINYIN_ROW_MIN_VISIBLE_CHIPS,
+                chipHorizontalPaddingPx = dpCandidates(itemPaddingHorizontal),
+                overflowHintWidthPx = pinyinOverflowHintReservedWidthPx(),
+                foldedEdgeSafetyPx = dp(T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP),
+                measureTextWidthPx = ::pinyinTextWidthPx
+            )
         )
     }
 
-    private fun pinyinFoldedContentWidthPx(): Int? {
-        val compactPinyin = t9RenderedPinyinItems.take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS)
-            .takeIf { it.isNotEmpty() }
-            ?: return null
-        return pinyinItemsWidthPx(compactPinyin, reservesOverflowHint = true)
-    }
-
-    private fun pinyinRowDesiredWidthPx(candidateRowWidthPx: Int? = null): Int? {
-        return currentSurfaceLayoutPlan(candidateRowWidthPx)
+    private fun pinyinRowDesiredWidthPx(candidateRowWidthPx: Int? = null): Int? =
+        currentSurfaceLayoutPlan(candidateRowWidthPx)
             ?.takeIf { it.contentReady }
             ?.rowWidthPx
-    }
 
-    private fun pinyinItemsWidthPx(
-        pinyinItems: List<String>,
-        reservesOverflowHint: Boolean
-    ): Int {
+    private fun pinyinTextWidthPx(text: String): Int {
         val paint = t9PinyinMeasurePaint.apply {
             textSize = compactTopRowFontSizeSp * ctx.resources.displayMetrics.scaledDensity
         }
-        val chipPaddingPx = dpCandidates(itemPaddingHorizontal)
-        val chipWidthPx = pinyinItems.withIndex().sumOf { (index, pinyin) ->
-            val textWidthPx = ceil(paint.measureText(pinyin).toDouble()).toInt()
-            val rightMarginPx = if (index != pinyinItems.lastIndex || reservesOverflowHint) chipPaddingPx else 0
-            textWidthPx + chipPaddingPx * 2 + rightMarginPx
-        }
-        val overflowHintWidthPx = if (reservesOverflowHint) pinyinOverflowHintReservedWidthPx() else 0
-        val foldedChipSafetyPx = if (reservesOverflowHint) dp(T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP) else 0
-        return chipWidthPx + overflowHintWidthPx + foldedChipSafetyPx
+        return ceil(paint.measureText(text).toDouble()).toInt()
     }
 
     private fun currentSurfaceLayoutPlan(
         candidateRowWidthPx: Int? = null
     ): T9CandidateSurfaceLayout.Plan? {
         if (t9RenderedPinyinItems.isEmpty()) return null
-        val fullWidth = pinyinFullContentWidthPx() ?: return null
-        val foldedWidth = pinyinFoldedContentWidthPx() ?: return null
+        val widths = pinyinRowWidths() ?: return null
         return T9CandidateSurfaceLayout.plan(
             T9CandidateSurfaceLayout.Input(
                 candidateMeasuredWidthPx = candidateRowWidthPx ?: currentCandidateRowWidthForPinyinPolicy(),
                 pinyinCount = t9RenderedPinyinItems.size,
-                pinyinFullContentWidthPx = fullWidth,
-                pinyinFoldedContentWidthPx = foldedWidth,
+                pinyinFullContentWidthPx = widths.fullContentWidthPx,
+                pinyinFoldedContentWidthPx = widths.foldedContentWidthPx,
                 maxRowWidthPx = pinyinRowMaxWidthPx(),
                 minVisiblePinyinChips = T9_PINYIN_ROW_MIN_VISIBLE_CHIPS,
                 pinyinRowFocused = service.getT9CandidateFocus() == T9CandidateFocus.TOP
