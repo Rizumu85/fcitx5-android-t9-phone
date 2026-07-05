@@ -142,6 +142,31 @@ class SmartEnglishT9ControllerTest {
     }
 
     @Test
+    fun candidateCanBeCommittedWithoutSpaceOrNextPrediction() {
+        val host = FakeHost()
+        val controller = host.controller()
+        listOf(4, 6, 6).forEach(controller::appendDigit)
+
+        assertTrue(controller.commitCandidate(appendSpace = false))
+
+        assertEquals(listOf("good"), host.committedTexts)
+        assertEquals(null, controller.paged())
+    }
+
+    @Test
+    fun predictionCanBeCommittedWithoutSpaceOrNextPrediction() {
+        val host = FakeHost()
+        val controller = host.controller()
+        listOf(4, 6, 6).forEach(controller::appendDigit)
+        controller.commitCandidate()
+
+        assertTrue(controller.commitCandidate(appendSpace = false))
+
+        assertEquals(listOf("good ", "morning"), host.committedTexts)
+        assertEquals(null, controller.paged())
+    }
+
+    @Test
     fun typedCandidatesAreRerankedByLearnedPreviousWordPair() {
         val host = FakeHost()
         val controller = host.controller()

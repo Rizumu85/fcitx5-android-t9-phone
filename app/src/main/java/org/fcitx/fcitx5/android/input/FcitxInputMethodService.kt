@@ -222,8 +222,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
 
         override fun resetSmartEnglishT9() = this@FcitxInputMethodService.resetSmartEnglishT9()
-        override fun commitSmartEnglishCandidate(): Boolean =
-            this@FcitxInputMethodService.commitSmartEnglishCandidate()
+        override fun commitSmartEnglishCandidate(appendSpace: Boolean): Boolean =
+            this@FcitxInputMethodService.commitSmartEnglishCandidate(appendSpace = appendSpace)
 
         override fun moveSmartEnglishCandidate(delta: Int): Boolean =
             this@FcitxInputMethodService.moveSmartEnglishCandidate(delta)
@@ -1893,8 +1893,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun setSmartEnglishCandidateIndex(index: Int): Boolean =
         smartEnglishCoordinator.setCandidateIndex(index)
 
-    fun commitSmartEnglishCandidate(index: Int? = null): Boolean {
-        return smartEnglishCoordinator.commitCandidate(index)
+    fun commitSmartEnglishCandidate(
+        index: Int? = null,
+        appendSpace: Boolean = true
+    ): Boolean {
+        return smartEnglishCoordinator.commitCandidate(index, appendSpace)
     }
 
     private fun recordEnglishLearningChar(char: Char) {

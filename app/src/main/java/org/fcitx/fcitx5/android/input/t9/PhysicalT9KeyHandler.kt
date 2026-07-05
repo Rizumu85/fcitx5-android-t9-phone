@@ -96,7 +96,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
         fun showSmartEnglishPunctuationCandidates()
         fun appendSmartEnglishDigit(digit: Int)
         fun resetSmartEnglishT9()
-        fun commitSmartEnglishCandidate(): Boolean
+        fun commitSmartEnglishCandidate(appendSpace: Boolean = true): Boolean
         fun moveSmartEnglishCandidate(delta: Int): Boolean
         fun smartEnglishBackspace(): Boolean
         fun flushEnglishLearningWord()
@@ -294,6 +294,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
                 if (input.repeatCount == 0) {
                     setDigitLongPressFlag(keyCode, false)
                     if (host.isSmartEnglishActive) {
+                        if (host.hasSmartEnglishCandidates) return true
                         host.deferSmartEnglishPunctuationKey()
                         return true
                     }
@@ -523,11 +524,15 @@ class PhysicalT9KeyHandler(private val host: Host) {
                     KeyResult(handled = false)
                 } else {
                     if (!poundLongPressTriggered) {
-                        val interruptedSmartEnglish = interruptSmartEnglishCandidates()
-                        val hadPendingChar =
-                            (!interruptedSmartEnglish && host.commitSmartEnglishCandidate()) ||
-                                host.commitMultiTapChar() ||
-                                host.commitPendingPunctuation()
+                        val hadPendingChar = when {
+                            host.hasPendingPunctuation -> host.commitPendingPunctuation()
+                            host.isSmartEnglishActive && host.hasSmartEnglishCandidates ->
+                                host.commitSmartEnglishCandidate(appendSpace = false)
+                            else ->
+                                host.commitSmartEnglishCandidate() ||
+                                    host.commitMultiTapChar() ||
+                                    host.commitPendingPunctuation()
+                        }
                         if (!hadPendingChar) {
                             host.handleReturnKey()
                         }
@@ -629,7 +634,11 @@ class PhysicalT9KeyHandler(private val host: Host) {
                 return true
             }
             if (host.hasPendingPunctuation) return true
-            interruptSmartEnglishCandidates()
+            if (host.isSmartEnglishActive && host.hasSmartEnglishCandidates) {
+                host.commitSmartEnglishCandidate(appendSpace = false)
+            } else {
+                interruptSmartEnglishCandidates()
+            }
             true
         }
         Mode.CHINESE -> handleChineseDigitKeyUp(keyCode, null)

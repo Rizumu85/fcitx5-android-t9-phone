@@ -213,7 +213,10 @@ class SmartEnglishT9Controller private constructor(
         return true
     }
 
-    fun commitCandidate(index: Int? = null): Boolean {
+    fun commitCandidate(
+        index: Int? = null,
+        appendSpace: Boolean = true
+    ): Boolean {
         if (!isActive()) return false
         val selected = if (session.hasDigits) {
             session.selectedRawCandidate(pairRankedCandidates(), index) ?: run {
@@ -223,10 +226,17 @@ class SmartEnglishT9Controller private constructor(
         } else {
             predictionSession.selectedCandidate(index) ?: return false
         }
-        commitText("${applyCaseToWord(selected)} ")
+        commitText(applyCaseToWord(selected) + if (appendSpace) " " else "")
         session.reset()
         invalidatePairRanking()
-        rememberCommittedWord(selected)
+        if (appendSpace) {
+            rememberCommittedWord(selected)
+        } else {
+            // 1/# confirmation is meant to settle the visible word before a
+            // punctuation or return action; keeping next-word predictions open
+            // would make the follow-up key confirm an unrelated suggestion.
+            predictionSession.reset()
+        }
         consumeShiftOnce()
         refreshUi()
         return true

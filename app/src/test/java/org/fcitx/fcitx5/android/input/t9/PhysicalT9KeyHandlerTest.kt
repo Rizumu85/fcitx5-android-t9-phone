@@ -175,7 +175,7 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
-    fun smartEnglishOneKeyInterruptsPredictionBeforeShowingPunctuation() {
+    fun smartEnglishOneKeyCommitsPredictionWithoutSpace() {
         val host = FakeHost(
             mode = PhysicalT9KeyHandler.Mode.ENGLISH,
             isSmartEnglishActive = true,
@@ -187,14 +187,32 @@ class PhysicalT9KeyHandlerTest {
         assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN)).handled)
         assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP)).handled)
 
-        assertEquals(1, host.resetSmartEnglishCount)
-        assertEquals(1, host.showSmartEnglishPunctuationCount)
-        assertEquals(0, host.commitSmartEnglishCandidateCount)
+        assertEquals(0, host.resetSmartEnglishCount)
+        assertEquals(0, host.showSmartEnglishPunctuationCount)
+        assertEquals(listOf(false), host.commitSmartEnglishCandidateAppendSpace)
         assertEquals(emptyList<String>(), host.committedTexts)
     }
 
     @Test
-    fun smartEnglishPoundShortPressInterruptsPredictionBeforeReturn() {
+    fun smartEnglishOneKeyCommitsTypedCandidateWithoutSpace() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.ENGLISH,
+            isSmartEnglishActive = true,
+            hasSmartEnglishDigits = true,
+            hasSmartEnglishCandidates = true
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN)).handled)
+        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP)).handled)
+
+        assertEquals(0, host.resetSmartEnglishCount)
+        assertEquals(0, host.showSmartEnglishPunctuationCount)
+        assertEquals(listOf(false), host.commitSmartEnglishCandidateAppendSpace)
+    }
+
+    @Test
+    fun smartEnglishPoundShortPressCommitsPredictionWithoutReturnOrSpace() {
         val host = FakeHost(
             mode = PhysicalT9KeyHandler.Mode.ENGLISH,
             isSmartEnglishActive = true,
@@ -206,10 +224,28 @@ class PhysicalT9KeyHandlerTest {
         assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN)).handled)
         assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP)).handled)
 
-        assertEquals(1, host.resetSmartEnglishCount)
-        assertEquals(1, host.handleReturnCount)
-        assertEquals(0, host.commitSmartEnglishCandidateCount)
+        assertEquals(0, host.resetSmartEnglishCount)
+        assertEquals(0, host.handleReturnCount)
+        assertEquals(listOf(false), host.commitSmartEnglishCandidateAppendSpace)
         assertEquals(emptyList<String>(), host.committedTexts)
+    }
+
+    @Test
+    fun smartEnglishPoundShortPressCommitsTypedCandidateWithoutReturnOrSpace() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.ENGLISH,
+            isSmartEnglishActive = true,
+            hasSmartEnglishDigits = true,
+            hasSmartEnglishCandidates = true
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN)).handled)
+        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP)).handled)
+
+        assertEquals(0, host.resetSmartEnglishCount)
+        assertEquals(0, host.handleReturnCount)
+        assertEquals(listOf(false), host.commitSmartEnglishCandidateAppendSpace)
     }
 
     @Test
@@ -283,6 +319,7 @@ class PhysicalT9KeyHandlerTest {
         var resetSmartEnglishCount = 0
         var flushEnglishLearningCount = 0
         var commitSmartEnglishCandidateCount = 0
+        val commitSmartEnglishCandidateAppendSpace = mutableListOf<Boolean>()
         var commitHighlightedBottomCandidateCount = 0
         var showSmartEnglishPunctuationCount = 0
         var handleReturnCount = 0
@@ -340,8 +377,9 @@ class PhysicalT9KeyHandlerTest {
             hasSmartEnglishCandidates = false
         }
 
-        override fun commitSmartEnglishCandidate(): Boolean {
+        override fun commitSmartEnglishCandidate(appendSpace: Boolean): Boolean {
             commitSmartEnglishCandidateCount += 1
+            commitSmartEnglishCandidateAppendSpace += appendSpace
             hasSmartEnglishDigits = false
             hasSmartEnglishCandidates = false
             return true
