@@ -211,6 +211,7 @@
     <string name="show_lang_switch_key">顯示語言切換鍵</string>
     <string name="use_t9_keyboard_layout">啟用T9輸入模式</string>
     <string name="use_t9_keyboard_layout_summary">使用手機九鍵、候選列和模式切換</string>
+    <string name="search">搜尋</string>
     <string name="temporary_full_keyboard">密碼模式</string>
     <string name="horizontal_candidate_style">橫向候選詞樣式</string>
     <string name="horizontal_candidate_never_fill">從不填充寬度</string>

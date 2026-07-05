@@ -224,6 +224,7 @@
     <string name="smart_english_learned_predictions">Predictive English learned next words</string>
     <string name="smart_english_learned_predictions_summary">Delete wrong next-word predictions or add your own pairs, such as good -> morning</string>
     <string name="smart_english_learned_prediction_hint">previous -> next</string>
+    <string name="search">Search</string>
     <string name="temporary_full_keyboard">Password mode</string>
     <string name="horizontal_candidate_style">Horizontal candidate style</string>
     <string name="horizontal_candidate_never_fill">Never fill width</string>

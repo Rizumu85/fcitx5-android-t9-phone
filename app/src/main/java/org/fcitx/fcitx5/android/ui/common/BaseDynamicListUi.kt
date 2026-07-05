@@ -11,6 +11,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import androidx.activity.OnBackPressedDispatcher
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.content.ContextCompat
@@ -47,6 +48,7 @@ import splitties.views.dsl.core.editText
 import splitties.views.dsl.core.margin
 import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.view
+import splitties.views.dsl.core.verticalLayout
 import splitties.views.dsl.core.wrapContent
 import splitties.views.dsl.recyclerview.recyclerView
 import splitties.views.gravityEndBottom
@@ -117,6 +119,15 @@ abstract class BaseDynamicListUi<T>(
      * suspend "undo" snackbar temporarily to prevent undo undo
      */
     private var suspendUndo = false
+
+    private val searchBox = editText {
+        visibility = View.GONE
+        isSingleLine = true
+        setPadding(dp(16), 0, dp(16), 0)
+        addTextChangedListener {
+            setFilterQuery(it?.toString().orEmpty())
+        }
+    }
 
     init {
         initEditButton = when (mode) {
@@ -275,6 +286,11 @@ abstract class BaseDynamicListUi<T>(
         clipToPadding = false
     }
 
+    fun enableSearch(hintText: String) {
+        searchBox.hint = hintText
+        searchBox.visibility = View.VISIBLE
+    }
+
     fun addTouchCallback(
         touchCallback: DynamicListTouchCallback<T> = DynamicListTouchCallback(ctx, this)
     ) {
@@ -294,7 +310,10 @@ abstract class BaseDynamicListUi<T>(
 
     override val root = coordinatorLayout {
         backgroundColor = styledColor(android.R.attr.colorBackground)
-        add(recyclerView, defaultLParams {
+        add(verticalLayout {
+            add(searchBox, LinearLayout.LayoutParams(matchParent, wrapContent))
+            add(recyclerView, LinearLayout.LayoutParams(matchParent, 0, 1f))
+        }, defaultLParams {
             height = matchParent
             width = matchParent
         })

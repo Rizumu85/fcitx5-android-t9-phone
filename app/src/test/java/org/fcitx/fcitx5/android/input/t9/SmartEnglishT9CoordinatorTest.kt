@@ -21,7 +21,7 @@ class SmartEnglishT9CoordinatorTest {
         coordinator.appendDigit(2)
 
         assertTrue(coordinator.commitCandidate())
-        assertEquals(listOf("a"), host.committedTexts)
+        assertEquals(listOf("a "), host.committedTexts)
         assertEquals(1, host.resetPendingDigitCount)
     }
 

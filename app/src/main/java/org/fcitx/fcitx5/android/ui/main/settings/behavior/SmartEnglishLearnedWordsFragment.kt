@@ -36,6 +36,7 @@ class SmartEnglishLearnedWordsFragment : Fragment(), OnItemChangedListener<Strin
             init {
                 addTouchCallback()
                 setViewModel(viewModel)
+                enableSearch(getString(R.string.search))
             }
 
             override fun showEntry(x: String): String = x

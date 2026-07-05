@@ -28,9 +28,20 @@ abstract class DynamicListAdapter<T>(
     RecyclerView.Adapter<DynamicListAdapter<T>.ViewHolder>() {
 
     private val _entries = initialEntries.toMutableList()
+    private var filterQuery = ""
 
     val entries: List<T>
         get() = _entries
+
+    private val displayEntries: List<T>
+        get() = if (filterQuery.isBlank()) {
+            _entries
+        } else {
+            _entries.filter { matchesFilter(it, filterQuery) }
+        }
+
+    private val isFiltered: Boolean
+        get() = filterQuery.isNotBlank()
 
     var multiselect = false
         private set
@@ -55,6 +66,17 @@ abstract class DynamicListAdapter<T>(
 
     abstract fun showEntry(x: T): String
 
+    open fun matchesFilter(entry: T, query: String): Boolean =
+        showEntry(entry).contains(query, ignoreCase = true)
+
+    @SuppressLint("NotifyDataSetChanged")
+    fun setFilterQuery(query: String) {
+        val next = query.trim()
+        if (next == filterQuery) return
+        filterQuery = next
+        notifyDataSetChanged()
+    }
+
     private var mainViewModel: MainViewModel? = null
 
     fun setViewModel(model: MainViewModel) {
@@ -74,7 +96,7 @@ abstract class DynamicListAdapter<T>(
         ViewHolder(DynamicListEntryUi(parent.context))
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        val item = entries[position]
+        val item = displayEntries[position]
         with(holder) {
             handleImage.setOnLongClickListener {
                 if (!multiselect && removable(item))
@@ -201,12 +223,44 @@ abstract class DynamicListAdapter<T>(
         }
     }
 
-    override fun getItemCount(): Int = entries.size
+    override fun getItemCount(): Int = displayEntries.size
+
+    private fun notifyItemInsertedOrRefresh(index: Int) {
+        if (isFiltered) {
+            notifyDataSetChanged()
+        } else {
+            notifyItemInserted(index)
+        }
+    }
+
+    private fun notifyItemRemovedOrRefresh(index: Int) {
+        if (isFiltered) {
+            notifyDataSetChanged()
+        } else {
+            notifyItemRemoved(index)
+        }
+    }
+
+    private fun notifyItemChangedOrRefresh(index: Int) {
+        if (isFiltered) {
+            notifyDataSetChanged()
+        } else {
+            notifyItemChanged(index)
+        }
+    }
+
+    private fun notifyItemMovedOrRefresh(fromIdx: Int, toIdx: Int) {
+        if (isFiltered) {
+            notifyDataSetChanged()
+        } else {
+            notifyItemMoved(fromIdx, toIdx)
+        }
+    }
 
     @CallSuper
     open fun addItem(idx: Int = _entries.size, item: T) {
         _entries.add(idx, item)
-        notifyItemInserted(idx)
+        notifyItemInsertedOrRefresh(idx)
         listener?.onItemAdded(idx, item)
         mainViewModel?.showToolbarEditButton()
     }
@@ -214,7 +268,7 @@ abstract class DynamicListAdapter<T>(
     @CallSuper
     open fun removeItem(idx: Int): T {
         val item = _entries.removeAt(idx)
-        notifyItemRemoved(idx)
+        notifyItemRemovedOrRefresh(idx)
         listener?.onItemRemoved(idx, item)
         if (entries.isEmpty())
             mainViewModel?.hideToolbarEditButton()
@@ -224,7 +278,7 @@ abstract class DynamicListAdapter<T>(
     @CallSuper
     open fun swapItem(fromIdx: Int, toIdx: Int) {
         Collections.swap(_entries, fromIdx, toIdx)
-        notifyItemMoved(fromIdx, toIdx)
+        notifyItemMovedOrRefresh(fromIdx, toIdx)
         listener?.onItemSwapped(fromIdx, toIdx, _entries[toIdx])
     }
 
@@ -232,7 +286,7 @@ abstract class DynamicListAdapter<T>(
     open fun updateItem(idx: Int, item: T) {
         val old = _entries[idx]
         _entries[idx] = item
-        notifyItemChanged(idx)
+        notifyItemChangedOrRefresh(idx)
         listener?.onItemUpdated(idx, old, item)
     }
 

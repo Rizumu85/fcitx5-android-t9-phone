@@ -224,6 +224,7 @@
     <string name="smart_english_learned_predictions">联想英语学习联想词</string>
     <string name="smart_english_learned_predictions_summary">删除错误的下一词预测，或添加 good -> morning 这样的搭配</string>
     <string name="smart_english_learned_prediction_hint">previous -> next</string>
+    <string name="search">搜索</string>
     <string name="temporary_full_keyboard">密码模式</string>
     <string name="horizontal_candidate_style">横向候选词样式</string>
     <string name="horizontal_candidate_never_fill">从不填充宽度</string>
