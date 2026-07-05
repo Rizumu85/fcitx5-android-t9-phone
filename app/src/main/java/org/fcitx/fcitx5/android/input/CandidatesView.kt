@@ -1041,15 +1041,9 @@ class CandidatesView(
         val rowPlan = currentPinyinRowPlan(candidateRowWidthPx)
         val estimatedWidthPx = populatedPinyinRowWidthPx(candidateRowWidthPx, rowPlan)
         val measuredWidthPx = pinyinBarAdapter.laidOutContentWidthPx()?.takeIf {
-            // Only trust measured chips after the adapter has been rebound for the current fold
-            // state; otherwise a previous full pinyin row can inflate a folded short-candidate page.
-            pinyinBarAdapter.itemCount == (rowPlan?.visibleCount ?: t9RenderedPinyinItems.size)
-        }?.let { contentWidthPx ->
-            if (rowPlan?.showHint == true) {
-                contentWidthPx + pinyinOverflowHintReservedWidthPx()
-            } else {
-                contentWidthPx
-            }
+            // Folded rows must not resize after first paint; the fixed edge guard below is the
+            // budget that keeps the fourth chip complete without a second-frame width correction.
+            rowPlan?.folded != true
         }
         val widthPx = listOfNotNull(estimatedWidthPx, measuredWidthPx).maxOrNull()
             ?: return null
@@ -1266,7 +1260,7 @@ class CandidatesView(
         t9RenderedPinyinItems = state.items
         val rowPlan = currentPinyinRowPlan(candidateRowWidthPx)
         updatePinyinOverflowHint(rowPlan?.showHint == true)
-        val displayedItems = state.items.take(rowPlan?.visibleCount ?: state.items.size)
+        val displayedItems = pinyinDisplayedItems(rowPlan)
         val displayedHighlight = state.highlightedIndex.coerceIn(
             0,
             (displayedItems.lastIndex).coerceAtLeast(0)
@@ -1300,6 +1294,9 @@ class CandidatesView(
         t9RenderedPinyinWindowStart = state.windowStart
         return ready
     }
+
+    private fun pinyinDisplayedItems(rowPlan: T9PinyinOverflowPolicy.Plan?): List<String> =
+        t9RenderedPinyinItems.take(rowPlan?.visibleCount ?: t9RenderedPinyinItems.size)
 
     private var bottomInsets = 0
 
@@ -1521,6 +1518,6 @@ class CandidatesView(
         private const val T9_PINYIN_TO_HANZI_GAP_DP = 2
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
         private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 18
-        private const val T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP = 2
+        private const val T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP = 12
     }
 }
