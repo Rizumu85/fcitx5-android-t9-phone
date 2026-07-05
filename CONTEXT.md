@@ -69,3 +69,9 @@ reading content, pinyin filter row, candidate focus, visibility decision, and
 anchor preference. `CandidatesView` should not rebuild or reinterpret those
 domain decisions after the snapshot is produced; it should only diff and render
 the snapshot into Android views.
+
+Candidate paging, page caches, and UI focus state belong to the snapshot
+pipeline. `CandidatesView` may forward user intents such as page up, page down,
+or select shown index, but it should not own the pager/cache rules for Smart
+English, pending punctuation, local Chinese budget pages, bulk Chinese
+selection, or pinyin row focus.
