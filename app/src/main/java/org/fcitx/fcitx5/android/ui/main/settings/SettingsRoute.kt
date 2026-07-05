@@ -29,6 +29,7 @@ import org.fcitx.fcitx5.android.ui.main.settings.behavior.AdvancedSettingsFragme
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.CandidatesSettingsFragment
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.ClipboardSettingsFragment
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.KeyboardSettingsFragment
+import org.fcitx.fcitx5.android.ui.main.settings.behavior.SmartEnglishLearnedPredictionsFragment
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.SmartEnglishLearnedWordsFragment
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.SymbolSettingsFragment
 import org.fcitx.fcitx5.android.ui.main.settings.global.GlobalConfigFragment
@@ -101,6 +102,9 @@ sealed class SettingsRoute : Parcelable {
 
     @Serializable
     data object SmartEnglishLearnedWords : SettingsRoute()
+
+    @Serializable
+    data object SmartEnglishLearnedPredictions : SettingsRoute()
 
     /* ========== External ========== */
 
@@ -237,6 +241,9 @@ sealed class SettingsRoute : Parcelable {
             }
             fragment<SmartEnglishLearnedWordsFragment, SmartEnglishLearnedWords> {
                 label = ctx.getString(R.string.smart_english_learned_words)
+            }
+            fragment<SmartEnglishLearnedPredictionsFragment, SmartEnglishLearnedPredictions> {
+                label = ctx.getString(R.string.smart_english_learned_predictions)
             }
             fragment<DeveloperFragment, Developer> {
                 label = ctx.getString(R.string.developer)

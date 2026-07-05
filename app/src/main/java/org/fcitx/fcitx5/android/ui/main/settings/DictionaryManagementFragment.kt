@@ -21,6 +21,12 @@ class DictionaryManagementFragment : PaddingPreferenceFragment() {
             ) {
                 navigateWithAnim(SettingsRoute.SmartEnglishLearnedWords)
             }
+            addPreference(
+                R.string.smart_english_learned_predictions,
+                R.string.smart_english_learned_predictions_summary
+            ) {
+                navigateWithAnim(SettingsRoute.SmartEnglishLearnedPredictions)
+            }
         }
     }
 }
