@@ -191,16 +191,16 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         english = PhysicalT9KeyHostAdapter.EnglishActions(
             commitSmartEnglishShortcut = t9CandidateShortcutCommitter::commitSmartEnglishKey,
             appendSmartEnglishDigit = { digit -> smartEnglishCoordinator.appendDigit(digit) },
-            resetSmartEnglish = ::resetSmartEnglishT9,
+            resetSmartEnglish = { smartEnglishCoordinator.reset() },
             commitSmartEnglishCandidate = { appendSpace, continuePrediction ->
-                commitSmartEnglishCandidate(
+                smartEnglishCoordinator.commitCandidate(
                     appendSpace = appendSpace,
                     continuePrediction = continuePrediction
                 )
             },
-            moveSmartEnglishCandidate = ::moveSmartEnglishCandidate,
-            smartEnglishBackspace = ::handleSmartEnglishBackspace,
-            flushLearningWord = ::flushEnglishLearningWord,
+            moveSmartEnglishCandidate = { delta -> smartEnglishCoordinator.moveCandidate(delta) },
+            smartEnglishBackspace = { smartEnglishCoordinator.backspace() },
+            flushLearningWord = { smartEnglishCoordinator.flushLearningWord() },
             handleStarShortPress = ::handleEnglishStarShortPress,
             handleStarLongPress = ::handleEnglishStarLongPress,
             handleMultiTapKey = ::handleMultiTapKey,
@@ -1570,8 +1570,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         T9ModeCoordinator(
             beforeModeChange = {
                 resetMultiTapState()
-                resetSmartEnglishT9()
-                flushEnglishLearningWord()
+                smartEnglishCoordinator.reset()
+                smartEnglishCoordinator.flushLearningWord()
             },
             onEnglishModeEntered = {
                 smartEnglishCoordinator.onModeEntered()
@@ -1776,7 +1776,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun commitMultiTapLetter(letter: Char) {
         val char = applyEnglishCase(letter)
         commitText(char.toString())
-        recordEnglishLearningChar(char)
+        smartEnglishCoordinator.recordLearningChar(char)
         consumeEnglishShiftOnce()
     }
 
@@ -1794,18 +1794,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         inputView?.showModeIndicatorBadge(if (smartEnglishT9) "T9" else "abc")
     }
 
-    private fun resetSmartEnglishT9() {
-        smartEnglishCoordinator.reset()
-    }
-
     fun getSmartEnglishT9Paged(): FcitxEvent.PagedCandidateEvent.Data? =
         smartEnglishCoordinator.paged()
 
     fun getSmartEnglishT9Presentation(): T9PresentationState? =
         smartEnglishCoordinator.presentation(::formattedT9Text)
-
-    fun moveSmartEnglishCandidate(delta: Int): Boolean =
-        smartEnglishCoordinator.moveCandidate(delta)
 
     fun setSmartEnglishCandidateIndex(index: Int): Boolean =
         smartEnglishCoordinator.setCandidateIndex(index)
@@ -1816,14 +1809,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         continuePrediction: Boolean = appendSpace
     ): Boolean {
         return smartEnglishCoordinator.commitCandidate(index, appendSpace, continuePrediction)
-    }
-
-    private fun recordEnglishLearningChar(char: Char) {
-        smartEnglishCoordinator.recordLearningChar(char)
-    }
-
-    private fun flushEnglishLearningWord() {
-        smartEnglishCoordinator.flushLearningWord()
     }
 
     private fun shouldLearnEnglishWords(): Boolean {
@@ -1840,10 +1825,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             InputType.TYPE_CLASS_NUMBER -> variation != InputType.TYPE_NUMBER_VARIATION_PASSWORD
             else -> false
         }
-    }
-
-    private fun handleSmartEnglishBackspace(): Boolean {
-        return smartEnglishCoordinator.backspace()
     }
 
     private fun cancelMultiTapChar() {
@@ -3170,8 +3151,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             monitorCursorAnchor(false)
         }
         resetComposingState()
-        resetSmartEnglishT9()
-        flushEnglishLearningWord()
+        smartEnglishCoordinator.reset()
+        smartEnglishCoordinator.flushLearningWord()
         candidatesView?.clearTransientState()
         inputView?.clearTransientState()
         clearPasswordInputPreview()
@@ -3186,8 +3167,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         updateSelectionBackCallback(false)
         inputDeviceMgr.onFinishInput()
         clearT9CompositionState()
-        resetSmartEnglishT9()
-        flushEnglishLearningWord()
+        smartEnglishCoordinator.reset()
+        smartEnglishCoordinator.flushLearningWord()
         candidatesView?.clearTransientState()
         inputView?.clearTransientState()
         clearPasswordInputPreview()
