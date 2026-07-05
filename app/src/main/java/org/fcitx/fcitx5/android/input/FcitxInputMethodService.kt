@@ -84,6 +84,8 @@ import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9Coordinator
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocusController
 import org.fcitx.fcitx5.android.input.t9.T9CompositionModel
+import org.fcitx.fcitx5.android.input.t9.T9InputMode
+import org.fcitx.fcitx5.android.input.t9.T9ModeCoordinator
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
 import org.fcitx.fcitx5.android.input.t9.T9PunctuationCoordinator
 import org.fcitx.fcitx5.android.input.t9.T9PinyinUtils
@@ -1602,19 +1604,27 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     // ==================== T9 Input State ====================
 
-    /**
-     * T9 input modes (switched by # long press)
-     */
-    private enum class T9InputMode {
-        CHINESE,  // 中文九键
-        ENGLISH,  // 英文九键 (multi-tap)
-        NUMBER    // 数字模式
+    private val t9ModeCoordinator: T9ModeCoordinator by lazy {
+        T9ModeCoordinator(
+            beforeModeChange = {
+                resetMultiTapState()
+                resetSmartEnglishT9()
+                flushEnglishLearningWord()
+            },
+            onEnglishModeEntered = {
+                smartEnglishCoordinator.onModeEntered()
+            },
+            onModeLabelChanged = { label ->
+                onT9ModeChanged?.invoke(label)
+            },
+            showModeIndicator = { label ->
+                inputView?.showModeIndicatorBadge(label)
+            }
+        )
     }
 
-    /**
-     * Current T9 input mode
-     */
-    private var currentT9Mode = T9InputMode.CHINESE
+    private val currentT9Mode: T9InputMode
+        get() = t9ModeCoordinator.current
 
     /**
      * T9 input states for determining key behavior within Chinese mode
@@ -1998,37 +2008,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
      */
     var onT9ModeChanged: ((String) -> Unit)? = null
 
-    /**
-     * Returns the current T9 mode label for display (e.g. "中", "En", "123").
-     * Used by T9 keyboard to show the correct label on the space bar.
-     */
-    fun getCurrentT9ModeLabel(): String = when (currentT9Mode) {
-        T9InputMode.CHINESE -> "中"
-        T9InputMode.ENGLISH -> "En"
-        T9InputMode.NUMBER -> "123"
-    }
+    fun getCurrentT9ModeLabel(): String = t9ModeCoordinator.currentLabel
 
-    /**
-     * Switch to next T9 input mode
-     */
     fun switchToNextT9Mode() {
-        // Clear any pending multi-tap state before switching
-        resetMultiTapState()
-        resetSmartEnglishT9()
-        flushEnglishLearningWord()
-        
-        currentT9Mode = when (currentT9Mode) {
-            T9InputMode.CHINESE -> T9InputMode.ENGLISH
-            T9InputMode.ENGLISH -> T9InputMode.NUMBER
-            T9InputMode.NUMBER -> T9InputMode.CHINESE
-        }
-        if (currentT9Mode == T9InputMode.ENGLISH) {
-            smartEnglishCoordinator.onModeEntered()
-        }
-        
-        val modeName = getCurrentT9ModeLabel()
-        onT9ModeChanged?.invoke(modeName)
-        inputView?.showModeIndicatorBadge(modeName)
+        t9ModeCoordinator.switchToNextMode()
     }
 
     private fun commitLiteralT9Star(chineseState: T9InputState) {
