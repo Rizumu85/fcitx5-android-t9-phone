@@ -30,6 +30,12 @@ object InputUiFont {
         val source: String
     )
 
+    @Volatile
+    private var cachedTypefaceValue: String? = null
+
+    @Volatile
+    private var cachedTypeface: Typeface? = null
+
     fun customFontPreferenceEntries(context: Context): List<Pair<String, CharSequence>> {
         val entries = mutableListOf(SystemDefaultValue to context.getString(R.string.system_default))
         entries += customFontFiles(context).map { fontFileValue(it.file) to fontLabel(it) }
@@ -42,7 +48,16 @@ object InputUiFont {
     private fun selectedTypeface(): Typeface? {
         val value = AppPrefs.getInstance().keyboard.inputUiFont.getValue()
         if (value == SystemDefaultValue || !value.startsWith(FontFilePrefix)) return null
-        return typefaceFromFontFileValue(value)
+        // Decision: candidate rendering can measure text dozens of times per key press, so a
+        // custom font path must not hit Typeface.createFromFile on the input hot path.
+        cachedTypefaceValue.takeIf { it == value }?.let { return cachedTypeface }
+        return synchronized(this) {
+            cachedTypefaceValue.takeIf { it == value }?.let { return@synchronized cachedTypeface }
+            typefaceFromFontFileValue(value).also {
+                cachedTypefaceValue = value
+                cachedTypeface = it
+            }
+        }
     }
 
     fun applyTo(view: TextView, style: Int = Typeface.NORMAL) {

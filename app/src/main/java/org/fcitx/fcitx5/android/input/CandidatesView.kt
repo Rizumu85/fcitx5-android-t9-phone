@@ -1056,6 +1056,7 @@ class CandidatesView(
     private fun pinyinRowWidths(): T9PinyinRowWidthCalculator.Widths? {
         val visiblePinyin = t9RenderedPinyinItems.takeIf { it.isNotEmpty() }
             ?: return null
+        val paint = configuredPinyinMeasurePaint()
         return T9PinyinRowWidthCalculator.calculate(
             T9PinyinRowWidthCalculator.Input(
                 items = visiblePinyin,
@@ -1063,7 +1064,7 @@ class CandidatesView(
                 chipHorizontalPaddingPx = dpCandidates(itemPaddingHorizontal),
                 overflowHintWidthPx = pinyinOverflowHintReservedWidthPx(),
                 foldedEdgeSafetyPx = dp(T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP),
-                measureTextWidthPx = ::pinyinTextWidthPx
+                measureTextWidthPx = { pinyinTextWidthPx(it, paint) }
             )
         )
     }
@@ -1073,18 +1074,21 @@ class CandidatesView(
             ?.takeIf { it.contentReady }
             ?.rowWidthPx
 
-    private fun pinyinTextWidthPx(text: String): Int {
-        val paint = t9PinyinMeasurePaint.apply {
+    private fun configuredPinyinMeasurePaint(): TextPaint =
+        t9PinyinMeasurePaint.apply {
             textSize = compactTopRowFontSizeSp * ctx.resources.displayMetrics.scaledDensity
             InputUiFont.applyTo(this)
         }
+
+    private fun pinyinTextWidthPx(text: String, paint: TextPaint): Int {
         return ceil(paint.measureText(text).toDouble()).toInt()
     }
 
     private fun pinyinChipWidthsPx(items: List<String>): List<Int> {
         val chipPaddingPx = dpCandidates(itemPaddingHorizontal)
+        val paint = configuredPinyinMeasurePaint()
         return items.map { pinyin ->
-            pinyinTextWidthPx(pinyin) + chipPaddingPx * 2
+            pinyinTextWidthPx(pinyin, paint) + chipPaddingPx * 2
         }
     }
 
@@ -1123,9 +1127,7 @@ class CandidatesView(
     }
 
     private fun pinyinOverflowHintReservedWidthPx(): Int {
-        val paint = t9PinyinMeasurePaint.apply {
-            textSize = compactTopRowFontSizeSp * ctx.resources.displayMetrics.scaledDensity
-        }
+        val paint = configuredPinyinMeasurePaint()
         return (ceil(paint.measureText("\u2026").toDouble()).toInt() + dpCandidates(itemPaddingHorizontal) * 2)
             .coerceAtLeast(dp(T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP))
     }
@@ -1148,9 +1150,6 @@ class CandidatesView(
     private fun schedulePinyinOverflowHintUpdate() {
         pinyinRowWrapper.post {
             updatePinyinOverflowHintFromLayout()
-            // First-show measurement can settle one frame after the row becomes visible; run a
-            // second lightweight pass so the overflow hint appears without waiting for focus moves.
-            pinyinRowWrapper.post(::updatePinyinOverflowHintFromLayout)
         }
     }
 
@@ -1267,11 +1266,12 @@ class CandidatesView(
     ): Boolean {
         t9RenderedPinyinItems = state.items
         val surfacePlan = currentSurfaceLayoutPlan(candidateRowWidthPx)
-        val rowPlan = surfacePlan?.pinyin
+            ?: return false
+        val rowPlan = surfacePlan.pinyin
         val renderPlan = T9PinyinRowRenderPlanner.plan(
             state = state,
             rowPlan = rowPlan,
-            focusedViewportWidthPx = surfacePlan?.rowWidthPx ?: pinyinRowViewportWidthPx(),
+            focusedViewportWidthPx = surfacePlan.rowWidthPx ?: pinyinRowViewportWidthPx(),
             focusedEdgeGuardPx = dp(T9_PINYIN_ROW_FOCUSED_EDGE_GUARD_DP),
             chipWidthsPx = pinyinChipWidthsPx(state.items),
             chipSpacingPx = dpCandidates(itemPaddingHorizontal)
@@ -1292,14 +1292,6 @@ class CandidatesView(
             true
         }
         if (changed && scheduleLayoutCheck) {
-            // Product decision: folded pinyin chips must look stable without exposing a fifth chip.
-            // The first frame uses text estimates; this pass lets real TextView widths correct
-            // custom-font/fallback glyph differences before the user has to move focus.
-            pinyinRowWrapper.post {
-                if (pinyinRowTargetVisible) {
-                    syncVisiblePinyinRowLayout()
-                }
-            }
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.scroll") {
                 pinyinBarAdapter.scrollToStart()
             }
@@ -1498,7 +1490,7 @@ class CandidatesView(
                         if (widthChanged) {
                             setPinyinRowWidth(targetWidth)
                         }
-                        showPinyinRowNow()
+                        syncVisiblePinyinRowLayout()
                     }
                     T9PinyinRowVisibilityPlanner.LayoutPassAction.NONE -> Unit
                 }
@@ -1542,7 +1534,7 @@ class CandidatesView(
         private const val T9_PINYIN_TO_HANZI_GAP_DP = 2
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
         private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 18
-        private const val T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP = 8
+        private const val T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP = 4
         private const val T9_PINYIN_ROW_FOCUSED_EDGE_GUARD_DP = 8
     }
 }
