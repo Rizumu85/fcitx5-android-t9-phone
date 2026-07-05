@@ -14,3 +14,8 @@ Smart English, and number mode.
 executes Android/Fcitx side effects such as committing text, forwarding key
 events, refreshing candidate UI, showing punctuation candidates, and handling
 return keys, but it should not duplicate the user-facing key-flow rules.
+
+The flow should return command lists rather than directly executing adapter
+methods. This keeps multi-step key behavior, such as Smart English `1` and `#`
+follow-up actions, testable as ordered outcomes before Android/Fcitx side
+effects run.
