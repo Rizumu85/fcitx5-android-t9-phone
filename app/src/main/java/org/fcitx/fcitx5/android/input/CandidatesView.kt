@@ -45,6 +45,7 @@ import org.fcitx.fcitx5.android.input.t9.T9CandidateUiRenderer
 import org.fcitx.fcitx5.android.input.t9.T9CandidateWidthBudget
 import org.fcitx.fcitx5.android.input.t9.T9PagedCandidates
 import org.fcitx.fcitx5.android.input.t9.T9PinyinChipAdapter
+import org.fcitx.fcitx5.android.input.t9.T9PinyinOverflowPolicy
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowWindow
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
 import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
@@ -970,9 +971,10 @@ class CandidatesView(
 
     private fun syncPinyinRowWidthToCandidates(): Boolean {
         val candidateWidth = firstPositiveCandidateRowWidth()
+            ?: estimatedShownCandidateRowWidthPx()
             ?: lastCandidateRowWidthPx.takeIf { it > 0 }
             ?: return false
-        val width = maxOf(candidateWidth, pinyinRowDesiredWidthPx() ?: 0)
+        val width = maxOf(candidateWidth, pinyinRowDesiredWidthPx(candidateWidth) ?: 0)
         setPinyinRowWidth(width)
         return true
     }
@@ -992,10 +994,19 @@ class CandidatesView(
         }
     }
 
-    private fun populatedPinyinRowWidthPx(): Int? {
+    private fun populatedPinyinRowWidthPx(candidateRowWidthPx: Int? = null): Int? {
         val visiblePinyin = t9RenderedPinyinItems.takeIf { it.isNotEmpty() }
             ?: return null
         val maxWidthPx = pinyinRowMaxWidthPx()
+        val fullContentWidthPx = pinyinItemsWidthPx(
+            visiblePinyin,
+            reservesOverflowHint = false
+        )
+        if (!shouldFoldPinyinRow(visiblePinyin, fullContentWidthPx, candidateRowWidthPx)) {
+            return fullContentWidthPx
+                .coerceAtMost(maxWidthPx)
+                .coerceAtLeast(1)
+        }
         if (visiblePinyin.size > T9_PINYIN_ROW_MIN_VISIBLE_CHIPS) {
             return pinyinItemsWidthPx(
                 visiblePinyin.take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS),
@@ -1003,13 +1014,6 @@ class CandidatesView(
             )
                 .coerceAtMost(maxWidthPx)
                 .coerceAtLeast(1)
-        }
-        val fullContentWidthPx = pinyinItemsWidthPx(
-            visiblePinyin,
-            reservesOverflowHint = false
-        )
-        if (fullContentWidthPx <= maxWidthPx) {
-            return fullContentWidthPx.coerceAtLeast(1)
         }
         val compactPinyin = visiblePinyin.take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS)
             .takeIf { it.isNotEmpty() }
@@ -1022,8 +1026,8 @@ class CandidatesView(
             .coerceAtLeast(1)
     }
 
-    private fun pinyinRowDesiredWidthPx(): Int? {
-        val estimatedWidthPx = populatedPinyinRowWidthPx()
+    private fun pinyinRowDesiredWidthPx(candidateRowWidthPx: Int? = null): Int? {
+        val estimatedWidthPx = populatedPinyinRowWidthPx(candidateRowWidthPx)
         val measuredContentWidthPx = pinyinBarAdapter.laidOutContentWidthPx()
         val measuredWidthPx = measuredContentWidthPx?.let { contentWidthPx ->
             if (shouldShowPinyinOverflowHint()) {
@@ -1055,8 +1059,29 @@ class CandidatesView(
         return chipWidthPx + overflowHintWidthPx
     }
 
-    private fun shouldShowPinyinOverflowHint(): Boolean =
-        t9RenderedPinyinItems.size > T9_PINYIN_ROW_MIN_VISIBLE_CHIPS
+    private fun shouldShowPinyinOverflowHint(): Boolean {
+        val visiblePinyin = t9RenderedPinyinItems
+        if (visiblePinyin.size <= T9_PINYIN_ROW_MIN_VISIBLE_CHIPS) return false
+        val fullContentWidthPx = pinyinItemsWidthPx(visiblePinyin, reservesOverflowHint = false)
+        return shouldFoldPinyinRow(visiblePinyin, fullContentWidthPx)
+    }
+
+    private fun shouldFoldPinyinRow(
+        visiblePinyin: List<String>,
+        fullContentWidthPx: Int,
+        candidateRowWidthPx: Int? = null
+    ): Boolean =
+        T9PinyinOverflowPolicy.shouldFold(
+            pinyinCount = visiblePinyin.size,
+            fullContentWidthPx = fullContentWidthPx,
+            candidateRowWidthPx = candidateRowWidthPx
+                ?: firstPositiveCandidateRowWidth()
+                ?: estimatedShownCandidateRowWidthPx()
+                ?: lastCandidateRowWidthPx.takeIf { it > 0 }
+                ?: pinyinRowMaxWidthPx(),
+            maxRowWidthPx = pinyinRowMaxWidthPx(),
+            minVisibleChips = T9_PINYIN_ROW_MIN_VISIBLE_CHIPS
+        )
 
     private fun pinyinRowViewportWidthPx(): Int? {
         pinyinRowWrapper.width.takeIf { it > 0 }?.let { return it }
@@ -1156,6 +1181,15 @@ class CandidatesView(
         candidateRowWrapper.width.takeIf { it > 0 }?.let { return rememberCandidateRowWidth(it) }
         candidateRowWrapper.measuredWidth.takeIf { it > 0 }?.let { return rememberCandidateRowWidth(it) }
         return null
+    }
+
+    private fun estimatedShownCandidateRowWidthPx(): Int? {
+        val shown = t9ShownPaged ?: paged
+        if (shown.candidates.isEmpty()) return null
+        val widthBudget = t9CandidateWidthBudget()
+        return shown.candidates.sumOf(widthBudget::candidateWidthPx)
+            .coerceAtMost(widthBudget.maxWidthPx)
+            .coerceAtLeast(1)
     }
 
     private fun rememberCandidateRowWidth(width: Int): Int {
@@ -1395,7 +1429,7 @@ class CandidatesView(
                     lastCandidateRowWidthPx = cw
                 }
                 val targetWidth = cw.takeIf { it > 0 }
-                    ?.let { maxOf(it, pinyinRowDesiredWidthPx() ?: 0) }
+                    ?.let { maxOf(it, pinyinRowDesiredWidthPx(it) ?: 0) }
                     ?: return
                 if ((pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.width != targetWidth ||
                     (pinyinBarView.layoutParams as? FrameLayout.LayoutParams)?.width != targetWidth
