@@ -1,8 +1,8 @@
 {
     "uniqueId": "sspanak/tt9-english-wordlist",
     "artifactVersion": "2026-07-03",
-    "description": "English T9 word list and next-word ngram data adapted from Traditional T9's English dictionary data. The word list is derived primarily from SCOWL, with casing and frequency data sources documented in docs/third-party/tt9-english-wordlist-notice.txt.",
-    "name": "Traditional T9 English word list and ngrams",
+    "description": "English T9 word list and next-word ngram data adapted from Traditional T9's English dictionary data. Smart English also references Traditional T9's public predictive word-pair reranking behavior with an original implementation. The word list is derived primarily from SCOWL, with casing and frequency data sources documented in docs/third-party/tt9-english-wordlist-notice.txt.",
+    "name": "Traditional T9 English word list, ngrams, and predictive design reference",
     "website": "https://github.com/sspanak/tt9",
     "tag": "dictionary",
     "licenses": [

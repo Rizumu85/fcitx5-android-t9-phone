@@ -29,6 +29,9 @@ class SmartEnglishT9Session(
     val cursor: Int
         get() = cursorIndex
 
+    val digitSequence: String
+        get() = digits.toString()
+
     fun appendDigit(digit: Int) {
         if (digit !in 0..9) return
         digits.append(('0'.code + digit).toChar())
@@ -80,8 +83,11 @@ class SmartEnglishT9Session(
         return true
     }
 
-    fun selectedRawCandidate(index: Int? = null): String? =
-        rawCandidates().getOrNull(index ?: cursorIndex)
+    fun selectedRawCandidate(
+        candidates: List<String> = rawCandidates(),
+        index: Int? = null
+    ): String? =
+        candidates.getOrNull(index ?: cursorIndex)
 
     fun backspace(): Boolean {
         if (digits.isEmpty()) return false

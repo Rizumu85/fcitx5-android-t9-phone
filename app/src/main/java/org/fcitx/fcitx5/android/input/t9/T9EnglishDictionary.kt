@@ -238,6 +238,9 @@ class T9EnglishDictionary {
             return word
         }
 
+        fun t9DigitsForWord(rawWord: String): String? =
+            normalizeLearnedWord(rawWord)?.toT9Digits()
+
         private val WarmupDigitSequences = listOf(
             "2", "3", "4", "5", "6", "7", "8", "9",
             "26", "36", "43", "46", "48", "66", "73", "84", "93",

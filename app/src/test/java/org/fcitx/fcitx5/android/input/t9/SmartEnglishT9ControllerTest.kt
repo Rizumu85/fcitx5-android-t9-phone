@@ -142,6 +142,32 @@ class SmartEnglishT9ControllerTest {
     }
 
     @Test
+    fun typedCandidatesAreRerankedByLearnedPreviousWordPair() {
+        val host = FakeHost()
+        val controller = host.controller()
+        listOf(4, 6, 6).forEach(controller::appendDigit)
+        assertTrue(controller.commitCandidate())
+
+        "6676464".forEach { controller.appendDigit(it.digitToInt()) }
+
+        assertEquals("morning", controller.paged()?.candidates?.first()?.text)
+        assertTrue(controller.commitCandidate())
+        assertEquals(listOf("good ", "morning "), host.committedTexts)
+    }
+
+    @Test
+    fun typedCandidatesKeepDictionaryOrderWhenPairDoesNotMatchDigits() {
+        val host = FakeHost()
+        val controller = host.controller()
+        listOf(4, 6, 6).forEach(controller::appendDigit)
+        assertTrue(controller.commitCandidate())
+
+        listOf(4, 6, 6).forEach(controller::appendDigit)
+
+        assertEquals(listOf("good", "home"), controller.paged()?.candidates?.map { it.text })
+    }
+
+    @Test
     fun predictionBackspaceHidesPredictionWithoutClearingContext() {
         val host = FakeHost()
         val controller = host.controller()
@@ -175,7 +201,8 @@ class SmartEnglishT9ControllerTest {
             "4" to listOf("I"),
             "435" to listOf("hello", "help"),
             "466" to listOf("good", "home"),
-            "43556" to listOf("hello", "gekko")
+            "43556" to listOf("hello", "gekko"),
+            "6676464" to listOf("mopping", "morning")
         )
         private val predictions = mapOf(
             "good" to listOf("morning", "night"),

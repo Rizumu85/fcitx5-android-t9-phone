@@ -38,6 +38,14 @@ of bundling the original TT9 archive.
 
 =====
 
+Smart English pair-frequency candidate reranking references Traditional T9's
+public predictive word-pair behavior: after a word is accepted, a later matching
+candidate can be promoted when the same previous word context appears. This app
+uses an original Kotlin implementation integrated with its own Smart English
+session and learned-pair storage; no Traditional T9 source code is copied.
+
+=====
+
 Animals, countries, cities and other geographical terms, personal names, companies, food and bevarages obtained from Wikipedia, OpenAI and other public domain sources.
 
 =====

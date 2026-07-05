@@ -7,17 +7,18 @@ package org.fcitx.fcitx5.android.input.t9
 
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.core.FormattedText
+import java.util.Locale
 
 class SmartEnglishT9Controller private constructor(
     private val dictionary: T9EnglishDictionary?,
     private val predictionDictionary: SmartEnglishPredictionDictionary?,
     candidateProvider: (digits: String, limit: Int) -> List<String>,
-    predictionProvider: (previousWords: List<String>, limit: Int) -> List<String>,
+    private val predictionProvider: (previousWords: List<String>, limit: Int) -> List<String>,
     private val learnWord: (String) -> Unit,
     private val learnPredictionPair: (String, String) -> Unit,
     private val dictionaryReady: () -> Boolean,
     private val predictionReady: () -> Boolean,
-    candidateLimit: Int,
+    private val candidateLimit: Int,
     noMatchText: String,
     private val isActive: () -> Boolean,
     private val shouldLearnWords: () -> Boolean,
@@ -39,6 +40,11 @@ class SmartEnglishT9Controller private constructor(
         predictionProvider = predictionProvider,
         candidateLimit = candidateLimit
     )
+    // Candidate UI asks for paged data and presentation separately; keep TT9-style
+    // pair reranking stable within the same input snapshot so those paths do not
+    // repeat prediction lookups or drift in ordering during one visual update.
+    private var pairRankCacheKey: PairRankCacheKey? = null
+    private var pairRankCacheValue: List<String> = emptyList()
     private val learningWord = StringBuilder()
     private val recentWords = ArrayDeque<String>()
     private var caseState = CaseState.OFF
@@ -123,6 +129,7 @@ class SmartEnglishT9Controller private constructor(
     fun appendDigit(digit: Int) {
         predictionSession.reset()
         session.appendDigit(digit)
+        invalidatePairRanking()
         refreshUi()
     }
 
@@ -130,6 +137,7 @@ class SmartEnglishT9Controller private constructor(
         session.reset()
         predictionSession.reset()
         recentWords.clear()
+        invalidatePairRanking()
         refreshUi()
     }
 
@@ -138,7 +146,7 @@ class SmartEnglishT9Controller private constructor(
         if (!session.hasDigits) {
             return predictionPaged()
         }
-        val rawCandidates = session.rawCandidates()
+        val rawCandidates = pairRankedCandidates()
         if (!isDictionaryReady && rawCandidates.isEmpty()) return null
         val shown = session.visibleCandidates(
             candidates = rawCandidates,
@@ -172,7 +180,7 @@ class SmartEnglishT9Controller private constructor(
                 null
             }
         }
-        val rawCandidates = session.rawCandidates()
+        val rawCandidates = pairRankedCandidates()
         if (!isDictionaryReady && rawCandidates.isEmpty()) return null
         val preview = session.inputPreviewText(rawCandidates)
         return T9PresentationState(
@@ -208,7 +216,7 @@ class SmartEnglishT9Controller private constructor(
     fun commitCandidate(index: Int? = null): Boolean {
         if (!isActive()) return false
         val selected = if (session.hasDigits) {
-            session.selectedRawCandidate(index) ?: run {
+            session.selectedRawCandidate(pairRankedCandidates(), index) ?: run {
                 reset()
                 return true
             }
@@ -217,6 +225,7 @@ class SmartEnglishT9Controller private constructor(
         }
         commitText("${applyCaseToWord(selected)} ")
         session.reset()
+        invalidatePairRanking()
         rememberCommittedWord(selected)
         consumeShiftOnce()
         refreshUi()
@@ -231,6 +240,7 @@ class SmartEnglishT9Controller private constructor(
             predictionSession.hide()
         }
         if (!changed) return false
+        invalidatePairRanking()
         refreshUi()
         return true
     }
@@ -311,6 +321,50 @@ class SmartEnglishT9Controller private constructor(
         )
     }
 
+    private fun pairRankedCandidates(): List<String> {
+        val rawCandidates = session.rawCandidates()
+        val key = PairRankCacheKey(
+            digits = session.digitSequence,
+            previousWords = recentWords.toList(),
+            candidates = rawCandidates
+        )
+        if (key == pairRankCacheKey) return pairRankCacheValue
+        return rankCandidatesByPreviousWord(rawCandidates, key.digits).also {
+            pairRankCacheKey = key
+            pairRankCacheValue = it
+        }
+    }
+
+    private fun invalidatePairRanking() {
+        pairRankCacheKey = null
+        pairRankCacheValue = emptyList()
+    }
+
+    private fun rankCandidatesByPreviousWord(
+        candidates: List<String>,
+        digits: String
+    ): List<String> {
+        if (candidates.size < 2 || recentWords.isEmpty() || digits.isEmpty() || !predictionReady()) {
+            return candidates
+        }
+        val predictionRank = predictionProvider(recentWords.toList(), candidateLimit)
+            .filter { T9EnglishDictionary.t9DigitsForWord(it) == digits }
+            .mapIndexed { index, word -> word.lowercase(Locale.US) to index }
+            .toMap()
+        if (predictionRank.isEmpty()) return candidates
+        val indexed = candidates.withIndex()
+        val ranked = indexed.filter { (_, word) -> predictionRank.containsKey(word.lowercase(Locale.US)) }
+        if (ranked.isEmpty()) return candidates
+        return buildList(candidates.size) {
+            ranked.sortedWith(
+                compareBy<IndexedValue<String>> { predictionRank[it.value.lowercase(Locale.US)] ?: Int.MAX_VALUE }
+                    .thenBy { it.index }
+            ).forEach { add(it.value) }
+            indexed.filterNot { (_, word) -> predictionRank.containsKey(word.lowercase(Locale.US)) }
+                .forEach { add(it.value) }
+        }
+    }
+
     private fun rememberCommittedWord(rawWord: String) {
         val word = SmartEnglishPredictionDictionary.normalizePredictionWord(rawWord) ?: return
         val previous = recentWords.lastOrNull()
@@ -327,4 +381,10 @@ class SmartEnglishT9Controller private constructor(
     companion object {
         private const val RecentWordContextSize = 3
     }
+
+    private data class PairRankCacheKey(
+        val digits: String,
+        val previousWords: List<String>,
+        val candidates: List<String>
+    )
 }
