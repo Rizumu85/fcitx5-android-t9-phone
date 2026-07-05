@@ -86,6 +86,7 @@ import org.fcitx.fcitx5.android.input.t9.T9CandidateFocusController
 import org.fcitx.fcitx5.android.input.t9.T9CompositionModel
 import org.fcitx.fcitx5.android.input.t9.T9InputMode
 import org.fcitx.fcitx5.android.input.t9.T9ModeCoordinator
+import org.fcitx.fcitx5.android.input.t9.T9MultiTapSession
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
 import org.fcitx.fcitx5.android.input.t9.T9PunctuationCoordinator
 import org.fcitx.fcitx5.android.input.t9.T9PinyinUtils
@@ -167,7 +168,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         override val hasSmartEnglishCandidates: Boolean
             get() = smartEnglishCoordinator.hasCandidates
         override val hasMultiTapPendingChar: Boolean
-            get() = multiTapPendingChar != null
+            get() = multiTapSession.hasPendingChar
         override val hasTopPinyinCandidates: Boolean
             get() = getT9PinyinCandidates().isNotEmpty()
         override val candidateFocus: PhysicalT9KeyHandler.CandidateFocus
@@ -851,7 +852,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun shouldHideImeForEmptyEditorDelete(): Boolean {
         if (composing.isNotEmpty()) return false
         if (hasT9CompositionState()) return false
-        if (multiTapPendingChar != null) return false
+        if (multiTapSession.hasPendingChar) return false
         if (t9PunctuationCoordinator.isPending) return false
 
         val lastSelection = selection.latest
@@ -870,7 +871,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun shouldDirectDeleteForIdlePhysicalBackspace(): Boolean =
         composing.isEmpty() &&
             !hasT9CompositionState() &&
-            multiTapPendingChar == null &&
+            !multiTapSession.hasPendingChar &&
             !t9PunctuationCoordinator.isPending
 
     private fun deleteBeforeCursorDirectly(): Boolean {
@@ -1228,7 +1229,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             composing.isEmpty() &&
             !hasT9CompositionState() &&
             !t9PunctuationCoordinator.isPending &&
-            multiTapPendingChar == null
+            !multiTapSession.hasPendingChar
 
     private fun performDeferredPhysicalOkShortPress(keyCode: Int) {
         when (PhysicalT9KeyPolicy.confirmAction(keyCode)) {
@@ -1650,11 +1651,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         event.repeatCount > 0 &&
             event.eventTime - event.downTime >= physicalLongPressDelay.toLong()
 
-    // ===== Multi-tap state for English mode =====
-    private var multiTapLastKey = -1
-    private var multiTapLastTime = 0L
-    private var multiTapIndex = 0
-    private var multiTapPendingChar: Char? = null
+    private val multiTapSession = T9MultiTapSession()
     private val smartEnglishCoordinator: SmartEnglishT9Coordinator by lazy {
         SmartEnglishT9Coordinator(
             candidateLimit = SmartEnglishCandidateLimit,
@@ -1668,8 +1665,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             resetPendingDigit = ::resetSmartEnglishPendingDigit
         )
     }
-    private val MULTITAP_TIMEOUT = 1200L  // Increased from 500ms for easier typing
-
     private val t9PunctuationCoordinator: T9PunctuationCoordinator = T9PunctuationCoordinator(
         clearTransientInputUiState = ::clearTransientInputUiState,
         refreshUi = { candidatesView?.refreshT9Ui() },
@@ -1684,22 +1679,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         physicalT9KeyHandler.resetSmartEnglishPendingDigit()
     }
 
-    private val multiTapMap = mapOf(
-        KeyEvent.KEYCODE_1 to ",.?!'\"-@/:",  // English punctuation (comma first)
-        KeyEvent.KEYCODE_2 to "abc",
-        KeyEvent.KEYCODE_3 to "def",
-        KeyEvent.KEYCODE_4 to "ghi",
-        KeyEvent.KEYCODE_5 to "jkl",
-        KeyEvent.KEYCODE_6 to "mno",
-        KeyEvent.KEYCODE_7 to "pqrs",
-        KeyEvent.KEYCODE_8 to "tuv",
-        KeyEvent.KEYCODE_9 to "wxyz"
-    )
-
     // Handler for multi-tap timeout
     private val multiTapHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val multiTapTimeoutRunnable = Runnable {
-        if (multiTapPendingChar != null) {
+        if (multiTapSession.hasPendingChar) {
             commitMultiTapChar()
         }
     }
@@ -1713,7 +1696,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun showEnglishCaseStateOrRefreshPending() {
-        val pendingChar = multiTapPendingChar
+        val pendingChar = multiTapSession.pendingChar()
         if (pendingChar != null) {
             currentInputConnection?.setComposingText(applyEnglishCase(pendingChar).toString(), 1)
             return
@@ -1855,23 +1838,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun cancelPendingT9Punctuation(): Boolean =
         t9PunctuationCoordinator.cancel()
 
-    /**
-     * Commit any pending multi-tap character
-     * Returns true if there was a character to commit
-     */
     private fun commitMultiTapChar(): Boolean {
         multiTapHandler.removeCallbacks(multiTapTimeoutRunnable)
-        val hadPendingChar = multiTapPendingChar != null
-        multiTapPendingChar?.let {
-            val char = applyEnglishCase(it)
-            commitText(char.toString())
-            recordEnglishLearningChar(char)
-            multiTapPendingChar = null
-            consumeEnglishShiftOnce()
-        }
-        multiTapLastKey = -1
-        multiTapIndex = 0
-        return hadPendingChar
+        val pendingChar = multiTapSession.commitPending() ?: return false
+        commitMultiTapLetter(pendingChar)
+        return true
+    }
+
+    private fun commitMultiTapLetter(letter: Char) {
+        val char = applyEnglishCase(letter)
+        commitText(char.toString())
+        recordEnglishLearningChar(char)
+        consumeEnglishShiftOnce()
     }
 
     private fun isSmartEnglishT9Active(): Boolean =
@@ -1940,64 +1918,40 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return smartEnglishCoordinator.backspace()
     }
 
-    /**
-     * Cancel any pending multi-tap character without committing
-     */
     private fun cancelMultiTapChar() {
         multiTapHandler.removeCallbacks(multiTapTimeoutRunnable)
-        if (multiTapPendingChar != null) {
+        if (multiTapSession.cancelPending()) {
             // Clear composing text without committing by setting empty string
             currentInputConnection?.setComposingText("", 1)
             currentInputConnection?.finishComposingText()
-            multiTapPendingChar = null
         }
-        multiTapLastKey = -1
-        multiTapIndex = 0
     }
 
-    /**
-     * Reset all multi-tap state (used when switching modes)
-     */
     private fun resetMultiTapState() {
         commitPendingT9Punctuation()
         multiTapHandler.removeCallbacks(multiTapTimeoutRunnable)
-        if (multiTapPendingChar != null) {
+        if (multiTapSession.reset()) {
             currentInputConnection?.finishComposingText()
         }
-        multiTapPendingChar = null
-        multiTapLastKey = -1
-        multiTapLastTime = 0L
-        multiTapIndex = 0
     }
 
-    /**
-     * Handle multi-tap key press in English mode
-     */
     private fun handleMultiTapKey(keyCode: Int): Boolean {
-        val letters = multiTapMap[keyCode] ?: return false
         val currentTime = android.os.SystemClock.elapsedRealtime()
 
         // Cancel any pending timeout
         multiTapHandler.removeCallbacks(multiTapTimeoutRunnable)
 
-        if (keyCode == multiTapLastKey && currentTime - multiTapLastTime < MULTITAP_TIMEOUT) {
-            // Same key pressed within timeout - cycle to next letter
-            multiTapIndex = (multiTapIndex + 1) % letters.length
-        } else {
-            // Different key or timeout expired - commit previous and start new
-            commitMultiTapChar()
-            multiTapIndex = 0
-        }
+        val result = multiTapSession.handleKey(keyCode, currentTime) ?: return false
+        result.committedPrevious?.let(::commitMultiTapLetter)
 
-        multiTapLastKey = keyCode
-        multiTapLastTime = currentTime
-        multiTapPendingChar = letters[multiTapIndex]
-
-        val displayChar = applyEnglishCase(multiTapPendingChar!!)
+        val displayChar = applyEnglishCase(result.pendingChar)
         currentInputConnection?.setComposingText(displayChar.toString(), 1)
 
         // Schedule auto-commit after timeout
-        multiTapHandler.postDelayed(multiTapTimeoutRunnable, MULTITAP_TIMEOUT)
+        multiTapHandler.postDelayed(
+            multiTapTimeoutRunnable,
+            T9MultiTapSession.DefaultTimeoutMillis
+        )
 
         return true
     }
@@ -2257,7 +2211,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 rawComposition = rawComposition
             )
             T9InputMode.ENGLISH -> {
-                multiTapPendingChar?.let { pending ->
+                multiTapSession.pendingChar()?.let { pending ->
                     formattedT9Text(applyEnglishCase(pending).toString())
                 }
             }
