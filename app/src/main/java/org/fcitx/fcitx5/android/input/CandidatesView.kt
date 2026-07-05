@@ -368,7 +368,6 @@ class CandidatesView(
             verticalPaddingPx = dpCandidates(itemPaddingVertical),
             rowHeightPx = pinyinBarRowHeightPx,
             cornerRadiusPx = dpCandidates(windowRadius).toFloat(),
-            scrollEdgeInsetPx = dp(T9_PINYIN_ROW_SCROLL_EDGE_INSET_DP),
             precreatedChipCount = T9PinyinRowWindow.DEFAULT_MAX_VISIBLE_ITEMS,
             onChipClick = {
                 service.commitT9PinyinSelection(it)
@@ -1204,7 +1203,13 @@ class CandidatesView(
         val shown = t9ShownPaged ?: paged
         if (shown.candidates.isEmpty()) return null
         val widthBudget = t9CandidateWidthBudget()
-        return shown.candidates.sumOf(widthBudget::candidateWidthPx)
+        val bottomFocused = service.getT9CandidateFocus() == T9CandidateFocus.BOTTOM
+        return shown.candidates.withIndex().sumOf { (index, candidate) ->
+            widthBudget.candidateWidthPx(
+                candidate = candidate,
+                active = bottomFocused && index == shown.cursorIndex
+            )
+        }
             .coerceAtMost(widthBudget.maxWidthPx)
             .coerceAtLeast(1)
     }
@@ -1520,7 +1525,6 @@ class CandidatesView(
         private const val T9_PINYIN_TO_HANZI_GAP_DP = 2
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
         private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 18
-        private const val T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP = 4
-        private const val T9_PINYIN_ROW_SCROLL_EDGE_INSET_DP = 3
+        private const val T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP = 8
     }
 }

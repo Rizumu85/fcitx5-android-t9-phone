@@ -26,11 +26,19 @@ class T9CandidateWidthBudget(
     val maxCandidateWidthPx: Int
         get() = (maxWidthPx - candidateSpacingPx).coerceAtLeast(minimumCandidateWidthPx)
 
-    fun candidateWidthPx(candidate: FcitxEvent.Candidate): Int {
+    fun candidateWidthPx(candidate: FcitxEvent.Candidate): Int =
+        candidateWidthPx(candidate, active = true)
+
+    fun candidateWidthPx(candidate: FcitxEvent.Candidate, active: Boolean): Int {
         val naturalWidth = (measureTextWidthPx(candidate.text) + candidateHorizontalPaddingPx * 2)
             .coerceAtLeast(minimumCandidateWidthPx)
             .coerceAtMost(maxCandidateWidthPx)
-        return ceil(naturalWidth * activeScalePercent / 100f).toInt() + candidateSpacingPx
+        val scaledWidth = if (active) {
+            ceil(naturalWidth * activeScalePercent / 100f).toInt()
+        } else {
+            naturalWidth
+        }
+        return scaledWidth + candidateSpacingPx
     }
 
     companion object {
