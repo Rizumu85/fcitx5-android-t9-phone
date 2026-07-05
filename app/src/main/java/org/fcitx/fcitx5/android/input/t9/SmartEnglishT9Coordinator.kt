@@ -119,9 +119,10 @@ class SmartEnglishT9Coordinator(
 
     fun commitCandidate(
         index: Int? = null,
-        appendSpace: Boolean = true
+        appendSpace: Boolean = true,
+        continuePrediction: Boolean = appendSpace
     ): Boolean {
-        val committed = controller.commitCandidate(index, appendSpace)
+        val committed = controller.commitCandidate(index, appendSpace, continuePrediction)
         if (committed) {
             resetPendingDigit()
         }

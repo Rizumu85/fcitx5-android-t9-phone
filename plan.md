@@ -84,3 +84,16 @@ otherwise.
   candidate/confirmation contexts.
 - [ ] Watch for the intermittent Rime/default-only recovery issue after
   redeploy or reload.
+
+## Physical T9 Key Flow Architecture
+
+- [x] Decide that Physical T9 Key Flow owns complete hardware-key behavior and
+  leaves `FcitxInputMethodService` as the platform adapter.
+- [x] Decide that the flow returns ordered domain commands from immutable
+  physical-key state snapshots.
+- [x] Decide that cross-key event state, such as long-press and deferred Smart
+  English digits, belongs to the flow session.
+- [x] Migrate Smart English `1` and `#` behavior into the command-based
+  Physical T9 Key Flow slice, removing the replaced legacy branches.
+- [x] Run focused tests, build/install debug, and provide a manual Smart
+  English `1/#` test checklist before migrating the next slice.

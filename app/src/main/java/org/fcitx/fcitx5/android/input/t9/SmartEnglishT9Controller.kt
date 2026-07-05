@@ -215,7 +215,8 @@ class SmartEnglishT9Controller private constructor(
 
     fun commitCandidate(
         index: Int? = null,
-        appendSpace: Boolean = true
+        appendSpace: Boolean = true,
+        continuePrediction: Boolean = appendSpace
     ): Boolean {
         if (!isActive()) return false
         val selected = if (session.hasDigits) {
@@ -229,7 +230,7 @@ class SmartEnglishT9Controller private constructor(
         commitText(applyCaseToWord(selected) + if (appendSpace) " " else "")
         session.reset()
         invalidatePairRanking()
-        if (appendSpace) {
+        if (continuePrediction) {
             rememberCommittedWord(selected)
         } else {
             // 1/# confirmation is meant to settle the visible word before a

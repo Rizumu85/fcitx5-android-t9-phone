@@ -96,7 +96,10 @@ class PhysicalT9KeyHandler(private val host: Host) {
         fun showSmartEnglishPunctuationCandidates()
         fun appendSmartEnglishDigit(digit: Int)
         fun resetSmartEnglishT9()
-        fun commitSmartEnglishCandidate(appendSpace: Boolean = true): Boolean
+        fun commitSmartEnglishCandidate(
+            appendSpace: Boolean = true,
+            continuePrediction: Boolean = appendSpace
+        ): Boolean
         fun moveSmartEnglishCandidate(delta: Int): Boolean
         fun smartEnglishBackspace(): Boolean
         fun flushEnglishLearningWord()
@@ -113,6 +116,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
 
     private val digitLongPressFlags = BooleanArray(KeyEvent.KEYCODE_STAR + 1)
     private val effectPlanner = T9KeyEffectPlanner()
+    private val keyFlow = PhysicalT9KeyFlow()
     private var poundLongPressTriggered = false
     private var pendingSmartEnglishDigitKeyCode: Int? = null
     private var pendingSmartEnglishDigit = -1
@@ -145,6 +149,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
             host.commitPendingPunctuation()
         }
 
+        handleCommandKeyFlow(input).takeIf { it.handled }?.let { return it }
         handleT9SpecialKeyDown(keyCode, input).takeIf { it.handled }?.let { return it }
         handleSmartEnglishNavigationKeyDown(keyCode, input).takeIf { it.handled }?.let { return it }
         handleEnglishDeleteKeyDown(keyCode, input).takeIf { it.handled }?.let { return it }
@@ -157,7 +162,57 @@ class PhysicalT9KeyHandler(private val host: Host) {
 
     fun handleKeyUp(input: KeyInput): KeyResult = T9ResponsivenessTrace.measure("PhysicalT9KeyHandler.keyUp") {
         if (!host.isInInputMode) return KeyResult(handled = false)
+        handleCommandKeyFlow(input).takeIf { it.handled }?.let { return it }
         return handleT9SpecialKeyUp(input.keyCode, input)
+    }
+
+    private fun handleCommandKeyFlow(input: KeyInput): KeyResult {
+        val decision = keyFlow.handle(input, physicalKeyFlowState(input)) ?: return KeyResult(handled = false)
+        executePhysicalKeyFlowCommands(decision.commands)
+        return KeyResult(handled = decision.handled)
+    }
+
+    private fun physicalKeyFlowState(input: KeyInput): PhysicalT9KeyFlow.State =
+        PhysicalT9KeyFlow.State(
+            mode = host.mode,
+            isSmartEnglishActive = host.isSmartEnglishActive,
+            hasPendingPunctuation = host.hasPendingPunctuation,
+            pendingPunctuationOneKeyDeferred = host.pendingPunctuationOneKeyDeferred,
+            pendingPunctuationSet = host.pendingPunctuationSet,
+            hasSmartEnglishCandidates = host.hasSmartEnglishCandidates,
+            heldPastLongPressDelay = host.keyHeldPastLongPressDelay(input)
+        )
+
+    private fun executePhysicalKeyFlowCommands(commands: List<PhysicalT9KeyFlow.Command>) {
+        commands.forEach { command ->
+            when (command) {
+                is PhysicalT9KeyFlow.Command.SetPendingPunctuationOneKeyDeferred ->
+                    host.setPendingPunctuationOneKeyDeferred(command.value)
+                is PhysicalT9KeyFlow.Command.CommitPendingPunctuationShortcut ->
+                    host.commitPendingPunctuationShortcut(command.keyCode)
+                PhysicalT9KeyFlow.Command.CommitPendingPunctuation ->
+                    host.commitPendingPunctuation()
+                PhysicalT9KeyFlow.Command.CancelPendingPunctuation ->
+                    host.cancelPendingPunctuation()
+                PhysicalT9KeyFlow.Command.CancelMultiTapChar ->
+                    host.cancelMultiTapChar()
+                PhysicalT9KeyFlow.Command.ShowSmartEnglishPunctuationCandidates ->
+                    host.showSmartEnglishPunctuationCandidates()
+                is PhysicalT9KeyFlow.Command.CommitSmartEnglishShortcut ->
+                    host.commitSmartEnglishShortcut(command.keyCode)
+                is PhysicalT9KeyFlow.Command.CommitSmartEnglishCandidate ->
+                    host.commitSmartEnglishCandidate(
+                        appendSpace = command.appendSpace,
+                        continuePrediction = command.continuePrediction
+                    )
+                is PhysicalT9KeyFlow.Command.CommitText ->
+                    host.commitText(command.text)
+                PhysicalT9KeyFlow.Command.HandleReturnKey ->
+                    host.handleReturnKey()
+                PhysicalT9KeyFlow.Command.SwitchToNextMode ->
+                    host.switchToNextMode()
+            }
+        }
     }
 
     private fun consumePhysicalLongPressIfReady(keyCode: Int, input: KeyInput): Boolean {

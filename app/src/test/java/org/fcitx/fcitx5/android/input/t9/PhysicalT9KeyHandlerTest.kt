@@ -190,6 +190,7 @@ class PhysicalT9KeyHandlerTest {
         assertEquals(0, host.resetSmartEnglishCount)
         assertEquals(1, host.showSmartEnglishPunctuationCount)
         assertEquals(listOf(false), host.commitSmartEnglishCandidateAppendSpace)
+        assertEquals(listOf(false), host.commitSmartEnglishCandidateContinuePrediction)
         assertEquals(emptyList<String>(), host.committedTexts)
     }
 
@@ -209,6 +210,7 @@ class PhysicalT9KeyHandlerTest {
         assertEquals(0, host.resetSmartEnglishCount)
         assertEquals(1, host.showSmartEnglishPunctuationCount)
         assertEquals(listOf(false), host.commitSmartEnglishCandidateAppendSpace)
+        assertEquals(listOf(false), host.commitSmartEnglishCandidateContinuePrediction)
     }
 
     @Test
@@ -227,6 +229,7 @@ class PhysicalT9KeyHandlerTest {
         assertEquals(0, host.resetSmartEnglishCount)
         assertEquals(1, host.handleReturnCount)
         assertEquals(listOf(false), host.commitSmartEnglishCandidateAppendSpace)
+        assertEquals(listOf(false), host.commitSmartEnglishCandidateContinuePrediction)
         assertEquals(emptyList<String>(), host.committedTexts)
     }
 
@@ -246,6 +249,7 @@ class PhysicalT9KeyHandlerTest {
         assertEquals(0, host.resetSmartEnglishCount)
         assertEquals(1, host.handleReturnCount)
         assertEquals(listOf(false), host.commitSmartEnglishCandidateAppendSpace)
+        assertEquals(listOf(false), host.commitSmartEnglishCandidateContinuePrediction)
     }
 
     @Test
@@ -320,6 +324,7 @@ class PhysicalT9KeyHandlerTest {
         var flushEnglishLearningCount = 0
         var commitSmartEnglishCandidateCount = 0
         val commitSmartEnglishCandidateAppendSpace = mutableListOf<Boolean>()
+        val commitSmartEnglishCandidateContinuePrediction = mutableListOf<Boolean>()
         var commitHighlightedBottomCandidateCount = 0
         var showSmartEnglishPunctuationCount = 0
         var handleReturnCount = 0
@@ -377,9 +382,13 @@ class PhysicalT9KeyHandlerTest {
             hasSmartEnglishCandidates = false
         }
 
-        override fun commitSmartEnglishCandidate(appendSpace: Boolean): Boolean {
+        override fun commitSmartEnglishCandidate(
+            appendSpace: Boolean,
+            continuePrediction: Boolean
+        ): Boolean {
             commitSmartEnglishCandidateCount += 1
             commitSmartEnglishCandidateAppendSpace += appendSpace
+            commitSmartEnglishCandidateContinuePrediction += continuePrediction
             hasSmartEnglishDigits = false
             hasSmartEnglishCandidates = false
             return true
