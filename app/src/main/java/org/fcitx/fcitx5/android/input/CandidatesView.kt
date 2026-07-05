@@ -49,6 +49,7 @@ import org.fcitx.fcitx5.android.input.t9.T9CandidateWidthBudget
 import org.fcitx.fcitx5.android.input.t9.T9PagedCandidates
 import org.fcitx.fcitx5.android.input.t9.T9PinyinChipAdapter
 import org.fcitx.fcitx5.android.input.t9.T9PinyinOverflowPolicy
+import org.fcitx.fcitx5.android.input.t9.T9PinyinRowVisibilityPlanner
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowWidthCalculator
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowWindow
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
@@ -893,55 +894,85 @@ class CandidatesView(
     }
 
     private fun setPinyinRowVisible(visible: Boolean): Boolean {
-        if (!visible &&
-            !pinyinRowTargetVisible &&
-            pinyinRowWrapper.visibility == View.GONE &&
-            pinyinBarView.visibility == View.GONE
-        ) {
-            return true
-        }
+        val snapshot = pinyinRowVisibilitySnapshot()
+        val rowAlreadyVisible =
+            snapshot.wrapperVisibility == T9PinyinRowVisibilityPlanner.Visibility.VISIBLE &&
+                snapshot.barVisibility == T9PinyinRowVisibilityPlanner.Visibility.VISIBLE
+        val widthReady = visible && !rowAlreadyVisible && syncPinyinRowWidthToCandidates()
+        val action = T9PinyinRowVisibilityPlanner.planSetVisible(
+            requestedVisible = visible,
+            snapshot = snapshot,
+            widthReady = widthReady
+        )
+        if (action == T9PinyinRowVisibilityPlanner.SetVisibleAction.NOOP_READY) return true
         pinyinRowTargetVisible = visible
-        if (visible &&
-            pinyinRowWrapper.visibility == View.VISIBLE &&
-            pinyinBarView.visibility == View.VISIBLE
-        ) {
-            return syncVisiblePinyinRowLayout()
-        }
-        pinyinBarView.alpha = 1f
-        pinyinBarView.scaleX = 1f
-        pinyinBarView.translationY = 0f
-        if (visible) {
-            val widthReady = syncPinyinRowWidthToCandidates()
-            setPinyinRowHeight(pinyinBarRowHeightPx)
-            if (widthReady) {
+
+        return when (action) {
+            T9PinyinRowVisibilityPlanner.SetVisibleAction.NOOP_READY -> true
+            T9PinyinRowVisibilityPlanner.SetVisibleAction.SYNC_VISIBLE_LAYOUT ->
+                syncVisiblePinyinRowLayout()
+            T9PinyinRowVisibilityPlanner.SetVisibleAction.SHOW_NOW -> {
+                resetPinyinRowTransform()
+                setPinyinRowHeight(pinyinBarRowHeightPx)
                 showPinyinRowNow()
-                return true
-            } else {
+                true
+            }
+            T9PinyinRowVisibilityPlanner.SetVisibleAction.WAIT_FOR_WIDTH -> {
+                resetPinyinRowTransform()
+                setPinyinRowHeight(pinyinBarRowHeightPx)
                 // Product requirement: the pinyin row must never spill into the Hanzi row. Keep
                 // its vertical reservation deterministic even while width is waiting for the
                 // candidate row's first measured pass.
                 pinyinBarView.visibility = View.INVISIBLE
                 pinyinRowWrapper.visibility = View.INVISIBLE
                 pinyinRowWrapper.post {
-                    if (!pinyinRowTargetVisible) return@post
-                    setPinyinRowHeight(pinyinBarRowHeightPx)
-                    if (syncPinyinRowWidthToCandidates()) {
-                        showPinyinRowNow()
+                    when (T9PinyinRowVisibilityPlanner.planDeferredWidth(
+                        targetVisible = pinyinRowTargetVisible,
+                        widthReady = pinyinRowTargetVisible && syncPinyinRowWidthToCandidates()
+                    )) {
+                        T9PinyinRowVisibilityPlanner.DeferredWidthAction.SHOW_NOW -> {
+                            setPinyinRowHeight(pinyinBarRowHeightPx)
+                            showPinyinRowNow()
+                        }
+                        T9PinyinRowVisibilityPlanner.DeferredWidthAction.KEEP_WAITING ->
+                            setPinyinRowHeight(pinyinBarRowHeightPx)
+                        T9PinyinRowVisibilityPlanner.DeferredWidthAction.IGNORE -> Unit
                     }
                 }
-                return false
+                false
             }
-        } else {
-            pinyinBarAdapter.clear()
-            pinyinBarAdapter.scrollToStart()
-            t9RenderedPinyinItems = emptyList()
-            updatePinyinOverflowHint(false)
-            pinyinBarView.visibility = View.GONE
-            pinyinRowWrapper.visibility = View.GONE
-            setPinyinRowHeight(0)
-            return true
+            T9PinyinRowVisibilityPlanner.SetVisibleAction.HIDE_NOW -> {
+                pinyinBarAdapter.clear()
+                pinyinBarAdapter.scrollToStart()
+                t9RenderedPinyinItems = emptyList()
+                updatePinyinOverflowHint(false)
+                pinyinBarView.visibility = View.GONE
+                pinyinRowWrapper.visibility = View.GONE
+                setPinyinRowHeight(0)
+                true
+            }
         }
     }
+
+    private fun resetPinyinRowTransform() {
+        pinyinBarView.alpha = 1f
+        pinyinBarView.scaleX = 1f
+        pinyinBarView.translationY = 0f
+    }
+
+    private fun pinyinRowVisibilitySnapshot(): T9PinyinRowVisibilityPlanner.Snapshot =
+        T9PinyinRowVisibilityPlanner.Snapshot(
+            targetVisible = pinyinRowTargetVisible,
+            wrapperVisibility = pinyinRowWrapper.visibility.toT9PinyinRowVisibility(),
+            barVisibility = pinyinBarView.visibility.toT9PinyinRowVisibility()
+        )
+
+    private fun Int.toT9PinyinRowVisibility(): T9PinyinRowVisibilityPlanner.Visibility =
+        when (this) {
+            View.VISIBLE -> T9PinyinRowVisibilityPlanner.Visibility.VISIBLE
+            View.INVISIBLE -> T9PinyinRowVisibilityPlanner.Visibility.INVISIBLE
+            else -> T9PinyinRowVisibilityPlanner.Visibility.GONE
+        }
 
     private fun syncVisiblePinyinRowLayout(): Boolean {
         if (!pinyinRowTargetVisible) return true
@@ -1429,16 +1460,27 @@ class CandidatesView(
                 val targetWidth = currentCandidateRowWidthForPinyinPolicy()
                     ?.let { maxOf(it, pinyinRowDesiredWidthPx(it) ?: 0) }
                     ?: return
-                if ((pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.width != targetWidth ||
+                val widthChanged =
+                    (pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.width != targetWidth ||
                     (pinyinBarView.layoutParams as? FrameLayout.LayoutParams)?.width != targetWidth
-                ) {
-                    setPinyinRowWidth(targetWidth)
-                    schedulePinyinOverflowHintUpdate()
-                }
-                if (pinyinRowTargetVisible &&
-                    pinyinRowWrapper.visibility == View.INVISIBLE
-                ) {
-                    showPinyinRowNow()
+                when (T9PinyinRowVisibilityPlanner.planLayoutPass(
+                    targetVisible = pinyinRowTargetVisible,
+                    wrapperVisibility = pinyinRowWrapper.visibility.toT9PinyinRowVisibility(),
+                    rowVisible = false,
+                    widthChanged = widthChanged,
+                    widthReady = true
+                )) {
+                    T9PinyinRowVisibilityPlanner.LayoutPassAction.APPLY_WIDTH -> {
+                        setPinyinRowWidth(targetWidth)
+                        schedulePinyinOverflowHintUpdate()
+                    }
+                    T9PinyinRowVisibilityPlanner.LayoutPassAction.SHOW_WAITING_ROW -> {
+                        if (widthChanged) {
+                            setPinyinRowWidth(targetWidth)
+                        }
+                        showPinyinRowNow()
+                    }
+                    T9PinyinRowVisibilityPlanner.LayoutPassAction.NONE -> Unit
                 }
             }
         })
