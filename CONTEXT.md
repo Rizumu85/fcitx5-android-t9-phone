@@ -25,3 +25,8 @@ Commands should stay at the domain level. For example, the flow may request
 `ShowEnglishPunctuationCandidates`, but it should not compute the committed
 word text or reset Smart English internals itself. The session modules keep
 their own locality; the key flow coordinates user-facing actions.
+
+Each key event should be evaluated against an immutable physical-key state
+snapshot supplied by the platform adapter. The flow should not keep querying
+live adapter getters while it is deciding commands, because command execution
+can change IME state before the key-flow decision is complete.
