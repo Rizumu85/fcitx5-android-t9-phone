@@ -97,6 +97,9 @@ class T9PinyinChipAdapter(
 
     fun getHighlightedPinyin(): String? = pinyins.getOrNull(highlightedIndex)
 
+    val itemCount: Int
+        get() = pinyins.size
+
     fun laidOutContentWidthPx(): Int? {
         var hasMeasuredChip = false
         val contentWidth = chips.withIndex().sumOf { (index, chip) ->

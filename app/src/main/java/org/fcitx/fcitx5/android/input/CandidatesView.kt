@@ -1041,9 +1041,15 @@ class CandidatesView(
         val rowPlan = currentPinyinRowPlan(candidateRowWidthPx)
         val estimatedWidthPx = populatedPinyinRowWidthPx(candidateRowWidthPx, rowPlan)
         val measuredWidthPx = pinyinBarAdapter.laidOutContentWidthPx()?.takeIf {
-            // A folded row intentionally ignores the adapter's measured content width because it
-            // may still contain the previous full chip list from the last focus/page state.
-            rowPlan?.folded != true
+            // Only trust measured chips after the adapter has been rebound for the current fold
+            // state; otherwise a previous full pinyin row can inflate a folded short-candidate page.
+            pinyinBarAdapter.itemCount == (rowPlan?.visibleCount ?: t9RenderedPinyinItems.size)
+        }?.let { contentWidthPx ->
+            if (rowPlan?.showHint == true) {
+                contentWidthPx + pinyinOverflowHintReservedWidthPx()
+            } else {
+                contentWidthPx
+            }
         }
         val widthPx = listOfNotNull(estimatedWidthPx, measuredWidthPx).maxOrNull()
             ?: return null
@@ -1119,27 +1125,13 @@ class CandidatesView(
             pinyinOverflowHint.visibility = targetVisibility
         }
         val rightPadding = when {
-            visible -> pinyinOverflowHintRightPaddingPx()
+            visible -> pinyinOverflowHintReservedWidthPx()
             else -> 0
         }
         if (pinyinBarView.paddingRight != rightPadding) {
             pinyinBarView.setPadding(0, 0, rightPadding, 0)
         }
         pinyinBarView.clipToPadding = rightPadding > 0
-    }
-
-    private fun pinyinOverflowHintRightPaddingPx(): Int {
-        val hintWidthPx = pinyinOverflowHintReservedWidthPx()
-        val viewportWidthPx = pinyinRowViewportWidthPx() ?: return hintWidthPx
-        val comfortablePrefixWidthPx = pinyinItemsWidthPx(
-            t9RenderedPinyinItems.take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS),
-            reservesOverflowHint = false
-        ) + dp(T9_PINYIN_ROW_OVERFLOW_CHIP_GAP_DP)
-        // Product decision: when the ellipsis is visible it is the overflow affordance, so we
-        // avoid exposing a clipped fifth chip while keeping all four intended chips complete.
-        return (viewportWidthPx - comfortablePrefixWidthPx)
-            .coerceAtLeast(hintWidthPx)
-            .coerceAtMost(viewportWidthPx)
     }
 
     private fun schedulePinyinOverflowHintUpdate() {
@@ -1529,7 +1521,6 @@ class CandidatesView(
         private const val T9_PINYIN_TO_HANZI_GAP_DP = 2
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
         private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 18
-        private const val T9_PINYIN_ROW_OVERFLOW_CHIP_GAP_DP = 12
         private const val T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP = 2
     }
 }
