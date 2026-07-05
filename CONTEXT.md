@@ -62,3 +62,10 @@ The snapshot pipeline should preserve the current candidate bubble visual
 design while improving refresh locality. The goal is not a new visual style;
 the goal is fewer broad refreshes, fewer transient wrong rows, and fewer layout
 visibility changes during normal typing.
+
+The pipeline snapshot should be render-ready. It owns the final bottom
+candidate page, original candidate indices, shortcut-label visibility, top
+reading content, pinyin filter row, candidate focus, visibility decision, and
+anchor preference. `CandidatesView` should not rebuild or reinterpret those
+domain decisions after the snapshot is produced; it should only diff and render
+the snapshot into Android views.
