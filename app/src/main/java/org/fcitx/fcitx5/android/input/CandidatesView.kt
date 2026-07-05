@@ -39,6 +39,7 @@ import org.fcitx.fcitx5.android.input.t9.T9BulkCandidateLoader
 import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidatePager
+import org.fcitx.fcitx5.android.input.t9.T9CandidateRowMeasurement
 import org.fcitx.fcitx5.android.input.t9.T9CandidateSnapshots
 import org.fcitx.fcitx5.android.input.t9.T9CandidateSurfaceLayout
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiSnapshotPipeline
@@ -208,9 +209,7 @@ class CandidatesView(
         postRefresh = { block -> postOnAnimation(block) },
         refreshNow = ::updateUi
     )
-    private var lastCandidateRowWidthPx = 0
-    private var currentCandidateRowWidthSignature = ""
-    private var lastCandidateRowWidthSignature = ""
+    private val t9CandidateRowMeasurement = T9CandidateRowMeasurement()
     private val t9PinyinMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
     private val t9CandidateMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
     private val t9CandidateUiRenderer = T9CandidateUiRenderer(object : T9CandidateUiRenderer.Delegate {
@@ -233,10 +232,7 @@ class CandidatesView(
             showShortcutLabels: Boolean
         ) {
             val rowSignature = candidateRowWidthSignature(candidates, orientation, showShortcutLabels)
-            if (currentCandidateRowWidthSignature != rowSignature) {
-                currentCandidateRowWidthSignature = rowSignature
-                lastCandidateRowWidthSignature = ""
-                lastCandidateRowWidthPx = 0
+            if (t9CandidateRowMeasurement.markContent(rowSignature)) {
                 if (pinyinRowTargetVisible && t9RenderedPinyinItems.isNotEmpty()) {
                     pinyinBarView.visibility = View.INVISIBLE
                     pinyinRowWrapper.visibility = View.INVISIBLE
@@ -555,6 +551,7 @@ class CandidatesView(
         t9CandidateUiSnapshotPipeline.reset()
         t9CandidateUiRenderer.reset()
         chineseT9CandidateLoadingState.reset()
+        t9CandidateRowMeasurement.clear()
         preeditUi.update(inputPanel)
         preeditUi.root.visibility = GONE
         t9CandidateUiSnapshotPipeline.clearPinyinWindow()
@@ -1079,9 +1076,7 @@ class CandidatesView(
         currentSurfaceLayoutPlan(candidateRowWidthPx)?.pinyin
 
     private fun currentCandidateRowWidthForPinyinPolicy(): Int? =
-        lastCandidateRowWidthPx.takeIf {
-            it > 0 && lastCandidateRowWidthSignature == currentCandidateRowWidthSignature
-        }
+        t9CandidateRowMeasurement.currentWidthPx()
 
     private fun pinyinRowViewportWidthPx(): Int? {
         pinyinRowWrapper.width.takeIf { it > 0 }?.let { return it }
@@ -1179,12 +1174,6 @@ class CandidatesView(
             minimumCandidateWidthPx = minimumCandidateWidthPx,
             measureTextWidthPx = { text -> paint.measureText(text).roundToInt() }
         )
-    }
-
-    private fun rememberCandidateRowWidth(width: Int, signature: String): Int {
-        lastCandidateRowWidthPx = width
-        lastCandidateRowWidthSignature = signature
-        return width
     }
 
     private fun candidateRowWidthSignature(
@@ -1445,7 +1434,7 @@ class CandidatesView(
             override fun onGlobalLayout() {
                 val cw = candidatesUi.root.width
                 if (cw > 0) {
-                    rememberCandidateRowWidth(cw, currentCandidateRowWidthSignature)
+                    t9CandidateRowMeasurement.remember(cw)
                 }
                 if (pinyinRowWrapper.visibility == View.VISIBLE) {
                     return
