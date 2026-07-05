@@ -36,6 +36,7 @@ import org.fcitx.fcitx5.android.input.preedit.PreeditUi
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidateLoadingState
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidatePipeline
 import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
+import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSnapshotKey
 import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateRowMeasurement
@@ -320,10 +321,8 @@ class CandidatesView(
             service.getSmartEnglishT9Presentation()
 
         override fun getT9PresentationState(
-            snapshot: ChineseT9InputSnapshot,
-            inputPanel: FcitxEvent.InputPanelEvent.Data,
-            effectivePaged: FcitxEvent.PagedCandidateEvent.Data
-        ): T9PresentationState = service.getT9PresentationState(snapshot, inputPanel, effectivePaged)
+            key: ChineseT9PresentationSnapshotKey
+        ): T9PresentationState = service.getT9PresentationState(key)
 
         override fun clearHiddenChineseT9CompositionIfCandidateUiSuppressed() {
             service.clearHiddenChineseT9CompositionIfCandidateUiSuppressed()
@@ -620,7 +619,12 @@ class CandidatesView(
         if (service.getT9CompositionKeyCount() <= 0) return null
         val shown = t9ShownPaged ?: paged
         val snapshot = service.getChineseT9InputSnapshot(inputPanel)
-        val preview = service.getT9PresentationState(snapshot, inputPanel, shown)
+        val key = snapshot.presentationKey(
+            pendingPunctuationText = null,
+            inputPanel = inputPanel,
+            paged = shown
+        )
+        val preview = service.getT9PresentationState(key)
             .topReading
             ?.toString()
             .orEmpty()

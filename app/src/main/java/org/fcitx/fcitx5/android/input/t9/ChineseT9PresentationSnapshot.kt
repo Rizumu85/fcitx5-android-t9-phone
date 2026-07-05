@@ -5,6 +5,8 @@
 
 package org.fcitx.fcitx5.android.input.t9
 
+import org.fcitx.fcitx5.android.core.FcitxEvent
+
 data class ChineseT9InputSnapshot(
     val rawSequence: String,
     val digitSequence: String,
@@ -34,6 +36,21 @@ data class ChineseT9InputSnapshot(
             candidateCursorIndex = candidateCursorIndex,
             sessionRevision = sessionRevision
         )
+
+    fun presentationKey(
+        pendingPunctuationText: String?,
+        inputPanel: FcitxEvent.InputPanelEvent.Data,
+        paged: FcitxEvent.PagedCandidateEvent.Data
+    ): ChineseT9PresentationSnapshotKey {
+        val candidateComment = paged.candidates.getOrNull(paged.cursorIndex)?.comment
+            ?: paged.candidates.firstOrNull()?.comment.orEmpty()
+        return presentationKey(
+            pendingPunctuationText = pendingPunctuationText,
+            inputPreedit = inputPanel.preedit.toString(),
+            candidateComment = candidateComment,
+            candidateCursorIndex = paged.cursorIndex
+        )
+    }
 }
 
 data class ChineseT9PresentationSnapshotKey(

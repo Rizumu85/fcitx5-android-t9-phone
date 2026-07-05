@@ -2295,33 +2295,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             buildT9PreeditDisplay(fullComposition)
         }
 
-    fun getT9PresentationState(
-        snapshot: ChineseT9InputSnapshot,
-        inputPanel: FcitxEvent.InputPanelEvent.Data,
-        paged: FcitxEvent.PagedCandidateEvent.Data
-    ): T9PresentationState {
+    fun getT9PresentationState(key: ChineseT9PresentationSnapshotKey): T9PresentationState {
         if (!t9InputModeEnabled || currentT9Mode != T9InputMode.CHINESE) {
             return T9PresentationState(null, emptyList())
         }
-        val key = buildChineseT9PresentationSnapshotKey(snapshot, inputPanel, paged)
         return chineseT9PresentationCache.getOrBuild(key) {
             buildChineseT9PresentationStateUncached(key)
         }
-    }
-
-    private fun buildChineseT9PresentationSnapshotKey(
-        snapshot: ChineseT9InputSnapshot,
-        inputPanel: FcitxEvent.InputPanelEvent.Data,
-        paged: FcitxEvent.PagedCandidateEvent.Data
-    ): ChineseT9PresentationSnapshotKey {
-        val comment = paged.candidates.getOrNull(paged.cursorIndex)?.comment
-            ?: paged.candidates.firstOrNull()?.comment.orEmpty()
-        return snapshot.presentationKey(
-            pendingPunctuationText = t9PunctuationCoordinator.pendingText,
-            inputPreedit = inputPanel.preedit.toString(),
-            candidateComment = comment,
-            candidateCursorIndex = paged.cursorIndex
-        )
     }
 
     private fun buildChineseT9PresentationStateUncached(

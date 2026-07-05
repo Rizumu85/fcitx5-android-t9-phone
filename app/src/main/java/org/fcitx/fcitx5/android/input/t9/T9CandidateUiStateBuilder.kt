@@ -67,17 +67,16 @@ class T9CandidateUiStateBuilder(
             cursorContextSignature: String
         ): FcitxEvent.PagedCandidateEvent.Data
         fun getSmartEnglishT9Presentation(): T9PresentationState?
-        fun getT9PresentationState(
-            snapshot: ChineseT9InputSnapshot,
-            inputPanel: FcitxEvent.InputPanelEvent.Data,
-            effectivePaged: FcitxEvent.PagedCandidateEvent.Data
-        ): T9PresentationState
+        fun getT9PresentationState(key: ChineseT9PresentationSnapshotKey): T9PresentationState
         fun clearHiddenChineseT9CompositionIfCandidateUiSuppressed()
         fun effectiveT9CandidateFocus(
             pinyinOptions: List<String>,
             useT9PinyinRow: Boolean
         ): T9CandidateFocus
     }
+
+    private var previousChinesePresentationKey: ChineseT9PresentationSnapshotKey? = null
+    private var previousChinesePresentationState: T9PresentationState? = null
 
     fun build(input: Input): Result? =
         T9ResponsivenessTrace.measure("CandidatesView.updateUi.buildState") {
@@ -210,17 +209,29 @@ class T9CandidateUiStateBuilder(
                 when (surface) {
                     Surface.CHINESE -> {
                         if (suppressEmptyT9Candidates) {
+                            clearChinesePresentationState()
                             null
                         } else {
-                            delegate.getT9PresentationState(
-                                chineseSnapshot ?: return@measure null,
-                                input.inputPanel,
-                                effectivePaged
+                            val snapshot = chineseSnapshot ?: return@measure null
+                            val key = snapshot.presentationKey(
+                                pendingPunctuationText = pendingPunctuationText(
+                                    presentationPlan,
+                                    effectivePaged
+                                ),
+                                inputPanel = input.inputPanel,
+                                paged = effectivePaged
                             )
+                            getChinesePresentationState(key)
                         }
                     }
-                    Surface.SMART_ENGLISH -> delegate.getSmartEnglishT9Presentation()
-                    Surface.OTHER -> null
+                    Surface.SMART_ENGLISH -> {
+                        clearChinesePresentationState()
+                        delegate.getSmartEnglishT9Presentation()
+                    }
+                    Surface.OTHER -> {
+                        clearChinesePresentationState()
+                        null
+                    }
                 }
             }
             // Product decision: Chinese T9 should use the same stable bubble placement as Smart
@@ -269,6 +280,30 @@ class T9CandidateUiStateBuilder(
                 shownState = shownState
             )
         }
+
+    private fun getChinesePresentationState(key: ChineseT9PresentationSnapshotKey): T9PresentationState {
+        if (key == previousChinesePresentationKey) {
+            previousChinesePresentationState?.let { return it }
+        }
+        return delegate.getT9PresentationState(key).also {
+            previousChinesePresentationKey = key
+            previousChinesePresentationState = it
+        }
+    }
+
+    private fun clearChinesePresentationState() {
+        previousChinesePresentationKey = null
+        previousChinesePresentationState = null
+    }
+
+    private fun pendingPunctuationText(
+        presentationPlan: T9CandidatePresentationPlanner.Plan,
+        effectivePaged: FcitxEvent.PagedCandidateEvent.Data
+    ): String? {
+        if (!presentationPlan.usesPendingPunctuation) return null
+        return effectivePaged.candidates.getOrNull(effectivePaged.cursorIndex)?.text
+            ?: effectivePaged.candidates.firstOrNull()?.text
+    }
 
     private fun shouldShowT9BottomShortcutLabels(
         data: FcitxEvent.PagedCandidateEvent.Data,

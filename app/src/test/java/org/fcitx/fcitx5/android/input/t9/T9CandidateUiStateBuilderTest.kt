@@ -158,6 +158,38 @@ class T9CandidateUiStateBuilderTest {
         assertEquals(0, delegate.getT9PresentationCount)
     }
 
+    @Test
+    fun repeatedChineseSnapshotReusesPresentationState() {
+        val delegate = FakeDelegate(
+            chineseActive = true,
+            smartEnglishActive = false
+        )
+        val builder = T9CandidateUiStateBuilder(delegate)
+
+        val first = builder.build(input(rawPaged = paged(candidate("你", comment = "ni"))))
+        val second = builder.build(input(rawPaged = paged(candidate("你", comment = "ni"))))
+
+        assertNotNull(first)
+        assertNotNull(second)
+        assertEquals(1, delegate.getT9PresentationCount)
+        assertEquals(1, delegate.presentationKeys.distinct().size)
+    }
+
+    @Test
+    fun chinesePresentationRebuildsWhenCandidatePreviewChanges() {
+        val delegate = FakeDelegate(
+            chineseActive = true,
+            smartEnglishActive = false
+        )
+        val builder = T9CandidateUiStateBuilder(delegate)
+
+        builder.build(input(rawPaged = paged(candidate("你", comment = "ni"))))
+        builder.build(input(rawPaged = paged(candidate("好", comment = "hao"))))
+
+        assertEquals(2, delegate.getT9PresentationCount)
+        assertEquals(listOf("ni", "hao"), delegate.presentationKeys.map { it.candidateComment })
+    }
+
     private class FakeDelegate(
         private val chineseActive: Boolean,
         private val smartEnglishActive: Boolean,
@@ -186,6 +218,7 @@ class T9CandidateUiStateBuilderTest {
         var buildCursorContextSignatureCount = 0
         var applyHanziCursorCount = 0
         var getT9PresentationCount = 0
+        val presentationKeys = mutableListOf<ChineseT9PresentationSnapshotKey>()
 
         override fun getChineseT9InputSnapshot(
             inputPanel: FcitxEvent.InputPanelEvent.Data
@@ -261,12 +294,9 @@ class T9CandidateUiStateBuilderTest {
             return smartEnglishPresentation
         }
 
-        override fun getT9PresentationState(
-            snapshot: ChineseT9InputSnapshot,
-            inputPanel: FcitxEvent.InputPanelEvent.Data,
-            effectivePaged: FcitxEvent.PagedCandidateEvent.Data
-        ): T9PresentationState {
+        override fun getT9PresentationState(key: ChineseT9PresentationSnapshotKey): T9PresentationState {
             getT9PresentationCount += 1
+            presentationKeys += key
             return chinesePresentation
         }
 
@@ -293,13 +323,19 @@ class T9CandidateUiStateBuilderTest {
         )
 
     private fun paged(text: String): FcitxEvent.PagedCandidateEvent.Data =
+        paged(candidate(text))
+
+    private fun paged(vararg candidates: FcitxEvent.Candidate): FcitxEvent.PagedCandidateEvent.Data =
         FcitxEvent.PagedCandidateEvent.Data(
-            candidates = arrayOf(FcitxEvent.Candidate(label = "", text = text, comment = "")),
+            candidates = candidates.toList().toTypedArray(),
             cursorIndex = 0,
             layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
             hasPrev = false,
             hasNext = false
         )
+
+    private fun candidate(text: String, comment: String = ""): FcitxEvent.Candidate =
+        FcitxEvent.Candidate(label = "", text = text, comment = comment)
 
     private fun text(value: String) =
         org.fcitx.fcitx5.android.core.FormattedText(
