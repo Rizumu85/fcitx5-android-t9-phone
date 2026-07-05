@@ -84,6 +84,7 @@ import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9Coordinator
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocusController
+import org.fcitx.fcitx5.android.input.t9.T9CandidateShortcutCommitter
 import org.fcitx.fcitx5.android.input.t9.T9CompositionModel
 import org.fcitx.fcitx5.android.input.t9.T9InputMode
 import org.fcitx.fcitx5.android.input.t9.T9ModeCoordinator
@@ -143,6 +144,17 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         showEqualsChoice = { prefix, result -> inputView?.showNumberEqualsChoice(prefix, result) },
         hideEqualsChoice = { inputView?.hideNumberEqualsChoice() }
     )
+    private val t9CandidateShortcutCommitter = T9CandidateShortcutCommitter(
+        commitPendingPunctuationIndex = { index ->
+            candidatesView?.commitT9PendingPunctuationShortcut(index) == true
+        },
+        commitHanziIndex = { index ->
+            candidatesView?.commitT9HanziShortcut(index) == true
+        },
+        commitSmartEnglishIndex = { index ->
+            candidatesView?.commitSmartEnglishShortcut(index) == true
+        }
+    )
     private val physicalT9KeyHost = PhysicalT9KeyHostAdapter(
         state = PhysicalT9KeyHostAdapter.State(
             isInInputMode = { inputDeviceMgr.isInInputMode },
@@ -165,7 +177,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         ),
         punctuation = PhysicalT9KeyHostAdapter.PunctuationActions(
             setOneKeyDeferred = { value -> t9PunctuationCoordinator.setOneKeyDeferred(value) },
-            commitShortcut = ::commitPendingT9PunctuationShortcut,
+            commitShortcut = t9CandidateShortcutCommitter::commitPendingPunctuationKey,
             commit = ::commitPendingT9Punctuation,
             cancel = ::cancelPendingT9Punctuation,
             handleChineseKey = ::handleChinesePunctuationKey,
@@ -173,7 +185,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             showSmartEnglishCandidates = ::showSmartEnglishPunctuationCandidates
         ),
         english = PhysicalT9KeyHostAdapter.EnglishActions(
-            commitSmartEnglishShortcut = ::commitSmartEnglishShortcutFromLongPress,
+            commitSmartEnglishShortcut = t9CandidateShortcutCommitter::commitSmartEnglishKey,
             appendSmartEnglishDigit = { digit -> smartEnglishCoordinator.appendDigit(digit) },
             resetSmartEnglish = ::resetSmartEnglishT9,
             commitSmartEnglishCandidate = { appendSpace, continuePrediction ->
@@ -192,7 +204,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             cancelMultiTapChar = ::cancelMultiTapChar
         ),
         candidates = PhysicalT9KeyHostAdapter.CandidateActions(
-            commitHanziShortcut = ::commitT9HanziShortcutFromLongPress,
+            commitHanziShortcut = t9CandidateShortcutCommitter::commitHanziKey,
             moveFocus = ::moveT9CandidateFocus,
             moveHighlightedPinyin = { delta -> candidatesView?.moveHighlightedT9Pinyin(delta) == true },
             moveHighlightedBottomCandidate = { delta -> candidatesView?.moveHighlightedT9BottomCandidate(delta) == true },
@@ -1681,21 +1693,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     fun getT9CandidateFocusIndicatorColor(): Int = highlightColor
-
-    private fun commitPendingT9PunctuationShortcut(keyCode: Int): Boolean {
-        val index = PhysicalT9KeyPolicy.candidateShortcutIndex(keyCode) ?: return false
-        return candidatesView?.commitT9PendingPunctuationShortcut(index) == true
-    }
-
-    private fun commitT9HanziShortcutFromLongPress(keyCode: Int): Boolean {
-        val index = PhysicalT9KeyPolicy.candidateShortcutIndex(keyCode) ?: return false
-        return candidatesView?.commitT9HanziShortcut(index) == true
-    }
-
-    private fun commitSmartEnglishShortcutFromLongPress(keyCode: Int): Boolean {
-        val index = PhysicalT9KeyPolicy.candidateShortcutIndex(keyCode) ?: return false
-        return candidatesView?.commitSmartEnglishShortcut(index) == true
-    }
 
     private fun forwardChineseT9KeyShortPress(
         keyCode: Int,
