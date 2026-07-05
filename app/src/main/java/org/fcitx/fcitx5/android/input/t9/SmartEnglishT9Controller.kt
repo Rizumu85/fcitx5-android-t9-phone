@@ -162,8 +162,9 @@ class SmartEnglishT9Controller private constructor(
         if (!isActive()) return null
         if (!session.hasDigits) {
             return if (predictionSession.isVisible && predictionReady()) {
+                val preview = predictionSession.selectedCandidate()?.let(::applyCaseToWord)
                 T9PresentationState(
-                    topReading = null,
+                    topReading = preview?.let(formatText),
                     pinyinOptions = emptyList(),
                     reserveTopReadingRow = true
                 )
@@ -214,7 +215,7 @@ class SmartEnglishT9Controller private constructor(
         } else {
             predictionSession.selectedCandidate(index) ?: return false
         }
-        commitText(applyCaseToWord(selected))
+        commitText("${applyCaseToWord(selected)} ")
         session.reset()
         rememberCommittedWord(selected)
         consumeShiftOnce()

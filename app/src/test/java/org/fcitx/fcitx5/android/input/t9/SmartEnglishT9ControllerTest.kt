@@ -37,7 +37,7 @@ class SmartEnglishT9ControllerTest {
 
         assertTrue(controller.commitCandidate())
 
-        assertEquals(listOf("A"), host.committedTexts)
+        assertEquals(listOf("A "), host.committedTexts)
         assertFalse(controller.hasDigits)
         assertEquals("abc", controller.caseLabel)
     }
@@ -119,12 +119,12 @@ class SmartEnglishT9ControllerTest {
 
         assertTrue(controller.commitCandidate())
 
-        assertEquals(listOf("good"), host.committedTexts)
+        assertEquals(listOf("good "), host.committedTexts)
         assertEquals("morning", controller.paged()?.candidates?.first()?.text)
         val presentation = controller.presentation {
             FormattedText(arrayOf(it), intArrayOf(TextFormatFlag.NoFlag.flag), -1)
         }
-        assertEquals(null, presentation?.topReading)
+        assertEquals("morning", presentation?.topReading?.toString())
         assertTrue(presentation?.reserveTopReadingRow == true)
     }
 
@@ -137,7 +137,7 @@ class SmartEnglishT9ControllerTest {
 
         assertTrue(controller.commitCandidate())
 
-        assertEquals(listOf("good", "morning"), host.committedTexts)
+        assertEquals(listOf("good ", "morning "), host.committedTexts)
         assertEquals("sunshine", controller.paged()?.candidates?.first()?.text)
     }
 

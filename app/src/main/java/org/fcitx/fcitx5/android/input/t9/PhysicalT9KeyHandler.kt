@@ -284,7 +284,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
                 if (input.repeatCount == 0) {
                     setDigitLongPressFlag(keyCode, false)
                 } else if (consumePhysicalLongPressIfReady(keyCode, input)) {
-                    if (host.hasSmartEnglishDigits && host.commitSmartEnglishShortcut(keyCode)) return true
+                    if (host.hasSmartEnglishCandidates && host.commitSmartEnglishShortcut(keyCode)) return true
                     host.cancelMultiTapChar()
                     host.commitText("0")
                 }
@@ -300,7 +300,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
                     if (host.hasSmartEnglishDigits) return true
                     host.handleMultiTapKey(keyCode)
                 } else if (consumePhysicalLongPressIfReady(keyCode, input)) {
-                    if (host.hasSmartEnglishDigits && host.commitSmartEnglishShortcut(keyCode)) return true
+                    if (host.hasSmartEnglishCandidates && host.commitSmartEnglishShortcut(keyCode)) return true
                     host.cancelPendingPunctuation()
                     host.cancelMultiTapChar()
                     host.commitText("1")
@@ -322,7 +322,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
         }
         if (consumePhysicalLongPressIfReady(keyCode, input)) {
             resetSmartEnglishPendingDigit()
-            if (host.hasSmartEnglishDigits && host.commitSmartEnglishShortcut(keyCode)) return true
+            if (host.hasSmartEnglishCandidates && host.commitSmartEnglishShortcut(keyCode)) return true
             host.resetSmartEnglishT9()
             host.commitText(digit.toString())
             host.flushEnglishLearningWord()

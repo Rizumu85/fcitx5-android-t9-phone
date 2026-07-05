@@ -61,6 +61,33 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
+    fun smartEnglishPredictionLongPressCommitsShortcutWithoutDigits() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.ENGLISH,
+            isSmartEnglishActive = true,
+            hasSmartEnglishDigits = false,
+            hasSmartEnglishCandidates = true,
+            smartEnglishShortcutResult = true
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN))
+        val repeat = handler.handleKeyDown(
+            keyInput(
+                keyCode = KeyEvent.KEYCODE_2,
+                action = KeyEvent.ACTION_DOWN,
+                repeatCount = 1,
+                eventTime = 700L
+            )
+        )
+
+        assertTrue(repeat.handled)
+        assertEquals(listOf(KeyEvent.KEYCODE_2), host.smartEnglishShortcutKeys)
+        assertEquals(emptyList<String>(), host.committedTexts)
+        assertEquals(0, host.resetSmartEnglishCount)
+    }
+
+    @Test
     fun smartEnglishNavigationConsumesKeyUp() {
         val host = FakeHost(
             mode = PhysicalT9KeyHandler.Mode.ENGLISH,
@@ -208,10 +235,12 @@ class PhysicalT9KeyHandlerTest {
         override var hasTopPinyinCandidates: Boolean = false,
         override var candidateFocus: PhysicalT9KeyHandler.CandidateFocus =
             PhysicalT9KeyHandler.CandidateFocus.BOTTOM,
-        private val commitHighlightedBottomCandidateResult: Boolean = false
+        private val commitHighlightedBottomCandidateResult: Boolean = false,
+        private val smartEnglishShortcutResult: Boolean = false
     ) : PhysicalT9KeyHandler.Host {
         val committedTexts = mutableListOf<String>()
         val appendedSmartEnglishDigits = mutableListOf<Int>()
+        val smartEnglishShortcutKeys = mutableListOf<Int>()
         val bottomCandidatePageOffsets = mutableListOf<Int>()
         var resetSmartEnglishCount = 0
         var flushEnglishLearningCount = 0
@@ -229,7 +258,10 @@ class PhysicalT9KeyHandlerTest {
 
         override fun commitPendingPunctuationShortcut(keyCode: Int): Boolean = false
         override fun commitHanziShortcut(keyCode: Int): Boolean = false
-        override fun commitSmartEnglishShortcut(keyCode: Int): Boolean = false
+        override fun commitSmartEnglishShortcut(keyCode: Int): Boolean {
+            smartEnglishShortcutKeys += keyCode
+            return smartEnglishShortcutResult
+        }
         override fun commitPendingPunctuation(): Boolean = false
         override fun cancelPendingPunctuation(): Boolean = false
         override fun handleChinesePunctuationKey(): Boolean = false
