@@ -161,12 +161,13 @@ class T9PinyinChipAdapter(
         val params = chip.layoutParams as? LinearLayout.LayoutParams
         val chipStart = chip.left
         val chipEnd = chip.right + (params?.rightMargin ?: 0)
-        val visibleStart = root.scrollX
-        val visibleEnd = visibleStart + viewportWidth
+        val edgeInset = horizontalPaddingPx.coerceAtMost((viewportWidth / 3).coerceAtLeast(0))
+        val visibleStart = root.scrollX + edgeInset
+        val visibleEnd = root.scrollX + viewportWidth - edgeInset
         val targetScrollX = when {
-            chipStart < visibleStart -> chipStart
-            chipEnd > visibleEnd -> chipEnd - viewportWidth
-            else -> visibleStart
+            chipStart < visibleStart -> chipStart - edgeInset
+            chipEnd > visibleEnd -> chipEnd - viewportWidth + edgeInset
+            else -> root.scrollX
         }.coerceAtLeast(0)
         if (targetScrollX != root.scrollX) {
             root.scrollTo(targetScrollX, 0)
