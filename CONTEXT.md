@@ -30,3 +30,8 @@ Each key event should be evaluated against an immutable physical-key state
 snapshot supplied by the platform adapter. The flow should not keep querying
 live adapter getters while it is deciding commands, because command execution
 can change IME state before the key-flow decision is complete.
+
+The flow session owns key-pairing state that exists between key-down and key-up
+events, including digit long-press flags, pound long-press state, and deferred
+Smart English digits. These are user-facing key-flow rules rather than Android
+platform adapter details.
