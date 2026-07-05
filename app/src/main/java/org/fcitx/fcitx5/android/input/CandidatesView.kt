@@ -39,6 +39,7 @@ import org.fcitx.fcitx5.android.input.t9.T9BulkCandidateLoader
 import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidatePager
+import org.fcitx.fcitx5.android.input.t9.T9CandidateSnapshots
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiSnapshotPipeline
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiStateBuilder
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiRenderer
@@ -207,6 +208,8 @@ class CandidatesView(
         refreshNow = ::updateUi
     )
     private var lastCandidateRowWidthPx = 0
+    private var currentCandidateRowWidthSignature = ""
+    private var lastCandidateRowWidthSignature = ""
     private val t9PinyinMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
     private val t9CandidateMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
     private val t9CandidateUiRenderer = T9CandidateUiRenderer(object : T9CandidateUiRenderer.Delegate {
@@ -228,6 +231,12 @@ class CandidatesView(
             orientation: FloatingCandidatesOrientation,
             showShortcutLabels: Boolean
         ) {
+            val rowSignature = candidateRowWidthSignature(candidates, orientation, showShortcutLabels)
+            if (currentCandidateRowWidthSignature != rowSignature) {
+                currentCandidateRowWidthSignature = rowSignature
+                lastCandidateRowWidthSignature = ""
+                lastCandidateRowWidthPx = 0
+            }
             candidatesUi.update(
                 candidates,
                 orientation,
@@ -1091,7 +1100,9 @@ class CandidatesView(
     }
 
     private fun currentCandidateRowWidthForPinyinPolicy(): Int? =
-        estimatedShownCandidateRowWidthPx()
+        lastCandidateRowWidthPx.takeIf {
+            it > 0 && lastCandidateRowWidthSignature == currentCandidateRowWidthSignature
+        }
 
     private fun pinyinRowViewportWidthPx(): Int? {
         pinyinRowWrapper.width.takeIf { it > 0 }?.let { return it }
@@ -1147,7 +1158,7 @@ class CandidatesView(
         }
         renderPinyinWindow(
             state = state,
-            candidateRowWidthPx = firstPositiveCandidateRowWidth() ?: currentCandidateRowWidthForPinyinPolicy(),
+            candidateRowWidthPx = currentCandidateRowWidthForPinyinPolicy(),
             scheduleLayoutCheck = false,
             updateVisibility = false
         )
@@ -1191,33 +1202,22 @@ class CandidatesView(
         )
     }
 
-    private fun firstPositiveCandidateRowWidth(): Int? {
-        candidatesUi.root.width.takeIf { it > 0 }?.let { return rememberCandidateRowWidth(it) }
-        candidatesUi.root.measuredWidth.takeIf { it > 0 }?.let { return rememberCandidateRowWidth(it) }
-        candidateRowWrapper.width.takeIf { it > 0 }?.let { return rememberCandidateRowWidth(it) }
-        candidateRowWrapper.measuredWidth.takeIf { it > 0 }?.let { return rememberCandidateRowWidth(it) }
-        return null
-    }
-
-    private fun estimatedShownCandidateRowWidthPx(): Int? {
-        val shown = t9ShownPaged ?: paged
-        if (shown.candidates.isEmpty()) return null
-        val widthBudget = t9CandidateWidthBudget()
-        val bottomFocused = service.getT9CandidateFocus() == T9CandidateFocus.BOTTOM
-        return shown.candidates.withIndex().sumOf { (index, candidate) ->
-            widthBudget.candidateWidthPx(
-                candidate = candidate,
-                active = bottomFocused && index == shown.cursorIndex
-            )
-        }
-            .coerceAtMost(widthBudget.maxWidthPx)
-            .coerceAtLeast(1)
-    }
-
-    private fun rememberCandidateRowWidth(width: Int): Int {
+    private fun rememberCandidateRowWidth(width: Int, signature: String): Int {
         lastCandidateRowWidthPx = width
+        lastCandidateRowWidthSignature = signature
         return width
     }
+
+    private fun candidateRowWidthSignature(
+        candidates: FcitxEvent.PagedCandidateEvent.Data,
+        orientation: FloatingCandidatesOrientation,
+        showShortcutLabels: Boolean
+    ): String =
+        T9CandidateSnapshots.renderCandidates(
+            data = candidates,
+            orientation = orientation,
+            showShortcutLabels = showShortcutLabels
+        ).contentSignature
 
     private fun updatePinyinBar(candidates: List<String>, useT9: Boolean): Boolean {
         if (!useT9) {
@@ -1466,12 +1466,12 @@ class CandidatesView(
             override fun onGlobalLayout() {
                 val cw = candidatesUi.root.width
                 if (cw > 0) {
-                    lastCandidateRowWidthPx = cw
+                    rememberCandidateRowWidth(cw, currentCandidateRowWidthSignature)
                 }
                 if (pinyinRowWrapper.visibility == View.VISIBLE) {
                     return
                 }
-                val targetWidth = cw.takeIf { it > 0 }
+                val targetWidth = currentCandidateRowWidthForPinyinPolicy()
                     ?.let { maxOf(it, pinyinRowDesiredWidthPx(it) ?: 0) }
                     ?: return
                 if ((pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.width != targetWidth ||
