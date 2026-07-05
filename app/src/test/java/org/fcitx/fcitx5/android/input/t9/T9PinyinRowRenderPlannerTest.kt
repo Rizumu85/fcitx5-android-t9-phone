@@ -127,6 +127,39 @@ class T9PinyinRowRenderPlannerTest {
         assertTrue(plan.usesWindowedDisplay)
     }
 
+    @Test
+    fun focusedFoldedRowRevealsHiddenChipsOneStepAtATime() {
+        val items = listOf("gei", "hei", "ge", "he", "g", "h", "i")
+
+        val hPlan = T9PinyinRowRenderPlanner.plan(
+            state = state(items = items, highlightedIndex = 5),
+            rowPlan = T9PinyinOverflowPolicy.Plan(
+                folded = true,
+                showHint = false,
+                visibleCount = items.size
+            ),
+            focusedViewportWidthPx = 150,
+            chipWidthsPx = listOf(34, 34, 24, 24, 14, 14, 14),
+            chipSpacingPx = 4
+        )
+        val iPlan = T9PinyinRowRenderPlanner.plan(
+            state = state(items = items, highlightedIndex = 6),
+            rowPlan = T9PinyinOverflowPolicy.Plan(
+                folded = true,
+                showHint = false,
+                visibleCount = items.size
+            ),
+            focusedViewportWidthPx = 150,
+            chipWidthsPx = listOf(34, 34, 24, 24, 14, 14, 14),
+            chipSpacingPx = 4
+        )
+
+        assertEquals(listOf("hei", "ge", "he", "g", "h"), hPlan.displayedItems)
+        assertEquals(4, hPlan.displayedHighlight)
+        assertEquals(listOf("hei", "ge", "he", "g", "h", "i"), iPlan.displayedItems)
+        assertEquals(5, iPlan.displayedHighlight)
+    }
+
     private fun state(
         items: List<String>,
         highlightedIndex: Int

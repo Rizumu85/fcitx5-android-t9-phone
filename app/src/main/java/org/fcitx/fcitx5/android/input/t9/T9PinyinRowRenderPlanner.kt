@@ -75,14 +75,10 @@ object T9PinyinRowRenderPlanner {
         while (start > 0 && widthOf(start - 1, highlighted, chipWidthsPx, chipSpacingPx) <= viewportWidthPx) {
             start -= 1
         }
-        val end = endFittingFrom(
-            start = start,
-            itemCount = itemCount,
-            viewportWidthPx = viewportWidthPx,
-            chipWidthsPx = chipWidthsPx,
-            chipSpacingPx = chipSpacingPx
-        )
-        return start..end
+        // Product decision: moving onto a previously hidden pinyin should reveal only that
+        // pinyin at the trailing edge. Pulling in the next hidden chip early makes the row feel
+        // like it jumped two steps instead of following the user's focus.
+        return start..highlighted
     }
 
     private fun endFittingFrom(
