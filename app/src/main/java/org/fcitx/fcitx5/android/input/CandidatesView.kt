@@ -1265,8 +1265,7 @@ class CandidatesView(
                 rowWidthPx = surfacePlan.rowWidthPx ?: pinyinRowViewportWidthPx() ?: rowWidths.fullContentWidthPx,
                 widths = rowWidths,
                 chipWidthsPx = chipWidths,
-                chipSpacingPx = dpCandidates(itemPaddingHorizontal),
-                focusedScale = T9_PINYIN_ROW_FOCUSED_SCALE
+                chipSpacingPx = dpCandidates(itemPaddingHorizontal)
             )
         )
         t9RenderedPinyinUsesWindowedDisplay = visualPlan.usesWindowedDisplay
@@ -1528,6 +1527,5 @@ class CandidatesView(
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
         private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 10
         private const val T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP = 2
-        private const val T9_PINYIN_ROW_FOCUSED_SCALE = 1.06f
     }
 }

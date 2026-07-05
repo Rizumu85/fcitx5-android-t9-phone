@@ -30,21 +30,22 @@ class T9PinyinRowVisualPlannerTest {
     }
 
     @Test
-    fun focusedFoldedRowUsesSameWidthButHidesHint() {
+    fun focusedFoldedRowKeepsAllChipsForScrollAnchoring() {
         val plan = T9PinyinRowVisualPlanner.plan(
             input(
                 rowPlan = T9PinyinOverflowPolicy.Plan(
                     folded = true,
                     showHint = false,
-                    visibleCount = 6
+                    visibleCount = 7
                 )
             )
         )
 
-        assertEquals(listOf("gei", "hei", "ge", "he", "g"), plan.displayedItems)
+        assertEquals(listOf("gei", "hei", "ge", "he", "g", "h", "i"), plan.displayedItems)
         assertFalse(plan.showOverflowHint)
         assertEquals(150, plan.pinyinBarWidthPx)
         assertEquals(0, plan.overflowHintStartPx)
+        assertFalse(plan.usesWindowedDisplay)
     }
 
     private fun input(
@@ -52,7 +53,7 @@ class T9PinyinRowVisualPlannerTest {
     ): T9PinyinRowVisualPlanner.Input =
         T9PinyinRowVisualPlanner.Input(
             state = T9PinyinRowWindow.VisibleState(
-                items = listOf("gei", "hei", "ge", "he", "g", "h"),
+                items = listOf("gei", "hei", "ge", "he", "g", "h", "i"),
                 highlightedIndex = 0,
                 windowStart = 0
             ),
@@ -64,8 +65,7 @@ class T9PinyinRowVisualPlannerTest {
                 overflowHintStartPx = 132,
                 foldedContentWidthPx = 150
             ),
-            chipWidthsPx = listOf(34, 34, 24, 24, 14, 14),
-            chipSpacingPx = 4,
-            focusedScale = 1.06f
+            chipWidthsPx = listOf(34, 34, 24, 24, 14, 14, 14),
+            chipSpacingPx = 4
         )
 }

@@ -5,8 +5,6 @@
 
 package org.fcitx.fcitx5.android.input.t9
 
-import kotlin.math.ceil
-
 object T9PinyinRowVisualPlanner {
     data class Input(
         val state: T9PinyinRowWindow.VisibleState,
@@ -14,8 +12,7 @@ object T9PinyinRowVisualPlanner {
         val rowWidthPx: Int,
         val widths: T9PinyinRowWidthCalculator.Widths,
         val chipWidthsPx: List<Int>,
-        val chipSpacingPx: Int,
-        val focusedScale: Float
+        val chipSpacingPx: Int
     )
 
     data class Plan(
@@ -29,11 +26,24 @@ object T9PinyinRowVisualPlanner {
 
     fun plan(input: Input): Plan {
         val focusedFolded = input.rowPlan?.folded == true && input.rowPlan.showHint == false
+        if (focusedFolded) {
+            return Plan(
+                displayedItems = input.state.items,
+                displayedHighlight = input.state.highlightedIndex.coerceIn(
+                    0,
+                    input.state.items.lastIndex.coerceAtLeast(0)
+                ),
+                showOverflowHint = false,
+                overflowHintStartPx = 0,
+                pinyinBarWidthPx = input.rowWidthPx,
+                usesWindowedDisplay = false
+            )
+        }
         val renderPlan = T9PinyinRowRenderPlanner.plan(
             state = input.state,
             rowPlan = input.rowPlan,
             focusedViewportWidthPx = input.rowWidthPx,
-            focusedEdgeGuardPx = if (focusedFolded) focusedEdgeGuardPx(input) else 0,
+            focusedEdgeGuardPx = 0,
             chipWidthsPx = input.chipWidthsPx,
             chipSpacingPx = input.chipSpacingPx
         )
@@ -55,9 +65,4 @@ object T9PinyinRowVisualPlanner {
         )
     }
 
-    private fun focusedEdgeGuardPx(input: Input): Int {
-        val maxChipWidth = input.chipWidthsPx.maxOrNull() ?: return 0
-        val halfScaleOverflow = (input.focusedScale - 1f).coerceAtLeast(0f) / 2f
-        return ceil(maxChipWidth * halfScaleOverflow).toInt()
-    }
 }
