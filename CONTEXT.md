@@ -75,3 +75,9 @@ pipeline. `CandidatesView` may forward user intents such as page up, page down,
 or select shown index, but it should not own the pager/cache rules for Smart
 English, pending punctuation, local Chinese budget pages, bulk Chinese
 selection, or pinyin row focus.
+
+The migration should be sliced by candidate source, but each completed slice
+must remove the replaced `CandidatesView` fallback. Start with Smart English
+and pending punctuation, then move Chinese local-budget and pinyin-row state,
+then bulk Chinese selection. This keeps each user-facing UI surface testable
+without leaving parallel render rules behind.
