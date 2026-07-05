@@ -40,3 +40,8 @@ The refactor may be delivered in small slices, but it must not leave parallel
 legacy fallback behavior behind. Each migrated key-flow branch should remove
 the old branch it replaces, and the end state should have the command-based
 flow as the single implementation.
+
+The first migration slice should target Smart English physical-key behavior:
+`1`, `#`, `0`, OK/select, directional candidate navigation, Backspace, and
+long-press digit shortcuts. After each code slice, provide a concrete manual
+test checklist and wait for user confirmation before migrating the next slice.
