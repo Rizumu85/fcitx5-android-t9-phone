@@ -63,6 +63,7 @@ import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.withTheme
 import splitties.views.dsl.core.wrapContent
 import splitties.views.padding
+import kotlin.math.ceil
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -1060,12 +1061,13 @@ class CandidatesView(
         }
         val chipPaddingPx = dpCandidates(itemPaddingHorizontal)
         val chipWidthPx = pinyinItems.withIndex().sumOf { (index, pinyin) ->
-            val textWidthPx = paint.measureText(pinyin).roundToInt()
+            val textWidthPx = ceil(paint.measureText(pinyin).toDouble()).toInt()
             val rightMarginPx = if (index != pinyinItems.lastIndex || reservesOverflowHint) chipPaddingPx else 0
             textWidthPx + chipPaddingPx * 2 + rightMarginPx
         }
         val overflowHintWidthPx = if (reservesOverflowHint) pinyinOverflowHintReservedWidthPx() else 0
-        return chipWidthPx + overflowHintWidthPx
+        val foldedChipSafetyPx = if (reservesOverflowHint) dp(T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP) else 0
+        return chipWidthPx + overflowHintWidthPx + foldedChipSafetyPx
     }
 
     private fun currentPinyinRowPlan(
@@ -1107,7 +1109,7 @@ class CandidatesView(
         val paint = t9PinyinMeasurePaint.apply {
             textSize = compactTopRowFontSizeSp * ctx.resources.displayMetrics.scaledDensity
         }
-        return (paint.measureText("\u2026").roundToInt() + dpCandidates(itemPaddingHorizontal) * 2)
+        return (ceil(paint.measureText("\u2026").toDouble()).toInt() + dpCandidates(itemPaddingHorizontal) * 2)
             .coerceAtLeast(dp(T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP))
     }
 
@@ -1118,8 +1120,6 @@ class CandidatesView(
         }
         val rightPadding = when {
             visible -> pinyinOverflowHintReservedWidthPx()
-            service.getT9CandidateFocus() == T9CandidateFocus.TOP && pinyinRowTargetVisible ->
-                dp(T9_PINYIN_ROW_FOCUSED_END_GAP_DP)
             else -> 0
         }
         if (pinyinBarView.paddingRight != rightPadding) {
@@ -1515,6 +1515,6 @@ class CandidatesView(
         private const val T9_PINYIN_TO_HANZI_GAP_DP = 2
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
         private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 18
-        private const val T9_PINYIN_ROW_FOCUSED_END_GAP_DP = 10
+        private const val T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP = 2
     }
 }
