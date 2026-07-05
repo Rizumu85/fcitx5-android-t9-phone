@@ -526,8 +526,11 @@ class PhysicalT9KeyHandler(private val host: Host) {
                     if (!poundLongPressTriggered) {
                         val hadPendingChar = when {
                             host.hasPendingPunctuation -> host.commitPendingPunctuation()
-                            host.isSmartEnglishActive && host.hasSmartEnglishCandidates ->
-                                host.commitSmartEnglishCandidate(appendSpace = false)
+                            host.isSmartEnglishActive && host.hasSmartEnglishCandidates -> {
+                                val committed = host.commitSmartEnglishCandidate(appendSpace = false)
+                                if (committed) host.handleReturnKey()
+                                committed
+                            }
                             else ->
                                 host.commitSmartEnglishCandidate() ||
                                     host.commitMultiTapChar() ||
@@ -635,7 +638,9 @@ class PhysicalT9KeyHandler(private val host: Host) {
             }
             if (host.hasPendingPunctuation) return true
             if (host.isSmartEnglishActive && host.hasSmartEnglishCandidates) {
-                host.commitSmartEnglishCandidate(appendSpace = false)
+                if (host.commitSmartEnglishCandidate(appendSpace = false)) {
+                    host.showSmartEnglishPunctuationCandidates()
+                }
             } else {
                 interruptSmartEnglishCandidates()
             }
