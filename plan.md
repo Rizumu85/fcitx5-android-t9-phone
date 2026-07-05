@@ -110,5 +110,5 @@ otherwise.
   the snapshot pipeline instead of `CandidatesView`.
 - [x] Decide to migrate by candidate source, deleting replaced
   `CandidatesView` fallback after each slice.
-- [ ] Migrate Smart English and pending punctuation page/cache/selection/page
+- [x] Migrate Smart English and pending punctuation page/cache/selection/page
   offset state into the snapshot pipeline.
