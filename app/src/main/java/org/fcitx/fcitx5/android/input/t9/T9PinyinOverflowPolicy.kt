@@ -6,6 +6,35 @@
 package org.fcitx.fcitx5.android.input.t9
 
 object T9PinyinOverflowPolicy {
+    data class Plan(
+        val folded: Boolean,
+        val showHint: Boolean,
+        val visibleCount: Int
+    )
+
+    fun plan(
+        pinyinCount: Int,
+        fullContentWidthPx: Int,
+        candidateRowWidthPx: Int,
+        maxRowWidthPx: Int,
+        minVisibleChips: Int,
+        pinyinRowFocused: Boolean
+    ): Plan {
+        val folded = shouldFold(
+            pinyinCount = pinyinCount,
+            fullContentWidthPx = fullContentWidthPx,
+            candidateRowWidthPx = candidateRowWidthPx,
+            maxRowWidthPx = maxRowWidthPx,
+            minVisibleChips = minVisibleChips
+        )
+        val showHint = folded && !pinyinRowFocused
+        return Plan(
+            folded = folded,
+            showHint = showHint,
+            visibleCount = if (showHint) minVisibleChips.coerceAtMost(pinyinCount) else pinyinCount
+        )
+    }
+
     fun shouldFold(
         pinyinCount: Int,
         fullContentWidthPx: Int,

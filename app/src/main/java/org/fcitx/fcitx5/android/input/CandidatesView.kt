@@ -932,6 +932,13 @@ class CandidatesView(
 
     private fun syncVisiblePinyinRowLayout(): Boolean {
         if (!pinyinRowTargetVisible) return true
+        t9CandidateUiSnapshotPipeline.currentPinyinWindowState()?.let {
+            renderPinyinWindow(
+                state = it,
+                candidateRowWidthPx = null,
+                scheduleLayoutCheck = false
+            )
+        }
         val widthReady = syncPinyinRowWidthToCandidates()
         setPinyinRowHeight(pinyinBarRowHeightPx)
         if (widthReady && pinyinRowWrapper.visibility == View.INVISIBLE) {
@@ -970,9 +977,7 @@ class CandidatesView(
     }
 
     private fun syncPinyinRowWidthToCandidates(): Boolean {
-        val candidateWidth = firstPositiveCandidateRowWidth()
-            ?: estimatedShownCandidateRowWidthPx()
-            ?: lastCandidateRowWidthPx.takeIf { it > 0 }
+        val candidateWidth = currentCandidateRowWidthForPinyinPolicy()
             ?: return false
         val width = maxOf(candidateWidth, pinyinRowDesiredWidthPx(candidateWidth) ?: 0)
         setPinyinRowWidth(width)
@@ -994,7 +999,10 @@ class CandidatesView(
         }
     }
 
-    private fun populatedPinyinRowWidthPx(candidateRowWidthPx: Int? = null): Int? {
+    private fun populatedPinyinRowWidthPx(
+        candidateRowWidthPx: Int? = null,
+        rowPlan: T9PinyinOverflowPolicy.Plan? = null
+    ): Int? {
         val visiblePinyin = t9RenderedPinyinItems.takeIf { it.isNotEmpty() }
             ?: return null
         val maxWidthPx = pinyinRowMaxWidthPx()
@@ -1002,7 +1010,8 @@ class CandidatesView(
             visiblePinyin,
             reservesOverflowHint = false
         )
-        if (!shouldFoldPinyinRow(visiblePinyin, fullContentWidthPx, candidateRowWidthPx)) {
+        val plan = rowPlan ?: currentPinyinRowPlan(candidateRowWidthPx, fullContentWidthPx)
+        if (plan?.folded != true) {
             return fullContentWidthPx
                 .coerceAtMost(maxWidthPx)
                 .coerceAtLeast(1)
@@ -1027,19 +1036,18 @@ class CandidatesView(
     }
 
     private fun pinyinRowDesiredWidthPx(candidateRowWidthPx: Int? = null): Int? {
-        val estimatedWidthPx = populatedPinyinRowWidthPx(candidateRowWidthPx)
-        val measuredContentWidthPx = pinyinBarAdapter.laidOutContentWidthPx()
-        val measuredWidthPx = measuredContentWidthPx?.let { contentWidthPx ->
-            if (shouldShowPinyinOverflowHint()) {
-                contentWidthPx + dpCandidates(itemPaddingHorizontal) + pinyinOverflowHintReservedWidthPx()
-            } else {
-                contentWidthPx
-            }
+        val rowPlan = currentPinyinRowPlan(candidateRowWidthPx)
+        val estimatedWidthPx = populatedPinyinRowWidthPx(candidateRowWidthPx, rowPlan)
+        val measuredWidthPx = pinyinBarAdapter.laidOutContentWidthPx()?.takeIf {
+            // A folded row intentionally ignores the adapter's measured content width because it
+            // may still contain the previous full chip list from the last focus/page state.
+            rowPlan?.folded != true
         }
-        return listOfNotNull(estimatedWidthPx, measuredWidthPx)
-            .maxOrNull()
-            ?.coerceAtMost(pinyinRowMaxWidthPx())
-            ?.coerceAtLeast(1)
+        val widthPx = listOfNotNull(estimatedWidthPx, measuredWidthPx).maxOrNull()
+            ?: return null
+        return widthPx
+            .coerceAtMost(pinyinRowMaxWidthPx())
+            .coerceAtLeast(1)
     }
 
     private fun pinyinItemsWidthPx(
@@ -1059,29 +1067,30 @@ class CandidatesView(
         return chipWidthPx + overflowHintWidthPx
     }
 
-    private fun shouldShowPinyinOverflowHint(): Boolean {
+    private fun currentPinyinRowPlan(
+        candidateRowWidthPx: Int? = null,
+        measuredFullContentWidthPx: Int? = null
+    ): T9PinyinOverflowPolicy.Plan? {
         val visiblePinyin = t9RenderedPinyinItems
-        if (visiblePinyin.size <= T9_PINYIN_ROW_MIN_VISIBLE_CHIPS) return false
-        val fullContentWidthPx = pinyinItemsWidthPx(visiblePinyin, reservesOverflowHint = false)
-        return shouldFoldPinyinRow(visiblePinyin, fullContentWidthPx)
-    }
-
-    private fun shouldFoldPinyinRow(
-        visiblePinyin: List<String>,
-        fullContentWidthPx: Int,
-        candidateRowWidthPx: Int? = null
-    ): Boolean =
-        T9PinyinOverflowPolicy.shouldFold(
+        if (visiblePinyin.isEmpty()) return null
+        val fullContentWidthPx = measuredFullContentWidthPx
+            ?: pinyinItemsWidthPx(visiblePinyin, reservesOverflowHint = false)
+        return T9PinyinOverflowPolicy.plan(
             pinyinCount = visiblePinyin.size,
             fullContentWidthPx = fullContentWidthPx,
             candidateRowWidthPx = candidateRowWidthPx
-                ?: firstPositiveCandidateRowWidth()
-                ?: estimatedShownCandidateRowWidthPx()
-                ?: lastCandidateRowWidthPx.takeIf { it > 0 }
+                ?: currentCandidateRowWidthForPinyinPolicy()
                 ?: pinyinRowMaxWidthPx(),
             maxRowWidthPx = pinyinRowMaxWidthPx(),
-            minVisibleChips = T9_PINYIN_ROW_MIN_VISIBLE_CHIPS
+            minVisibleChips = T9_PINYIN_ROW_MIN_VISIBLE_CHIPS,
+            pinyinRowFocused = service.getT9CandidateFocus() == T9CandidateFocus.TOP
         )
+    }
+
+    private fun currentCandidateRowWidthForPinyinPolicy(): Int? =
+        estimatedShownCandidateRowWidthPx()
+            ?: firstPositiveCandidateRowWidth()
+            ?: lastCandidateRowWidthPx.takeIf { it > 0 }
 
     private fun pinyinRowViewportWidthPx(): Int? {
         pinyinRowWrapper.width.takeIf { it > 0 }?.let { return it }
@@ -1132,8 +1141,15 @@ class CandidatesView(
             updatePinyinOverflowHint(false)
             return
         }
-        updatePinyinOverflowHint(
-            service.getT9CandidateFocus() != T9CandidateFocus.TOP && shouldShowPinyinOverflowHint()
+        val state = t9CandidateUiSnapshotPipeline.currentPinyinWindowState()
+        if (state == null) {
+            updatePinyinOverflowHint(false)
+            return
+        }
+        renderPinyinWindow(
+            state = state,
+            candidateRowWidthPx = firstPositiveCandidateRowWidth() ?: currentCandidateRowWidthForPinyinPolicy(),
+            scheduleLayoutCheck = false
         )
     }
 
@@ -1225,15 +1241,22 @@ class CandidatesView(
         return ready
     }
 
-    private fun renderPinyinWindow(state: T9PinyinRowWindow.VisibleState): Boolean {
+    private fun renderPinyinWindow(state: T9PinyinRowWindow.VisibleState): Boolean =
+        renderPinyinWindow(
+            state = state,
+            candidateRowWidthPx = null,
+            scheduleLayoutCheck = true
+        )
+
+    private fun renderPinyinWindow(
+        state: T9PinyinRowWindow.VisibleState,
+        candidateRowWidthPx: Int?,
+        scheduleLayoutCheck: Boolean
+    ): Boolean {
         t9RenderedPinyinItems = state.items
-        val hintVisible = service.getT9CandidateFocus() != T9CandidateFocus.TOP && shouldShowPinyinOverflowHint()
-        updatePinyinOverflowHint(hintVisible)
-        val displayedItems = if (hintVisible) {
-            state.items.take(T9_PINYIN_ROW_MIN_VISIBLE_CHIPS)
-        } else {
-            state.items
-        }
+        val rowPlan = currentPinyinRowPlan(candidateRowWidthPx)
+        updatePinyinOverflowHint(rowPlan?.showHint == true)
+        val displayedItems = state.items.take(rowPlan?.visibleCount ?: state.items.size)
         val displayedHighlight = state.highlightedIndex.coerceIn(
             0,
             (displayedItems.lastIndex).coerceAtLeast(0)
@@ -1241,11 +1264,13 @@ class CandidatesView(
         val changed = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.submit") {
             pinyinBarAdapter.submitList(displayedItems, displayedHighlight)
         }
-        schedulePinyinOverflowHintUpdate()
+        if (scheduleLayoutCheck) {
+            schedulePinyinOverflowHintUpdate()
+        }
         val ready = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.visibility") {
             setPinyinRowVisible(true)
         }
-        if (changed) {
+        if (changed && scheduleLayoutCheck) {
             // Product decision: folded pinyin chips must look stable without exposing a fifth chip.
             // The first frame uses text estimates; this pass lets real TextView widths correct
             // custom-font/fallback glyph differences before the user has to move focus.

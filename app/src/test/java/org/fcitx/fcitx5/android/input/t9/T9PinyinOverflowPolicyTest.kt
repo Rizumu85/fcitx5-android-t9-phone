@@ -6,6 +6,7 @@
 package org.fcitx.fcitx5.android.input.t9
 
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -47,5 +48,37 @@ class T9PinyinOverflowPolicyTest {
                 minVisibleChips = 4
             )
         )
+    }
+
+    @Test
+    fun bottomFocusShowsFourChipsAndHintWhenFolded() {
+        val plan = T9PinyinOverflowPolicy.plan(
+            pinyinCount = 7,
+            fullContentWidthPx = 240,
+            candidateRowWidthPx = 120,
+            maxRowWidthPx = 320,
+            minVisibleChips = 4,
+            pinyinRowFocused = false
+        )
+
+        assertTrue(plan.folded)
+        assertTrue(plan.showHint)
+        assertEquals(4, plan.visibleCount)
+    }
+
+    @Test
+    fun topFocusKeepsFoldedWidthButLetsRowContainAllChipsForScrolling() {
+        val plan = T9PinyinOverflowPolicy.plan(
+            pinyinCount = 7,
+            fullContentWidthPx = 240,
+            candidateRowWidthPx = 120,
+            maxRowWidthPx = 320,
+            minVisibleChips = 4,
+            pinyinRowFocused = true
+        )
+
+        assertTrue(plan.folded)
+        assertFalse(plan.showHint)
+        assertEquals(7, plan.visibleCount)
     }
 }
