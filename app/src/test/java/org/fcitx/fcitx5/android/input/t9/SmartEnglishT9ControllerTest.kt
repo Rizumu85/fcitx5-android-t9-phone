@@ -111,6 +111,58 @@ class SmartEnglishT9ControllerTest {
         assertEquals(listOf("rizum"), host.learnedWords)
     }
 
+    @Test
+    fun committedSmartWordShowsNextWordPredictions() {
+        val host = FakeHost()
+        val controller = host.controller()
+        listOf(4, 6, 6).forEach(controller::appendDigit)
+
+        assertTrue(controller.commitCandidate())
+
+        assertEquals(listOf("good"), host.committedTexts)
+        assertEquals("morning", controller.paged()?.candidates?.first()?.text)
+        assertEquals(null, controller.presentation {
+            FormattedText(arrayOf(it), intArrayOf(TextFormatFlag.NoFlag.flag), -1)
+        }?.topReading)
+    }
+
+    @Test
+    fun predictionCandidateCanBeCommittedAndContinuesPrediction() {
+        val host = FakeHost()
+        val controller = host.controller()
+        listOf(4, 6, 6).forEach(controller::appendDigit)
+        controller.commitCandidate()
+
+        assertTrue(controller.commitCandidate())
+
+        assertEquals(listOf("good", "morning"), host.committedTexts)
+        assertEquals("sunshine", controller.paged()?.candidates?.first()?.text)
+    }
+
+    @Test
+    fun predictionBackspaceHidesPredictionWithoutClearingContext() {
+        val host = FakeHost()
+        val controller = host.controller()
+        listOf(4, 6, 6).forEach(controller::appendDigit)
+        controller.commitCandidate()
+
+        assertTrue(controller.backspace())
+
+        assertEquals(null, controller.paged())
+        assertFalse(controller.backspace())
+    }
+
+    @Test
+    fun learningFlushRecordsNextWordPairsWhenEnabled() {
+        val host = FakeHost(learn = true)
+        val controller = host.controller()
+
+        "Good Morning ".forEach(controller::recordLearningChar)
+
+        assertEquals(listOf("good", "morning"), host.learnedWords)
+        assertEquals(listOf("good" to "morning"), host.learnedPredictionPairs)
+    }
+
     private class FakeHost(
         var active: Boolean = true,
         var learn: Boolean = false,
@@ -120,15 +172,23 @@ class SmartEnglishT9ControllerTest {
             "2" to listOf("a"),
             "4" to listOf("I"),
             "435" to listOf("hello", "help"),
+            "466" to listOf("good", "home"),
             "43556" to listOf("hello", "gekko")
+        )
+        private val predictions = mapOf(
+            "good" to listOf("morning", "night"),
+            "morning" to listOf("sunshine")
         )
         val committedTexts = mutableListOf<String>()
         val learnedWords = mutableListOf<String>()
+        val learnedPredictionPairs = mutableListOf<Pair<String, String>>()
         var refreshCount = 0
 
         fun controller(): SmartEnglishT9Controller = SmartEnglishT9Controller(
             candidateProvider = { digits, limit -> candidates[digits].orEmpty().take(limit) },
+            predictionProvider = { words, limit -> predictions[words.last()].orEmpty().take(limit) },
             learnWord = { learnedWords += it },
+            learnPredictionPair = { previous, next -> learnedPredictionPairs += previous to next },
             dictionaryReady = { dictionaryReady },
             candidateLimit = 10,
             noMatchText = "No match",
