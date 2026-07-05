@@ -8,6 +8,7 @@ package org.fcitx.fcitx5.android.input.t9
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -92,6 +93,68 @@ class T9CandidateUiSnapshotPipelineTest {
             T9CandidateUiSnapshotPipeline.CommitBottomCandidate.PendingPunctuation(originalIndex = 2),
             commit
         )
+    }
+
+    @Test
+    fun chineseLocalBudgetPagingLivesInSnapshotPipeline() {
+        val pipeline = pipeline(characterBudget = 4)
+        val data = paged("一二三", "四五", "六", cursor = 0)
+
+        val first = pipeline.buildChineseLocalBudgetedPagedFromCurrentPage(data)
+        val moved = pipeline.offsetChineseLocalBudgetedPage(1)
+        val second = pipeline.buildChineseLocalBudgetedPagedFromCurrentPage(data)
+
+        require(first != null)
+        require(second != null)
+        assertTrue(moved)
+        assertEquals(listOf("一二三"), first.data.candidates.map { it.text })
+        assertEquals(listOf("四五", "六"), second.data.candidates.map { it.text })
+        assertArrayEquals(intArrayOf(1, 2), second.originalIndices)
+    }
+
+    @Test
+    fun chineseHanziCursorLivesInSnapshotPipeline() {
+        val pipeline = pipeline()
+        val data = paged("你", "呢", "泥", cursor = 0)
+        val signature = pipeline.buildChineseCursorContextSignature("ni", listOf("ni"))
+
+        val initial = pipeline.applyChineseHanziCursor(data, signature)
+        val moved = pipeline.moveChineseHanziCursor(initial, 2)
+        val reapplied = pipeline.applyChineseHanziCursor(
+            data = moved ?: data,
+            cursorContextSignature = signature
+        )
+
+        assertEquals(2, moved?.cursorIndex)
+        assertEquals(2, reapplied.cursorIndex)
+    }
+
+    @Test
+    fun pinyinWindowStateLivesInSnapshotPipeline() {
+        val pipeline = pipeline()
+
+        val initial = pipeline.submitPinyinWindow(listOf("gei", "hei", "ge", "he", "g", "h", "i"))
+        val moved = pipeline.movePinyinWindow(2)
+        val highlighted = pipeline.highlightedPinyin()
+        val reset = pipeline.resetPinyinHighlight()
+
+        assertEquals(listOf("gei", "hei", "ge", "he", "g", "h", "i"), initial.items)
+        assertEquals(2, moved?.highlightedIndex)
+        assertEquals("ge", highlighted)
+        assertEquals(0, reset?.highlightedIndex)
+    }
+
+    @Test
+    fun resetClearsChineseAndPinyinState() {
+        val pipeline = pipeline(characterBudget = 4)
+        pipeline.buildChineseLocalBudgetedPagedFromCurrentPage(paged("一二三", "四五", "六", cursor = 0))
+        assertTrue(pipeline.offsetChineseLocalBudgetedPage(1))
+        pipeline.submitPinyinWindow(listOf("ge", "he"))
+
+        pipeline.reset()
+
+        assertFalse(pipeline.offsetChineseLocalBudgetedPage(1))
+        assertNull(pipeline.currentPinyinWindowState())
     }
 
     private fun pipeline(characterBudget: Int = 20): T9CandidateUiSnapshotPipeline =

@@ -9,7 +9,8 @@ import org.fcitx.fcitx5.android.core.FcitxEvent
 
 class T9CandidateUiSnapshotPipeline(
     private val characterBudget: () -> Int,
-    private val widthBudget: () -> T9CandidateWidthBudget?
+    private val widthBudget: () -> T9CandidateWidthBudget?,
+    candidateMatchesPrefix: (candidate: FcitxEvent.Candidate, prefix: String) -> Boolean = { _, _ -> false }
 ) {
     enum class ShownSource {
         SMART_ENGLISH,
@@ -68,6 +69,12 @@ class T9CandidateUiSnapshotPipeline(
 
     private val smartEnglishPageCache = T9SmartEnglishPageCache(characterBudget, widthBudget)
     private val pendingPunctuationPager = T9CandidatePager()
+    private val chineseCandidatePipeline = ChineseT9CandidatePipeline(
+        characterBudget = characterBudget,
+        widthBudget = widthBudget,
+        candidateMatchesPrefix = candidateMatchesPrefix
+    )
+    private val pinyinRowWindow = T9PinyinRowWindow()
     private var currentShown: ShownSnapshot? = null
 
     val shownSource: ShownSource
@@ -76,11 +83,68 @@ class T9CandidateUiSnapshotPipeline(
     val ownsCurrentShownState: Boolean
         get() = currentShown?.ownsPagingState == true
 
+    val hasChineseLocalBudgetCandidates: Boolean
+        get() = chineseCandidatePipeline.hasLocalBudgetCandidates
+
     fun reset() {
         smartEnglishPageCache.reset()
         pendingPunctuationPager.reset()
+        chineseCandidatePipeline.reset()
+        pinyinRowWindow.clear()
         currentShown = null
     }
+
+    fun resetChineseLocalBudgetState() {
+        chineseCandidatePipeline.resetLocalBudget()
+    }
+
+    fun filterChinesePagedByPinyinPrefixes(
+        data: FcitxEvent.PagedCandidateEvent.Data,
+        prefixes: List<String>
+    ): Pair<T9PagedCandidates, String?> =
+        chineseCandidatePipeline.filterPagedByPinyinPrefixes(data, prefixes)
+
+    fun buildChineseLocalBudgetedPagedFromCurrentPage(
+        data: FcitxEvent.PagedCandidateEvent.Data
+    ): T9PagedCandidates? =
+        chineseCandidatePipeline.buildLocalBudgetedPagedFromCurrentPage(data)
+
+    fun offsetChineseLocalBudgetedPage(delta: Int): Boolean =
+        chineseCandidatePipeline.offsetLocalBudgetedPage(delta)
+
+    fun applyChineseHanziCursor(
+        data: FcitxEvent.PagedCandidateEvent.Data,
+        cursorContextSignature: String
+    ): FcitxEvent.PagedCandidateEvent.Data =
+        chineseCandidatePipeline.applyHanziCursor(data, cursorContextSignature)
+
+    fun moveChineseHanziCursor(
+        data: FcitxEvent.PagedCandidateEvent.Data,
+        index: Int
+    ): FcitxEvent.PagedCandidateEvent.Data? =
+        chineseCandidatePipeline.moveHanziCursor(data, index)
+
+    fun buildChineseCursorContextSignature(preedit: CharSequence, prefixes: List<String>): String =
+        chineseCandidatePipeline.buildCursorContextSignature(preedit, prefixes)
+
+    fun clearPinyinWindow() {
+        pinyinRowWindow.clear()
+    }
+
+    fun submitPinyinWindow(candidates: List<String>): T9PinyinRowWindow.VisibleState =
+        pinyinRowWindow.submit(candidates)
+
+    fun movePinyinWindow(delta: Int): T9PinyinRowWindow.VisibleState? =
+        pinyinRowWindow.move(delta)
+
+    fun resetPinyinHighlight(): T9PinyinRowWindow.VisibleState? =
+        pinyinRowWindow.resetHighlight()
+
+    fun currentPinyinWindowState(): T9PinyinRowWindow.VisibleState? =
+        pinyinRowWindow.currentState()
+
+    fun highlightedPinyin(): String? =
+        pinyinRowWindow.highlightedPinyin()
 
     fun buildSmartEnglishPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates =
         smartEnglishPageCache.build(data)

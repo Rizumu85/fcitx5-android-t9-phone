@@ -112,3 +112,5 @@ otherwise.
   `CandidatesView` fallback after each slice.
 - [x] Migrate Smart English and pending punctuation page/cache/selection/page
   offset state into the snapshot pipeline.
+- [x] Migrate Chinese local-budget candidate paging, Hanzi cursor state, and
+  pinyin row window/highlight state into the snapshot pipeline.

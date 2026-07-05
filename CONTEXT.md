@@ -88,3 +88,9 @@ punctuation page/cache/selection/page-offset state into the snapshot pipeline.
 punctuation pager decisions, Smart English shown flags, pending punctuation
 shown flags, and original-index mapping for those two sources once the slice is
 complete.
+
+The second implementation slice should move Chinese local-budget candidate
+paging, Hanzi cursor state, and pinyin row window/highlight state into the
+snapshot pipeline. `CandidatesView` may still render pinyin chips and request
+Android scrolling, but it should not own the pinyin window model or Chinese
+local-budget pager state once the slice is complete.

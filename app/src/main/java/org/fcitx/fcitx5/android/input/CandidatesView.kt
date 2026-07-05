@@ -33,7 +33,6 @@ import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrientation
 import org.fcitx.fcitx5.android.input.candidates.floating.PagedCandidatesUi
 import org.fcitx.fcitx5.android.input.preedit.PreeditUi
-import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidatePipeline
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidateLoadingState
 import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
 import org.fcitx.fcitx5.android.input.t9.T9BulkCandidateLoader
@@ -183,13 +182,6 @@ class CandidatesView(
     private var t9ShownMatchedPrefix: String? = null
     private var t9BulkFilteredPaged: T9PagedCandidates? = null
     private var t9BulkFilteredMatchedPrefix: String? = null
-    private val chineseT9CandidatePipeline = ChineseT9CandidatePipeline(
-        characterBudget = { t9HanziCharacterBudget },
-        widthBudget = ::t9CandidateWidthBudget,
-        candidateMatchesPrefix = { candidate, prefix ->
-            service.candidateMatchesT9ResolvedPrefix(candidate, prefix)
-        }
-    )
     private val t9BulkCandidateLoader = T9BulkCandidateLoader(
         characterBudget = { t9HanziCharacterBudget },
         widthBudget = ::t9CandidateWidthBudget,
@@ -198,13 +190,15 @@ class CandidatesView(
         }
     )
     private var t9ShownUsesLocalBudget = false
-    private val t9PinyinRowWindow = T9PinyinRowWindow()
     private var t9RenderedPinyinWindowStart = 0
     private var t9RenderedPinyinItems: List<String> = emptyList()
     private var lastRenderedT9Focus = T9CandidateFocus.BOTTOM
     private val t9CandidateUiSnapshotPipeline = T9CandidateUiSnapshotPipeline(
         characterBudget = { t9HanziCharacterBudget },
-        widthBudget = ::t9CandidateWidthBudget
+        widthBudget = ::t9CandidateWidthBudget,
+        candidateMatchesPrefix = { candidate, prefix ->
+            service.candidateMatchesT9ResolvedPrefix(candidate, prefix)
+        }
     )
     private val t9RefreshScheduler = T9UiRefreshScheduler(
         postRefresh = { block -> postOnAnimation(block) },
@@ -295,25 +289,25 @@ class CandidatesView(
             data: FcitxEvent.PagedCandidateEvent.Data,
             prefixes: List<String>
         ): Pair<T9PagedCandidates, String?> =
-            chineseT9CandidatePipeline.filterPagedByPinyinPrefixes(data, prefixes)
+            t9CandidateUiSnapshotPipeline.filterChinesePagedByPinyinPrefixes(data, prefixes)
 
         override fun buildLocalBudgetedPagedFromCurrentPage(
             data: FcitxEvent.PagedCandidateEvent.Data
         ): T9PagedCandidates? =
-            chineseT9CandidatePipeline.buildLocalBudgetedPagedFromCurrentPage(data)
+            t9CandidateUiSnapshotPipeline.buildChineseLocalBudgetedPagedFromCurrentPage(data)
 
         override fun resetT9LocalBudgetState() {
             this@CandidatesView.resetT9LocalBudgetState()
         }
 
         override fun buildT9CursorContextSignature(prefixes: List<String>): String =
-            chineseT9CandidatePipeline.buildCursorContextSignature(inputPanel.preedit.toString(), prefixes)
+            t9CandidateUiSnapshotPipeline.buildChineseCursorContextSignature(inputPanel.preedit.toString(), prefixes)
 
         override fun applyT9HanziCursor(
             data: FcitxEvent.PagedCandidateEvent.Data,
             cursorContextSignature: String
         ): FcitxEvent.PagedCandidateEvent.Data =
-            chineseT9CandidatePipeline.applyHanziCursor(data, cursorContextSignature)
+            t9CandidateUiSnapshotPipeline.applyChineseHanziCursor(data, cursorContextSignature)
 
         override fun getSmartEnglishT9Presentation(): T9PresentationState? =
             service.getSmartEnglishT9Presentation()
@@ -543,12 +537,11 @@ class CandidatesView(
         paged = FcitxEvent.PagedCandidateEvent.Data.Empty
         resetT9BulkFilterState()
         t9CandidateUiSnapshotPipeline.reset()
-        chineseT9CandidatePipeline.reset()
         t9CandidateUiRenderer.reset()
         chineseT9CandidateLoadingState.reset()
         preeditUi.update(inputPanel)
         preeditUi.root.visibility = GONE
-        t9PinyinRowWindow.clear()
+        t9CandidateUiSnapshotPipeline.clearPinyinWindow()
         t9RenderedPinyinWindowStart = 0
         t9RenderedPinyinItems = emptyList()
         updatePinyinOverflowHint(false)
@@ -593,7 +586,7 @@ class CandidatesView(
         t9CandidateUiRenderer.hideImmediately()
     }
 
-    fun getHighlightedT9Pinyin(): String? = t9PinyinRowWindow.highlightedPinyin()
+    fun getHighlightedT9Pinyin(): String? = t9CandidateUiSnapshotPipeline.highlightedPinyin()
 
     fun commitT9HanziShortcut(index: Int): Boolean = selectT9ShownHanziCandidate(index)
 
@@ -627,7 +620,7 @@ class CandidatesView(
     }
 
     fun moveHighlightedT9Pinyin(delta: Int): Boolean {
-        val state = t9PinyinRowWindow.move(delta) ?: return false
+        val state = t9CandidateUiSnapshotPipeline.movePinyinWindow(delta) ?: return false
         renderPinyinWindow(state)
         pinyinBarAdapter.scrollToHighlighted(pinyinRowViewportWidthPx())
         return true
@@ -641,7 +634,7 @@ class CandidatesView(
         val next = shown.cursorIndex + delta
         return when {
             next in shown.candidates.indices -> {
-                t9ShownPaged = chineseT9CandidatePipeline.moveHanziCursor(shown, next) ?: return false
+                t9ShownPaged = t9CandidateUiSnapshotPipeline.moveChineseHanziCursor(shown, next) ?: return false
                 refreshT9Ui()
                 true
             }
@@ -661,7 +654,7 @@ class CandidatesView(
         if (t9ShownUsesBulkSelection && t9BulkCandidateLoader.hasCandidates) {
             if (offsetT9BulkFilteredCandidatePage(delta)) return true
         }
-        if (t9ShownUsesLocalBudget && chineseT9CandidatePipeline.hasLocalBudgetCandidates) {
+        if (t9ShownUsesLocalBudget && t9CandidateUiSnapshotPipeline.hasChineseLocalBudgetCandidates) {
             if (offsetT9LocalBudgetedCandidatePage(delta)) return true
         }
         val shown = t9ShownPaged ?: return false
@@ -725,10 +718,10 @@ class CandidatesView(
         val topFocused = focus == T9CandidateFocus.TOP
         if (topFocused && lastRenderedT9Focus != T9CandidateFocus.TOP) {
             updatePinyinOverflowHint(false)
-            t9PinyinRowWindow.resetHighlight()?.let(::renderPinyinWindow)
+            t9CandidateUiSnapshotPipeline.resetPinyinHighlight()?.let(::renderPinyinWindow)
             pinyinBarAdapter.scrollToStart()
         } else if (!topFocused) {
-            t9PinyinRowWindow.currentState()?.let(::renderPinyinWindow)
+            t9CandidateUiSnapshotPipeline.currentPinyinWindowState()?.let(::renderPinyinWindow)
             pinyinRowWrapper.post(::updatePinyinOverflowHintFromLayout)
         }
         pinyinBarAdapter.setHighlightActive(topFocused)
@@ -819,7 +812,7 @@ class CandidatesView(
     }
 
     private fun offsetT9LocalBudgetedCandidatePage(delta: Int): Boolean {
-        if (!chineseT9CandidatePipeline.offsetLocalBudgetedPage(delta)) return false
+        if (!t9CandidateUiSnapshotPipeline.offsetChineseLocalBudgetedPage(delta)) return false
         refreshT9Ui()
         return true
     }
@@ -871,7 +864,7 @@ class CandidatesView(
     }
 
     private fun resetT9LocalBudgetState() {
-        chineseT9CandidatePipeline.resetLocalBudget()
+        t9CandidateUiSnapshotPipeline.resetChineseLocalBudgetState()
         t9ShownUsesLocalBudget = false
     }
 
@@ -1172,21 +1165,21 @@ class CandidatesView(
 
     private fun updatePinyinBar(candidates: List<String>, useT9: Boolean): Boolean {
         if (!useT9) {
-            t9PinyinRowWindow.clear()
+            t9CandidateUiSnapshotPipeline.clearPinyinWindow()
             t9RenderedPinyinWindowStart = 0
             t9RenderedPinyinItems = emptyList()
             updatePinyinOverflowHint(false)
             return setPinyinRowVisible(false)
         }
         if (candidates.isEmpty()) {
-            t9PinyinRowWindow.clear()
+            t9CandidateUiSnapshotPipeline.clearPinyinWindow()
             t9RenderedPinyinWindowStart = 0
             t9RenderedPinyinItems = emptyList()
             updatePinyinOverflowHint(false)
             return setPinyinRowVisible(false)
         }
         val state = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.window") {
-            t9PinyinRowWindow.submit(candidates)
+            t9CandidateUiSnapshotPipeline.submitPinyinWindow(candidates)
         }
         val previousWindowStart = t9RenderedPinyinWindowStart
         val ready = renderPinyinWindow(state)
