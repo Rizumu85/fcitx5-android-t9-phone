@@ -45,3 +45,20 @@ The first migration slice should target Smart English physical-key behavior:
 `1`, `#`, `0`, OK/select, directional candidate navigation, Backspace, and
 long-press digit shortcuts. After each code slice, provide a concrete manual
 test checklist and wait for user confirmation before migrating the next slice.
+
+### T9 Candidate UI Snapshot Pipeline
+
+The complete T9 candidate UI refresh flow. It should turn the current IME
+state, candidate data, composition preview, pinyin filter row, focus state,
+layout preference, and visibility rule into a stable snapshot that can be
+compared before Android views are touched.
+
+`CandidatesView` should act as the Android view adapter for this pipeline: it
+may measure, render, scroll, and set view visibility, but it should not own the
+rules for which T9 surface is shown, which candidate page is active, whether a
+top reading row is reserved, or whether the UI should remain visible.
+
+The snapshot pipeline should preserve the current candidate bubble visual
+design while improving refresh locality. The goal is not a new visual style;
+the goal is fewer broad refreshes, fewer transient wrong rows, and fewer layout
+visibility changes during normal typing.
