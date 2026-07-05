@@ -1,0 +1,16 @@
+# Context
+
+## Domain Terms
+
+### Physical T9 Key Flow
+
+The complete hardware-key decision flow for T9 input. It owns key-down/key-up
+pairing, long-press gating, mode-specific key behavior, candidate navigation,
+candidate confirmation, punctuation follow-up actions, return actions, and
+short-press versus long-press outcomes for Chinese T9, simple English,
+Smart English, and number mode.
+
+`FcitxInputMethodService` should act as the platform adapter for this flow: it
+executes Android/Fcitx side effects such as committing text, forwarding key
+events, refreshing candidate UI, showing punctuation candidates, and handling
+return keys, but it should not duplicate the user-facing key-flow rules.
