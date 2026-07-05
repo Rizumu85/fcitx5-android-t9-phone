@@ -49,6 +49,7 @@ import org.fcitx.fcitx5.android.input.t9.T9CandidateWidthBudget
 import org.fcitx.fcitx5.android.input.t9.T9PagedCandidates
 import org.fcitx.fcitx5.android.input.t9.T9PinyinChipAdapter
 import org.fcitx.fcitx5.android.input.t9.T9PinyinOverflowPolicy
+import org.fcitx.fcitx5.android.input.t9.T9PinyinRowRenderPlanner
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowVisibilityPlanner
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowWidthCalculator
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowWindow
@@ -1249,14 +1250,13 @@ class CandidatesView(
     ): Boolean {
         t9RenderedPinyinItems = state.items
         val rowPlan = currentPinyinRowPlan(candidateRowWidthPx)
-        updatePinyinOverflowHint(rowPlan?.showHint == true)
-        val displayedItems = pinyinDisplayedItems(rowPlan)
-        val displayedHighlight = state.highlightedIndex.coerceIn(
-            0,
-            (displayedItems.lastIndex).coerceAtLeast(0)
+        val renderPlan = T9PinyinRowRenderPlanner.plan(
+            state = state,
+            rowPlan = rowPlan
         )
+        updatePinyinOverflowHint(renderPlan.showOverflowHint)
         val changed = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.submit") {
-            pinyinBarAdapter.submitList(displayedItems, displayedHighlight)
+            pinyinBarAdapter.submitList(renderPlan.displayedItems, renderPlan.displayedHighlight)
         }
         if (scheduleLayoutCheck) {
             schedulePinyinOverflowHintUpdate()
@@ -1284,9 +1284,6 @@ class CandidatesView(
         t9RenderedPinyinWindowStart = state.windowStart
         return ready
     }
-
-    private fun pinyinDisplayedItems(rowPlan: T9PinyinOverflowPolicy.Plan?): List<String> =
-        t9RenderedPinyinItems.take(rowPlan?.visibleCount ?: t9RenderedPinyinItems.size)
 
     private var bottomInsets = 0
 
