@@ -19,3 +19,9 @@ The flow should return command lists rather than directly executing adapter
 methods. This keeps multi-step key behavior, such as Smart English `1` and `#`
 follow-up actions, testable as ordered outcomes before Android/Fcitx side
 effects run.
+
+Commands should stay at the domain level. For example, the flow may request
+`CommitSmartEnglishCandidate` with spacing/prediction policy and then
+`ShowEnglishPunctuationCandidates`, but it should not compute the committed
+word text or reset Smart English internals itself. The session modules keep
+their own locality; the key flow coordinates user-facing actions.
