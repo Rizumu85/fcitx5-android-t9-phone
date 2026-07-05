@@ -6,7 +6,6 @@
 package org.fcitx.fcitx5.android.input.t9
 
 import org.fcitx.fcitx5.android.core.FcitxEvent
-import org.fcitx.fcitx5.android.core.FormattedText
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrientation
 
 class T9CandidateUiStateBuilder(
@@ -234,17 +233,8 @@ class T9CandidateUiStateBuilder(
                     }
                 }
             }
-            // Product decision: Chinese T9 should use the same stable bubble placement as Smart
-            // English. Anchoring above the cursor made Chinese composition feel like a different
-            // UI surface and was called out as visually wrong after the layout-experiment revert.
-            val nextPreferAboveCursorAnchor = false
-            val panelToShow = if (suppressEmptyT9Candidates) {
+            if (suppressEmptyT9Candidates) {
                 delegate.clearHiddenChineseT9CompositionIfCandidateUiSuppressed()
-                FcitxEvent.InputPanelEvent.Data()
-            } else {
-                t9State?.topReading?.let {
-                    FcitxEvent.InputPanelEvent.Data(it, input.inputPanel.auxUp, input.inputPanel.auxDown)
-                } ?: input.inputPanel
             }
             val pinyinOptions = t9State?.pinyinOptions ?: emptyList()
             val shownState = ShownState(
@@ -256,25 +246,22 @@ class T9CandidateUiStateBuilder(
                 usesLocalBudget = presentationPlan.usesLocalBudget,
                 matchedPrefix = presentationPlan.matchedPrefix
             )
+            val focus = delegate.effectiveT9CandidateFocus(
+                pinyinOptions = pinyinOptions,
+                useT9PinyinRow = chineseT9Active
+            )
             Result(
-                renderState = T9CandidateRenderState(
-                    panel = panelToShow,
-                    candidates = effectivePaged,
-                    orientation = input.orientation,
-                    showShortcutLabels = shouldShowT9BottomShortcutLabels(effectivePaged, shownState, chineseT9Active),
-                    reservePreeditRow = t9State?.reserveTopReadingRow == true,
-                    pinyinOptions = pinyinOptions,
-                    pinyinUseT9 = chineseT9Active,
-                    focus = delegate.effectiveT9CandidateFocus(
-                        pinyinOptions = pinyinOptions,
-                        useT9PinyinRow = chineseT9Active
-                    ),
-                    preferAboveCursorAnchor = nextPreferAboveCursorAnchor,
-                    shouldShow = shouldShowT9CandidateUi(
+                renderState = T9CandidateRenderStatePlanner.plan(
+                    T9CandidateRenderStatePlanner.Input(
                         inputPanel = input.inputPanel,
-                        suppressEmptyT9Candidates = suppressEmptyT9Candidates,
-                        t9State = t9State,
-                        effectivePaged = effectivePaged
+                        candidates = effectivePaged,
+                        orientation = input.orientation,
+                        usesSmartEnglish = shownState.usesSmartEnglish,
+                        usesPendingPunctuation = shownState.usesPendingPunctuation,
+                        chineseT9Active = chineseT9Active,
+                        suppressEmptyCandidates = suppressEmptyT9Candidates,
+                        presentationState = t9State,
+                        focus = focus
                     )
                 ),
                 shownState = shownState
@@ -305,37 +292,4 @@ class T9CandidateUiStateBuilder(
             ?: effectivePaged.candidates.firstOrNull()?.text
     }
 
-    private fun shouldShowT9BottomShortcutLabels(
-        data: FcitxEvent.PagedCandidateEvent.Data,
-        shownState: ShownState,
-        chineseT9Active: Boolean
-    ): Boolean =
-        data.candidates.isNotEmpty() &&
-            (shownState.usesSmartEnglish || shownState.usesPendingPunctuation || chineseT9Active)
-
-    private fun shouldShowT9CandidateUi(
-        inputPanel: FcitxEvent.InputPanelEvent.Data,
-        suppressEmptyT9Candidates: Boolean,
-        t9State: T9PresentationState?,
-        effectivePaged: FcitxEvent.PagedCandidateEvent.Data
-    ): Boolean =
-        !suppressEmptyT9Candidates && evaluateVisibility(
-            inputPanel = inputPanel,
-            topReading = t9State?.topReading,
-            pinyinRowVisible = t9State?.pinyinRowVisible == true,
-            hasVisibleCandidates = effectivePaged.candidates.isNotEmpty()
-        )
-
-    private fun evaluateVisibility(
-        inputPanel: FcitxEvent.InputPanelEvent.Data,
-        topReading: FormattedText?,
-        pinyinRowVisible: Boolean,
-        hasVisibleCandidates: Boolean
-    ): Boolean =
-        inputPanel.preedit.isNotEmpty() ||
-            hasVisibleCandidates ||
-            inputPanel.auxUp.isNotEmpty() ||
-            inputPanel.auxDown.isNotEmpty() ||
-            topReading?.isNotEmpty() == true ||
-            pinyinRowVisible
 }
