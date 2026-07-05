@@ -49,7 +49,7 @@ import org.fcitx.fcitx5.android.input.t9.T9CandidateWidthBudget
 import org.fcitx.fcitx5.android.input.t9.T9PagedCandidates
 import org.fcitx.fcitx5.android.input.t9.T9PinyinChipAdapter
 import org.fcitx.fcitx5.android.input.t9.T9PinyinOverflowPolicy
-import org.fcitx.fcitx5.android.input.t9.T9PinyinRowRenderPlanner
+import org.fcitx.fcitx5.android.input.t9.T9PinyinRowVisualPlanner
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowVisibilityPlanner
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowWidthCalculator
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowWindow
@@ -744,7 +744,6 @@ class CandidatesView(
             pinyinBarAdapter.scrollToStart()
         } else if (!topFocused) {
             t9CandidateUiSnapshotPipeline.currentPinyinWindowState()?.let(::renderPinyinWindow)
-            pinyinRowWrapper.post(::updatePinyinOverflowHintFromLayout)
         }
         pinyinBarAdapter.setHighlightActive(topFocused)
         candidatesUi.setHighlightActive(!topFocused)
@@ -894,10 +893,19 @@ class CandidatesView(
         setPinyinRowHeight(pinyinBarRowHeightPx)
         pinyinBarView.visibility = View.VISIBLE
         pinyinRowWrapper.visibility = View.VISIBLE
-        schedulePinyinOverflowHintUpdate()
         if (showAfterPositioned) {
             showWhenPositioned(true)
         }
+    }
+
+    private fun waitForPinyinRowLayout() {
+        pinyinRowTargetVisible = true
+        resetPinyinRowTransform()
+        setPinyinRowHeight(pinyinBarRowHeightPx)
+        // Product requirement: the first pinyin-filter frame must be complete. Keep the row in
+        // layout but invisible until both the Hanzi row width and chip row placement are known.
+        pinyinBarView.visibility = View.INVISIBLE
+        pinyinRowWrapper.visibility = View.INVISIBLE
     }
 
     private fun setPinyinRowVisible(visible: Boolean): Boolean {
@@ -918,20 +926,9 @@ class CandidatesView(
             T9PinyinRowVisibilityPlanner.SetVisibleAction.NOOP_READY -> true
             T9PinyinRowVisibilityPlanner.SetVisibleAction.SYNC_VISIBLE_LAYOUT ->
                 syncVisiblePinyinRowLayout()
-            T9PinyinRowVisibilityPlanner.SetVisibleAction.SHOW_NOW -> {
-                resetPinyinRowTransform()
-                setPinyinRowHeight(pinyinBarRowHeightPx)
-                showPinyinRowNow()
-                true
-            }
+            T9PinyinRowVisibilityPlanner.SetVisibleAction.WAIT_FOR_LAYOUT,
             T9PinyinRowVisibilityPlanner.SetVisibleAction.WAIT_FOR_WIDTH -> {
-                resetPinyinRowTransform()
-                setPinyinRowHeight(pinyinBarRowHeightPx)
-                // Product requirement: the pinyin row must never spill into the Hanzi row. Keep
-                // its vertical reservation deterministic even while width is waiting for the
-                // candidate row's first measured pass.
-                pinyinBarView.visibility = View.INVISIBLE
-                pinyinRowWrapper.visibility = View.INVISIBLE
+                waitForPinyinRowLayout()
                 pinyinRowWrapper.post {
                     when (T9PinyinRowVisibilityPlanner.planDeferredWidth(
                         targetVisible = pinyinRowTargetVisible,
@@ -988,7 +985,7 @@ class CandidatesView(
             renderPinyinWindow(
                 state = it,
                 candidateRowWidthPx = null,
-                scheduleLayoutCheck = false,
+                resetScrollOnChange = false,
                 updateVisibility = false
             )
         }
@@ -996,9 +993,6 @@ class CandidatesView(
         setPinyinRowHeight(pinyinBarRowHeightPx)
         if (widthReady && pinyinRowWrapper.visibility == View.INVISIBLE) {
             showPinyinRowNow()
-        }
-        if (widthReady) {
-            schedulePinyinOverflowHintUpdate()
         }
         return widthReady
     }
@@ -1039,16 +1033,20 @@ class CandidatesView(
     }
 
     private fun setPinyinRowWidth(width: Int) {
-        (pinyinBarView.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
-            if (params.width != width) {
-                params.width = width
-                pinyinBarView.layoutParams = params
-            }
-        }
+        setPinyinBarWidth(width)
         (pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
             if (params.width != width) {
                 params.width = width
                 pinyinRowWrapper.layoutParams = params
+            }
+        }
+    }
+
+    private fun setPinyinBarWidth(width: Int) {
+        (pinyinBarView.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+            if (params.width != width) {
+                params.width = width
+                pinyinBarView.layoutParams = params
             }
         }
     }
@@ -1062,7 +1060,9 @@ class CandidatesView(
                 items = visiblePinyin,
                 minVisibleChips = T9_PINYIN_ROW_MIN_VISIBLE_CHIPS,
                 chipHorizontalPaddingPx = dpCandidates(itemPaddingHorizontal),
-                overflowHintWidthPx = pinyinOverflowHintReservedWidthPx(),
+                chipSpacingPx = dpCandidates(itemPaddingHorizontal),
+                overflowHintTextWidthPx = pinyinOverflowHintTextWidthPx(),
+                overflowHintSpacingPx = dpCandidates(itemPaddingHorizontal),
                 foldedEdgeSafetyPx = dp(T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP),
                 measureTextWidthPx = { pinyinTextWidthPx(it, paint) }
             )
@@ -1093,16 +1093,17 @@ class CandidatesView(
     }
 
     private fun currentSurfaceLayoutPlan(
-        candidateRowWidthPx: Int? = null
+        candidateRowWidthPx: Int? = null,
+        widths: T9PinyinRowWidthCalculator.Widths? = pinyinRowWidths()
     ): T9CandidateSurfaceLayout.Plan? {
         if (t9RenderedPinyinItems.isEmpty()) return null
-        val widths = pinyinRowWidths() ?: return null
+        val resolvedWidths = widths ?: return null
         return T9CandidateSurfaceLayout.plan(
             T9CandidateSurfaceLayout.Input(
                 candidateMeasuredWidthPx = candidateRowWidthPx ?: currentCandidateRowWidthForPinyinPolicy(),
                 pinyinCount = t9RenderedPinyinItems.size,
-                pinyinFullContentWidthPx = widths.fullContentWidthPx,
-                pinyinFoldedContentWidthPx = widths.foldedContentWidthPx,
+                pinyinFullContentWidthPx = resolvedWidths.fullContentWidthPx,
+                pinyinFoldedContentWidthPx = resolvedWidths.foldedContentWidthPx,
                 maxRowWidthPx = pinyinRowMaxWidthPx(),
                 minVisiblePinyinChips = T9_PINYIN_ROW_MIN_VISIBLE_CHIPS,
                 pinyinRowFocused = service.getT9CandidateFocus() == T9CandidateFocus.TOP
@@ -1126,49 +1127,30 @@ class CandidatesView(
         return null
     }
 
-    private fun pinyinOverflowHintReservedWidthPx(): Int {
+    private fun pinyinOverflowHintTextWidthPx(): Int {
         val paint = configuredPinyinMeasurePaint()
-        return (ceil(paint.measureText("\u2026").toDouble()).toInt() + dpCandidates(itemPaddingHorizontal) * 2)
+        return ceil(paint.measureText("\u2026").toDouble()).toInt()
             .coerceAtLeast(dp(T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP))
     }
 
-    private fun updatePinyinOverflowHint(visible: Boolean) {
+    private fun updatePinyinOverflowHint(visible: Boolean, startPx: Int = 0) {
         val targetVisibility = if (visible) View.VISIBLE else View.GONE
         if (pinyinOverflowHint.visibility != targetVisibility) {
             pinyinOverflowHint.visibility = targetVisibility
         }
-        val rightPadding = when {
-            visible -> pinyinOverflowHintReservedWidthPx()
-            else -> 0
+        (pinyinOverflowHint.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+            val targetMargin = if (visible) startPx else 0
+            val targetGravity = Gravity.START or Gravity.CENTER_VERTICAL
+            if (params.leftMargin != targetMargin || params.gravity != targetGravity) {
+                params.leftMargin = targetMargin
+                params.gravity = targetGravity
+                pinyinOverflowHint.layoutParams = params
+            }
         }
-        if (pinyinBarView.paddingRight != rightPadding) {
-            pinyinBarView.setPadding(0, 0, rightPadding, 0)
+        if (pinyinBarView.paddingRight != 0) {
+            pinyinBarView.setPadding(0, 0, 0, 0)
         }
-        pinyinBarView.clipToPadding = rightPadding > 0
-    }
-
-    private fun schedulePinyinOverflowHintUpdate() {
-        pinyinRowWrapper.post {
-            updatePinyinOverflowHintFromLayout()
-        }
-    }
-
-    private fun updatePinyinOverflowHintFromLayout() {
-        if (!pinyinRowTargetVisible || pinyinRowWrapper.visibility != View.VISIBLE) {
-            updatePinyinOverflowHint(false)
-            return
-        }
-        val state = t9CandidateUiSnapshotPipeline.currentPinyinWindowState()
-        if (state == null) {
-            updatePinyinOverflowHint(false)
-            return
-        }
-        renderPinyinWindow(
-            state = state,
-            candidateRowWidthPx = currentCandidateRowWidthForPinyinPolicy(),
-            scheduleLayoutCheck = false,
-            updateVisibility = false
-        )
+        pinyinBarView.clipToPadding = false
     }
 
     private fun pinyinRowMaxWidthPx(): Int {
@@ -1254,35 +1236,47 @@ class CandidatesView(
         renderPinyinWindow(
             state = state,
             candidateRowWidthPx = null,
-            scheduleLayoutCheck = true,
+            resetScrollOnChange = true,
             updateVisibility = true
         )
 
     private fun renderPinyinWindow(
         state: T9PinyinRowWindow.VisibleState,
         candidateRowWidthPx: Int?,
-        scheduleLayoutCheck: Boolean,
+        resetScrollOnChange: Boolean,
         updateVisibility: Boolean
     ): Boolean {
         t9RenderedPinyinItems = state.items
-        val surfacePlan = currentSurfaceLayoutPlan(candidateRowWidthPx)
+        val rowWidths = pinyinRowWidths()
             ?: return false
+        val surfacePlan = currentSurfaceLayoutPlan(candidateRowWidthPx, rowWidths)
+            ?: run {
+                if (updateVisibility) {
+                    waitForPinyinRowLayout()
+                }
+                return false
+            }
         val rowPlan = surfacePlan.pinyin
-        val renderPlan = T9PinyinRowRenderPlanner.plan(
-            state = state,
-            rowPlan = rowPlan,
-            focusedViewportWidthPx = surfacePlan.rowWidthPx ?: pinyinRowViewportWidthPx(),
-            focusedEdgeGuardPx = dp(T9_PINYIN_ROW_FOCUSED_EDGE_GUARD_DP),
-            chipWidthsPx = pinyinChipWidthsPx(state.items),
-            chipSpacingPx = dpCandidates(itemPaddingHorizontal)
+        val chipWidths = pinyinChipWidthsPx(state.items)
+        val visualPlan = T9PinyinRowVisualPlanner.plan(
+            T9PinyinRowVisualPlanner.Input(
+                state = state,
+                rowPlan = rowPlan,
+                rowWidthPx = surfacePlan.rowWidthPx ?: pinyinRowViewportWidthPx() ?: rowWidths.fullContentWidthPx,
+                widths = rowWidths,
+                chipWidthsPx = chipWidths,
+                chipSpacingPx = dpCandidates(itemPaddingHorizontal),
+                focusedScale = T9_PINYIN_ROW_FOCUSED_SCALE
+            )
         )
-        t9RenderedPinyinUsesWindowedDisplay = renderPlan.usesWindowedDisplay
-        updatePinyinOverflowHint(renderPlan.showOverflowHint)
+        t9RenderedPinyinUsesWindowedDisplay = visualPlan.usesWindowedDisplay
+        updatePinyinOverflowHint(
+            visible = visualPlan.showOverflowHint,
+            startPx = visualPlan.overflowHintStartPx
+        )
+        setPinyinBarWidth(visualPlan.pinyinBarWidthPx)
         val changed = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.submit") {
-            pinyinBarAdapter.submitList(renderPlan.displayedItems, renderPlan.displayedHighlight)
-        }
-        if (scheduleLayoutCheck) {
-            schedulePinyinOverflowHintUpdate()
+            pinyinBarAdapter.submitList(visualPlan.displayedItems, visualPlan.displayedHighlight)
         }
         val ready = if (updateVisibility) {
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.visibility") {
@@ -1291,7 +1285,7 @@ class CandidatesView(
         } else {
             true
         }
-        if (changed && scheduleLayoutCheck) {
+        if (changed && resetScrollOnChange) {
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.scroll") {
                 pinyinBarAdapter.scrollToStart()
             }
@@ -1484,7 +1478,6 @@ class CandidatesView(
                 )) {
                     T9PinyinRowVisibilityPlanner.LayoutPassAction.APPLY_WIDTH -> {
                         setPinyinRowWidth(targetWidth)
-                        schedulePinyinOverflowHintUpdate()
                     }
                     T9PinyinRowVisibilityPlanner.LayoutPassAction.SHOW_WAITING_ROW -> {
                         if (widthChanged) {
@@ -1533,8 +1526,8 @@ class CandidatesView(
         private const val T9_BULK_FILTER_LIMIT = 80
         private const val T9_PINYIN_TO_HANZI_GAP_DP = 2
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
-        private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 18
-        private const val T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP = 4
-        private const val T9_PINYIN_ROW_FOCUSED_EDGE_GUARD_DP = 8
+        private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 10
+        private const val T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP = 2
+        private const val T9_PINYIN_ROW_FOCUSED_SCALE = 1.06f
     }
 }

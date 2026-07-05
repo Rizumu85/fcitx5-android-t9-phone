@@ -38,7 +38,9 @@ class T9PinyinRowWidthCalculatorTest {
             items = items,
             minVisibleChips = 2,
             chipHorizontalPaddingPx = 4,
-            overflowHintWidthPx = 12,
+            chipSpacingPx = 4,
+            overflowHintTextWidthPx = 12,
+            overflowHintSpacingPx = 4,
             foldedEdgeSafetyPx = 6,
             measureTextWidthPx = { it.length * 10 }
         )

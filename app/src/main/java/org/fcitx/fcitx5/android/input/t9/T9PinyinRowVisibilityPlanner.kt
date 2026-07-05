@@ -22,7 +22,7 @@ object T9PinyinRowVisibilityPlanner {
         NOOP_READY,
         HIDE_NOW,
         SYNC_VISIBLE_LAYOUT,
-        SHOW_NOW,
+        WAIT_FOR_LAYOUT,
         WAIT_FOR_WIDTH
     }
 
@@ -47,11 +47,10 @@ object T9PinyinRowVisibilityPlanner {
         if (!requestedVisible) {
             return SetVisibleAction.HIDE_NOW
         }
-        return if (widthReady) {
-            SetVisibleAction.SHOW_NOW
-        } else {
-            SetVisibleAction.WAIT_FOR_WIDTH
-        }
+        if (!widthReady) return SetVisibleAction.WAIT_FOR_WIDTH
+        // Product decision: a freshly appearing pinyin row must not draw until its chip views have
+        // received one layout pass. Width readiness alone still allowed a one-frame clipped row.
+        return SetVisibleAction.WAIT_FOR_LAYOUT
     }
 
     enum class DeferredWidthAction {

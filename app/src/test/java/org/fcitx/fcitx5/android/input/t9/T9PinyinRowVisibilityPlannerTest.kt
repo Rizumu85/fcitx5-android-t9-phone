@@ -55,14 +55,14 @@ class T9PinyinRowVisibilityPlannerTest {
     }
 
     @Test
-    fun showRequestCanShowImmediatelyWhenWidthIsReady() {
+    fun freshShowRequestWaitsForOneLayoutEvenWhenWidthIsReady() {
         val action = T9PinyinRowVisibilityPlanner.planSetVisible(
             requestedVisible = true,
             snapshot = snapshot(targetVisible = false),
             widthReady = true
         )
 
-        assertEquals(SetVisibleAction.SHOW_NOW, action)
+        assertEquals(SetVisibleAction.WAIT_FOR_LAYOUT, action)
     }
 
     @Test
