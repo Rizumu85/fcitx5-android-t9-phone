@@ -523,8 +523,9 @@ class PhysicalT9KeyHandler(private val host: Host) {
                     KeyResult(handled = false)
                 } else {
                     if (!poundLongPressTriggered) {
+                        val interruptedSmartEnglish = interruptSmartEnglishCandidates()
                         val hadPendingChar =
-                            host.commitSmartEnglishCandidate() ||
+                            (!interruptedSmartEnglish && host.commitSmartEnglishCandidate()) ||
                                 host.commitMultiTapChar() ||
                                 host.commitPendingPunctuation()
                         if (!hadPendingChar) {
@@ -622,17 +623,13 @@ class PhysicalT9KeyHandler(private val host: Host) {
             if (host.pendingPunctuationOneKeyDeferred &&
                 host.pendingPunctuationSet == PunctuationSet.ENGLISH
             ) {
-                if (host.hasSmartEnglishDigits) {
-                    host.commitSmartEnglishCandidate()
-                }
+                interruptSmartEnglishCandidates()
                 host.showSmartEnglishPunctuationCandidates()
                 host.setPendingPunctuationOneKeyDeferred(false)
                 return true
             }
             if (host.hasPendingPunctuation) return true
-            if (host.hasSmartEnglishDigits) {
-                host.commitSmartEnglishCandidate()
-            }
+            interruptSmartEnglishCandidates()
             true
         }
         Mode.CHINESE -> handleChineseDigitKeyUp(keyCode, null)
@@ -668,6 +665,12 @@ class PhysicalT9KeyHandler(private val host: Host) {
             setDigitLongPressFlag(keyCode, false)
             true
         }
+    }
+
+    private fun interruptSmartEnglishCandidates(): Boolean {
+        if (!host.isSmartEnglishActive || !host.hasSmartEnglishCandidates) return false
+        host.resetSmartEnglishT9()
+        return true
     }
 
     private fun handleChineseDigitKeyUp(keyCode: Int, input: KeyInput?): Boolean {

@@ -175,6 +175,44 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
+    fun smartEnglishOneKeyInterruptsPredictionBeforeShowingPunctuation() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.ENGLISH,
+            isSmartEnglishActive = true,
+            hasSmartEnglishDigits = false,
+            hasSmartEnglishCandidates = true
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN)).handled)
+        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP)).handled)
+
+        assertEquals(1, host.resetSmartEnglishCount)
+        assertEquals(1, host.showSmartEnglishPunctuationCount)
+        assertEquals(0, host.commitSmartEnglishCandidateCount)
+        assertEquals(emptyList<String>(), host.committedTexts)
+    }
+
+    @Test
+    fun smartEnglishPoundShortPressInterruptsPredictionBeforeReturn() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.ENGLISH,
+            isSmartEnglishActive = true,
+            hasSmartEnglishDigits = false,
+            hasSmartEnglishCandidates = true
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN)).handled)
+        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP)).handled)
+
+        assertEquals(1, host.resetSmartEnglishCount)
+        assertEquals(1, host.handleReturnCount)
+        assertEquals(0, host.commitSmartEnglishCandidateCount)
+        assertEquals(emptyList<String>(), host.committedTexts)
+    }
+
+    @Test
     fun chineseZeroShortPressCommitsHighlightedHanziWithoutSpace() {
         val host = FakeHost(
             mode = PhysicalT9KeyHandler.Mode.CHINESE,
@@ -246,6 +284,8 @@ class PhysicalT9KeyHandlerTest {
         var flushEnglishLearningCount = 0
         var commitSmartEnglishCandidateCount = 0
         var commitHighlightedBottomCandidateCount = 0
+        var showSmartEnglishPunctuationCount = 0
+        var handleReturnCount = 0
         override val pendingPunctuationOneKeyDeferred: Boolean
             get() = pendingPunctuationOneKeyDeferredState
 
@@ -280,8 +320,13 @@ class PhysicalT9KeyHandlerTest {
         override fun handleMultiTapKey(keyCode: Int): Boolean = false
         override fun commitMultiTapChar(): Boolean = false
         override fun cancelMultiTapChar() = Unit
-        override fun deferSmartEnglishPunctuationKey() = Unit
-        override fun showSmartEnglishPunctuationCandidates() = Unit
+        override fun deferSmartEnglishPunctuationKey() {
+            pendingPunctuationOneKeyDeferredState = true
+            pendingPunctuationSet = PhysicalT9KeyHandler.PunctuationSet.ENGLISH
+        }
+        override fun showSmartEnglishPunctuationCandidates() {
+            showSmartEnglishPunctuationCount += 1
+        }
 
         override fun appendSmartEnglishDigit(digit: Int) {
             appendedSmartEnglishDigits += digit
@@ -309,7 +354,9 @@ class PhysicalT9KeyHandlerTest {
             flushEnglishLearningCount += 1
         }
 
-        override fun handleReturnKey() = Unit
+        override fun handleReturnKey() {
+            handleReturnCount += 1
+        }
         override fun forwardChineseT9KeyShortPress(
             keyCode: Int,
             input: PhysicalT9KeyHandler.KeyInput
