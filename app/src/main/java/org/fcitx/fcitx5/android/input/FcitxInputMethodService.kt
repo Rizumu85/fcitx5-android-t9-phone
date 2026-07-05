@@ -79,6 +79,7 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSnapshotCache
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSnapshotKey
 import org.fcitx.fcitx5.android.input.t9.ChineseT9RimeBridge
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHandler
+import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHostAdapter
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9Coordinator
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
@@ -142,134 +143,78 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         showEqualsChoice = { prefix, result -> inputView?.showNumberEqualsChoice(prefix, result) },
         hideEqualsChoice = { inputView?.hideNumberEqualsChoice() }
     )
-    private val physicalT9KeyHandler = PhysicalT9KeyHandler(object : PhysicalT9KeyHandler.Host {
-        override val isInInputMode: Boolean
-            get() = inputDeviceMgr.isInInputMode
-        override val mode: PhysicalT9KeyHandler.Mode
-            get() = when (currentT9Mode) {
-                T9InputMode.CHINESE -> PhysicalT9KeyHandler.Mode.CHINESE
-                T9InputMode.ENGLISH -> PhysicalT9KeyHandler.Mode.ENGLISH
-                T9InputMode.NUMBER -> PhysicalT9KeyHandler.Mode.NUMBER
+    private val physicalT9KeyHost = PhysicalT9KeyHostAdapter(
+        state = PhysicalT9KeyHostAdapter.State(
+            isInInputMode = { inputDeviceMgr.isInInputMode },
+            mode = { currentT9Mode },
+            isSmartEnglishActive = ::isSmartEnglishT9Active,
+            chineseComposing = { getT9InputState() == T9InputState.CHINESE_COMPOSING },
+            compositionKeyCount = ::getT9CompositionKeyCount,
+            hasPendingPunctuation = { t9PunctuationCoordinator.isPending },
+            pendingPunctuationOneKeyDeferred = { t9PunctuationCoordinator.oneKeyDeferred },
+            pendingPunctuationSet = { t9PunctuationCoordinator.physicalSet },
+            hasSmartEnglishDigits = { smartEnglishCoordinator.hasDigits },
+            hasSmartEnglishCandidates = { smartEnglishCoordinator.hasCandidates },
+            hasMultiTapPendingChar = { multiTapSession.hasPendingChar },
+            hasTopPinyinCandidates = { getT9PinyinCandidates().isNotEmpty() },
+            candidateFocus = ::getT9CandidateFocus,
+            keyHeldPastLongPressDelay = { input ->
+                input.repeatCount > 0 &&
+                    input.eventTime - input.downTime >= physicalLongPressDelay.toLong()
             }
-        override val isSmartEnglishActive: Boolean
-            get() = isSmartEnglishT9Active()
-        override val chineseComposing: Boolean
-            get() = getT9InputState() == T9InputState.CHINESE_COMPOSING
-        override val compositionKeyCount: Int
-            get() = getT9CompositionKeyCount()
-        override val hasPendingPunctuation: Boolean
-            get() = t9PunctuationCoordinator.isPending
-        override val pendingPunctuationOneKeyDeferred: Boolean
-            get() = t9PunctuationCoordinator.oneKeyDeferred
-        override val pendingPunctuationSet: PhysicalT9KeyHandler.PunctuationSet
-            get() = t9PunctuationCoordinator.physicalSet
-        override val hasSmartEnglishDigits: Boolean
-            get() = smartEnglishCoordinator.hasDigits
-        override val hasSmartEnglishCandidates: Boolean
-            get() = smartEnglishCoordinator.hasCandidates
-        override val hasMultiTapPendingChar: Boolean
-            get() = multiTapSession.hasPendingChar
-        override val hasTopPinyinCandidates: Boolean
-            get() = getT9PinyinCandidates().isNotEmpty()
-        override val candidateFocus: PhysicalT9KeyHandler.CandidateFocus
-            get() = when (getT9CandidateFocus()) {
-                T9CandidateFocus.TOP -> PhysicalT9KeyHandler.CandidateFocus.TOP
-                T9CandidateFocus.BOTTOM -> PhysicalT9KeyHandler.CandidateFocus.BOTTOM
-            }
-
-        override fun keyHeldPastLongPressDelay(input: PhysicalT9KeyHandler.KeyInput): Boolean =
-            input.repeatCount > 0 &&
-                input.eventTime - input.downTime >= physicalLongPressDelay.toLong()
-
-        override fun setPendingPunctuationOneKeyDeferred(value: Boolean) {
-            t9PunctuationCoordinator.setOneKeyDeferred(value)
-        }
-
-        override fun commitPendingPunctuationShortcut(keyCode: Int): Boolean =
-            commitPendingT9PunctuationShortcut(keyCode)
-
-        override fun commitHanziShortcut(keyCode: Int): Boolean =
-            commitT9HanziShortcutFromLongPress(keyCode)
-
-        override fun commitSmartEnglishShortcut(keyCode: Int): Boolean =
-            commitSmartEnglishShortcutFromLongPress(keyCode)
-
-        override fun commitPendingPunctuation(): Boolean = commitPendingT9Punctuation()
-        override fun cancelPendingPunctuation(): Boolean = cancelPendingT9Punctuation()
-        override fun handleChinesePunctuationKey(): Boolean =
-            this@FcitxInputMethodService.handleChinesePunctuationKey()
-
-        override fun togglePendingPunctuationSet(): Boolean =
-            this@FcitxInputMethodService.togglePendingT9PunctuationSet()
-        override fun switchToNextMode() = switchToNextT9Mode()
-        override fun commitText(text: String) = this@FcitxInputMethodService.commitText(text)
-
-        override fun commitNumberOperatorForKey(keyCode: Int, fallbackDigit: Int): Boolean {
-            val operator = numberModeController.operatorForKey(keyCode) ?: DIGIT_TEXTS[fallbackDigit]
-            return commitNumberModeOperator(operator)
-        }
-
-        override fun showNumberOperatorHintPanel() = this@FcitxInputMethodService.showNumberOperatorHintPanel()
-        override fun commitLiteralStarInCurrentChineseState() = commitLiteralT9Star(getT9InputState())
-        override fun handleEnglishStarShortPress() = this@FcitxInputMethodService.handleEnglishStarShortPress()
-        override fun handleEnglishStarLongPress() = this@FcitxInputMethodService.handleEnglishStarLongPress()
-        override fun handleMultiTapKey(keyCode: Int): Boolean = this@FcitxInputMethodService.handleMultiTapKey(keyCode)
-        override fun commitMultiTapChar(): Boolean = this@FcitxInputMethodService.commitMultiTapChar()
-        override fun cancelMultiTapChar() = this@FcitxInputMethodService.cancelMultiTapChar()
-        override fun showSmartEnglishPunctuationCandidates() =
-            this@FcitxInputMethodService.showSmartEnglishPunctuationCandidates()
-
-        override fun appendSmartEnglishDigit(digit: Int) {
-            smartEnglishCoordinator.appendDigit(digit)
-        }
-
-        override fun resetSmartEnglishT9() = this@FcitxInputMethodService.resetSmartEnglishT9()
-        override fun commitSmartEnglishCandidate(
-            appendSpace: Boolean,
-            continuePrediction: Boolean
-        ): Boolean =
-            this@FcitxInputMethodService.commitSmartEnglishCandidate(
-                appendSpace = appendSpace,
-                continuePrediction = continuePrediction
-            )
-
-        override fun moveSmartEnglishCandidate(delta: Int): Boolean =
-            this@FcitxInputMethodService.moveSmartEnglishCandidate(delta)
-
-        override fun smartEnglishBackspace(): Boolean = handleSmartEnglishBackspace()
-        override fun flushEnglishLearningWord() = this@FcitxInputMethodService.flushEnglishLearningWord()
-        override fun handleReturnKey() = this@FcitxInputMethodService.handleReturnKey()
-        override fun forwardChineseT9KeyShortPress(
-            keyCode: Int,
-            input: PhysicalT9KeyHandler.KeyInput
-        ): Boolean =
-            this@FcitxInputMethodService.forwardChineseT9KeyShortPress(keyCode, input)
-
-        override fun forwardChineseT9SeparatorShortPress(): Boolean =
-            this@FcitxInputMethodService.forwardChineseT9SeparatorShortPress()
-
-        override fun moveCandidateFocus(focus: PhysicalT9KeyHandler.CandidateFocus) {
-            moveT9CandidateFocus(
-                when (focus) {
-                    PhysicalT9KeyHandler.CandidateFocus.TOP -> T9CandidateFocus.TOP
-                    PhysicalT9KeyHandler.CandidateFocus.BOTTOM -> T9CandidateFocus.BOTTOM
-                }
-            )
-        }
-
-        override fun moveHighlightedPinyin(delta: Int): Boolean =
-            candidatesView?.moveHighlightedT9Pinyin(delta) == true
-
-        override fun moveHighlightedBottomCandidate(delta: Int): Boolean =
-            candidatesView?.moveHighlightedT9BottomCandidate(delta) == true
-
-        override fun offsetBottomCandidatePage(delta: Int): Boolean =
-            candidatesView?.offsetT9BottomCandidatePage(delta) == true
-
-        override fun commitHighlightedPinyin(): Boolean = commitHighlightedT9Pinyin()
-        override fun commitHighlightedBottomCandidate(): Boolean =
-            candidatesView?.commitHighlightedT9BottomCandidate() == true
-    })
+        ),
+        punctuation = PhysicalT9KeyHostAdapter.PunctuationActions(
+            setOneKeyDeferred = { value -> t9PunctuationCoordinator.setOneKeyDeferred(value) },
+            commitShortcut = ::commitPendingT9PunctuationShortcut,
+            commit = ::commitPendingT9Punctuation,
+            cancel = ::cancelPendingT9Punctuation,
+            handleChineseKey = ::handleChinesePunctuationKey,
+            toggleSet = ::togglePendingT9PunctuationSet,
+            showSmartEnglishCandidates = ::showSmartEnglishPunctuationCandidates
+        ),
+        english = PhysicalT9KeyHostAdapter.EnglishActions(
+            commitSmartEnglishShortcut = ::commitSmartEnglishShortcutFromLongPress,
+            appendSmartEnglishDigit = { digit -> smartEnglishCoordinator.appendDigit(digit) },
+            resetSmartEnglish = ::resetSmartEnglishT9,
+            commitSmartEnglishCandidate = { appendSpace, continuePrediction ->
+                commitSmartEnglishCandidate(
+                    appendSpace = appendSpace,
+                    continuePrediction = continuePrediction
+                )
+            },
+            moveSmartEnglishCandidate = ::moveSmartEnglishCandidate,
+            smartEnglishBackspace = ::handleSmartEnglishBackspace,
+            flushLearningWord = ::flushEnglishLearningWord,
+            handleStarShortPress = ::handleEnglishStarShortPress,
+            handleStarLongPress = ::handleEnglishStarLongPress,
+            handleMultiTapKey = ::handleMultiTapKey,
+            commitMultiTapChar = ::commitMultiTapChar,
+            cancelMultiTapChar = ::cancelMultiTapChar
+        ),
+        candidates = PhysicalT9KeyHostAdapter.CandidateActions(
+            commitHanziShortcut = ::commitT9HanziShortcutFromLongPress,
+            moveFocus = ::moveT9CandidateFocus,
+            moveHighlightedPinyin = { delta -> candidatesView?.moveHighlightedT9Pinyin(delta) == true },
+            moveHighlightedBottomCandidate = { delta -> candidatesView?.moveHighlightedT9BottomCandidate(delta) == true },
+            offsetBottomCandidatePage = { delta -> candidatesView?.offsetT9BottomCandidatePage(delta) == true },
+            commitHighlightedPinyin = ::commitHighlightedT9Pinyin,
+            commitHighlightedBottomCandidate = { candidatesView?.commitHighlightedT9BottomCandidate() == true }
+        ),
+        platform = PhysicalT9KeyHostAdapter.PlatformActions(
+            switchToNextMode = ::switchToNextT9Mode,
+            commitText = ::commitText,
+            commitNumberOperatorForKey = { keyCode, fallbackDigit ->
+                val operator = numberModeController.operatorForKey(keyCode) ?: DIGIT_TEXTS[fallbackDigit]
+                commitNumberModeOperator(operator)
+            },
+            showNumberOperatorHintPanel = ::showNumberOperatorHintPanel,
+            commitLiteralStarInCurrentChineseState = { commitLiteralT9Star(getT9InputState()) },
+            handleReturnKey = ::handleReturnKey,
+            forwardChineseT9KeyShortPress = ::forwardChineseT9KeyShortPress,
+            forwardChineseT9SeparatorShortPress = ::forwardChineseT9SeparatorShortPress
+        )
+    )
+    private val physicalT9KeyHandler = PhysicalT9KeyHandler(physicalT9KeyHost)
 
     private fun isTemporaryPasswordKeyboardVisible(): Boolean =
         inputView?.isTemporaryPasswordKeyboardVisible() == true
