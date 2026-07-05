@@ -1076,6 +1076,7 @@ class CandidatesView(
     private fun pinyinTextWidthPx(text: String): Int {
         val paint = t9PinyinMeasurePaint.apply {
             textSize = compactTopRowFontSizeSp * ctx.resources.displayMetrics.scaledDensity
+            InputUiFont.applyTo(this)
         }
         return ceil(paint.measureText(text).toDouble()).toInt()
     }
@@ -1271,6 +1272,7 @@ class CandidatesView(
             state = state,
             rowPlan = rowPlan,
             focusedViewportWidthPx = surfacePlan?.rowWidthPx ?: pinyinRowViewportWidthPx(),
+            focusedEdgeGuardPx = dp(T9_PINYIN_ROW_FOCUSED_EDGE_GUARD_DP),
             chipWidthsPx = pinyinChipWidthsPx(state.items),
             chipSpacingPx = dpCandidates(itemPaddingHorizontal)
         )
@@ -1541,5 +1543,6 @@ class CandidatesView(
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
         private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 18
         private const val T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP = 8
+        private const val T9_PINYIN_ROW_FOCUSED_EDGE_GUARD_DP = 8
     }
 }

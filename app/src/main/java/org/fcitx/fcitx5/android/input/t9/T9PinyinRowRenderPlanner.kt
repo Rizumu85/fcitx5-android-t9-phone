@@ -17,6 +17,7 @@ object T9PinyinRowRenderPlanner {
         state: T9PinyinRowWindow.VisibleState,
         rowPlan: T9PinyinOverflowPolicy.Plan?,
         focusedViewportWidthPx: Int? = null,
+        focusedEdgeGuardPx: Int = 0,
         chipWidthsPx: List<Int> = emptyList(),
         chipSpacingPx: Int = 0
     ): Plan {
@@ -29,7 +30,7 @@ object T9PinyinRowRenderPlanner {
             focusedWindow(
                 highlightedIndex = state.highlightedIndex,
                 itemCount = state.items.size,
-                viewportWidthPx = focusedViewportWidthPx,
+                viewportWidthPx = (focusedViewportWidthPx - focusedEdgeGuardPx).coerceAtLeast(1),
                 chipWidthsPx = chipWidthsPx,
                 chipSpacingPx = chipSpacingPx
             )

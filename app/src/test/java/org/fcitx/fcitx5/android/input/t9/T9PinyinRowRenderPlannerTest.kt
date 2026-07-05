@@ -108,6 +108,25 @@ class T9PinyinRowRenderPlannerTest {
         assertTrue(plan.usesWindowedDisplay)
     }
 
+    @Test
+    fun focusedFoldedRowKeepsRightEdgeGuardForScaledHighlight() {
+        val plan = T9PinyinRowRenderPlanner.plan(
+            state = state(items = listOf("gei", "hei", "ge", "he", "g", "h"), highlightedIndex = 0),
+            rowPlan = T9PinyinOverflowPolicy.Plan(
+                folded = true,
+                showHint = false,
+                visibleCount = 6
+            ),
+            focusedViewportWidthPx = 150,
+            focusedEdgeGuardPx = 12,
+            chipWidthsPx = listOf(34, 34, 24, 24, 14, 14),
+            chipSpacingPx = 4
+        )
+
+        assertEquals(listOf("gei", "hei", "ge", "he"), plan.displayedItems)
+        assertTrue(plan.usesWindowedDisplay)
+    }
+
     private fun state(
         items: List<String>,
         highlightedIndex: Int
