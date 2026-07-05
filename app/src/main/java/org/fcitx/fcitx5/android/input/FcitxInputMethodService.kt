@@ -178,11 +178,15 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         punctuation = PhysicalT9KeyHostAdapter.PunctuationActions(
             setOneKeyDeferred = { value -> t9PunctuationCoordinator.setOneKeyDeferred(value) },
             commitShortcut = t9CandidateShortcutCommitter::commitPendingPunctuationKey,
-            commit = ::commitPendingT9Punctuation,
-            cancel = ::cancelPendingT9Punctuation,
-            handleChineseKey = ::handleChinesePunctuationKey,
-            toggleSet = ::togglePendingT9PunctuationSet,
-            showSmartEnglishCandidates = ::showSmartEnglishPunctuationCandidates
+            commit = { t9PunctuationCoordinator.commit() },
+            cancel = { t9PunctuationCoordinator.cancel() },
+            handleChineseKey = {
+                t9PunctuationCoordinator.handleChineseKey(
+                    hasCompositionKeys = getT9CompositionKeyCount() > 0
+                )
+            },
+            toggleSet = { t9PunctuationCoordinator.toggleSet() },
+            showSmartEnglishCandidates = { t9PunctuationCoordinator.showEnglishCandidates() }
         ),
         english = PhysicalT9KeyHostAdapter.EnglishActions(
             commitSmartEnglishShortcut = t9CandidateShortcutCommitter::commitSmartEnglishKey,
@@ -1645,7 +1649,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private val t9PunctuationTimeoutRunnable = Runnable {
-        commitPendingT9Punctuation()
+        t9PunctuationCoordinator.commit()
     }
 
     private fun cancelT9PunctuationTimeout() {
@@ -1753,10 +1757,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         showEnglishCaseStateOrRefreshPending()
     }
 
-    private fun showSmartEnglishPunctuationCandidates() {
-        t9PunctuationCoordinator.showEnglishCandidates()
-    }
-
     fun getPendingT9PunctuationPaged(): FcitxEvent.PagedCandidateEvent.Data? =
         t9PunctuationCoordinator.paged()
 
@@ -1765,20 +1765,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     fun previewPendingT9PunctuationCandidate(index: Int): Boolean =
         t9PunctuationCoordinator.previewCandidate(index)
-
-    private fun handleChinesePunctuationKey(): Boolean =
-        t9PunctuationCoordinator.handleChineseKey(
-            hasCompositionKeys = getT9CompositionKeyCount() > 0
-        )
-
-    private fun togglePendingT9PunctuationSet(): Boolean =
-        t9PunctuationCoordinator.toggleSet()
-
-    private fun commitPendingT9Punctuation(): Boolean =
-        t9PunctuationCoordinator.commit()
-
-    private fun cancelPendingT9Punctuation(): Boolean =
-        t9PunctuationCoordinator.cancel()
 
     private fun commitMultiTapChar(): Boolean {
         multiTapHandler.removeCallbacks(multiTapTimeoutRunnable)
@@ -1870,7 +1856,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun resetMultiTapState() {
-        commitPendingT9Punctuation()
+        t9PunctuationCoordinator.commit()
         multiTapHandler.removeCallbacks(multiTapTimeoutRunnable)
         if (multiTapSession.reset()) {
             currentInputConnection?.finishComposingText()
