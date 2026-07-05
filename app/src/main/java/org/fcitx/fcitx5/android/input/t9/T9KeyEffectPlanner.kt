@@ -13,6 +13,7 @@ class T9KeyEffectPlanner {
         val mode: PhysicalT9KeyHandler.Mode,
         val isSmartEnglishActive: Boolean,
         val hasSmartEnglishDigits: Boolean,
+        val hasSmartEnglishCandidates: Boolean,
         val hasPendingPunctuation: Boolean,
         val hasMultiTapPendingChar: Boolean,
         val hasTopPinyinCandidates: Boolean,
@@ -57,7 +58,7 @@ class T9KeyEffectPlanner {
         snapshot: Snapshot
     ): Effect {
         if (!snapshot.isSmartEnglishActive ||
-            (!snapshot.hasSmartEnglishDigits && !snapshot.hasPendingPunctuation)
+            (!snapshot.hasSmartEnglishCandidates && !snapshot.hasPendingPunctuation)
         ) {
             return Effect.None
         }
@@ -99,7 +100,7 @@ class T9KeyEffectPlanner {
         if (input.action != KeyEvent.ACTION_DOWN) return Effect.None
         if (!PhysicalT9KeyPolicy.isDeleteKey(input.keyCode)) return Effect.None
         return when {
-            snapshot.hasSmartEnglishDigits ->
+            snapshot.hasSmartEnglishCandidates ->
                 Effect.SmartEnglishDelete(hasPendingPunctuation = false, consume = true)
             snapshot.hasMultiTapPendingChar -> Effect.CancelMultiTapChar()
             snapshot.hasPendingPunctuation -> Effect.CancelPendingPunctuation()

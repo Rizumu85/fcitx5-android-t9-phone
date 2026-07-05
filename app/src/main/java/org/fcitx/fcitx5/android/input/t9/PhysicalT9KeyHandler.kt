@@ -68,6 +68,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
         val pendingPunctuationOneKeyDeferred: Boolean
         val pendingPunctuationSet: PunctuationSet
         val hasSmartEnglishDigits: Boolean
+        val hasSmartEnglishCandidates: Boolean
         val hasMultiTapPendingChar: Boolean
         val hasTopPinyinCandidates: Boolean
         val candidateFocus: CandidateFocus
@@ -449,6 +450,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
         mode = host.mode,
         isSmartEnglishActive = host.isSmartEnglishActive,
         hasSmartEnglishDigits = host.hasSmartEnglishDigits,
+        hasSmartEnglishCandidates = host.hasSmartEnglishCandidates,
         hasPendingPunctuation = host.hasPendingPunctuation,
         hasMultiTapPendingChar = host.hasMultiTapPendingChar,
         hasTopPinyinCandidates = host.hasTopPinyinCandidates,

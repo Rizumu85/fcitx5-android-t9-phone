@@ -59,6 +59,9 @@ class SmartEnglishT9Coordinator(
     val hasDigits: Boolean
         get() = controller.hasDigits
 
+    val hasCandidates: Boolean
+        get() = controller.hasCandidates
+
     val caseLabel: String
         get() = controller.caseLabel
 

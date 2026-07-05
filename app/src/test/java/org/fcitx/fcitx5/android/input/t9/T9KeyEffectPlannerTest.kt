@@ -42,7 +42,27 @@ class T9KeyEffectPlannerTest {
             snapshot(
                 mode = PhysicalT9KeyHandler.Mode.ENGLISH,
                 isSmartEnglishActive = true,
-                hasSmartEnglishDigits = true
+                hasSmartEnglishDigits = true,
+                hasSmartEnglishCandidates = true
+            )
+        )
+
+        assertEquals(
+            T9KeyEffectPlanner.Effect.ConfirmSmartEnglishCandidate(hasPendingPunctuation = false),
+            effect
+        )
+        assertTrue(effect.consumeKeyUp)
+    }
+
+    @Test
+    fun smartEnglishPredictionCandidatesCanBeConfirmedWithoutDigits() {
+        val effect = planner.planSmartEnglishNavigationKeyDown(
+            keyInput(KeyEvent.KEYCODE_DPAD_CENTER),
+            snapshot(
+                mode = PhysicalT9KeyHandler.Mode.ENGLISH,
+                isSmartEnglishActive = true,
+                hasSmartEnglishDigits = false,
+                hasSmartEnglishCandidates = true
             )
         )
 
@@ -60,7 +80,8 @@ class T9KeyEffectPlannerTest {
             snapshot(
                 mode = PhysicalT9KeyHandler.Mode.ENGLISH,
                 isSmartEnglishActive = true,
-                hasSmartEnglishDigits = true
+                hasSmartEnglishDigits = true,
+                hasSmartEnglishCandidates = true
             )
         )
 
@@ -124,6 +145,7 @@ class T9KeyEffectPlannerTest {
         mode: PhysicalT9KeyHandler.Mode,
         isSmartEnglishActive: Boolean = false,
         hasSmartEnglishDigits: Boolean = false,
+        hasSmartEnglishCandidates: Boolean = hasSmartEnglishDigits,
         hasPendingPunctuation: Boolean = false,
         hasMultiTapPendingChar: Boolean = false,
         hasTopPinyinCandidates: Boolean = false,
@@ -133,6 +155,7 @@ class T9KeyEffectPlannerTest {
         mode = mode,
         isSmartEnglishActive = isSmartEnglishActive,
         hasSmartEnglishDigits = hasSmartEnglishDigits,
+        hasSmartEnglishCandidates = hasSmartEnglishCandidates,
         hasPendingPunctuation = hasPendingPunctuation,
         hasMultiTapPendingChar = hasMultiTapPendingChar,
         hasTopPinyinCandidates = hasTopPinyinCandidates,

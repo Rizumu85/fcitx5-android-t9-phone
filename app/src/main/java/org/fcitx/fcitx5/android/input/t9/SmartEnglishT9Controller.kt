@@ -102,6 +102,9 @@ class SmartEnglishT9Controller private constructor(
     val hasDigits: Boolean
         get() = session.hasDigits
 
+    val hasCandidates: Boolean
+        get() = session.hasDigits || predictionSession.isVisible
+
     val caseLabel: String
         get() = when (caseState) {
             CaseState.OFF -> "abc"

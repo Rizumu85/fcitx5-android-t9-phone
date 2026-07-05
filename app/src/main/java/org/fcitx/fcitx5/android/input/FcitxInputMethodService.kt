@@ -162,6 +162,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             get() = t9PunctuationCoordinator.physicalSet
         override val hasSmartEnglishDigits: Boolean
             get() = smartEnglishCoordinator.hasDigits
+        override val hasSmartEnglishCandidates: Boolean
+            get() = smartEnglishCoordinator.hasCandidates
         override val hasMultiTapPendingChar: Boolean
             get() = multiTapPendingChar != null
         override val hasTopPinyinCandidates: Boolean

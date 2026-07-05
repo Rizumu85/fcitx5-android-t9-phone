@@ -129,6 +129,25 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
+    fun smartEnglishPredictionCandidateCanBeConfirmedWithoutDigits() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.ENGLISH,
+            isSmartEnglishActive = true,
+            hasSmartEnglishDigits = false,
+            hasSmartEnglishCandidates = true
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        val down = handler.handleKeyDown(
+            keyInput(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.ACTION_DOWN)
+        )
+
+        assertTrue(down.handled)
+        assertEquals(KeyEvent.KEYCODE_DPAD_CENTER, down.consumedKeyUp)
+        assertEquals(1, host.commitSmartEnglishCandidateCount)
+    }
+
+    @Test
     fun chineseZeroShortPressCommitsHighlightedHanziWithoutSpace() {
         val host = FakeHost(
             mode = PhysicalT9KeyHandler.Mode.CHINESE,
@@ -184,6 +203,7 @@ class PhysicalT9KeyHandlerTest {
         override var pendingPunctuationSet: PhysicalT9KeyHandler.PunctuationSet =
             PhysicalT9KeyHandler.PunctuationSet.CHINESE,
         override var hasSmartEnglishDigits: Boolean = false,
+        override var hasSmartEnglishCandidates: Boolean = hasSmartEnglishDigits,
         override var hasMultiTapPendingChar: Boolean = false,
         override var hasTopPinyinCandidates: Boolean = false,
         override var candidateFocus: PhysicalT9KeyHandler.CandidateFocus =
@@ -234,16 +254,19 @@ class PhysicalT9KeyHandlerTest {
         override fun appendSmartEnglishDigit(digit: Int) {
             appendedSmartEnglishDigits += digit
             hasSmartEnglishDigits = true
+            hasSmartEnglishCandidates = true
         }
 
         override fun resetSmartEnglishT9() {
             resetSmartEnglishCount += 1
             hasSmartEnglishDigits = false
+            hasSmartEnglishCandidates = false
         }
 
         override fun commitSmartEnglishCandidate(): Boolean {
             commitSmartEnglishCandidateCount += 1
             hasSmartEnglishDigits = false
+            hasSmartEnglishCandidates = false
             return true
         }
 
