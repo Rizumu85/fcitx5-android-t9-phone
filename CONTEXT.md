@@ -81,3 +81,10 @@ must remove the replaced `CandidatesView` fallback. Start with Smart English
 and pending punctuation, then move Chinese local-budget and pinyin-row state,
 then bulk Chinese selection. This keeps each user-facing UI surface testable
 without leaving parallel render rules behind.
+
+The first implementation slice should fully move Smart English and pending
+punctuation page/cache/selection/page-offset state into the snapshot pipeline.
+`CandidatesView` should stop owning `T9SmartEnglishPageCache`, pending
+punctuation pager decisions, Smart English shown flags, pending punctuation
+shown flags, and original-index mapping for those two sources once the slice is
+complete.

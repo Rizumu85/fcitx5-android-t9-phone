@@ -100,3 +100,15 @@ otherwise.
 - [x] Migrate the remaining Smart English physical-key behavior into the same
   command-based flow: `0`, `2..9`, long-press shortcuts, candidate navigation,
   candidate confirmation, and Backspace.
+
+## T9 Candidate UI Snapshot Pipeline Architecture
+
+- [x] Decide that the T9 Candidate UI Snapshot Pipeline owns render-ready
+  candidate UI snapshots while `CandidatesView` acts as the Android view
+  adapter.
+- [x] Decide that candidate paging, page caches, and UI focus state belong to
+  the snapshot pipeline instead of `CandidatesView`.
+- [x] Decide to migrate by candidate source, deleting replaced
+  `CandidatesView` fallback after each slice.
+- [ ] Migrate Smart English and pending punctuation page/cache/selection/page
+  offset state into the snapshot pipeline.
