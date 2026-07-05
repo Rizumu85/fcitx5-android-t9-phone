@@ -35,3 +35,8 @@ The flow session owns key-pairing state that exists between key-down and key-up
 events, including digit long-press flags, pound long-press state, and deferred
 Smart English digits. These are user-facing key-flow rules rather than Android
 platform adapter details.
+
+The refactor may be delivered in small slices, but it must not leave parallel
+legacy fallback behavior behind. Each migrated key-flow branch should remove
+the old branch it replaces, and the end state should have the command-based
+flow as the single implementation.
