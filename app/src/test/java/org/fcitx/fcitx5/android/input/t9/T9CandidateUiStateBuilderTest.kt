@@ -54,6 +54,26 @@ class T9CandidateUiStateBuilderTest {
     }
 
     @Test
+    fun smartEnglishPredictionCanReserveTopReadingRowWithoutText() {
+        val delegate = FakeDelegate(
+            chineseActive = false,
+            smartEnglishActive = true,
+            smartEnglishPaged = paged("morning"),
+            smartEnglishPresentation = T9PresentationState(
+                topReading = null,
+                pinyinOptions = emptyList(),
+                reserveTopReadingRow = true
+            )
+        )
+
+        val result = T9CandidateUiStateBuilder(delegate).build(input())
+
+        assertNotNull(result)
+        assertTrue(result!!.renderState.reservePreeditRow)
+        assertTrue(result.renderState.panel.preedit.isEmpty())
+    }
+
+    @Test
     fun visibleChineseLoadingStateDefersRenderUntilEngineCandidatesArrive() {
         val loadingState = ChineseT9CandidateLoadingState().apply {
             startIfNeeded(chineseT9Active = true, compositionKeyCount = 1)
@@ -142,6 +162,7 @@ class T9CandidateUiStateBuilderTest {
         private val chineseActive: Boolean,
         private val smartEnglishActive: Boolean,
         private val smartEnglishPaged: FcitxEvent.PagedCandidateEvent.Data? = null,
+        private val smartEnglishPresentation: T9PresentationState? = null,
         private val chineseSnapshot: ChineseT9InputSnapshot = ChineseT9InputSnapshot(
             rawSequence = "2",
             digitSequence = "2",
@@ -230,7 +251,7 @@ class T9CandidateUiStateBuilderTest {
 
         override fun getSmartEnglishT9Presentation(): T9PresentationState? {
             getSmartEnglishPresentationCount += 1
-            return null
+            return smartEnglishPresentation
         }
 
         override fun getT9PresentationState(

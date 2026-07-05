@@ -32,6 +32,7 @@ data class T9CompositionModel(
 data class T9PresentationState(
     val topReading: FormattedText?,
     val pinyinOptions: List<String>,
+    val reserveTopReadingRow: Boolean = false,
 ) {
     val pinyinRowVisible: Boolean
         get() = pinyinOptions.isNotEmpty()

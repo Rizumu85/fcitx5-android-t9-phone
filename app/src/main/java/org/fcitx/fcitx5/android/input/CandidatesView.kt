@@ -222,9 +222,13 @@ class CandidatesView(
             this@CandidatesView.preferAboveCursorAnchor = preferAboveCursorAnchor
         }
 
-        override fun renderPreedit(panel: FcitxEvent.InputPanelEvent.Data) {
+        override fun renderPreedit(panel: FcitxEvent.InputPanelEvent.Data, reserveRow: Boolean) {
             preeditUi.update(panel)
-            preeditUi.root.visibility = if (preeditUi.visible) VISIBLE else GONE
+            preeditUi.root.visibility = when {
+                preeditUi.visible -> VISIBLE
+                reserveRow -> INVISIBLE
+                else -> GONE
+            }
         }
 
         override fun renderCandidates(

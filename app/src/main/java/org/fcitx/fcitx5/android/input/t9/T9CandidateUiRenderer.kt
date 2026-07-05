@@ -27,7 +27,7 @@ class T9CandidateUiRenderer(
 
     interface Delegate {
         fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean)
-        fun renderPreedit(panel: FcitxEvent.InputPanelEvent.Data)
+        fun renderPreedit(panel: FcitxEvent.InputPanelEvent.Data, reserveRow: Boolean)
         fun renderCandidates(
             candidates: FcitxEvent.PagedCandidateEvent.Data,
             orientation: FloatingCandidatesOrientation,
@@ -78,8 +78,8 @@ class T9CandidateUiRenderer(
             delegate.setPreferAboveCursorAnchor(next.preferAboveCursorAnchor)
         }
         if (patch.preedit) {
-            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPreedit") {
-                delegate.renderPreedit(next.panel)
+                T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPreedit") {
+                delegate.renderPreedit(next.panel, next.reservePreeditRow)
             }
         }
         if (patch.candidates) {

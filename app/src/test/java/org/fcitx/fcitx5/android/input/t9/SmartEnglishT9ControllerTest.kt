@@ -121,9 +121,11 @@ class SmartEnglishT9ControllerTest {
 
         assertEquals(listOf("good"), host.committedTexts)
         assertEquals("morning", controller.paged()?.candidates?.first()?.text)
-        assertEquals(null, controller.presentation {
+        val presentation = controller.presentation {
             FormattedText(arrayOf(it), intArrayOf(TextFormatFlag.NoFlag.flag), -1)
-        }?.topReading)
+        }
+        assertEquals(null, presentation?.topReading)
+        assertTrue(presentation?.reserveTopReadingRow == true)
     }
 
     @Test

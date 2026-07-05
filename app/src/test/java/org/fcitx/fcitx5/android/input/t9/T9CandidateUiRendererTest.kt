@@ -122,7 +122,7 @@ class T9CandidateUiRendererTest {
 
         override fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean) = Unit
 
-        override fun renderPreedit(panel: FcitxEvent.InputPanelEvent.Data) = Unit
+        override fun renderPreedit(panel: FcitxEvent.InputPanelEvent.Data, reserveRow: Boolean) = Unit
 
         override fun renderCandidates(
             candidates: FcitxEvent.PagedCandidateEvent.Data,
@@ -166,6 +166,7 @@ class T9CandidateUiRendererTest {
             candidates = candidates,
             orientation = FloatingCandidatesOrientation.Horizontal,
             showShortcutLabels = true,
+            reservePreeditRow = false,
             pinyinOptions = pinyinOptions,
             pinyinUseT9 = pinyinUseT9,
             focus = T9CandidateFocus.BOTTOM,

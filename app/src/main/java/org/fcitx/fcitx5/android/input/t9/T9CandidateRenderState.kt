@@ -13,6 +13,7 @@ data class T9CandidateRenderState(
     val candidates: FcitxEvent.PagedCandidateEvent.Data,
     val orientation: FloatingCandidatesOrientation,
     val showShortcutLabels: Boolean,
+    val reservePreeditRow: Boolean,
     val pinyinOptions: List<String>,
     val pinyinUseT9: Boolean,
     val focus: T9CandidateFocus,
@@ -20,7 +21,7 @@ data class T9CandidateRenderState(
     val shouldShow: Boolean
 ) {
     val preeditSnapshot: T9PreeditSnapshot by lazy(LazyThreadSafetyMode.NONE) {
-        T9CandidateSnapshots.preedit(panel)
+        T9CandidateSnapshots.preedit(panel, reservePreeditRow)
     }
     val candidateSnapshot: T9CandidatePageSnapshot by lazy(LazyThreadSafetyMode.NONE) {
         T9CandidateSnapshots.renderCandidates(candidates, orientation, showShortcutLabels)

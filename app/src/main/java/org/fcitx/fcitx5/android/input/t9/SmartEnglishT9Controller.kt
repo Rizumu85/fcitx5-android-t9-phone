@@ -162,7 +162,11 @@ class SmartEnglishT9Controller private constructor(
         if (!isActive()) return null
         if (!session.hasDigits) {
             return if (predictionSession.isVisible && predictionReady()) {
-                T9PresentationState(topReading = null, pinyinOptions = emptyList())
+                T9PresentationState(
+                    topReading = null,
+                    pinyinOptions = emptyList(),
+                    reserveTopReadingRow = true
+                )
             } else {
                 null
             }

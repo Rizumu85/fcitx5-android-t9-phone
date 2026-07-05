@@ -23,9 +23,10 @@ data class T9VisibilitySnapshot(
 )
 
 object T9CandidateSnapshots {
-    fun preedit(data: FcitxEvent.InputPanelEvent.Data): T9PreeditSnapshot =
+    fun preedit(data: FcitxEvent.InputPanelEvent.Data, reservePreeditRow: Boolean): T9PreeditSnapshot =
         T9PreeditSnapshot(
             buildString {
+                append(reservePreeditRow).append('\n')
                 append(data.preedit).append('\n')
                 append(data.auxUp).append('\n')
                 append(data.auxDown)

@@ -64,9 +64,25 @@ class T9CandidateRendererTest {
         assertTrue(patch.focus)
     }
 
+    @Test
+    fun reservedPreeditRowChangeOnlyPatchesPreedit() {
+        val previous = state(reservePreeditRow = false)
+        val next = state(reservePreeditRow = true)
+
+        val patch = T9CandidateRenderer.diff(previous, next)
+
+        assertTrue(patch.preedit)
+        assertFalse(patch.candidates)
+        assertFalse(patch.candidateContent)
+        assertFalse(patch.pinyin)
+        assertFalse(patch.focus)
+        assertFalse(patch.visibility)
+    }
+
     private fun state(
         candidates: FcitxEvent.PagedCandidateEvent.Data = paged("a"),
         pinyinOptions: List<String> = listOf("a"),
+        reservePreeditRow: Boolean = false,
         shouldShow: Boolean = true
     ): T9CandidateRenderState =
         T9CandidateRenderState(
@@ -74,6 +90,7 @@ class T9CandidateRendererTest {
             candidates = candidates,
             orientation = FloatingCandidatesOrientation.Horizontal,
             showShortcutLabels = true,
+            reservePreeditRow = reservePreeditRow,
             pinyinOptions = pinyinOptions,
             pinyinUseT9 = true,
             focus = T9CandidateFocus.BOTTOM,

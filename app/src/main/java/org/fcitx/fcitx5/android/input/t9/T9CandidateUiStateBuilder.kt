@@ -252,6 +252,7 @@ class T9CandidateUiStateBuilder(
                     candidates = effectivePaged,
                     orientation = input.orientation,
                     showShortcutLabels = shouldShowT9BottomShortcutLabels(effectivePaged, shownState, chineseT9Active),
+                    reservePreeditRow = t9State?.reserveTopReadingRow == true,
                     pinyinOptions = pinyinOptions,
                     pinyinUseT9 = chineseT9Active,
                     focus = delegate.effectiveT9CandidateFocus(
