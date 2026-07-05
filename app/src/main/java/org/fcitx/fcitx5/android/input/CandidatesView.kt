@@ -200,6 +200,7 @@ class CandidatesView(
     private var t9ShownUsesLocalBudget = false
     private var t9RenderedPinyinWindowStart = 0
     private var t9RenderedPinyinItems: List<String> = emptyList()
+    private var t9RenderedPinyinUsesWindowedDisplay = false
     private var lastRenderedT9Focus = T9CandidateFocus.BOTTOM
     private val t9CandidateUiSnapshotPipeline = T9CandidateUiSnapshotPipeline(
         characterBudget = { t9HanziCharacterBudget },
@@ -560,6 +561,7 @@ class CandidatesView(
         t9CandidateUiSnapshotPipeline.clearPinyinWindow()
         t9RenderedPinyinWindowStart = 0
         t9RenderedPinyinItems = emptyList()
+        t9RenderedPinyinUsesWindowedDisplay = false
         updatePinyinOverflowHint(false)
         lastRenderedT9Focus = T9CandidateFocus.BOTTOM
         setPinyinRowVisible(false)
@@ -638,7 +640,11 @@ class CandidatesView(
     fun moveHighlightedT9Pinyin(delta: Int): Boolean {
         val state = t9CandidateUiSnapshotPipeline.movePinyinWindow(delta) ?: return false
         renderPinyinWindow(state)
-        pinyinBarAdapter.scrollToHighlighted(pinyinRowViewportWidthPx())
+        if (t9RenderedPinyinUsesWindowedDisplay) {
+            pinyinBarAdapter.scrollToStart()
+        } else {
+            pinyinBarAdapter.scrollToHighlighted(pinyinRowViewportWidthPx())
+        }
         return true
     }
 
@@ -946,6 +952,7 @@ class CandidatesView(
                 pinyinBarAdapter.clear()
                 pinyinBarAdapter.scrollToStart()
                 t9RenderedPinyinItems = emptyList()
+                t9RenderedPinyinUsesWindowedDisplay = false
                 updatePinyinOverflowHint(false)
                 pinyinBarView.visibility = View.GONE
                 pinyinRowWrapper.visibility = View.GONE
@@ -1071,6 +1078,13 @@ class CandidatesView(
             textSize = compactTopRowFontSizeSp * ctx.resources.displayMetrics.scaledDensity
         }
         return ceil(paint.measureText(text).toDouble()).toInt()
+    }
+
+    private fun pinyinChipWidthsPx(items: List<String>): List<Int> {
+        val chipPaddingPx = dpCandidates(itemPaddingHorizontal)
+        return items.map { pinyin ->
+            pinyinTextWidthPx(pinyin) + chipPaddingPx * 2
+        }
     }
 
     private fun currentSurfaceLayoutPlan(
@@ -1211,6 +1225,7 @@ class CandidatesView(
             t9CandidateUiSnapshotPipeline.clearPinyinWindow()
             t9RenderedPinyinWindowStart = 0
             t9RenderedPinyinItems = emptyList()
+            t9RenderedPinyinUsesWindowedDisplay = false
             updatePinyinOverflowHint(false)
             return setPinyinRowVisible(false)
         }
@@ -1218,6 +1233,7 @@ class CandidatesView(
             t9CandidateUiSnapshotPipeline.clearPinyinWindow()
             t9RenderedPinyinWindowStart = 0
             t9RenderedPinyinItems = emptyList()
+            t9RenderedPinyinUsesWindowedDisplay = false
             updatePinyinOverflowHint(false)
             return setPinyinRowVisible(false)
         }
@@ -1249,11 +1265,16 @@ class CandidatesView(
         updateVisibility: Boolean
     ): Boolean {
         t9RenderedPinyinItems = state.items
-        val rowPlan = currentPinyinRowPlan(candidateRowWidthPx)
+        val surfacePlan = currentSurfaceLayoutPlan(candidateRowWidthPx)
+        val rowPlan = surfacePlan?.pinyin
         val renderPlan = T9PinyinRowRenderPlanner.plan(
             state = state,
-            rowPlan = rowPlan
+            rowPlan = rowPlan,
+            focusedViewportWidthPx = surfacePlan?.rowWidthPx ?: pinyinRowViewportWidthPx(),
+            chipWidthsPx = pinyinChipWidthsPx(state.items),
+            chipSpacingPx = dpCandidates(itemPaddingHorizontal)
         )
+        t9RenderedPinyinUsesWindowedDisplay = renderPlan.usesWindowedDisplay
         updatePinyinOverflowHint(renderPlan.showOverflowHint)
         val changed = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.submit") {
             pinyinBarAdapter.submitList(renderPlan.displayedItems, renderPlan.displayedHighlight)

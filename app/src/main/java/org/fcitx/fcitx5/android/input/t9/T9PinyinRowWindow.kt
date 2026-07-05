@@ -82,6 +82,6 @@ class T9PinyinRowWindow(
         (items.size - maxVisibleItems).coerceAtLeast(0)
 
     companion object {
-        const val DEFAULT_MAX_VISIBLE_ITEMS = 8
+        const val DEFAULT_MAX_VISIBLE_ITEMS = 16
     }
 }

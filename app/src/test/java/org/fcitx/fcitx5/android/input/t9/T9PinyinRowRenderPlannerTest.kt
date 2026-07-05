@@ -12,6 +12,18 @@ import org.junit.Test
 
 class T9PinyinRowRenderPlannerTest {
     @Test
+    fun emptyRowHasNoDisplayedItems() {
+        val plan = T9PinyinRowRenderPlanner.plan(
+            state = state(items = emptyList(), highlightedIndex = 0),
+            rowPlan = null
+        )
+
+        assertEquals(emptyList<String>(), plan.displayedItems)
+        assertEquals(0, plan.displayedHighlight)
+        assertFalse(plan.usesWindowedDisplay)
+    }
+
+    @Test
     fun fullRowShowsEveryItemWithoutHint() {
         val plan = T9PinyinRowRenderPlanner.plan(
             state = state(items = listOf("gei", "hei", "ge"), highlightedIndex = 1),
@@ -25,6 +37,7 @@ class T9PinyinRowRenderPlannerTest {
         assertEquals(listOf("gei", "hei", "ge"), plan.displayedItems)
         assertEquals(1, plan.displayedHighlight)
         assertFalse(plan.showOverflowHint)
+        assertFalse(plan.usesWindowedDisplay)
     }
 
     @Test
@@ -40,6 +53,7 @@ class T9PinyinRowRenderPlannerTest {
 
         assertEquals(listOf("gei", "hei", "ge", "he"), plan.displayedItems)
         assertTrue(plan.showOverflowHint)
+        assertTrue(plan.usesWindowedDisplay)
     }
 
     @Test
@@ -54,6 +68,44 @@ class T9PinyinRowRenderPlannerTest {
         )
 
         assertEquals(3, plan.displayedHighlight)
+    }
+
+    @Test
+    fun focusedFoldedRowShowsOnlyWholeChipsThatFit() {
+        val plan = T9PinyinRowRenderPlanner.plan(
+            state = state(items = listOf("gei", "hei", "ge", "he", "g", "h"), highlightedIndex = 0),
+            rowPlan = T9PinyinOverflowPolicy.Plan(
+                folded = true,
+                showHint = false,
+                visibleCount = 6
+            ),
+            focusedViewportWidthPx = 100,
+            chipWidthsPx = listOf(34, 34, 24, 24, 14, 14),
+            chipSpacingPx = 4
+        )
+
+        assertEquals(listOf("gei", "hei", "ge"), plan.displayedItems)
+        assertEquals(0, plan.displayedHighlight)
+        assertTrue(plan.usesWindowedDisplay)
+    }
+
+    @Test
+    fun focusedFoldedRowSlidesWindowWhenHighlightMovesPastVisibleChips() {
+        val plan = T9PinyinRowRenderPlanner.plan(
+            state = state(items = listOf("gei", "hei", "ge", "he", "g", "h"), highlightedIndex = 5),
+            rowPlan = T9PinyinOverflowPolicy.Plan(
+                folded = true,
+                showHint = false,
+                visibleCount = 6
+            ),
+            focusedViewportWidthPx = 100,
+            chipWidthsPx = listOf(34, 34, 24, 24, 14, 14),
+            chipSpacingPx = 4
+        )
+
+        assertEquals(listOf("ge", "he", "g", "h"), plan.displayedItems)
+        assertEquals(3, plan.displayedHighlight)
+        assertTrue(plan.usesWindowedDisplay)
     }
 
     private fun state(
