@@ -936,7 +936,8 @@ class CandidatesView(
             renderPinyinWindow(
                 state = it,
                 candidateRowWidthPx = null,
-                scheduleLayoutCheck = false
+                scheduleLayoutCheck = false,
+                updateVisibility = false
             )
         }
         val widthReady = syncPinyinRowWidthToCandidates()
@@ -1149,7 +1150,8 @@ class CandidatesView(
         renderPinyinWindow(
             state = state,
             candidateRowWidthPx = firstPositiveCandidateRowWidth() ?: currentCandidateRowWidthForPinyinPolicy(),
-            scheduleLayoutCheck = false
+            scheduleLayoutCheck = false,
+            updateVisibility = false
         )
     }
 
@@ -1245,13 +1247,15 @@ class CandidatesView(
         renderPinyinWindow(
             state = state,
             candidateRowWidthPx = null,
-            scheduleLayoutCheck = true
+            scheduleLayoutCheck = true,
+            updateVisibility = true
         )
 
     private fun renderPinyinWindow(
         state: T9PinyinRowWindow.VisibleState,
         candidateRowWidthPx: Int?,
-        scheduleLayoutCheck: Boolean
+        scheduleLayoutCheck: Boolean,
+        updateVisibility: Boolean
     ): Boolean {
         t9RenderedPinyinItems = state.items
         val rowPlan = currentPinyinRowPlan(candidateRowWidthPx)
@@ -1267,8 +1271,12 @@ class CandidatesView(
         if (scheduleLayoutCheck) {
             schedulePinyinOverflowHintUpdate()
         }
-        val ready = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.visibility") {
-            setPinyinRowVisible(true)
+        val ready = if (updateVisibility) {
+            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.visibility") {
+                setPinyinRowVisible(true)
+            }
+        } else {
+            true
         }
         if (changed && scheduleLayoutCheck) {
             // Product decision: folded pinyin chips must look stable without exposing a fifth chip.
