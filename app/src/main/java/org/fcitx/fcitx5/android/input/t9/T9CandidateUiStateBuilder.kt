@@ -24,10 +24,7 @@ class T9CandidateUiStateBuilder(
         val rawPaged: FcitxEvent.PagedCandidateEvent.Data,
         val orientation: FloatingCandidatesOrientation,
         val currentlyVisible: Boolean,
-        val loadingState: ChineseT9CandidateLoadingState,
-        val bulkFilteredPaged: T9PagedCandidates?,
-        val bulkFilteredMatchedPrefix: String?,
-        val bulkFilterPending: Boolean
+        val loadingState: ChineseT9CandidateLoadingState
     )
 
     data class ShownState(
@@ -55,6 +52,7 @@ class T9CandidateUiStateBuilder(
         fun buildT9PendingPunctuationPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates
         fun resetT9BulkFilterState()
         fun requestT9BulkFilteredCandidatesIfNeeded(chineseT9Active: Boolean, prefixes: List<String>)
+        fun getT9BulkFilterState(): ChineseT9CandidatePipeline.BulkFilterState
         fun filterPagedByT9PinyinPrefixes(
             data: FcitxEvent.PagedCandidateEvent.Data,
             prefixes: List<String>
@@ -154,6 +152,7 @@ class T9CandidateUiStateBuilder(
             } else {
                 delegate.resetT9BulkFilterState()
             }
+            val bulkFilterState = delegate.getT9BulkFilterState()
             val filteredPaged = T9ResponsivenessTrace.measure("CandidatesView.updateUi.filterPaged") {
                 if (suppressEmptyT9Candidates || pendingT9PinyinSelection || waitForChineseT9Candidates) {
                     T9PagedCandidates.Empty to null
@@ -169,7 +168,7 @@ class T9CandidateUiStateBuilder(
                 pendingPunctuationPaged == null &&
                 chineseT9Active &&
                 t9FilterPrefixes.isEmpty() &&
-                input.bulkFilteredPaged == null &&
+                bulkFilterState.paged == null &&
                 !waitForChineseT9Candidates
             ) {
                 T9ResponsivenessTrace.measure("CandidatesView.updateUi.localBudgetPage") {
@@ -188,9 +187,9 @@ class T9CandidateUiStateBuilder(
                         smartEnglishPaged = smartEnglishPaged,
                         pendingPunctuationPaged = pendingPunctuationBudgetedPaged,
                         localBudgetedPaged = localBudgetedPaged,
-                        bulkFilteredPaged = input.bulkFilteredPaged,
-                        bulkFilteredMatchedPrefix = input.bulkFilteredMatchedPrefix,
-                        bulkFilterPending = input.bulkFilterPending,
+                        bulkFilteredPaged = bulkFilterState.paged,
+                        bulkFilteredMatchedPrefix = bulkFilterState.matchedPrefix,
+                        bulkFilterPending = bulkFilterState.pending,
                         chineseT9Active = chineseT9Active,
                         suppressEmptyCandidates = suppressEmptyT9Candidates,
                         pendingPinyinSelection = pendingT9PinyinSelection,

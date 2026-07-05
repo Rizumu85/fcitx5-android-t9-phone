@@ -119,6 +119,39 @@ class ChineseT9CandidatePipelineTest {
         assertTrue(filtered.data.hasNext)
     }
 
+    @Test
+    fun bulkFilterStateOwnsPagedCandidatesAndOriginalIndices() {
+        val pipeline = pipeline(characterBudget = 4)
+        val signature = pipeline.bulkFilterRequestSignature(
+            prefixes = listOf("ni"),
+            preedit = "ni",
+            candidates = emptyArray()
+        )
+
+        assertTrue(pipeline.shouldRequestBulkFilter(signature))
+        pipeline.startBulkFilterRequest(listOf("ni"), signature)
+        assertTrue(pipeline.bulkFilterState.pending)
+
+        val state = pipeline.finishBulkFilterRequest(
+            signature = signature,
+            rawCandidates = listOf("你 ni", "泥 ni", "逆 ni", "拟 ni", "年 nian"),
+            prefixes = listOf("ni"),
+            layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal
+        )
+
+        assertNotNull(state)
+        state!!
+        assertFalse(state.pending)
+        assertEquals("ni", state.matchedPrefix)
+        assertEquals(listOf("你", "泥", "逆", "拟"), state.paged?.data?.candidates?.map { it.text })
+        assertArrayEquals(intArrayOf(0, 1, 2, 3), state.paged?.originalIndices)
+
+        assertTrue(pipeline.offsetBulkFilteredPage(1, FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal))
+        val second = pipeline.bulkFilterState.paged
+        assertEquals(listOf("年"), second?.data?.candidates?.map { it.text })
+        assertArrayEquals(intArrayOf(4), second?.originalIndices)
+    }
+
     private fun pipeline(
         characterBudget: Int = 24,
         matchesPrefix: (FcitxEvent.Candidate, String) -> Boolean = { candidate, prefix ->

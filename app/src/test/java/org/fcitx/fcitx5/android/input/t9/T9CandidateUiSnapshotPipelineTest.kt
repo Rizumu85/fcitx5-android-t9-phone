@@ -24,7 +24,9 @@ class T9CandidateUiSnapshotPipelineTest {
             paged = shown.data,
             originalIndices = shown.originalIndices,
             usesSmartEnglish = true,
-            usesPendingPunctuation = false
+            usesPendingPunctuation = false,
+            usesBulkSelection = false,
+            matchedPrefix = null
         )
 
         assertTrue(pipeline.ownsCurrentShownState)
@@ -46,7 +48,9 @@ class T9CandidateUiSnapshotPipelineTest {
             paged = shown.data,
             originalIndices = shown.originalIndices,
             usesSmartEnglish = true,
-            usesPendingPunctuation = false
+            usesPendingPunctuation = false,
+            usesBulkSelection = false,
+            matchedPrefix = null
         )
 
         val offset = pipeline.offsetCurrentPage(1)
@@ -65,7 +69,9 @@ class T9CandidateUiSnapshotPipelineTest {
             paged = shown.data,
             originalIndices = shown.originalIndices,
             usesSmartEnglish = false,
-            usesPendingPunctuation = true
+            usesPendingPunctuation = true,
+            usesBulkSelection = false,
+            matchedPrefix = null
         )
 
         val moved = pipeline.moveCurrentBottomCandidate(1)
@@ -84,7 +90,9 @@ class T9CandidateUiSnapshotPipelineTest {
             paged = shown.data,
             originalIndices = shown.originalIndices,
             usesSmartEnglish = false,
-            usesPendingPunctuation = true
+            usesPendingPunctuation = true,
+            usesBulkSelection = false,
+            matchedPrefix = null
         )
 
         val commit = pipeline.commitCurrentBottomCandidate()
@@ -127,6 +135,53 @@ class T9CandidateUiSnapshotPipelineTest {
 
         assertEquals(2, moved?.cursorIndex)
         assertEquals(2, reapplied.cursorIndex)
+    }
+
+    @Test
+    fun chineseBulkSelectionOwnsPagingMoveAndCommit() {
+        val pipeline = T9CandidateUiSnapshotPipeline(
+            characterBudget = { 4 },
+            widthBudget = { null },
+            candidateMatchesPrefix = { candidate, prefix -> candidate.comment.startsWith(prefix) }
+        )
+        val signature = pipeline.chineseBulkFilterRequestSignature(
+            prefixes = listOf("ni"),
+            preedit = "ni",
+            candidates = emptyArray()
+        )
+        pipeline.startChineseBulkFilterRequest(listOf("ni"), signature)
+
+        val state = pipeline.finishChineseBulkFilterRequest(
+            signature = signature,
+            rawCandidates = listOf("你 ni", "泥 ni", "逆 ni", "拟 ni", "年 nian"),
+            prefixes = listOf("ni"),
+            layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal
+        )
+
+        require(state?.paged != null)
+        pipeline.updateShownState(
+            paged = state.paged.data,
+            originalIndices = state.paged.originalIndices,
+            usesSmartEnglish = false,
+            usesPendingPunctuation = false,
+            usesBulkSelection = true,
+            matchedPrefix = state.matchedPrefix
+        )
+
+        val moved = pipeline.moveCurrentBottomCandidate(1)
+        require(moved is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.ChineseBulk)
+        assertEquals(1, moved.shown.data.cursorIndex)
+
+        val shortcutCommit = pipeline.commitBottomCandidateAt(2)
+        require(shortcutCommit is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.ChineseBulk)
+        assertEquals(2, shortcutCommit.originalIndex)
+        assertEquals("逆", shortcutCommit.candidate.text)
+        assertEquals("ni", shortcutCommit.matchedPrefix)
+
+        val page = pipeline.offsetCurrentPage(1)
+        require(page is T9CandidateUiSnapshotPipeline.PageOffset.ChineseBulk)
+        assertEquals(listOf("年"), page.shown.data.candidates.map { it.text })
+        assertArrayEquals(intArrayOf(4), page.shown.originalIndices)
     }
 
     @Test

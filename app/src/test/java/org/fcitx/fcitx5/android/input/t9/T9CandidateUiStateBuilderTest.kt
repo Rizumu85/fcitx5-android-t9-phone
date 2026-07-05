@@ -222,6 +222,13 @@ class T9CandidateUiStateBuilderTest {
             requestBulkFilteredCount += 1
         }
 
+        override fun getT9BulkFilterState(): ChineseT9CandidatePipeline.BulkFilterState =
+            ChineseT9CandidatePipeline.BulkFilterState(
+                paged = null,
+                matchedPrefix = null,
+                pending = false
+            )
+
         override fun filterPagedByT9PinyinPrefixes(
             data: FcitxEvent.PagedCandidateEvent.Data,
             prefixes: List<String>
@@ -282,10 +289,7 @@ class T9CandidateUiStateBuilderTest {
             rawPaged = rawPaged,
             orientation = FloatingCandidatesOrientation.Horizontal,
             currentlyVisible = currentlyVisible,
-            loadingState = loadingState,
-            bulkFilteredPaged = null,
-            bulkFilteredMatchedPrefix = null,
-            bulkFilterPending = false
+            loadingState = loadingState
         )
 
     private fun paged(text: String): FcitxEvent.PagedCandidateEvent.Data =

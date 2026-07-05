@@ -15,17 +15,20 @@ class T9CandidateUiSnapshotPipeline(
     enum class ShownSource {
         SMART_ENGLISH,
         PENDING_PUNCTUATION,
+        CHINESE_BULK,
         OTHER
     }
 
     data class ShownSnapshot(
         val source: ShownSource,
         val paged: FcitxEvent.PagedCandidateEvent.Data,
-        val originalIndices: IntArray
+        val originalIndices: IntArray,
+        val matchedPrefix: String?
     ) {
         val ownsPagingState: Boolean
             get() = source == ShownSource.SMART_ENGLISH ||
-                source == ShownSource.PENDING_PUNCTUATION
+                source == ShownSource.PENDING_PUNCTUATION ||
+                source == ShownSource.CHINESE_BULK
 
         fun originalIndexAt(shownIndex: Int): Int? =
             originalIndices.getOrNull(shownIndex)
@@ -35,13 +38,15 @@ class T9CandidateUiSnapshotPipeline(
             if (other !is ShownSnapshot) return false
             return source == other.source &&
                 paged == other.paged &&
-                originalIndices.contentEquals(other.originalIndices)
+                originalIndices.contentEquals(other.originalIndices) &&
+                matchedPrefix == other.matchedPrefix
         }
 
         override fun hashCode(): Int {
             var result = source.hashCode()
             result = 31 * result + paged.hashCode()
             result = 31 * result + originalIndices.contentHashCode()
+            result = 31 * result + matchedPrefix.hashCode()
             return result
         }
     }
@@ -52,6 +57,7 @@ class T9CandidateUiSnapshotPipeline(
             val shown: T9PagedCandidates,
             val previewOriginalIndex: Int?
         ) : PageOffset()
+        data class ChineseBulk(val shown: T9PagedCandidates) : PageOffset()
     }
 
     sealed class MoveBottomCandidate {
@@ -60,11 +66,17 @@ class T9CandidateUiSnapshotPipeline(
             val shown: T9PagedCandidates,
             val previewOriginalIndex: Int
         ) : MoveBottomCandidate()
+        data class ChineseBulk(val shown: T9PagedCandidates) : MoveBottomCandidate()
     }
 
     sealed class CommitBottomCandidate {
         data class SmartEnglish(val originalIndex: Int) : CommitBottomCandidate()
         data class PendingPunctuation(val originalIndex: Int) : CommitBottomCandidate()
+        data class ChineseBulk(
+            val originalIndex: Int,
+            val candidate: FcitxEvent.Candidate,
+            val matchedPrefix: String?
+        ) : CommitBottomCandidate()
     }
 
     private val smartEnglishPageCache = T9SmartEnglishPageCache(characterBudget, widthBudget)
@@ -83,8 +95,17 @@ class T9CandidateUiSnapshotPipeline(
     val ownsCurrentShownState: Boolean
         get() = currentShown?.ownsPagingState == true
 
+    val currentShownMatchedPrefix: String?
+        get() = currentShown?.matchedPrefix
+
     val hasChineseLocalBudgetCandidates: Boolean
         get() = chineseCandidatePipeline.hasLocalBudgetCandidates
+
+    val hasChineseBulkFilteredCandidates: Boolean
+        get() = chineseCandidatePipeline.hasBulkFilteredCandidates
+
+    val chineseBulkFilterState: ChineseT9CandidatePipeline.BulkFilterState
+        get() = chineseCandidatePipeline.bulkFilterState
 
     fun reset() {
         smartEnglishPageCache.reset()
@@ -97,6 +118,43 @@ class T9CandidateUiSnapshotPipeline(
     fun resetChineseLocalBudgetState() {
         chineseCandidatePipeline.resetLocalBudget()
     }
+
+    fun resetChineseBulkFilterState() {
+        chineseCandidatePipeline.resetBulkFilter()
+    }
+
+    fun chineseBulkFilterRequestSignature(
+        prefixes: List<String>,
+        preedit: CharSequence,
+        candidates: Array<FcitxEvent.Candidate>
+    ): String =
+        chineseCandidatePipeline.bulkFilterRequestSignature(prefixes, preedit, candidates)
+
+    fun shouldRequestChineseBulkFilter(signature: String): Boolean =
+        chineseCandidatePipeline.shouldRequestBulkFilter(signature)
+
+    fun startChineseBulkFilterRequest(prefixes: List<String>, signature: String) {
+        chineseCandidatePipeline.startBulkFilterRequest(prefixes, signature)
+    }
+
+    fun finishChineseBulkFilterRequest(
+        signature: String,
+        rawCandidates: List<String>,
+        prefixes: List<String>,
+        layoutHint: FcitxEvent.PagedCandidateEvent.LayoutHint
+    ): ChineseT9CandidatePipeline.BulkFilterState? =
+        chineseCandidatePipeline.finishBulkFilterRequest(
+            signature = signature,
+            rawCandidates = rawCandidates,
+            prefixes = prefixes,
+            layoutHint = layoutHint
+        )
+
+    fun offsetChineseBulkFilteredPage(
+        delta: Int,
+        layoutHint: FcitxEvent.PagedCandidateEvent.LayoutHint
+    ): Boolean =
+        chineseCandidatePipeline.offsetBulkFilteredPage(delta, layoutHint)
 
     fun filterChinesePagedByPinyinPrefixes(
         data: FcitxEvent.PagedCandidateEvent.Data,
@@ -170,17 +228,21 @@ class T9CandidateUiSnapshotPipeline(
         paged: FcitxEvent.PagedCandidateEvent.Data,
         originalIndices: IntArray,
         usesSmartEnglish: Boolean,
-        usesPendingPunctuation: Boolean
+        usesPendingPunctuation: Boolean,
+        usesBulkSelection: Boolean,
+        matchedPrefix: String?
     ): ShownSnapshot {
         val source = when {
             usesPendingPunctuation -> ShownSource.PENDING_PUNCTUATION
             usesSmartEnglish -> ShownSource.SMART_ENGLISH
+            usesBulkSelection -> ShownSource.CHINESE_BULK
             else -> ShownSource.OTHER
         }
         return ShownSnapshot(
             source = source,
             paged = paged,
-            originalIndices = originalIndices
+            originalIndices = originalIndices,
+            matchedPrefix = matchedPrefix
         ).also {
             currentShown = it
         }
@@ -229,12 +291,25 @@ class T9CandidateUiSnapshotPipeline(
                 currentShown = ShownSnapshot(
                     source = ShownSource.PENDING_PUNCTUATION,
                     paged = shown.data,
-                    originalIndices = shown.originalIndices
+                    originalIndices = shown.originalIndices,
+                    matchedPrefix = null
                 )
                 PageOffset.PendingPunctuation(
                     shown = shown,
                     previewOriginalIndex = shown.originalIndices.firstOrNull()
                 )
+            }
+            ShownSource.CHINESE_BULK -> {
+                val shown = currentShown ?: return null
+                if (!offsetChineseBulkFilteredPage(delta, shown.paged.layoutHint)) return null
+                val state = chineseBulkFilterState
+                val nextShown = state.paged ?: return null
+                currentShown = shown.copy(
+                    paged = nextShown.data,
+                    originalIndices = nextShown.originalIndices,
+                    matchedPrefix = state.matchedPrefix
+                )
+                PageOffset.ChineseBulk(nextShown)
             }
             else -> null
         }
@@ -242,12 +317,32 @@ class T9CandidateUiSnapshotPipeline(
     fun commitCurrentBottomCandidate(): CommitBottomCandidate? {
         val shown = currentShown ?: return null
         if (!shown.ownsPagingState) return null
-        val shownIndex = shown.paged.cursorIndex
+        return commitBottomCandidateAt(shown, shown.paged.cursorIndex)
+    }
+
+    fun commitBottomCandidateAt(shownIndex: Int): CommitBottomCandidate? {
+        val shown = currentShown ?: return null
+        if (!shown.ownsPagingState) return null
+        return commitBottomCandidateAt(shown, shownIndex)
+    }
+
+    private fun commitBottomCandidateAt(
+        shown: ShownSnapshot,
+        shownIndex: Int
+    ): CommitBottomCandidate? {
         if (shownIndex !in shown.paged.candidates.indices) return null
         val originalIndex = shown.originalIndexAt(shownIndex) ?: shownIndex
         return when (shown.source) {
             ShownSource.SMART_ENGLISH -> CommitBottomCandidate.SmartEnglish(originalIndex)
             ShownSource.PENDING_PUNCTUATION -> CommitBottomCandidate.PendingPunctuation(originalIndex)
+            ShownSource.CHINESE_BULK -> {
+                val candidate = shown.paged.candidates.getOrNull(shownIndex) ?: return null
+                CommitBottomCandidate.ChineseBulk(
+                    originalIndex = originalIndex,
+                    candidate = candidate,
+                    matchedPrefix = shown.matchedPrefix
+                )
+            }
             ShownSource.OTHER -> null
         }
     }
@@ -267,6 +362,11 @@ class T9CandidateUiSnapshotPipeline(
                     previewOriginalIndex = originalIndex
                 )
             }
+            ShownSource.CHINESE_BULK -> {
+                val nextPaged = shown.paged.copy(cursorIndex = next)
+                currentShown = shown.copy(paged = nextPaged)
+                MoveBottomCandidate.ChineseBulk(T9PagedCandidates(nextPaged, shown.originalIndices))
+            }
             ShownSource.OTHER -> null
         }
     }
@@ -280,5 +380,7 @@ class T9CandidateUiSnapshotPipeline(
                     shown = shown,
                     previewOriginalIndex = previewOriginalIndex ?: -1
                 )
+            is PageOffset.ChineseBulk ->
+                MoveBottomCandidate.ChineseBulk(shown)
         }
 }

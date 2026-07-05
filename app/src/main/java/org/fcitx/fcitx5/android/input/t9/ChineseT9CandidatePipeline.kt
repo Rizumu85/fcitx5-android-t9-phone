@@ -12,18 +12,39 @@ class ChineseT9CandidatePipeline(
     private val widthBudget: () -> T9CandidateWidthBudget?,
     private val candidateMatchesPrefix: (candidate: FcitxEvent.Candidate, prefix: String) -> Boolean
 ) {
+    data class BulkFilterState(
+        val paged: T9PagedCandidates?,
+        val matchedPrefix: String?,
+        val pending: Boolean
+    )
+
     private val localBudgetPager = T9CandidatePager()
+    private val bulkCandidateLoader = T9BulkCandidateLoader(
+        characterBudget = characterBudget,
+        widthBudget = widthBudget,
+        candidateMatchesPrefix = candidateMatchesPrefix
+    )
     private var localBudgetSignature = ""
     private var localBudgetNoPageSignature = ""
+    private var bulkFilteredPaged: T9PagedCandidates? = null
+    private var bulkFilteredMatchedPrefix: String? = null
     private var shownCandidateSignature = ""
     private var shownCursorContextSignature = ""
     private var hanziCursorIndex = -1
 
     fun reset() {
+        resetBulkFilter()
         resetLocalBudget()
         shownCandidateSignature = ""
         shownCursorContextSignature = ""
         hanziCursorIndex = -1
+    }
+
+    fun resetBulkFilter() {
+        bulkFilteredPaged = null
+        bulkFilteredMatchedPrefix = null
+        bulkCandidateLoader.reset()
+        resetLocalBudget()
     }
 
     fun resetLocalBudget() {
@@ -34,6 +55,62 @@ class ChineseT9CandidatePipeline(
 
     val hasLocalBudgetCandidates: Boolean
         get() = localBudgetPager.hasCandidates
+
+    val hasBulkFilteredCandidates: Boolean
+        get() = bulkCandidateLoader.hasCandidates
+
+    val bulkFilterState: BulkFilterState
+        get() = BulkFilterState(
+            paged = bulkFilteredPaged,
+            matchedPrefix = bulkFilteredMatchedPrefix,
+            pending = bulkCandidateLoader.pending
+        )
+
+    fun bulkFilterRequestSignature(
+        prefixes: List<String>,
+        preedit: CharSequence,
+        candidates: Array<FcitxEvent.Candidate>
+    ): String =
+        bulkCandidateLoader.requestSignature(prefixes, preedit, candidates)
+
+    fun shouldRequestBulkFilter(signature: String): Boolean =
+        bulkCandidateLoader.shouldRequest(signature)
+
+    fun startBulkFilterRequest(prefixes: List<String>, signature: String) {
+        bulkCandidateLoader.startRequest(prefixes, signature)
+        bulkFilteredPaged = null
+        bulkFilteredMatchedPrefix = null
+    }
+
+    fun finishBulkFilterRequest(
+        signature: String,
+        rawCandidates: List<String>,
+        prefixes: List<String>,
+        layoutHint: FcitxEvent.PagedCandidateEvent.LayoutHint
+    ): BulkFilterState? {
+        val result = bulkCandidateLoader.finishRequest(signature, rawCandidates, prefixes)
+            ?: return null
+        bulkFilteredMatchedPrefix = result.matchedPrefix
+        bulkFilteredPaged = result.page
+            ?.takeUnless { it.candidates.isEmpty() }
+            ?.toPagedCandidates(
+                layoutHint = layoutHint,
+                cursorIndex = 0
+            )
+        return bulkFilterState
+    }
+
+    fun offsetBulkFilteredPage(
+        delta: Int,
+        layoutHint: FcitxEvent.PagedCandidateEvent.LayoutHint
+    ): Boolean {
+        val page = bulkCandidateLoader.offset(delta) ?: return false
+        bulkFilteredPaged = page.takeUnless { it.candidates.isEmpty() }?.toPagedCandidates(
+            layoutHint = layoutHint,
+            cursorIndex = 0
+        )
+        return true
+    }
 
     fun offsetLocalBudgetedPage(delta: Int): Boolean {
         val current = localBudgetPager.currentPage() ?: return false
