@@ -24,6 +24,7 @@ class T9PinyinChipAdapter(
     private val verticalPaddingPx: Int,
     private val rowHeightPx: Int,
     private val cornerRadiusPx: Float,
+    private val scrollEdgeInsetPx: Int = 0,
     private val precreatedChipCount: Int = 0,
     private val onChipClick: (String) -> Unit
 ) {
@@ -161,7 +162,7 @@ class T9PinyinChipAdapter(
         val params = chip.layoutParams as? LinearLayout.LayoutParams
         val chipStart = chip.left
         val chipEnd = chip.right + (params?.rightMargin ?: 0)
-        val edgeInset = horizontalPaddingPx.coerceAtMost((viewportWidth / 3).coerceAtLeast(0))
+        val edgeInset = scrollEdgeInsetPx.coerceAtMost((viewportWidth / 3).coerceAtLeast(0))
         val visibleStart = root.scrollX + edgeInset
         val visibleEnd = root.scrollX + viewportWidth - edgeInset
         val targetScrollX = when {
