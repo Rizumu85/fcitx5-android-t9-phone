@@ -1203,12 +1203,8 @@ class CandidatesView(
         val shown = t9ShownPaged ?: paged
         if (shown.candidates.isEmpty()) return null
         val widthBudget = t9CandidateWidthBudget()
-        val bottomFocused = service.getT9CandidateFocus() == T9CandidateFocus.BOTTOM
-        return shown.candidates.withIndex().sumOf { (index, candidate) ->
-            widthBudget.candidateWidthPx(
-                candidate = candidate,
-                active = bottomFocused && index == shown.cursorIndex
-            )
+        return shown.candidates.sumOf { candidate ->
+            widthBudget.candidateWidthPx(candidate, active = false)
         }
             .coerceAtMost(widthBudget.maxWidthPx)
             .coerceAtLeast(1)
