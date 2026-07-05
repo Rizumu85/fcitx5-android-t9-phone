@@ -213,7 +213,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         override fun handleMultiTapKey(keyCode: Int): Boolean = this@FcitxInputMethodService.handleMultiTapKey(keyCode)
         override fun commitMultiTapChar(): Boolean = this@FcitxInputMethodService.commitMultiTapChar()
         override fun cancelMultiTapChar() = this@FcitxInputMethodService.cancelMultiTapChar()
-        override fun deferSmartEnglishPunctuationKey() = this@FcitxInputMethodService.deferSmartEnglishPunctuationKey()
         override fun showSmartEnglishPunctuationCandidates() =
             this@FcitxInputMethodService.showSmartEnglishPunctuationCandidates()
 
@@ -1817,10 +1816,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun handleEnglishStarLongPress() {
         smartEnglishCoordinator.toggleCaps()
         showEnglishCaseStateOrRefreshPending()
-    }
-
-    private fun deferSmartEnglishPunctuationKey() {
-        t9PunctuationCoordinator.deferEnglishKey()
     }
 
     private fun showSmartEnglishPunctuationCandidates() {

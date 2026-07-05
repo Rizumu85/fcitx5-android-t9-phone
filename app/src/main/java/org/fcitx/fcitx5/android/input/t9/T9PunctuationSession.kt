@@ -52,13 +52,6 @@ class T9PunctuationSession(
         state = state.copy(oneKeyDeferred = value)
     }
 
-    fun deferEnglishKey() {
-        state = State(
-            set = Set.ENGLISH,
-            oneKeyDeferred = true
-        )
-    }
-
     fun showEnglishCandidates(): String {
         state = State(set = Set.ENGLISH)
         return showPending()

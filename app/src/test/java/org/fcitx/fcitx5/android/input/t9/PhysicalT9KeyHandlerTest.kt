@@ -362,10 +362,6 @@ class PhysicalT9KeyHandlerTest {
         override fun handleMultiTapKey(keyCode: Int): Boolean = false
         override fun commitMultiTapChar(): Boolean = false
         override fun cancelMultiTapChar() = Unit
-        override fun deferSmartEnglishPunctuationKey() {
-            pendingPunctuationOneKeyDeferredState = true
-            pendingPunctuationSet = PhysicalT9KeyHandler.PunctuationSet.ENGLISH
-        }
         override fun showSmartEnglishPunctuationCandidates() {
             showSmartEnglishPunctuationCount += 1
         }

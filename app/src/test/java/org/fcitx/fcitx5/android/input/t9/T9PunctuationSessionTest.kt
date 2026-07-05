@@ -54,17 +54,4 @@ class T9PunctuationSessionTest {
         assertNull(session.pendingText)
     }
 
-    @Test
-    fun deferredOneKeyPunctuationDoesNotExposePendingCandidates() {
-        val session = T9PunctuationSession(
-            chinesePunctuation = listOf(","),
-            englishPunctuation = listOf("!")
-        )
-
-        session.deferEnglishKey()
-
-        assertTrue(session.oneKeyDeferred)
-        assertFalse(session.isPending)
-        assertNull(session.paged())
-    }
 }

@@ -207,8 +207,130 @@ class PhysicalT9KeyFlowTest {
     fun nonSmartEnglishOneAndPoundAreNotHandledByFlow() {
         val flow = PhysicalT9KeyFlow()
 
-        assertNull(flow.handle(input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN), state(isSmartEnglishActive = false)))
         assertNull(flow.handle(input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN), state(mode = PhysicalT9KeyHandler.Mode.CHINESE)))
+    }
+
+    @Test
+    fun simpleEnglishDigitUsesMultiTapOnKeyDown() {
+        val flow = PhysicalT9KeyFlow()
+
+        val down = flow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN),
+            state(isSmartEnglishActive = false)
+        )
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP),
+            state(isSmartEnglishActive = false)
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.HandleMultiTapKey(KeyEvent.KEYCODE_2)), down?.commands)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), up?.commands)
+    }
+
+    @Test
+    fun simpleEnglishDigitLongPressCommitsLiteralDigitAndSuppressesKeyUp() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN), state(isSmartEnglishActive = false))
+
+        val repeat = flow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(isSmartEnglishActive = false, heldPastLongPressDelay = true)
+        )
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP),
+            state(isSmartEnglishActive = false)
+        )
+
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.CancelMultiTapChar,
+                PhysicalT9KeyFlow.Command.CommitText("2")
+            ),
+            repeat?.commands
+        )
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), up?.commands)
+    }
+
+    @Test
+    fun simpleEnglishPoundCommitsPendingTextOrReturns() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN), state(isSmartEnglishActive = false))
+
+        val up = flow.handle(input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP), state(isSmartEnglishActive = false))
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitEnglishPendingOrReturn), up?.commands)
+    }
+
+    @Test
+    fun simpleEnglishStarShortAndLongPressStayInFlow() {
+        val shortFlow = PhysicalT9KeyFlow()
+        shortFlow.handle(input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN), state(isSmartEnglishActive = false))
+        val shortUp = shortFlow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP),
+            state(isSmartEnglishActive = false)
+        )
+
+        val longFlow = PhysicalT9KeyFlow()
+        longFlow.handle(input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN), state(isSmartEnglishActive = false))
+        val repeat = longFlow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(isSmartEnglishActive = false, heldPastLongPressDelay = true)
+        )
+        val longUp = longFlow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP),
+            state(isSmartEnglishActive = false)
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.HandleEnglishStarShortPress), shortUp?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.HandleEnglishStarLongPress), repeat?.commands)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), longUp?.commands)
+    }
+
+    @Test
+    fun simpleEnglishOkCommitsMultiTapAndConsumesKeyUp() {
+        val flow = PhysicalT9KeyFlow()
+
+        val down = flow.handle(
+            input(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.ACTION_DOWN),
+            state(isSmartEnglishActive = false, hasMultiTapPendingChar = true)
+        )
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.ACTION_UP),
+            state(isSmartEnglishActive = false)
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitMultiTapChar), down?.commands)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), up?.commands)
+        assertEquals(true, up?.handled)
+    }
+
+    @Test
+    fun simpleEnglishDeleteCancelsMultiTapWithoutConsumingKeyUp() {
+        val flow = PhysicalT9KeyFlow()
+
+        val down = flow.handle(
+            input(KeyEvent.KEYCODE_DEL, KeyEvent.ACTION_DOWN),
+            state(isSmartEnglishActive = false, hasMultiTapPendingChar = true)
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CancelMultiTapChar), down?.commands)
+        assertNull(down?.consumedKeyUp)
+    }
+
+    @Test
+    fun smartEnglishDeleteConsumesKeyUpWhenCandidatesExist() {
+        val flow = PhysicalT9KeyFlow()
+
+        val down = flow.handle(
+            input(KeyEvent.KEYCODE_DEL, KeyEvent.ACTION_DOWN),
+            state(hasSmartEnglishCandidates = true)
+        )
+
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.SmartEnglishDelete(hasPendingPunctuation = false)),
+            down?.commands
+        )
+        assertEquals(KeyEvent.KEYCODE_DEL, down?.consumedKeyUp)
     }
 
     private fun input(
@@ -231,7 +353,9 @@ class PhysicalT9KeyFlowTest {
         pendingPunctuationOneKeyDeferred: Boolean = false,
         pendingPunctuationSet: PhysicalT9KeyHandler.PunctuationSet =
             PhysicalT9KeyHandler.PunctuationSet.ENGLISH,
+        hasSmartEnglishDigits: Boolean = false,
         hasSmartEnglishCandidates: Boolean = false,
+        hasMultiTapPendingChar: Boolean = false,
         heldPastLongPressDelay: Boolean = false
     ): PhysicalT9KeyFlow.State =
         PhysicalT9KeyFlow.State(
@@ -240,7 +364,9 @@ class PhysicalT9KeyFlowTest {
             hasPendingPunctuation = hasPendingPunctuation,
             pendingPunctuationOneKeyDeferred = pendingPunctuationOneKeyDeferred,
             pendingPunctuationSet = pendingPunctuationSet,
+            hasSmartEnglishDigits = hasSmartEnglishDigits,
             hasSmartEnglishCandidates = hasSmartEnglishCandidates,
+            hasMultiTapPendingChar = hasMultiTapPendingChar,
             heldPastLongPressDelay = heldPastLongPressDelay
         )
 }

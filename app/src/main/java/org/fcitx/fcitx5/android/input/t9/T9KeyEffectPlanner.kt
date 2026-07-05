@@ -11,11 +11,7 @@ class T9KeyEffectPlanner {
 
     data class Snapshot(
         val mode: PhysicalT9KeyHandler.Mode,
-        val isSmartEnglishActive: Boolean,
-        val hasSmartEnglishDigits: Boolean,
-        val hasSmartEnglishCandidates: Boolean,
         val hasPendingPunctuation: Boolean,
-        val hasMultiTapPendingChar: Boolean,
         val hasTopPinyinCandidates: Boolean,
         val candidateFocus: PhysicalT9KeyHandler.CandidateFocus
     )
@@ -44,20 +40,6 @@ class T9KeyEffectPlanner {
         ) : Effect(consumeKeyUp = true)
         data class CancelMultiTapChar(val consume: Boolean = false) : Effect(consume)
         data class CancelPendingPunctuation(val consume: Boolean = false) : Effect(consume)
-    }
-
-    fun planEnglishDeleteKeyDown(
-        input: PhysicalT9KeyHandler.KeyInput,
-        snapshot: Snapshot
-    ): Effect {
-        if (snapshot.mode != PhysicalT9KeyHandler.Mode.ENGLISH) return Effect.None
-        if (input.action != KeyEvent.ACTION_DOWN) return Effect.None
-        if (!PhysicalT9KeyPolicy.isDeleteKey(input.keyCode)) return Effect.None
-        return when {
-            snapshot.hasMultiTapPendingChar -> Effect.CancelMultiTapChar()
-            snapshot.hasPendingPunctuation -> Effect.CancelPendingPunctuation()
-            else -> Effect.None
-        }
     }
 
     fun planChineseCandidateFocusNavigation(

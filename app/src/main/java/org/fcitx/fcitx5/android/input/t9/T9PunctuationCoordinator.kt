@@ -33,10 +33,6 @@ class T9PunctuationCoordinator(
         session.setOneKeyDeferred(value)
     }
 
-    fun deferEnglishKey() {
-        session.deferEnglishKey()
-    }
-
     fun showEnglishCandidates() {
         session.showEnglishCandidates()
         showPending()

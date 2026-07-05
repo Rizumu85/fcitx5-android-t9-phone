@@ -15,19 +15,6 @@ class T9KeyEffectPlannerTest {
     private val planner = T9KeyEffectPlanner()
 
     @Test
-    fun englishDeleteCancelsMultiTapBeforeGenericDelete() {
-        val effect = planner.planEnglishDeleteKeyDown(
-            keyInput(KeyEvent.KEYCODE_DEL),
-            snapshot(
-                mode = PhysicalT9KeyHandler.Mode.ENGLISH,
-                hasMultiTapPendingChar = true
-            )
-        )
-
-        assertEquals(T9KeyEffectPlanner.Effect.CancelMultiTapChar(), effect)
-    }
-
-    @Test
     fun chineseUpKeyMovesToTopPinyinWhenTopCandidatesExist() {
         val effect = planner.planChineseCandidateFocusNavigation(
             keyInput(KeyEvent.KEYCODE_DPAD_UP),
@@ -75,21 +62,13 @@ class T9KeyEffectPlannerTest {
 
     private fun snapshot(
         mode: PhysicalT9KeyHandler.Mode,
-        isSmartEnglishActive: Boolean = false,
-        hasSmartEnglishDigits: Boolean = false,
-        hasSmartEnglishCandidates: Boolean = hasSmartEnglishDigits,
         hasPendingPunctuation: Boolean = false,
-        hasMultiTapPendingChar: Boolean = false,
         hasTopPinyinCandidates: Boolean = false,
         candidateFocus: PhysicalT9KeyHandler.CandidateFocus =
             PhysicalT9KeyHandler.CandidateFocus.BOTTOM
     ): T9KeyEffectPlanner.Snapshot = T9KeyEffectPlanner.Snapshot(
         mode = mode,
-        isSmartEnglishActive = isSmartEnglishActive,
-        hasSmartEnglishDigits = hasSmartEnglishDigits,
-        hasSmartEnglishCandidates = hasSmartEnglishCandidates,
         hasPendingPunctuation = hasPendingPunctuation,
-        hasMultiTapPendingChar = hasMultiTapPendingChar,
         hasTopPinyinCandidates = hasTopPinyinCandidates,
         candidateFocus = candidateFocus
     )
