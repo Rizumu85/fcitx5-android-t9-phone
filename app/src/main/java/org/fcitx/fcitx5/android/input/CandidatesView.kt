@@ -1092,8 +1092,6 @@ class CandidatesView(
 
     private fun currentCandidateRowWidthForPinyinPolicy(): Int? =
         estimatedShownCandidateRowWidthPx()
-            ?: firstPositiveCandidateRowWidth()
-            ?: lastCandidateRowWidthPx.takeIf { it > 0 }
 
     private fun pinyinRowViewportWidthPx(): Int? {
         pinyinRowWrapper.width.takeIf { it > 0 }?.let { return it }
@@ -1463,6 +1461,9 @@ class CandidatesView(
                 val cw = candidatesUi.root.width
                 if (cw > 0) {
                     lastCandidateRowWidthPx = cw
+                }
+                if (pinyinRowWrapper.visibility == View.VISIBLE) {
+                    return
                 }
                 val targetWidth = cw.takeIf { it > 0 }
                     ?.let { maxOf(it, pinyinRowDesiredWidthPx(it) ?: 0) }
