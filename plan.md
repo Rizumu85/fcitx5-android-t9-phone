@@ -97,3 +97,6 @@ otherwise.
   Physical T9 Key Flow slice, removing the replaced legacy branches.
 - [x] Run focused tests, build/install debug, and provide a manual Smart
   English `1/#` test checklist before migrating the next slice.
+- [x] Migrate the remaining Smart English physical-key behavior into the same
+  command-based flow: `0`, `2..9`, long-press shortcuts, candidate navigation,
+  candidate confirmation, and Backspace.

@@ -118,8 +118,6 @@ class PhysicalT9KeyHandler(private val host: Host) {
     private val effectPlanner = T9KeyEffectPlanner()
     private val keyFlow = PhysicalT9KeyFlow()
     private var poundLongPressTriggered = false
-    private var pendingSmartEnglishDigitKeyCode: Int? = null
-    private var pendingSmartEnglishDigit = -1
 
     private fun isDigitLongPressFlagSet(keyCode: Int): Boolean =
         digitLongPressFlags.getOrNull(keyCode) == true
@@ -130,10 +128,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
         }
     }
 
-    fun resetSmartEnglishPendingDigit() {
-        pendingSmartEnglishDigitKeyCode = null
-        pendingSmartEnglishDigit = -1
-    }
+    fun resetSmartEnglishPendingDigit() = keyFlow.resetSmartEnglishPendingDigit()
 
     fun handleKeyDown(keyCode: Int, event: KeyEvent): KeyResult =
         handleKeyDown(KeyInput.from(keyCode, event))
@@ -151,7 +146,6 @@ class PhysicalT9KeyHandler(private val host: Host) {
 
         handleCommandKeyFlow(input).takeIf { it.handled }?.let { return it }
         handleT9SpecialKeyDown(keyCode, input).takeIf { it.handled }?.let { return it }
-        handleSmartEnglishNavigationKeyDown(keyCode, input).takeIf { it.handled }?.let { return it }
         handleEnglishDeleteKeyDown(keyCode, input).takeIf { it.handled }?.let { return it }
         handleChineseCandidateFocusNavigation(keyCode, input).takeIf { it.handled }?.let { return it }
         return KeyResult(handled = false)
@@ -169,7 +163,10 @@ class PhysicalT9KeyHandler(private val host: Host) {
     private fun handleCommandKeyFlow(input: KeyInput): KeyResult {
         val decision = keyFlow.handle(input, physicalKeyFlowState(input)) ?: return KeyResult(handled = false)
         executePhysicalKeyFlowCommands(decision.commands)
-        return KeyResult(handled = decision.handled)
+        return KeyResult(
+            handled = decision.handled,
+            consumedKeyUp = decision.consumedKeyUp
+        )
     }
 
     private fun physicalKeyFlowState(input: KeyInput): PhysicalT9KeyFlow.State =
@@ -205,6 +202,44 @@ class PhysicalT9KeyHandler(private val host: Host) {
                         appendSpace = command.appendSpace,
                         continuePrediction = command.continuePrediction
                     )
+                PhysicalT9KeyFlow.Command.CommitSmartEnglishCandidateOrMultiTap -> {
+                    if (!host.commitSmartEnglishCandidate()) {
+                        host.commitMultiTapChar()
+                    }
+                }
+                is PhysicalT9KeyFlow.Command.AppendSmartEnglishDigit ->
+                    host.appendSmartEnglishDigit(command.digit)
+                PhysicalT9KeyFlow.Command.ResetSmartEnglishT9 ->
+                    host.resetSmartEnglishT9()
+                PhysicalT9KeyFlow.Command.FlushEnglishLearningWord ->
+                    host.flushEnglishLearningWord()
+                is PhysicalT9KeyFlow.Command.MoveBottomCandidate -> {
+                    val moved = host.moveHighlightedBottomCandidate(command.delta)
+                    if (!moved) {
+                        command.fallbackSmartEnglishDelta?.let { host.moveSmartEnglishCandidate(it) }
+                    }
+                }
+                is PhysicalT9KeyFlow.Command.OffsetBottomCandidatePage ->
+                    host.offsetBottomCandidatePage(command.delta)
+                is PhysicalT9KeyFlow.Command.ConfirmSmartEnglishCandidate -> {
+                    host.commitHighlightedBottomCandidate() ||
+                        if (command.hasPendingPunctuation) {
+                            host.commitPendingPunctuation()
+                        } else {
+                            host.commitSmartEnglishCandidate()
+                        }
+                }
+                is PhysicalT9KeyFlow.Command.SmartEnglishDelete ->
+                    if (command.hasPendingPunctuation) {
+                        host.cancelPendingPunctuation()
+                    } else {
+                        host.smartEnglishBackspace()
+                    }
+                is PhysicalT9KeyFlow.Command.CommitPendingPunctuationShortcutOrText ->
+                    if (!host.commitPendingPunctuationShortcut(command.keyCode)) {
+                        host.cancelPendingPunctuation()
+                        host.commitText(command.text)
+                    }
                 is PhysicalT9KeyFlow.Command.CommitText ->
                     host.commitText(command.text)
                 PhysicalT9KeyFlow.Command.HandleReturnKey ->
@@ -323,7 +358,6 @@ class PhysicalT9KeyHandler(private val host: Host) {
     }
 
     private fun handleEnglishDigitKeyDown(keyCode: Int, input: KeyInput, digit: Int): Boolean {
-        if (handleSmartEnglishDigitKeyDown(keyCode, input, digit)) return true
         return when {
             PhysicalT9KeyPolicy.isPredictiveDigitKey(keyCode) -> {
                 if (input.repeatCount == 0) {
@@ -365,25 +399,6 @@ class PhysicalT9KeyHandler(private val host: Host) {
             }
             else -> false
         }
-    }
-
-    private fun handleSmartEnglishDigitKeyDown(keyCode: Int, input: KeyInput, digit: Int): Boolean {
-        if (!host.isSmartEnglishActive) return false
-        if (!PhysicalT9KeyPolicy.isPredictiveDigitKey(keyCode)) return false
-        if (input.repeatCount == 0) {
-            setDigitLongPressFlag(keyCode, false)
-            pendingSmartEnglishDigitKeyCode = keyCode
-            pendingSmartEnglishDigit = digit
-            return true
-        }
-        if (consumePhysicalLongPressIfReady(keyCode, input)) {
-            resetSmartEnglishPendingDigit()
-            if (host.hasSmartEnglishCandidates && host.commitSmartEnglishShortcut(keyCode)) return true
-            host.resetSmartEnglishT9()
-            host.commitText(digit.toString())
-            host.flushEnglishLearningWord()
-        }
-        return true
     }
 
     private fun handleChineseDigitKeyDown(keyCode: Int, input: KeyInput, digit: Int): Boolean {
@@ -487,11 +502,6 @@ class PhysicalT9KeyHandler(private val host: Host) {
         }
     }
 
-    private fun handleSmartEnglishNavigationKeyDown(keyCode: Int, input: KeyInput): KeyResult {
-        val effect = effectPlanner.planSmartEnglishNavigationKeyDown(input, t9EffectSnapshot())
-        return executeT9Effect(effect, keyCode)
-    }
-
     private fun handleEnglishDeleteKeyDown(keyCode: Int, input: KeyInput): KeyResult {
         val effect = effectPlanner.planEnglishDeleteKeyDown(input, t9EffectSnapshot())
         return executeT9Effect(effect, keyCode)
@@ -541,18 +551,6 @@ class PhysicalT9KeyHandler(private val host: Host) {
             is T9KeyEffectPlanner.Effect.CommitHighlightedBottomCandidate ->
                 host.commitHighlightedBottomCandidate() ||
                     (effect.handledWhenPendingPunctuation && host.hasPendingPunctuation)
-            is T9KeyEffectPlanner.Effect.ConfirmSmartEnglishCandidate ->
-                host.commitHighlightedBottomCandidate() || if (effect.hasPendingPunctuation) {
-                    host.commitPendingPunctuation()
-                } else {
-                    host.commitSmartEnglishCandidate()
-                }
-            is T9KeyEffectPlanner.Effect.SmartEnglishDelete ->
-                if (effect.hasPendingPunctuation) {
-                    host.cancelPendingPunctuation()
-                } else {
-                    host.smartEnglishBackspace()
-                }
             is T9KeyEffectPlanner.Effect.CancelMultiTapChar -> {
                 host.cancelMultiTapChar()
                 true
@@ -636,7 +634,6 @@ class PhysicalT9KeyHandler(private val host: Host) {
 
     private fun handlePredictiveDigitKeyUp(keyCode: Int, input: KeyInput): Boolean = when (host.mode) {
         Mode.ENGLISH -> {
-            if (commitPendingSmartEnglishDigitKeyUp(keyCode)) return true
             if (host.hasPendingPunctuation) {
                 if (!isDigitLongPressFlagSet(keyCode)) {
                     val digit = PhysicalT9KeyPolicy.t9Digit(keyCode) ?: return false
@@ -659,22 +656,6 @@ class PhysicalT9KeyHandler(private val host: Host) {
             setDigitLongPressFlag(keyCode, false)
             true
         }
-    }
-
-    private fun commitPendingSmartEnglishDigitKeyUp(keyCode: Int): Boolean {
-        if (!host.isSmartEnglishActive) return false
-        if (pendingSmartEnglishDigitKeyCode != keyCode) return false
-        val digit = pendingSmartEnglishDigit
-        resetSmartEnglishPendingDigit()
-        if (isDigitLongPressFlagSet(keyCode)) {
-            setDigitLongPressFlag(keyCode, false)
-            return true
-        }
-        if (digit in 2..9) {
-            host.appendSmartEnglishDigit(digit)
-        }
-        setDigitLongPressFlag(keyCode, false)
-        return true
     }
 
     private fun handleOneKeyUp(keyCode: Int): Boolean = when (host.mode) {

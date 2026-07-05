@@ -42,54 +42,8 @@ class T9KeyEffectPlanner {
         data class CommitHighlightedBottomCandidate(
             val handledWhenPendingPunctuation: Boolean = false
         ) : Effect(consumeKeyUp = true)
-        data class ConfirmSmartEnglishCandidate(
-            val hasPendingPunctuation: Boolean
-        ) : Effect(consumeKeyUp = true)
-        data class SmartEnglishDelete(
-            val hasPendingPunctuation: Boolean,
-            val consume: Boolean
-        ) : Effect(consume)
         data class CancelMultiTapChar(val consume: Boolean = false) : Effect(consume)
         data class CancelPendingPunctuation(val consume: Boolean = false) : Effect(consume)
-    }
-
-    fun planSmartEnglishNavigationKeyDown(
-        input: PhysicalT9KeyHandler.KeyInput,
-        snapshot: Snapshot
-    ): Effect {
-        if (!snapshot.isSmartEnglishActive ||
-            (!snapshot.hasSmartEnglishCandidates && !snapshot.hasPendingPunctuation)
-        ) {
-            return Effect.None
-        }
-        if (input.action != KeyEvent.ACTION_DOWN) return Effect.None
-        val keyCode = input.keyCode
-        val focusKey = PhysicalT9KeyPolicy.focusKey(keyCode)
-            ?: if (keyCode == KeyEvent.KEYCODE_SPACE) PhysicalT9KeyPolicy.FocusKey.OK else null
-        return when (focusKey) {
-            PhysicalT9KeyPolicy.FocusKey.LEFT -> Effect.MoveBottomCandidate(
-                delta = -1,
-                fallbackSmartEnglishDelta = (-1).takeUnless { snapshot.hasPendingPunctuation }
-            )
-            PhysicalT9KeyPolicy.FocusKey.RIGHT -> Effect.MoveBottomCandidate(
-                delta = 1,
-                fallbackSmartEnglishDelta = 1.takeUnless { snapshot.hasPendingPunctuation }
-            )
-            PhysicalT9KeyPolicy.FocusKey.UP ->
-                Effect.OffsetBottomCandidatePage(delta = -1, alwaysHandled = true)
-            PhysicalT9KeyPolicy.FocusKey.DOWN ->
-                Effect.OffsetBottomCandidatePage(delta = 1, alwaysHandled = true)
-            PhysicalT9KeyPolicy.FocusKey.OK ->
-                Effect.ConfirmSmartEnglishCandidate(snapshot.hasPendingPunctuation)
-            null -> if (PhysicalT9KeyPolicy.isDeleteKey(keyCode)) {
-                Effect.SmartEnglishDelete(
-                    hasPendingPunctuation = snapshot.hasPendingPunctuation,
-                    consume = true
-                )
-            } else {
-                Effect.None
-            }
-        }
     }
 
     fun planEnglishDeleteKeyDown(
@@ -100,8 +54,6 @@ class T9KeyEffectPlanner {
         if (input.action != KeyEvent.ACTION_DOWN) return Effect.None
         if (!PhysicalT9KeyPolicy.isDeleteKey(input.keyCode)) return Effect.None
         return when {
-            snapshot.hasSmartEnglishCandidates ->
-                Effect.SmartEnglishDelete(hasPendingPunctuation = false, consume = true)
             snapshot.hasMultiTapPendingChar -> Effect.CancelMultiTapChar()
             snapshot.hasPendingPunctuation -> Effect.CancelPendingPunctuation()
             else -> Effect.None

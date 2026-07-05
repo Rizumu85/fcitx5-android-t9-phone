@@ -80,6 +80,96 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
+    fun smartEnglishDigitAppendsOnKeyUpOnly() {
+        val flow = PhysicalT9KeyFlow()
+
+        val down = flow.handle(input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN), state())
+        val up = flow.handle(input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP), state())
+
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), down?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.AppendSmartEnglishDigit(2)), up?.commands)
+    }
+
+    @Test
+    fun smartEnglishDigitLongPressCommitsShortcutAndSuppressesKeyUpDigit() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN), state())
+
+        val repeat = flow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(hasSmartEnglishCandidates = true, heldPastLongPressDelay = true)
+        )
+        val up = flow.handle(input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP), state())
+
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.CommitSmartEnglishShortcut(KeyEvent.KEYCODE_2)),
+            repeat?.commands
+        )
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), up?.commands)
+    }
+
+    @Test
+    fun smartEnglishZeroCommitsCandidateOrMultiTapThenSpace() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN), state())
+
+        val up = flow.handle(input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_UP), state())
+
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.CommitSmartEnglishCandidateOrMultiTap,
+                PhysicalT9KeyFlow.Command.CommitPendingPunctuation,
+                PhysicalT9KeyFlow.Command.CommitText(" "),
+                PhysicalT9KeyFlow.Command.FlushEnglishLearningWord
+            ),
+            up?.commands
+        )
+    }
+
+    @Test
+    fun smartEnglishNavigationConsumesKeyUpThroughFlow() {
+        val flow = PhysicalT9KeyFlow()
+
+        val down = flow.handle(
+            input(KeyEvent.KEYCODE_DPAD_UP, KeyEvent.ACTION_DOWN),
+            state(hasSmartEnglishCandidates = true)
+        )
+
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.OffsetBottomCandidatePage(
+                    delta = -1
+                )
+            ),
+            down?.commands
+        )
+        assertEquals(KeyEvent.KEYCODE_DPAD_UP, down?.consumedKeyUp)
+    }
+
+    @Test
+    fun smartEnglishOkConfirmsCandidateThroughFlow() {
+        val flow = PhysicalT9KeyFlow()
+
+        val down = flow.handle(
+            input(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.ACTION_DOWN),
+            state(hasSmartEnglishCandidates = true)
+        )
+
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.ConfirmSmartEnglishCandidate(hasPendingPunctuation = false)),
+            down?.commands
+        )
+        assertEquals(KeyEvent.KEYCODE_DPAD_CENTER, down?.consumedKeyUp)
+    }
+
+    @Test
+    fun smartEnglishBackspaceWithoutCandidatesFallsThroughToApp() {
+        val flow = PhysicalT9KeyFlow()
+
+        assertNull(flow.handle(input(KeyEvent.KEYCODE_DEL, KeyEvent.ACTION_DOWN), state()))
+    }
+
+    @Test
     fun smartEnglishPendingPunctuationKeepsExistingOneAndPoundBehavior() {
         val flow = PhysicalT9KeyFlow()
 

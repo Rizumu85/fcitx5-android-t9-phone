@@ -15,84 +15,16 @@ class T9KeyEffectPlannerTest {
     private val planner = T9KeyEffectPlanner()
 
     @Test
-    fun smartEnglishUpKeyOffsetsBottomCandidates() {
-        val effect = planner.planSmartEnglishNavigationKeyDown(
-            keyInput(KeyEvent.KEYCODE_DPAD_UP),
-            snapshot(
-                mode = PhysicalT9KeyHandler.Mode.ENGLISH,
-                isSmartEnglishActive = true,
-                hasSmartEnglishDigits = true
-            )
-        )
-
-        assertEquals(
-            T9KeyEffectPlanner.Effect.OffsetBottomCandidatePage(
-                delta = -1,
-                alwaysHandled = true
-            ),
-            effect
-        )
-        assertTrue(effect.consumeKeyUp)
-    }
-
-    @Test
-    fun smartEnglishOkKeyConfirmsCandidate() {
-        val effect = planner.planSmartEnglishNavigationKeyDown(
-            keyInput(KeyEvent.KEYCODE_DPAD_CENTER),
-            snapshot(
-                mode = PhysicalT9KeyHandler.Mode.ENGLISH,
-                isSmartEnglishActive = true,
-                hasSmartEnglishDigits = true,
-                hasSmartEnglishCandidates = true
-            )
-        )
-
-        assertEquals(
-            T9KeyEffectPlanner.Effect.ConfirmSmartEnglishCandidate(hasPendingPunctuation = false),
-            effect
-        )
-        assertTrue(effect.consumeKeyUp)
-    }
-
-    @Test
-    fun smartEnglishPredictionCandidatesCanBeConfirmedWithoutDigits() {
-        val effect = planner.planSmartEnglishNavigationKeyDown(
-            keyInput(KeyEvent.KEYCODE_DPAD_CENTER),
-            snapshot(
-                mode = PhysicalT9KeyHandler.Mode.ENGLISH,
-                isSmartEnglishActive = true,
-                hasSmartEnglishDigits = false,
-                hasSmartEnglishCandidates = true
-            )
-        )
-
-        assertEquals(
-            T9KeyEffectPlanner.Effect.ConfirmSmartEnglishCandidate(hasPendingPunctuation = false),
-            effect
-        )
-        assertTrue(effect.consumeKeyUp)
-    }
-
-    @Test
-    fun englishDeleteUsesSmartEnglishBackspaceBeforeGenericDelete() {
+    fun englishDeleteCancelsMultiTapBeforeGenericDelete() {
         val effect = planner.planEnglishDeleteKeyDown(
             keyInput(KeyEvent.KEYCODE_DEL),
             snapshot(
                 mode = PhysicalT9KeyHandler.Mode.ENGLISH,
-                isSmartEnglishActive = true,
-                hasSmartEnglishDigits = true,
-                hasSmartEnglishCandidates = true
+                hasMultiTapPendingChar = true
             )
         )
 
-        assertEquals(
-            T9KeyEffectPlanner.Effect.SmartEnglishDelete(
-                hasPendingPunctuation = false,
-                consume = true
-            ),
-            effect
-        )
-        assertTrue(effect.consumeKeyUp)
+        assertEquals(T9KeyEffectPlanner.Effect.CancelMultiTapChar(), effect)
     }
 
     @Test
