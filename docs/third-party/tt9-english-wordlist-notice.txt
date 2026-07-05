@@ -31,6 +31,13 @@ Git commit: 17 Dec 2022 [c3772cd56e770975ea5570db903f93b199de8b32]
 
 =====
 
+Next-word prediction pairs are adapted from Traditional T9's English ngram data
+(`app/languages/ngrams/en-ngrams.zip`). The app converts adjacent words from
+those ngram phrases into its own grouped `previous -> next words` asset instead
+of bundling the original TT9 archive.
+
+=====
+
 Animals, countries, cities and other geographical terms, personal names, companies, food and bevarages obtained from Wikipedia, OpenAI and other public domain sources.
 
 =====
