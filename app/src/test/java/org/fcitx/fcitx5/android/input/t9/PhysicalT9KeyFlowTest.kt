@@ -208,13 +208,6 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
-    fun nonSmartEnglishOneAndPoundAreNotHandledByFlow() {
-        val flow = PhysicalT9KeyFlow()
-
-        assertNull(flow.handle(input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN), state(mode = PhysicalT9KeyHandler.Mode.CHINESE)))
-    }
-
-    @Test
     fun chinesePendingPunctuationOneKeepsDeferredPunctuationSemantics() {
         val flow = PhysicalT9KeyFlow()
 
@@ -545,6 +538,351 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
+    fun chineseIdleZeroShortPressCommitsOnlySpace() {
+        val flow = PhysicalT9KeyFlow()
+
+        val down = flow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        )
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        )
+
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), down?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitText(" ")), up?.commands)
+    }
+
+    @Test
+    fun chineseZeroConfirmsFocusedCompositionRow() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, compositionKeyCount = 2)
+        )
+
+        val topUp = flow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_UP),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                compositionKeyCount = 2,
+                candidateFocus = PhysicalT9KeyHandler.CandidateFocus.TOP
+            )
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitHighlightedPinyin), topUp?.commands)
+
+        val bottomFlow = PhysicalT9KeyFlow()
+        bottomFlow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, compositionKeyCount = 2)
+        )
+        val bottomUp = bottomFlow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_UP),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                compositionKeyCount = 2,
+                candidateFocus = PhysicalT9KeyHandler.CandidateFocus.BOTTOM
+            )
+        )
+
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.CommitBottomCandidate(
+                    PhysicalT9KeyFlow.BottomCandidateFallback.NONE
+                )
+            ),
+            bottomUp?.commands
+        )
+    }
+
+    @Test
+    fun chineseZeroLongPressUsesTenthHanziShortcutAndSuppressesKeyUp() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, compositionKeyCount = 2)
+        )
+
+        val repeat = flow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                compositionKeyCount = 2,
+                heldPastLongPressDelay = true
+            )
+        )
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, compositionKeyCount = 2)
+        )
+
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.CommitHanziShortcut(KeyEvent.KEYCODE_0)),
+            repeat?.commands
+        )
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), up?.commands)
+    }
+
+    @Test
+    fun chineseComposingWithoutCompositionKeysDoesNotSwallowZeroOrOneShortPress() {
+        val zeroFlow = PhysicalT9KeyFlow()
+
+        assertEquals(
+            false,
+            zeroFlow.handle(
+                input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN),
+                state(mode = PhysicalT9KeyHandler.Mode.CHINESE, chineseComposing = true)
+            )?.handled
+        )
+        assertNull(
+            zeroFlow.handle(
+                input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_UP),
+                state(mode = PhysicalT9KeyHandler.Mode.CHINESE, chineseComposing = true)
+            )
+        )
+
+        val oneFlow = PhysicalT9KeyFlow()
+        assertEquals(
+            false,
+            oneFlow.handle(
+                input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN),
+                state(mode = PhysicalT9KeyHandler.Mode.CHINESE, chineseComposing = true)
+            )?.handled
+        )
+        assertNull(
+            oneFlow.handle(
+                input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP),
+                state(mode = PhysicalT9KeyHandler.Mode.CHINESE, chineseComposing = true)
+            )
+        )
+    }
+
+    @Test
+    fun chineseIdleOneUsesDeferredPunctuationAndLongPressCommitsLiteralOne() {
+        val shortFlow = PhysicalT9KeyFlow()
+
+        val down = shortFlow.handle(
+            input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        )
+        val up = shortFlow.handle(
+            input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                pendingPunctuationOneKeyDeferred = true
+            )
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.SetPendingPunctuationOneKeyDeferred(true)), down?.commands)
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.HandleChinesePunctuationKey,
+                PhysicalT9KeyFlow.Command.SetPendingPunctuationOneKeyDeferred(false)
+            ),
+            up?.commands
+        )
+
+        val longFlow = PhysicalT9KeyFlow()
+        longFlow.handle(
+            input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        )
+        val repeat = longFlow.handle(
+            input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, heldPastLongPressDelay = true)
+        )
+
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.SetPendingPunctuationOneKeyDeferred(false),
+                PhysicalT9KeyFlow.Command.CancelPendingPunctuation,
+                PhysicalT9KeyFlow.Command.CommitText("1")
+            ),
+            repeat?.commands
+        )
+    }
+
+    @Test
+    fun chineseCompositionOneForwardsSeparatorShortPressAndLongPressUsesShortcut() {
+        val shortFlow = PhysicalT9KeyFlow()
+        shortFlow.handle(
+            input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, compositionKeyCount = 2)
+        )
+
+        val up = shortFlow.handle(
+            input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, compositionKeyCount = 2)
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.ForwardChineseT9SeparatorShortPress), up?.commands)
+
+        val longFlow = PhysicalT9KeyFlow()
+        longFlow.handle(
+            input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, compositionKeyCount = 2)
+        )
+        val repeat = longFlow.handle(
+            input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                compositionKeyCount = 2,
+                heldPastLongPressDelay = true
+            )
+        )
+
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.CommitHanziShortcut(KeyEvent.KEYCODE_1)),
+            repeat?.commands
+        )
+    }
+
+    @Test
+    fun chinesePredictiveDigitShortPressFallsThroughWhenIdleButForwardsWhenComposing() {
+        val idleFlow = PhysicalT9KeyFlow()
+
+        val idleDown = idleFlow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        )
+        val idleUp = idleFlow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        )
+
+        assertEquals(false, idleDown?.handled)
+        assertNull(idleUp)
+
+        val composingFlow = PhysicalT9KeyFlow()
+        composingFlow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, compositionKeyCount = 2)
+        )
+        val composingUp = composingFlow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, compositionKeyCount = 2)
+        )
+
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.ForwardChineseT9KeyShortPress(KeyEvent.KEYCODE_2)),
+            composingUp?.commands
+        )
+    }
+
+    @Test
+    fun chinesePredictiveDigitLongPressCommitsShortcutOrLiteralAndSuppressesKeyUp() {
+        val composingFlow = PhysicalT9KeyFlow()
+        composingFlow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, compositionKeyCount = 2)
+        )
+
+        val composingRepeat = composingFlow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                compositionKeyCount = 2,
+                heldPastLongPressDelay = true
+            )
+        )
+        val composingUp = composingFlow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, compositionKeyCount = 2)
+        )
+
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.CommitHanziShortcut(KeyEvent.KEYCODE_2)),
+            composingRepeat?.commands
+        )
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), composingUp?.commands)
+
+        val idleFlow = PhysicalT9KeyFlow()
+        idleFlow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        )
+        val idleRepeat = idleFlow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, heldPastLongPressDelay = true)
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitText("2")), idleRepeat?.commands)
+    }
+
+    @Test
+    fun chineseComposingPoundFallsThroughForRimePinyinPreviewPath() {
+        val flow = PhysicalT9KeyFlow()
+
+        assertNull(
+            flow.handle(
+                input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN),
+                state(mode = PhysicalT9KeyHandler.Mode.CHINESE, chineseComposing = true)
+            )
+        )
+        assertNull(
+            flow.handle(
+                input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP),
+                state(mode = PhysicalT9KeyHandler.Mode.CHINESE, chineseComposing = true)
+            )
+        )
+    }
+
+    @Test
+    fun chineseIdlePoundReturnsAndLongPressSwitchesMode() {
+        val shortFlow = PhysicalT9KeyFlow()
+        shortFlow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        )
+        val shortUp = shortFlow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        )
+
+        val longFlow = PhysicalT9KeyFlow()
+        longFlow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        )
+        val repeat = longFlow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, heldPastLongPressDelay = true)
+        )
+        val longUp = longFlow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.HandleReturnKey), shortUp?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.SwitchToNextMode), repeat?.commands)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), longUp?.commands)
+    }
+
+    @Test
+    fun chineseStarCommitsLiteralOnlyOnKeyDownAndDoesNotToggleOnKeyUp() {
+        val flow = PhysicalT9KeyFlow()
+
+        val down = flow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        )
+        val repeat = flow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, heldPastLongPressDelay = true)
+        )
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitLiteralStarInCurrentChineseState), down?.commands)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), repeat?.commands)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), up?.commands)
+    }
+
+    @Test
     fun simpleEnglishDigitUsesMultiTapOnKeyDown() {
         val flow = PhysicalT9KeyFlow()
 
@@ -815,6 +1153,8 @@ class PhysicalT9KeyFlowTest {
     private fun state(
         mode: PhysicalT9KeyHandler.Mode = PhysicalT9KeyHandler.Mode.ENGLISH,
         isSmartEnglishActive: Boolean = true,
+        chineseComposing: Boolean = false,
+        compositionKeyCount: Int = 0,
         hasPendingPunctuation: Boolean = false,
         pendingPunctuationOneKeyDeferred: Boolean = false,
         pendingPunctuationSet: PhysicalT9KeyHandler.PunctuationSet =
@@ -831,6 +1171,8 @@ class PhysicalT9KeyFlowTest {
         PhysicalT9KeyFlow.State(
             mode = mode,
             isSmartEnglishActive = isSmartEnglishActive,
+            chineseComposing = chineseComposing,
+            compositionKeyCount = compositionKeyCount,
             hasPendingPunctuation = hasPendingPunctuation,
             pendingPunctuationOneKeyDeferred = pendingPunctuationOneKeyDeferred,
             pendingPunctuationSet = pendingPunctuationSet,

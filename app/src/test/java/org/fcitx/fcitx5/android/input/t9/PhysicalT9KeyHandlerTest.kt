@@ -271,6 +271,81 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
+    fun chineseIdleZeroShortPressOnlyCommitsSpace() {
+        val host = FakeHost(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN)).handled)
+        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_0, KeyEvent.ACTION_UP)).handled)
+
+        assertEquals(listOf(" "), host.committedTexts)
+        assertEquals(0, host.commitHighlightedBottomCandidateCount)
+        assertEquals(emptyList<Int>(), host.hanziShortcutKeys)
+    }
+
+    @Test
+    fun chineseCompositionDigitShortPressForwardsThroughHost() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            chineseComposing = true,
+            compositionKeyCount = 2
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN)).handled)
+        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP)).handled)
+
+        assertEquals(listOf(KeyEvent.KEYCODE_2), host.forwardedChineseT9Keys)
+    }
+
+    @Test
+    fun chineseIdlePredictiveDigitShortPressFallsThroughToOuterInputFlow() {
+        val host = FakeHost(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertFalse(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN)).handled)
+        assertFalse(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP)).handled)
+        assertEquals(emptyList<String>(), host.committedTexts)
+    }
+
+    @Test
+    fun chineseCompositionPoundFallsThroughToRimeForwardingPath() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            chineseComposing = true,
+            compositionKeyCount = 2
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertFalse(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN)).handled)
+        assertFalse(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP)).handled)
+        assertEquals(0, host.handleReturnCount)
+    }
+
+    @Test
+    fun chineseIdlePoundShortPressHandlesReturn() {
+        val host = FakeHost(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN)).handled)
+        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP)).handled)
+
+        assertEquals(1, host.handleReturnCount)
+    }
+
+    @Test
+    fun chineseStarKeyUpDoesNotTogglePunctuationSet() {
+        val host = FakeHost(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN)).handled)
+        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP)).handled)
+
+        assertEquals(1, host.commitLiteralStarCount)
+        assertEquals(0, host.togglePendingPunctuationSetCount)
+    }
+
+    @Test
     fun chinesePendingPunctuationZeroShortPressCommitsWithoutSpace() {
         val host = FakeHost(
             mode = PhysicalT9KeyHandler.Mode.CHINESE,
@@ -538,6 +613,10 @@ class PhysicalT9KeyHandlerTest {
         var cancelPendingPunctuationCount = 0
         var handleChinesePunctuationCount = 0
         val pendingPunctuationShortcutKeys = mutableListOf<Int>()
+        val hanziShortcutKeys = mutableListOf<Int>()
+        val forwardedChineseT9Keys = mutableListOf<Int>()
+        var forwardChineseT9SeparatorCount = 0
+        var togglePendingPunctuationSetCount = 0
         val bottomCandidateMoves = mutableListOf<Int>()
         override val pendingPunctuationOneKeyDeferred: Boolean
             get() = pendingPunctuationOneKeyDeferredState
@@ -553,7 +632,10 @@ class PhysicalT9KeyHandlerTest {
             pendingPunctuationShortcutKeys += keyCode
             return false
         }
-        override fun commitHanziShortcut(keyCode: Int): Boolean = false
+        override fun commitHanziShortcut(keyCode: Int): Boolean {
+            hanziShortcutKeys += keyCode
+            return false
+        }
         override fun commitSmartEnglishShortcut(keyCode: Int): Boolean {
             smartEnglishShortcutKeys += keyCode
             return smartEnglishShortcutResult
@@ -570,7 +652,10 @@ class PhysicalT9KeyHandlerTest {
             handleChinesePunctuationCount += 1
             return false
         }
-        override fun togglePendingPunctuationSet(): Boolean = false
+        override fun togglePendingPunctuationSet(): Boolean {
+            togglePendingPunctuationSetCount += 1
+            return false
+        }
         override fun switchToNextMode() {
             switchToNextModeCount += 1
         }
@@ -638,9 +723,15 @@ class PhysicalT9KeyHandlerTest {
         override fun forwardChineseT9KeyShortPress(
             keyCode: Int,
             input: PhysicalT9KeyHandler.KeyInput
-        ): Boolean = false
+        ): Boolean {
+            forwardedChineseT9Keys += keyCode
+            return false
+        }
 
-        override fun forwardChineseT9SeparatorShortPress(): Boolean = false
+        override fun forwardChineseT9SeparatorShortPress(): Boolean {
+            forwardChineseT9SeparatorCount += 1
+            return false
+        }
         override fun moveCandidateFocus(focus: PhysicalT9KeyHandler.CandidateFocus) {
             candidateFocus = focus
         }
