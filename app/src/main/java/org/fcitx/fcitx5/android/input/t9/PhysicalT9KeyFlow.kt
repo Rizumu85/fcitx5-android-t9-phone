@@ -18,6 +18,9 @@ class PhysicalT9KeyFlow {
         val hasSmartEnglishDigits: Boolean,
         val hasSmartEnglishCandidates: Boolean,
         val hasMultiTapPendingChar: Boolean,
+        val hasTopPinyinCandidates: Boolean,
+        val hasBottomCandidateRow: Boolean,
+        val candidateFocus: PhysicalT9KeyHandler.CandidateFocus,
         val heldPastLongPressDelay: Boolean
     )
 
@@ -26,6 +29,12 @@ class PhysicalT9KeyFlow {
         val commands: List<Command> = emptyList(),
         val consumedKeyUp: Int? = null
     )
+
+    enum class BottomCandidateFallback {
+        NONE,
+        PENDING_PUNCTUATION,
+        SMART_ENGLISH
+    }
 
     sealed class Command {
         data class SetPendingPunctuationOneKeyDeferred(val value: Boolean) : Command()
@@ -58,8 +67,13 @@ class PhysicalT9KeyFlow {
         data class OffsetBottomCandidatePage(
             val delta: Int
         ) : Command()
-        data class ConfirmSmartEnglishCandidate(
-            val hasPendingPunctuation: Boolean
+        data class MoveCandidateFocus(
+            val focus: PhysicalT9KeyHandler.CandidateFocus
+        ) : Command()
+        data class MoveHighlightedPinyin(val delta: Int) : Command()
+        object CommitHighlightedPinyin : Command()
+        data class CommitBottomCandidate(
+            val fallback: BottomCandidateFallback
         ) : Command()
         data class SmartEnglishDelete(
             val hasPendingPunctuation: Boolean
@@ -102,6 +116,7 @@ class PhysicalT9KeyFlow {
         state: State
     ): Decision? = when {
         state.hasPendingPunctuation -> handleChinesePendingPunctuation(input, state)
+        input.action == KeyEvent.ACTION_DOWN -> handleChineseFocusNavigation(input, state)
         input.action == KeyEvent.ACTION_UP -> handleCompletedChinesePendingPunctuationKeyUp(input)
         else -> null
     }
@@ -316,12 +331,69 @@ class PhysicalT9KeyFlow {
             PhysicalT9KeyPolicy.FocusKey.UP -> Command.OffsetBottomCandidatePage(delta = -1)
             PhysicalT9KeyPolicy.FocusKey.DOWN -> Command.OffsetBottomCandidatePage(delta = 1)
             PhysicalT9KeyPolicy.FocusKey.OK ->
-                Command.ConfirmSmartEnglishCandidate(hasPendingPunctuation = true)
+                Command.CommitBottomCandidate(BottomCandidateFallback.PENDING_PUNCTUATION)
             null -> return null
         }
         return Decision(
             handled = true,
             commands = listOf(command),
+            consumedKeyUp = input.keyCode
+        )
+    }
+
+    private fun handleChineseFocusNavigation(
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State
+    ): Decision? {
+        val focusKey = PhysicalT9KeyPolicy.focusKey(input.keyCode) ?: return null
+        if (!state.hasTopPinyinCandidates && !state.hasBottomCandidateRow) return null
+        // Visible candidate rows own focus keys, even when a transient row mismatch leaves no command to run.
+        val command = when (focusKey) {
+            PhysicalT9KeyPolicy.FocusKey.UP -> when {
+                state.candidateFocus == PhysicalT9KeyHandler.CandidateFocus.BOTTOM &&
+                    state.hasTopPinyinCandidates ->
+                    Command.MoveCandidateFocus(PhysicalT9KeyHandler.CandidateFocus.TOP)
+                state.hasBottomCandidateRow -> Command.OffsetBottomCandidatePage(delta = -1)
+                else -> null
+            }
+            PhysicalT9KeyPolicy.FocusKey.DOWN -> when (state.candidateFocus) {
+                PhysicalT9KeyHandler.CandidateFocus.TOP -> {
+                    if (state.hasBottomCandidateRow) {
+                        Command.MoveCandidateFocus(PhysicalT9KeyHandler.CandidateFocus.BOTTOM)
+                    } else {
+                        null
+                    }
+                }
+                PhysicalT9KeyHandler.CandidateFocus.BOTTOM -> {
+                    if (state.hasBottomCandidateRow) Command.OffsetBottomCandidatePage(delta = 1) else null
+                }
+            }
+            PhysicalT9KeyPolicy.FocusKey.LEFT -> when (state.candidateFocus) {
+                PhysicalT9KeyHandler.CandidateFocus.TOP ->
+                    if (state.hasTopPinyinCandidates) Command.MoveHighlightedPinyin(delta = -1) else null
+                PhysicalT9KeyHandler.CandidateFocus.BOTTOM ->
+                    if (state.hasBottomCandidateRow) Command.MoveBottomCandidate(delta = -1) else null
+            }
+            PhysicalT9KeyPolicy.FocusKey.RIGHT -> when (state.candidateFocus) {
+                PhysicalT9KeyHandler.CandidateFocus.TOP ->
+                    if (state.hasTopPinyinCandidates) Command.MoveHighlightedPinyin(delta = 1) else null
+                PhysicalT9KeyHandler.CandidateFocus.BOTTOM ->
+                    if (state.hasBottomCandidateRow) Command.MoveBottomCandidate(delta = 1) else null
+            }
+            PhysicalT9KeyPolicy.FocusKey.OK -> when (state.candidateFocus) {
+                PhysicalT9KeyHandler.CandidateFocus.TOP ->
+                    if (state.hasTopPinyinCandidates) Command.CommitHighlightedPinyin else null
+                PhysicalT9KeyHandler.CandidateFocus.BOTTOM ->
+                    if (state.hasBottomCandidateRow) {
+                        Command.CommitBottomCandidate(BottomCandidateFallback.NONE)
+                    } else {
+                        null
+                    }
+            }
+        }
+        return Decision(
+            handled = true,
+            commands = listOfNotNull(command),
             consumedKeyUp = input.keyCode
         )
     }
@@ -764,8 +836,12 @@ class PhysicalT9KeyFlow {
             PhysicalT9KeyPolicy.FocusKey.DOWN -> Command.OffsetBottomCandidatePage(
                 delta = 1
             )
-            PhysicalT9KeyPolicy.FocusKey.OK -> Command.ConfirmSmartEnglishCandidate(
-                state.hasPendingPunctuation
+            PhysicalT9KeyPolicy.FocusKey.OK -> Command.CommitBottomCandidate(
+                if (state.hasPendingPunctuation) {
+                    BottomCandidateFallback.PENDING_PUNCTUATION
+                } else {
+                    BottomCandidateFallback.SMART_ENGLISH
+                }
             )
             null -> if (PhysicalT9KeyPolicy.isDeleteKey(input.keyCode)) {
                 Command.SmartEnglishDelete(state.hasPendingPunctuation)

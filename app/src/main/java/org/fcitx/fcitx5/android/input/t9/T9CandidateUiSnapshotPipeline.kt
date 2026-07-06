@@ -95,6 +95,9 @@ class T9CandidateUiSnapshotPipeline(
     val ownsCurrentShownState: Boolean
         get() = currentShown?.ownsPagingState == true
 
+    val hasCurrentBottomCandidateRow: Boolean
+        get() = currentShown?.paged?.candidates?.isNotEmpty() == true
+
     val currentShownMatchedPrefix: String?
         get() = currentShown?.matchedPrefix
 

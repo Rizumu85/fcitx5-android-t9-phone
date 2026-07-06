@@ -156,7 +156,11 @@ class PhysicalT9KeyFlowTest {
         )
 
         assertEquals(
-            listOf(PhysicalT9KeyFlow.Command.ConfirmSmartEnglishCandidate(hasPendingPunctuation = false)),
+            listOf(
+                PhysicalT9KeyFlow.Command.CommitBottomCandidate(
+                    PhysicalT9KeyFlow.BottomCandidateFallback.SMART_ENGLISH
+                )
+            ),
             down?.commands
         )
         assertEquals(KeyEvent.KEYCODE_DPAD_CENTER, down?.consumedKeyUp)
@@ -382,10 +386,149 @@ class PhysicalT9KeyFlowTest {
         assertEquals(listOf(PhysicalT9KeyFlow.Command.OffsetBottomCandidatePage(delta = -1)), up?.commands)
         assertEquals(KeyEvent.KEYCODE_DPAD_UP, up?.consumedKeyUp)
         assertEquals(
-            listOf(PhysicalT9KeyFlow.Command.ConfirmSmartEnglishCandidate(hasPendingPunctuation = true)),
+            listOf(
+                PhysicalT9KeyFlow.Command.CommitBottomCandidate(
+                    PhysicalT9KeyFlow.BottomCandidateFallback.PENDING_PUNCTUATION
+                )
+            ),
             ok?.commands
         )
         assertEquals(KeyEvent.KEYCODE_DPAD_CENTER, ok?.consumedKeyUp)
+    }
+
+    @Test
+    fun chineseFocusNavigationMovesBetweenPinyinAndBottomRows() {
+        val flow = PhysicalT9KeyFlow()
+
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_DPAD_UP, KeyEvent.ACTION_DOWN),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                hasTopPinyinCandidates = true,
+                hasBottomCandidateRow = true,
+                candidateFocus = PhysicalT9KeyHandler.CandidateFocus.BOTTOM
+            )
+        )
+        val down = flow.handle(
+            input(KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.ACTION_DOWN),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                hasTopPinyinCandidates = true,
+                hasBottomCandidateRow = true,
+                candidateFocus = PhysicalT9KeyHandler.CandidateFocus.TOP
+            )
+        )
+
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.MoveCandidateFocus(
+                    PhysicalT9KeyHandler.CandidateFocus.TOP
+                )
+            ),
+            up?.commands
+        )
+        assertEquals(KeyEvent.KEYCODE_DPAD_UP, up?.consumedKeyUp)
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.MoveCandidateFocus(
+                    PhysicalT9KeyHandler.CandidateFocus.BOTTOM
+                )
+            ),
+            down?.commands
+        )
+        assertEquals(KeyEvent.KEYCODE_DPAD_DOWN, down?.consumedKeyUp)
+    }
+
+    @Test
+    fun chineseFocusNavigationControlsPinyinRowAndConsumesEdges() {
+        val flow = PhysicalT9KeyFlow()
+
+        val left = flow.handle(
+            input(KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.ACTION_DOWN),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                hasTopPinyinCandidates = true,
+                candidateFocus = PhysicalT9KeyHandler.CandidateFocus.TOP
+            )
+        )
+        val ok = flow.handle(
+            input(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.ACTION_DOWN),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                hasTopPinyinCandidates = true,
+                candidateFocus = PhysicalT9KeyHandler.CandidateFocus.TOP
+            )
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.MoveHighlightedPinyin(delta = -1)), left?.commands)
+        assertEquals(KeyEvent.KEYCODE_DPAD_LEFT, left?.consumedKeyUp)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitHighlightedPinyin), ok?.commands)
+        assertEquals(KeyEvent.KEYCODE_DPAD_CENTER, ok?.consumedKeyUp)
+    }
+
+    @Test
+    fun chineseFocusNavigationControlsBottomRowAndConsumesEdges() {
+        val flow = PhysicalT9KeyFlow()
+
+        val right = flow.handle(
+            input(KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.ACTION_DOWN),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                hasBottomCandidateRow = true,
+                candidateFocus = PhysicalT9KeyHandler.CandidateFocus.BOTTOM
+            )
+        )
+        val ok = flow.handle(
+            input(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.ACTION_DOWN),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                hasBottomCandidateRow = true,
+                candidateFocus = PhysicalT9KeyHandler.CandidateFocus.BOTTOM
+            )
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.MoveBottomCandidate(delta = 1)), right?.commands)
+        assertEquals(KeyEvent.KEYCODE_DPAD_RIGHT, right?.consumedKeyUp)
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.CommitBottomCandidate(
+                    PhysicalT9KeyFlow.BottomCandidateFallback.NONE
+                )
+            ),
+            ok?.commands
+        )
+        assertEquals(KeyEvent.KEYCODE_DPAD_CENTER, ok?.consumedKeyUp)
+    }
+
+    @Test
+    fun chineseFocusNavigationFallsThroughWhenNoCandidateRowsExist() {
+        val flow = PhysicalT9KeyFlow()
+
+        val down = flow.handle(
+            input(KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        )
+
+        assertNull(down)
+    }
+
+    @Test
+    fun chineseFocusNavigationConsumesWithoutCommandWhenFocusedRowIsMissing() {
+        val flow = PhysicalT9KeyFlow()
+
+        val down = flow.handle(
+            input(KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.ACTION_DOWN),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                hasTopPinyinCandidates = true,
+                hasBottomCandidateRow = false,
+                candidateFocus = PhysicalT9KeyHandler.CandidateFocus.BOTTOM
+            )
+        )
+
+        assertEquals(true, down?.handled)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), down?.commands)
+        assertEquals(KeyEvent.KEYCODE_DPAD_RIGHT, down?.consumedKeyUp)
     }
 
     @Test
@@ -679,6 +822,10 @@ class PhysicalT9KeyFlowTest {
         hasSmartEnglishDigits: Boolean = false,
         hasSmartEnglishCandidates: Boolean = false,
         hasMultiTapPendingChar: Boolean = false,
+        hasTopPinyinCandidates: Boolean = false,
+        hasBottomCandidateRow: Boolean = false,
+        candidateFocus: PhysicalT9KeyHandler.CandidateFocus =
+            PhysicalT9KeyHandler.CandidateFocus.BOTTOM,
         heldPastLongPressDelay: Boolean = false
     ): PhysicalT9KeyFlow.State =
         PhysicalT9KeyFlow.State(
@@ -690,6 +837,9 @@ class PhysicalT9KeyFlowTest {
             hasSmartEnglishDigits = hasSmartEnglishDigits,
             hasSmartEnglishCandidates = hasSmartEnglishCandidates,
             hasMultiTapPendingChar = hasMultiTapPendingChar,
+            hasTopPinyinCandidates = hasTopPinyinCandidates,
+            hasBottomCandidateRow = hasBottomCandidateRow,
+            candidateFocus = candidateFocus,
             heldPastLongPressDelay = heldPastLongPressDelay
         )
 }

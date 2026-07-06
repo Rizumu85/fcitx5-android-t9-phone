@@ -343,6 +343,32 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
+    fun chineseCandidateNavigationConsumesWhenCandidateRowExists() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            hasBottomCandidateRow = true,
+            candidateFocus = PhysicalT9KeyHandler.CandidateFocus.BOTTOM
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        val result = handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.ACTION_DOWN))
+
+        assertTrue(result.handled)
+        assertEquals(KeyEvent.KEYCODE_DPAD_RIGHT, result.consumedKeyUp)
+        assertEquals(listOf(1), host.bottomCandidateMoves)
+    }
+
+    @Test
+    fun chineseCandidateNavigationFallsThroughWithoutCandidateRows() {
+        val host = FakeHost(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        val handler = PhysicalT9KeyHandler(host)
+
+        val result = handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.ACTION_DOWN))
+
+        assertFalse(result.handled)
+    }
+
+    @Test
     fun numberDigitShortPressCommitsDigitThroughCommandFlow() {
         val host = FakeHost(mode = PhysicalT9KeyHandler.Mode.NUMBER)
         val handler = PhysicalT9KeyHandler(host)
@@ -484,6 +510,7 @@ class PhysicalT9KeyHandlerTest {
         override var hasSmartEnglishCandidates: Boolean = hasSmartEnglishDigits,
         override var hasMultiTapPendingChar: Boolean = false,
         override var hasTopPinyinCandidates: Boolean = false,
+        override var hasBottomCandidateRow: Boolean = false,
         override var candidateFocus: PhysicalT9KeyHandler.CandidateFocus =
             PhysicalT9KeyHandler.CandidateFocus.BOTTOM,
         private val commitHighlightedBottomCandidateResult: Boolean = false,
@@ -511,6 +538,7 @@ class PhysicalT9KeyHandlerTest {
         var cancelPendingPunctuationCount = 0
         var handleChinesePunctuationCount = 0
         val pendingPunctuationShortcutKeys = mutableListOf<Int>()
+        val bottomCandidateMoves = mutableListOf<Int>()
         override val pendingPunctuationOneKeyDeferred: Boolean
             get() = pendingPunctuationOneKeyDeferredState
 
@@ -618,7 +646,10 @@ class PhysicalT9KeyHandlerTest {
         }
 
         override fun moveHighlightedPinyin(delta: Int): Boolean = false
-        override fun moveHighlightedBottomCandidate(delta: Int): Boolean = false
+        override fun moveHighlightedBottomCandidate(delta: Int): Boolean {
+            bottomCandidateMoves += delta
+            return false
+        }
 
         override fun offsetBottomCandidatePage(delta: Int): Boolean {
             bottomCandidatePageOffsets += delta

@@ -647,6 +647,10 @@ class CandidatesView(
         return true
     }
 
+    fun hasT9BottomCandidateRow(): Boolean =
+        t9CandidateUiSnapshotPipeline.hasCurrentBottomCandidateRow ||
+            t9ShownPaged?.candidates?.isNotEmpty() == true
+
     fun moveHighlightedT9BottomCandidate(delta: Int): Boolean {
         handleSnapshotPipelineMove(delta)?.let { return it }
         if (t9CandidateUiSnapshotPipeline.ownsCurrentShownState) return false

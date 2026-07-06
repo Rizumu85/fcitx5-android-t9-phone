@@ -87,6 +87,7 @@ class PhysicalT9KeyHostAdapterTest {
                 hasSmartEnglishCandidates = { false },
                 hasMultiTapPendingChar = { false },
                 hasTopPinyinCandidates = { false },
+                hasBottomCandidateRow = { false },
                 candidateFocus = candidateFocus,
                 keyHeldPastLongPressDelay = { false }
             ),

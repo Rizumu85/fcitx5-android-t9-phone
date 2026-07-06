@@ -172,6 +172,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             hasSmartEnglishCandidates = { smartEnglishCoordinator.hasCandidates },
             hasMultiTapPendingChar = { t9MultiTapCoordinator.hasPendingChar },
             hasTopPinyinCandidates = { getT9PinyinCandidates().isNotEmpty() },
+            hasBottomCandidateRow = { candidatesView?.hasT9BottomCandidateRow() == true },
             candidateFocus = ::getT9CandidateFocus,
             keyHeldPastLongPressDelay = { input ->
                 input.repeatCount > 0 &&

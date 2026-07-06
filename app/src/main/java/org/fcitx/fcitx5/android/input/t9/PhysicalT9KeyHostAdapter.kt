@@ -26,6 +26,7 @@ class PhysicalT9KeyHostAdapter(
         val hasSmartEnglishCandidates: () -> Boolean,
         val hasMultiTapPendingChar: () -> Boolean,
         val hasTopPinyinCandidates: () -> Boolean,
+        val hasBottomCandidateRow: () -> Boolean,
         val candidateFocus: () -> T9CandidateFocus,
         val keyHeldPastLongPressDelay: (PhysicalT9KeyHandler.KeyInput) -> Boolean
     )
@@ -115,6 +116,9 @@ class PhysicalT9KeyHostAdapter(
 
     override val hasTopPinyinCandidates: Boolean
         get() = state.hasTopPinyinCandidates()
+
+    override val hasBottomCandidateRow: Boolean
+        get() = state.hasBottomCandidateRow()
 
     override val candidateFocus: PhysicalT9KeyHandler.CandidateFocus
         get() = when (state.candidateFocus()) {
