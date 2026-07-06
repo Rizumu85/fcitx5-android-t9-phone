@@ -82,6 +82,7 @@ import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHandler
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHostAdapter
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9Coordinator
+import org.fcitx.fcitx5.android.input.t9.SmartEnglishCaseCoordinator
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishLearningPolicy
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9ModeController
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
@@ -203,8 +204,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             moveSmartEnglishCandidate = { delta -> smartEnglishCoordinator.moveCandidate(delta) },
             smartEnglishBackspace = { smartEnglishCoordinator.backspace() },
             flushLearningWord = { smartEnglishCoordinator.flushLearningWord() },
-            handleStarShortPress = ::handleEnglishStarShortPress,
-            handleStarLongPress = ::handleEnglishStarLongPress,
+            handleStarShortPress = { smartEnglishCaseCoordinator.handleShortPress() },
+            handleStarLongPress = { smartEnglishCaseCoordinator.handleLongPress() },
             handleMultiTapKey = { keyCode -> t9MultiTapCoordinator.handleKey(keyCode) },
             commitMultiTapChar = { t9MultiTapCoordinator.commitPending() },
             cancelMultiTapChar = { t9MultiTapCoordinator.cancelPending() }
@@ -1618,6 +1619,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         consumeShiftOnce = { smartEnglishCoordinator.consumeShiftOnce() },
         recordLearningChar = { char -> smartEnglishCoordinator.recordLearningChar(char) }
     )
+    private val smartEnglishCaseCoordinator = SmartEnglishCaseCoordinator(
+        toggleShiftOnce = { smartEnglishCoordinator.toggleShiftOnce() },
+        toggleCaps = { smartEnglishCoordinator.toggleCaps() },
+        pendingMultiTapDisplay = { t9MultiTapCoordinator.pendingDisplayText() },
+        setComposingText = { text -> currentInputConnection?.setComposingText(text, 1) },
+        caseLabel = { smartEnglishCoordinator.caseLabel },
+        showModeIndicator = { label -> inputView?.showModeIndicatorBadge(label) }
+    )
     private val smartEnglishModeController = SmartEnglishT9ModeController(
         initialEnabled = keyboardPrefs.smartEnglishT9.getValue(),
         setPreference = { enabled -> keyboardPrefs.smartEnglishT9.setValue(enabled) },
@@ -1649,15 +1658,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     private fun resetSmartEnglishPendingDigit() {
         physicalT9KeyHandler.resetSmartEnglishPendingDigit()
-    }
-
-    private fun showEnglishCaseStateOrRefreshPending() {
-        val pendingText = t9MultiTapCoordinator.pendingDisplayText()
-        if (pendingText != null) {
-            currentInputConnection?.setComposingText(pendingText, 1)
-            return
-        }
-        inputView?.showModeIndicatorBadge(smartEnglishCoordinator.caseLabel)
     }
 
 
@@ -1736,16 +1736,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             }
         }
         return true
-    }
-
-    private fun handleEnglishStarShortPress() {
-        smartEnglishCoordinator.toggleShiftOnce()
-        showEnglishCaseStateOrRefreshPending()
-    }
-
-    private fun handleEnglishStarLongPress() {
-        smartEnglishCoordinator.toggleCaps()
-        showEnglishCaseStateOrRefreshPending()
     }
 
     fun getPendingT9PunctuationPaged(): FcitxEvent.PagedCandidateEvent.Data? =
