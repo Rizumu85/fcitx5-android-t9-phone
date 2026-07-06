@@ -69,11 +69,17 @@ class PhysicalT9KeyFlow {
         object HandleEnglishStarLongPress : Command()
         object HandleReturnKey : Command()
         object SwitchToNextMode : Command()
+        data class CommitNumberOperatorForKey(
+            val keyCode: Int,
+            val fallbackDigit: Int
+        ) : Command()
+        object ShowNumberOperatorHintPanel : Command()
+        object CommitLiteralStarInCurrentChineseState : Command()
     }
 
-    private val englishDigitLongPressFlags = BooleanArray(KeyEvent.KEYCODE_STAR + 1)
+    private val keyLongPressFlags = BooleanArray(KeyEvent.KEYCODE_STAR + 1)
     private var englishOneLongPressTriggered = false
-    private var englishPoundLongPressTriggered = false
+    private var poundLongPressTriggered = false
     private var pendingSmartEnglishDigitKeyCode: Int? = null
     private var pendingSmartEnglishDigit = -1
 
@@ -83,8 +89,17 @@ class PhysicalT9KeyFlow {
     }
 
     fun handle(input: PhysicalT9KeyHandler.KeyInput, state: State): Decision? {
-        if (state.mode != PhysicalT9KeyHandler.Mode.ENGLISH) return null
-        return when (input.keyCode) {
+        return when (state.mode) {
+            PhysicalT9KeyHandler.Mode.ENGLISH -> handleEnglish(input, state)
+            PhysicalT9KeyHandler.Mode.NUMBER -> handleNumber(input, state)
+            PhysicalT9KeyHandler.Mode.CHINESE -> null
+        }
+    }
+
+    private fun handleEnglish(
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State
+    ): Decision? = when (input.keyCode) {
             KeyEvent.KEYCODE_1 -> handleEnglishOne(input, state)
             KeyEvent.KEYCODE_POUND -> handleEnglishPound(input, state)
             KeyEvent.KEYCODE_0 -> handleEnglishZero(input, state)
@@ -100,7 +115,6 @@ class PhysicalT9KeyFlow {
                 }
             }
         }
-    }
 
     private fun isEnglishNavigationOrDeleteKey(keyCode: Int): Boolean =
         PhysicalT9KeyPolicy.focusKey(keyCode) != null ||
@@ -108,11 +122,11 @@ class PhysicalT9KeyFlow {
             PhysicalT9KeyPolicy.isDeleteKey(keyCode)
 
     private fun isDigitLongPressFlagSet(keyCode: Int): Boolean =
-        englishDigitLongPressFlags.getOrNull(keyCode) == true
+        keyLongPressFlags.getOrNull(keyCode) == true
 
     private fun setDigitLongPressFlag(keyCode: Int, value: Boolean) {
-        if (keyCode in englishDigitLongPressFlags.indices) {
-            englishDigitLongPressFlags[keyCode] = value
+        if (keyCode in keyLongPressFlags.indices) {
+            keyLongPressFlags[keyCode] = value
         }
     }
 
@@ -542,10 +556,10 @@ class PhysicalT9KeyFlow {
     ): Decision? = when (input.action) {
         KeyEvent.ACTION_DOWN -> {
             if (input.repeatCount == 0) {
-                englishPoundLongPressTriggered = false
+                poundLongPressTriggered = false
                 Decision(handled = true)
-            } else if (!englishPoundLongPressTriggered && state.heldPastLongPressDelay) {
-                englishPoundLongPressTriggered = true
+            } else if (!poundLongPressTriggered && state.heldPastLongPressDelay) {
+                poundLongPressTriggered = true
                 Decision(
                     handled = true,
                     commands = buildList {
@@ -558,8 +572,8 @@ class PhysicalT9KeyFlow {
             }
         }
         KeyEvent.ACTION_UP -> {
-            if (englishPoundLongPressTriggered) {
-                englishPoundLongPressTriggered = false
+            if (poundLongPressTriggered) {
+                poundLongPressTriggered = false
                 Decision(handled = true)
             } else {
                 Decision(
@@ -597,18 +611,18 @@ class PhysicalT9KeyFlow {
     ): Decision? = when (input.action) {
         KeyEvent.ACTION_DOWN -> {
             if (input.repeatCount == 0) {
-                englishPoundLongPressTriggered = false
+                poundLongPressTriggered = false
                 Decision(handled = true)
-            } else if (!englishPoundLongPressTriggered && state.heldPastLongPressDelay) {
-                englishPoundLongPressTriggered = true
+            } else if (!poundLongPressTriggered && state.heldPastLongPressDelay) {
+                poundLongPressTriggered = true
                 Decision(handled = true, commands = listOf(Command.SwitchToNextMode))
             } else {
                 Decision(handled = true)
             }
         }
         KeyEvent.ACTION_UP -> {
-            if (englishPoundLongPressTriggered) {
-                englishPoundLongPressTriggered = false
+            if (poundLongPressTriggered) {
+                poundLongPressTriggered = false
                 Decision(handled = true)
             } else {
                 Decision(
@@ -673,6 +687,114 @@ class PhysicalT9KeyFlow {
             )
         }
         KeyEvent.ACTION_UP -> Decision(handled = true)
+        else -> null
+    }
+
+    private fun handleNumber(
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State
+    ): Decision? {
+        val digit = PhysicalT9KeyPolicy.t9Digit(input.keyCode)
+        return when {
+            input.keyCode == KeyEvent.KEYCODE_POUND -> handleNumberPound(input, state)
+            digit != null -> handleNumberDigit(input, state, digit)
+            input.keyCode == KeyEvent.KEYCODE_STAR -> handleNumberStar(input, state)
+            else -> null
+        }
+    }
+
+    private fun handleNumberPound(
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State
+    ): Decision? = when (input.action) {
+        KeyEvent.ACTION_DOWN -> {
+            if (input.repeatCount == 0) {
+                poundLongPressTriggered = false
+                Decision(handled = true)
+            } else if (!poundLongPressTriggered && state.heldPastLongPressDelay) {
+                poundLongPressTriggered = true
+                Decision(handled = true, commands = listOf(Command.SwitchToNextMode))
+            } else {
+                Decision(handled = true)
+            }
+        }
+        KeyEvent.ACTION_UP -> {
+            if (poundLongPressTriggered) {
+                poundLongPressTriggered = false
+                Decision(handled = true)
+            } else {
+                Decision(handled = true, commands = listOf(Command.CommitEnglishPendingOrReturn))
+            }
+        }
+        else -> null
+    }
+
+    private fun handleNumberDigit(
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State,
+        digit: Int
+    ): Decision? = when (input.action) {
+        KeyEvent.ACTION_DOWN -> {
+            if (input.repeatCount == 0) {
+                setDigitLongPressFlag(input.keyCode, false)
+                Decision(handled = true)
+            } else if (!isDigitLongPressFlagSet(input.keyCode) && state.heldPastLongPressDelay) {
+                setDigitLongPressFlag(input.keyCode, true)
+                Decision(
+                    handled = true,
+                    commands = listOf(
+                        Command.CommitNumberOperatorForKey(
+                            keyCode = input.keyCode,
+                            fallbackDigit = digit
+                        )
+                    )
+                )
+            } else {
+                Decision(handled = true)
+            }
+        }
+        KeyEvent.ACTION_UP -> {
+            val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
+            setDigitLongPressFlag(input.keyCode, false)
+            Decision(
+                handled = true,
+                commands = if (wasLongPress) {
+                    emptyList()
+                } else {
+                    listOf(Command.CommitText(digit.toString()))
+                }
+            )
+        }
+        else -> null
+    }
+
+    private fun handleNumberStar(
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State
+    ): Decision? = when (input.action) {
+        KeyEvent.ACTION_DOWN -> {
+            if (input.repeatCount == 0) {
+                setDigitLongPressFlag(input.keyCode, false)
+                Decision(handled = true)
+            } else if (!isDigitLongPressFlagSet(input.keyCode) && state.heldPastLongPressDelay) {
+                setDigitLongPressFlag(input.keyCode, true)
+                Decision(handled = true, commands = listOf(Command.ShowNumberOperatorHintPanel))
+            } else {
+                Decision(handled = true)
+            }
+        }
+        KeyEvent.ACTION_UP -> {
+            val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
+            setDigitLongPressFlag(input.keyCode, false)
+            Decision(
+                handled = true,
+                commands = if (wasLongPress) {
+                    emptyList()
+                } else {
+                    listOf(Command.CommitLiteralStarInCurrentChineseState)
+                }
+            )
+        }
         else -> null
     }
 }

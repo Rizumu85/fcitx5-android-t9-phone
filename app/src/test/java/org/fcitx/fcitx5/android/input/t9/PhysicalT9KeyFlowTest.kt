@@ -333,6 +333,138 @@ class PhysicalT9KeyFlowTest {
         assertEquals(KeyEvent.KEYCODE_DEL, down?.consumedKeyUp)
     }
 
+    @Test
+    fun numberDigitShortPressCommitsDigitOnKeyUp() {
+        val flow = PhysicalT9KeyFlow()
+
+        val down = flow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.NUMBER)
+        )
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.NUMBER)
+        )
+
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), down?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitText("2")), up?.commands)
+    }
+
+    @Test
+    fun numberDigitLongPressCommitsOperatorAndSuppressesKeyUpDigit() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.NUMBER)
+        )
+
+        val repeat = flow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(mode = PhysicalT9KeyHandler.Mode.NUMBER, heldPastLongPressDelay = true)
+        )
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.NUMBER)
+        )
+
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.CommitNumberOperatorForKey(
+                    keyCode = KeyEvent.KEYCODE_2,
+                    fallbackDigit = 2
+                )
+            ),
+            repeat?.commands
+        )
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), up?.commands)
+    }
+
+    @Test
+    fun numberDigitRepeatBeforeLongPressThresholdDoesNotCommitOperator() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.NUMBER)
+        )
+
+        val repeat = flow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(mode = PhysicalT9KeyHandler.Mode.NUMBER, heldPastLongPressDelay = false)
+        )
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.NUMBER)
+        )
+
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), repeat?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitText("2")), up?.commands)
+    }
+
+    @Test
+    fun numberStarShortAndLongPressStayInFlow() {
+        val shortFlow = PhysicalT9KeyFlow()
+        shortFlow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.NUMBER)
+        )
+        val shortUp = shortFlow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.NUMBER)
+        )
+
+        val longFlow = PhysicalT9KeyFlow()
+        longFlow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.NUMBER)
+        )
+        val repeat = longFlow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(mode = PhysicalT9KeyHandler.Mode.NUMBER, heldPastLongPressDelay = true)
+        )
+        val longUp = longFlow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.NUMBER)
+        )
+
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.CommitLiteralStarInCurrentChineseState),
+            shortUp?.commands
+        )
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.ShowNumberOperatorHintPanel), repeat?.commands)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), longUp?.commands)
+    }
+
+    @Test
+    fun numberPoundShortReturnsAndLongPressSwitchesMode() {
+        val shortFlow = PhysicalT9KeyFlow()
+        shortFlow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.NUMBER)
+        )
+        val shortUp = shortFlow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.NUMBER)
+        )
+
+        val longFlow = PhysicalT9KeyFlow()
+        longFlow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.NUMBER)
+        )
+        val repeat = longFlow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(mode = PhysicalT9KeyHandler.Mode.NUMBER, heldPastLongPressDelay = true)
+        )
+        val longUp = longFlow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.NUMBER)
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitEnglishPendingOrReturn), shortUp?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.SwitchToNextMode), repeat?.commands)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), longUp?.commands)
+    }
+
     private fun input(
         keyCode: Int,
         action: Int,

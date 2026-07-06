@@ -266,6 +266,12 @@ class PhysicalT9KeyHandler(private val host: Host) {
                     host.handleReturnKey()
                 PhysicalT9KeyFlow.Command.SwitchToNextMode ->
                     host.switchToNextMode()
+                is PhysicalT9KeyFlow.Command.CommitNumberOperatorForKey ->
+                    host.commitNumberOperatorForKey(command.keyCode, command.fallbackDigit)
+                PhysicalT9KeyFlow.Command.ShowNumberOperatorHintPanel ->
+                    host.showNumberOperatorHintPanel()
+                PhysicalT9KeyFlow.Command.CommitLiteralStarInCurrentChineseState ->
+                    host.commitLiteralStarInCurrentChineseState()
             }
         }
     }
@@ -285,7 +291,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
     }
 
     private fun handleT9SpecialKeyDown(keyCode: Int, input: KeyInput): KeyResult {
-        if (host.mode == Mode.ENGLISH) return KeyResult(handled = false)
+        if (host.mode != Mode.CHINESE) return KeyResult(handled = false)
         if (host.mode == Mode.CHINESE && host.hasPendingPunctuation) {
             when (keyCode) {
                 KeyEvent.KEYCODE_1 -> {
@@ -357,16 +363,9 @@ class PhysicalT9KeyHandler(private val host: Host) {
     private fun handleDigitKeyDown(keyCode: Int, input: KeyInput): Boolean {
         val digit = PhysicalT9KeyPolicy.t9Digit(keyCode) ?: return false
         return when (host.mode) {
-            Mode.NUMBER -> {
-                if (input.repeatCount == 0) {
-                    setDigitLongPressFlag(keyCode, false)
-                } else if (consumePhysicalLongPressIfReady(keyCode, input)) {
-                    host.commitNumberOperatorForKey(keyCode, digit)
-                }
-                true
-            }
             Mode.ENGLISH -> false
             Mode.CHINESE -> handleChineseDigitKeyDown(keyCode, input, digit)
+            Mode.NUMBER -> false
         }
     }
 
@@ -454,14 +453,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
                 true
             }
         }
-        Mode.NUMBER -> {
-            if (input.repeatCount == 0) {
-                setDigitLongPressFlag(keyCode, false)
-            } else if (consumePhysicalLongPressIfReady(keyCode, input)) {
-                host.showNumberOperatorHintPanel()
-            }
-            true
-        }
+        Mode.NUMBER -> false
     }
 
     private fun handleChineseCandidateFocusNavigation(keyCode: Int, input: KeyInput): KeyResult {
@@ -518,7 +510,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
     }
 
     private fun handleT9SpecialKeyUp(keyCode: Int, input: KeyInput): KeyResult {
-        if (host.mode == Mode.ENGLISH) return KeyResult(handled = false)
+        if (host.mode != Mode.CHINESE) return KeyResult(handled = false)
         return when {
             keyCode == KeyEvent.KEYCODE_POUND -> {
                 if (host.mode == Mode.CHINESE && host.hasPendingPunctuation) {
@@ -559,41 +551,20 @@ class PhysicalT9KeyHandler(private val host: Host) {
 
     private fun handleZeroKeyUp(keyCode: Int, input: KeyInput): Boolean = when (host.mode) {
         Mode.CHINESE -> handleChineseDigitKeyUp(keyCode, input)
-        Mode.NUMBER -> {
-            if (!isDigitLongPressFlagSet(keyCode)) {
-                host.commitText("0")
-            }
-            setDigitLongPressFlag(keyCode, false)
-            true
-        }
         Mode.ENGLISH -> false
+        Mode.NUMBER -> false
     }
 
     private fun handlePredictiveDigitKeyUp(keyCode: Int, input: KeyInput): Boolean = when (host.mode) {
         Mode.ENGLISH -> false
         Mode.CHINESE -> handleChineseDigitKeyUp(keyCode, input)
-        Mode.NUMBER -> {
-            if (!isDigitLongPressFlagSet(keyCode)) {
-                val digit = PhysicalT9KeyPolicy.t9Digit(keyCode) ?: return false
-                host.commitText(digit.toString())
-            }
-            setDigitLongPressFlag(keyCode, false)
-            true
-        }
+        Mode.NUMBER -> false
     }
 
     private fun handleOneKeyUp(keyCode: Int): Boolean = when (host.mode) {
         Mode.ENGLISH -> false
         Mode.CHINESE -> handleChineseDigitKeyUp(keyCode, null)
-        Mode.NUMBER -> {
-            if (isDigitLongPressFlagSet(keyCode)) {
-                setDigitLongPressFlag(keyCode, false)
-            } else {
-                host.commitText("1")
-                setDigitLongPressFlag(keyCode, false)
-            }
-            true
-        }
+        Mode.NUMBER -> false
     }
 
     private fun handleStarKeyUp(keyCode: Int): Boolean = when (host.mode) {
@@ -602,13 +573,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
             host.togglePendingPunctuationSet()
             true
         }
-        Mode.NUMBER -> {
-            if (!isDigitLongPressFlagSet(keyCode)) {
-                host.commitLiteralStarInCurrentChineseState()
-            }
-            setDigitLongPressFlag(keyCode, false)
-            true
-        }
+        Mode.NUMBER -> false
     }
 
     private fun handleChineseDigitKeyUp(keyCode: Int, input: KeyInput?): Boolean {

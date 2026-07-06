@@ -100,6 +100,10 @@ otherwise.
 - [x] Migrate the remaining Smart English physical-key behavior into the same
   command-based flow: `0`, `2..9`, long-press shortcuts, candidate navigation,
   candidate confirmation, and Backspace.
+- [x] Move number-mode digit, `*`, and `#` special-key branches into the
+  command-based flow and remove the replaced handler fallback.
+- [ ] Move remaining Chinese special-key branches into the command-based flow
+  in small slices, removing each replaced handler fallback as it migrates.
 
 ## T9 Candidate UI Snapshot Pipeline Architecture
 

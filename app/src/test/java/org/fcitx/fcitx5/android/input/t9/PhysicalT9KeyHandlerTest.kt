@@ -271,6 +271,107 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
+    fun numberDigitShortPressCommitsDigitThroughCommandFlow() {
+        val host = FakeHost(mode = PhysicalT9KeyHandler.Mode.NUMBER)
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN)).handled)
+        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP)).handled)
+
+        assertEquals(listOf("2"), host.committedTexts)
+        assertEquals(emptyList<Int>(), host.numberOperatorKeys)
+    }
+
+    @Test
+    fun numberDigitLongPressUsesOperatorAndSuppressesDigit() {
+        val host = FakeHost(mode = PhysicalT9KeyHandler.Mode.NUMBER)
+        val handler = PhysicalT9KeyHandler(host)
+
+        handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN))
+        val repeat = handler.handleKeyDown(
+            keyInput(
+                keyCode = KeyEvent.KEYCODE_2,
+                action = KeyEvent.ACTION_DOWN,
+                repeatCount = 1,
+                eventTime = 700L
+            )
+        )
+        val up = handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP))
+
+        assertTrue(repeat.handled)
+        assertTrue(up.handled)
+        assertEquals(listOf(KeyEvent.KEYCODE_2), host.numberOperatorKeys)
+        assertEquals(listOf(2), host.numberOperatorFallbackDigits)
+        assertEquals(emptyList<String>(), host.committedTexts)
+    }
+
+    @Test
+    fun numberStarShortCommitsLiteralAndLongShowsOperatorHints() {
+        val shortHost = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.NUMBER,
+            commitSmartEnglishCandidateResult = false
+        )
+        val shortHandler = PhysicalT9KeyHandler(shortHost)
+
+        shortHandler.handleKeyDown(keyInput(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN))
+        shortHandler.handleKeyUp(keyInput(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP))
+
+        val longHost = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.NUMBER,
+            commitSmartEnglishCandidateResult = false
+        )
+        val longHandler = PhysicalT9KeyHandler(longHost)
+        longHandler.handleKeyDown(keyInput(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN))
+        longHandler.handleKeyDown(
+            keyInput(
+                keyCode = KeyEvent.KEYCODE_STAR,
+                action = KeyEvent.ACTION_DOWN,
+                repeatCount = 1,
+                eventTime = 700L
+            )
+        )
+        longHandler.handleKeyUp(keyInput(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP))
+
+        assertEquals(1, shortHost.commitLiteralStarCount)
+        assertEquals(0, shortHost.showNumberOperatorHintPanelCount)
+        assertEquals(0, longHost.commitLiteralStarCount)
+        assertEquals(1, longHost.showNumberOperatorHintPanelCount)
+    }
+
+    @Test
+    fun numberPoundShortReturnsAndLongPressSwitchesMode() {
+        val shortHost = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.NUMBER,
+            commitSmartEnglishCandidateResult = false
+        )
+        val shortHandler = PhysicalT9KeyHandler(shortHost)
+
+        shortHandler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN))
+        shortHandler.handleKeyUp(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP))
+
+        val longHost = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.NUMBER,
+            commitSmartEnglishCandidateResult = false
+        )
+        val longHandler = PhysicalT9KeyHandler(longHost)
+        longHandler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN))
+        longHandler.handleKeyDown(
+            keyInput(
+                keyCode = KeyEvent.KEYCODE_POUND,
+                action = KeyEvent.ACTION_DOWN,
+                repeatCount = 1,
+                eventTime = 700L
+            )
+        )
+        longHandler.handleKeyUp(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP))
+
+        assertEquals(1, shortHost.handleReturnCount)
+        assertEquals(0, shortHost.switchToNextModeCount)
+        assertEquals(0, longHost.handleReturnCount)
+        assertEquals(1, longHost.switchToNextModeCount)
+    }
+
+    @Test
     fun ignoresKeysOutsideInputMode() {
         val host = FakeHost(
             isInInputMode = false,
@@ -314,7 +415,8 @@ class PhysicalT9KeyHandlerTest {
         override var candidateFocus: PhysicalT9KeyHandler.CandidateFocus =
             PhysicalT9KeyHandler.CandidateFocus.BOTTOM,
         private val commitHighlightedBottomCandidateResult: Boolean = false,
-        private val smartEnglishShortcutResult: Boolean = false
+        private val smartEnglishShortcutResult: Boolean = false,
+        private val commitSmartEnglishCandidateResult: Boolean = true
     ) : PhysicalT9KeyHandler.Host {
         val committedTexts = mutableListOf<String>()
         val appendedSmartEnglishDigits = mutableListOf<Int>()
@@ -328,6 +430,11 @@ class PhysicalT9KeyHandlerTest {
         var commitHighlightedBottomCandidateCount = 0
         var showSmartEnglishPunctuationCount = 0
         var handleReturnCount = 0
+        val numberOperatorKeys = mutableListOf<Int>()
+        val numberOperatorFallbackDigits = mutableListOf<Int>()
+        var showNumberOperatorHintPanelCount = 0
+        var commitLiteralStarCount = 0
+        var switchToNextModeCount = 0
         override val pendingPunctuationOneKeyDeferred: Boolean
             get() = pendingPunctuationOneKeyDeferredState
 
@@ -348,15 +455,27 @@ class PhysicalT9KeyHandlerTest {
         override fun cancelPendingPunctuation(): Boolean = false
         override fun handleChinesePunctuationKey(): Boolean = false
         override fun togglePendingPunctuationSet(): Boolean = false
-        override fun switchToNextMode() = Unit
+        override fun switchToNextMode() {
+            switchToNextModeCount += 1
+        }
 
         override fun commitText(text: String) {
             committedTexts += text
         }
 
-        override fun commitNumberOperatorForKey(keyCode: Int, fallbackDigit: Int): Boolean = false
-        override fun showNumberOperatorHintPanel() = Unit
-        override fun commitLiteralStarInCurrentChineseState() = Unit
+        override fun commitNumberOperatorForKey(keyCode: Int, fallbackDigit: Int): Boolean {
+            numberOperatorKeys += keyCode
+            numberOperatorFallbackDigits += fallbackDigit
+            return true
+        }
+
+        override fun showNumberOperatorHintPanel() {
+            showNumberOperatorHintPanelCount += 1
+        }
+
+        override fun commitLiteralStarInCurrentChineseState() {
+            commitLiteralStarCount += 1
+        }
         override fun handleEnglishStarShortPress() = Unit
         override fun handleEnglishStarLongPress() = Unit
         override fun handleMultiTapKey(keyCode: Int): Boolean = false
@@ -387,7 +506,7 @@ class PhysicalT9KeyHandlerTest {
             commitSmartEnglishCandidateContinuePrediction += continuePrediction
             hasSmartEnglishDigits = false
             hasSmartEnglishCandidates = false
-            return true
+            return commitSmartEnglishCandidateResult
         }
 
         override fun moveSmartEnglishCandidate(delta: Int): Boolean = false
