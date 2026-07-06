@@ -11,7 +11,6 @@ class T9KeyEffectPlanner {
 
     data class Snapshot(
         val mode: PhysicalT9KeyHandler.Mode,
-        val hasPendingPunctuation: Boolean,
         val hasTopPinyinCandidates: Boolean,
         val candidateFocus: PhysicalT9KeyHandler.CandidateFocus
     )
@@ -21,12 +20,10 @@ class T9KeyEffectPlanner {
         data class MoveBottomCandidate(
             val delta: Int,
             val fallbackSmartEnglishDelta: Int? = null,
-            val handledWhenPendingPunctuation: Boolean = false,
             val consume: Boolean = true
         ) : Effect(consume)
         data class OffsetBottomCandidatePage(
             val delta: Int,
-            val handledWhenPendingPunctuation: Boolean = false,
             val alwaysHandled: Boolean = false,
             val consume: Boolean = true
         ) : Effect(consume)
@@ -35,9 +32,7 @@ class T9KeyEffectPlanner {
         ) : Effect(consumeKeyUp = true)
         data class MoveHighlightedPinyin(val delta: Int) : Effect(consumeKeyUp = true)
         object CommitHighlightedPinyin : Effect(consumeKeyUp = true)
-        data class CommitHighlightedBottomCandidate(
-            val handledWhenPendingPunctuation: Boolean = false
-        ) : Effect(consumeKeyUp = true)
+        object CommitHighlightedBottomCandidate : Effect(consumeKeyUp = true)
         data class CancelMultiTapChar(val consume: Boolean = false) : Effect(consume)
         data class CancelPendingPunctuation(val consume: Boolean = false) : Effect(consume)
     }
@@ -53,39 +48,26 @@ class T9KeyEffectPlanner {
                 snapshot.hasTopPinyinCandidates ->
                     Effect.MoveCandidateFocus(PhysicalT9KeyHandler.CandidateFocus.TOP)
                 snapshot.candidateFocus == PhysicalT9KeyHandler.CandidateFocus.BOTTOM ->
-                    Effect.OffsetBottomCandidatePage(
-                        delta = -1,
-                        handledWhenPendingPunctuation = true
-                    )
+                    Effect.OffsetBottomCandidatePage(delta = -1)
                 else -> Effect.None
             }
             PhysicalT9KeyPolicy.FocusKey.DOWN -> when (snapshot.candidateFocus) {
                 PhysicalT9KeyHandler.CandidateFocus.TOP ->
                     Effect.MoveCandidateFocus(PhysicalT9KeyHandler.CandidateFocus.BOTTOM)
                 PhysicalT9KeyHandler.CandidateFocus.BOTTOM ->
-                    Effect.OffsetBottomCandidatePage(
-                        delta = 1,
-                        handledWhenPendingPunctuation = true
-                    )
+                    Effect.OffsetBottomCandidatePage(delta = 1)
             }
             PhysicalT9KeyPolicy.FocusKey.LEFT -> when (snapshot.candidateFocus) {
                 PhysicalT9KeyHandler.CandidateFocus.TOP -> Effect.MoveHighlightedPinyin(delta = -1)
-                PhysicalT9KeyHandler.CandidateFocus.BOTTOM -> Effect.MoveBottomCandidate(
-                    delta = -1,
-                    handledWhenPendingPunctuation = true
-                )
+                PhysicalT9KeyHandler.CandidateFocus.BOTTOM -> Effect.MoveBottomCandidate(delta = -1)
             }
             PhysicalT9KeyPolicy.FocusKey.RIGHT -> when (snapshot.candidateFocus) {
                 PhysicalT9KeyHandler.CandidateFocus.TOP -> Effect.MoveHighlightedPinyin(delta = 1)
-                PhysicalT9KeyHandler.CandidateFocus.BOTTOM -> Effect.MoveBottomCandidate(
-                    delta = 1,
-                    handledWhenPendingPunctuation = true
-                )
+                PhysicalT9KeyHandler.CandidateFocus.BOTTOM -> Effect.MoveBottomCandidate(delta = 1)
             }
             PhysicalT9KeyPolicy.FocusKey.OK -> when (snapshot.candidateFocus) {
                 PhysicalT9KeyHandler.CandidateFocus.TOP -> Effect.CommitHighlightedPinyin
-                PhysicalT9KeyHandler.CandidateFocus.BOTTOM ->
-                    Effect.CommitHighlightedBottomCandidate(handledWhenPendingPunctuation = true)
+                PhysicalT9KeyHandler.CandidateFocus.BOTTOM -> Effect.CommitHighlightedBottomCandidate
             }
             null -> Effect.None
         }

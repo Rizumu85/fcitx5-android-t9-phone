@@ -271,6 +271,78 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
+    fun chinesePendingPunctuationZeroShortPressCommitsWithoutSpace() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            hasPendingPunctuation = true
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN)).handled)
+        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_0, KeyEvent.ACTION_UP)).handled)
+
+        assertEquals(1, host.commitPendingPunctuationCount)
+        assertEquals(emptyList<String>(), host.committedTexts)
+    }
+
+    @Test
+    fun chinesePendingPunctuationOneShortPressUsesDeferredPunctuationCommand() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            hasPendingPunctuation = true
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN)).handled)
+        assertTrue(host.pendingPunctuationOneKeyDeferred)
+        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP)).handled)
+
+        assertEquals(1, host.handleChinesePunctuationCount)
+        assertFalse(host.pendingPunctuationOneKeyDeferred)
+    }
+
+    @Test
+    fun chinesePendingPunctuationDigitLongPressFallsBackToLiteralWhenShortcutIsMissing() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            hasPendingPunctuation = true
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_9, KeyEvent.ACTION_DOWN))
+        val repeat = handler.handleKeyDown(
+            keyInput(
+                keyCode = KeyEvent.KEYCODE_9,
+                action = KeyEvent.ACTION_DOWN,
+                repeatCount = 1,
+                eventTime = 700L
+            )
+        )
+        val up = handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_9, KeyEvent.ACTION_UP))
+
+        assertTrue(repeat.handled)
+        assertTrue(up.handled)
+        assertEquals(listOf(KeyEvent.KEYCODE_9), host.pendingPunctuationShortcutKeys)
+        assertEquals(1, host.cancelPendingPunctuationCount)
+        assertEquals(listOf("9"), host.committedTexts)
+    }
+
+    @Test
+    fun chinesePendingPunctuationNavigationConsumesEvenWhenPageCannotMove() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            hasPendingPunctuation = true
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        val result = handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_DPAD_UP, KeyEvent.ACTION_DOWN))
+
+        assertTrue(result.handled)
+        assertEquals(KeyEvent.KEYCODE_DPAD_UP, result.consumedKeyUp)
+        assertEquals(listOf(-1), host.bottomCandidatePageOffsets)
+    }
+
+    @Test
     fun numberDigitShortPressCommitsDigitThroughCommandFlow() {
         val host = FakeHost(mode = PhysicalT9KeyHandler.Mode.NUMBER)
         val handler = PhysicalT9KeyHandler(host)
@@ -435,6 +507,10 @@ class PhysicalT9KeyHandlerTest {
         var showNumberOperatorHintPanelCount = 0
         var commitLiteralStarCount = 0
         var switchToNextModeCount = 0
+        var commitPendingPunctuationCount = 0
+        var cancelPendingPunctuationCount = 0
+        var handleChinesePunctuationCount = 0
+        val pendingPunctuationShortcutKeys = mutableListOf<Int>()
         override val pendingPunctuationOneKeyDeferred: Boolean
             get() = pendingPunctuationOneKeyDeferredState
 
@@ -445,15 +521,27 @@ class PhysicalT9KeyHandlerTest {
             pendingPunctuationOneKeyDeferredState = value
         }
 
-        override fun commitPendingPunctuationShortcut(keyCode: Int): Boolean = false
+        override fun commitPendingPunctuationShortcut(keyCode: Int): Boolean {
+            pendingPunctuationShortcutKeys += keyCode
+            return false
+        }
         override fun commitHanziShortcut(keyCode: Int): Boolean = false
         override fun commitSmartEnglishShortcut(keyCode: Int): Boolean {
             smartEnglishShortcutKeys += keyCode
             return smartEnglishShortcutResult
         }
-        override fun commitPendingPunctuation(): Boolean = false
-        override fun cancelPendingPunctuation(): Boolean = false
-        override fun handleChinesePunctuationKey(): Boolean = false
+        override fun commitPendingPunctuation(): Boolean {
+            commitPendingPunctuationCount += 1
+            return false
+        }
+        override fun cancelPendingPunctuation(): Boolean {
+            cancelPendingPunctuationCount += 1
+            return false
+        }
+        override fun handleChinesePunctuationKey(): Boolean {
+            handleChinesePunctuationCount += 1
+            return false
+        }
         override fun togglePendingPunctuationSet(): Boolean = false
         override fun switchToNextMode() {
             switchToNextModeCount += 1

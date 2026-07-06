@@ -36,6 +36,7 @@ class PhysicalT9KeyFlow {
         ) : Command()
         object CommitPendingPunctuation : Command()
         object CancelPendingPunctuation : Command()
+        object HandleChinesePunctuationKey : Command()
         object CancelMultiTapChar : Command()
         object ShowSmartEnglishPunctuationCandidates : Command()
         data class HandleMultiTapKey(val keyCode: Int) : Command()
@@ -92,8 +93,237 @@ class PhysicalT9KeyFlow {
         return when (state.mode) {
             PhysicalT9KeyHandler.Mode.ENGLISH -> handleEnglish(input, state)
             PhysicalT9KeyHandler.Mode.NUMBER -> handleNumber(input, state)
-            PhysicalT9KeyHandler.Mode.CHINESE -> null
+            PhysicalT9KeyHandler.Mode.CHINESE -> handleChinese(input, state)
         }
+    }
+
+    private fun handleChinese(
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State
+    ): Decision? = when {
+        state.hasPendingPunctuation -> handleChinesePendingPunctuation(input, state)
+        input.action == KeyEvent.ACTION_UP -> handleCompletedChinesePendingPunctuationKeyUp(input)
+        else -> null
+    }
+
+    private fun handleCompletedChinesePendingPunctuationKeyUp(
+        input: PhysicalT9KeyHandler.KeyInput
+    ): Decision? {
+        // Long-press selection can close the overlay before key-up; the flow still owns that release.
+        if (input.keyCode == KeyEvent.KEYCODE_POUND && poundLongPressTriggered) {
+            poundLongPressTriggered = false
+            return Decision(handled = true)
+        }
+        if (PhysicalT9KeyPolicy.t9Digit(input.keyCode) != null && isDigitLongPressFlagSet(input.keyCode)) {
+            setDigitLongPressFlag(input.keyCode, false)
+            return Decision(handled = true)
+        }
+        return null
+    }
+
+    private fun handleChinesePendingPunctuation(
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State
+    ): Decision? {
+        // Non-control keys should commit the visible punctuation preview, then keep normal app delivery.
+        if (input.action == KeyEvent.ACTION_DOWN &&
+            !PhysicalT9KeyPolicy.isPendingPunctuationControlKey(input.keyCode)
+        ) {
+            return Decision(
+                handled = false,
+                commands = listOf(Command.CommitPendingPunctuation)
+            )
+        }
+        val digit = PhysicalT9KeyPolicy.t9Digit(input.keyCode)
+        return when {
+            input.keyCode == KeyEvent.KEYCODE_1 -> handleChinesePendingPunctuationOne(input, state)
+            input.keyCode == KeyEvent.KEYCODE_0 -> handleChinesePendingPunctuationZero(input, state)
+            digit != null && digit in 2..9 -> handleChinesePendingPunctuationDigit(input, state, digit)
+            input.keyCode == KeyEvent.KEYCODE_POUND -> handleChinesePendingPunctuationPound(input, state)
+            input.keyCode == KeyEvent.KEYCODE_STAR -> handleChinesePendingPunctuationStar(input)
+            PhysicalT9KeyPolicy.focusKey(input.keyCode) != null ->
+                handleChinesePendingPunctuationFocus(input)
+            else -> null
+        }
+    }
+
+    private fun handleChinesePendingPunctuationOne(
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State
+    ): Decision? = when (input.action) {
+        KeyEvent.ACTION_DOWN -> {
+            if (input.repeatCount == 0) {
+                setDigitLongPressFlag(input.keyCode, false)
+                Decision(
+                    handled = true,
+                    commands = listOf(Command.SetPendingPunctuationOneKeyDeferred(true))
+                )
+            } else if (!isDigitLongPressFlagSet(input.keyCode) && state.heldPastLongPressDelay) {
+                setDigitLongPressFlag(input.keyCode, true)
+                Decision(
+                    handled = true,
+                    commands = listOf(
+                        Command.SetPendingPunctuationOneKeyDeferred(false),
+                        Command.CommitPendingPunctuationShortcutOrText(input.keyCode, "1")
+                    )
+                )
+            } else {
+                Decision(handled = true)
+            }
+        }
+        KeyEvent.ACTION_UP -> {
+            val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
+            setDigitLongPressFlag(input.keyCode, false)
+            Decision(
+                handled = true,
+                commands = if (wasLongPress) {
+                    emptyList()
+                } else {
+                    buildList {
+                        if (state.pendingPunctuationOneKeyDeferred) {
+                            add(Command.HandleChinesePunctuationKey)
+                        }
+                        add(Command.SetPendingPunctuationOneKeyDeferred(false))
+                    }
+                }
+            )
+        }
+        else -> null
+    }
+
+    private fun handleChinesePendingPunctuationZero(
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State
+    ): Decision? = when (input.action) {
+        KeyEvent.ACTION_DOWN -> handleChinesePendingPunctuationShortcutDown(input, state, "0")
+        KeyEvent.ACTION_UP -> handleChinesePendingPunctuationCommitOrSuppressDigitUp(input)
+        else -> null
+    }
+
+    private fun handleChinesePendingPunctuationDigit(
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State,
+        digit: Int
+    ): Decision? = when (input.action) {
+        KeyEvent.ACTION_DOWN -> handleChinesePendingPunctuationShortcutDown(input, state, digit.toString())
+        KeyEvent.ACTION_UP -> {
+            val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
+            setDigitLongPressFlag(input.keyCode, false)
+            Decision(
+                handled = true,
+                commands = if (wasLongPress) {
+                    emptyList()
+                } else {
+                    listOf(
+                        Command.CommitPendingPunctuation,
+                        Command.CommitText(digit.toString())
+                    )
+                }
+            )
+        }
+        else -> null
+    }
+
+    private fun handleChinesePendingPunctuationShortcutDown(
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State,
+        fallbackText: String
+    ): Decision {
+        return if (input.repeatCount == 0) {
+            setDigitLongPressFlag(input.keyCode, false)
+            Decision(handled = true)
+        } else if (!isDigitLongPressFlagSet(input.keyCode) && input.repeatCount > 0) {
+            if (!state.heldPastLongPressDelay) {
+                Decision(handled = true)
+            } else {
+                setDigitLongPressFlag(input.keyCode, true)
+                Decision(
+                    handled = true,
+                    commands = listOf(
+                        Command.CommitPendingPunctuationShortcutOrText(input.keyCode, fallbackText)
+                    )
+                )
+            }
+        } else {
+            Decision(handled = true)
+        }
+    }
+
+    private fun handleChinesePendingPunctuationCommitOrSuppressDigitUp(
+        input: PhysicalT9KeyHandler.KeyInput
+    ): Decision {
+        val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
+        setDigitLongPressFlag(input.keyCode, false)
+        return Decision(
+            handled = true,
+            commands = if (wasLongPress) emptyList() else listOf(Command.CommitPendingPunctuation)
+        )
+    }
+
+    private fun handleChinesePendingPunctuationPound(
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State
+    ): Decision? = when (input.action) {
+        KeyEvent.ACTION_DOWN -> {
+            if (input.repeatCount == 0) {
+                poundLongPressTriggered = false
+                Decision(handled = true)
+            } else if (!poundLongPressTriggered && state.heldPastLongPressDelay) {
+                poundLongPressTriggered = true
+                Decision(
+                    handled = true,
+                    commands = listOf(
+                        Command.CommitPendingPunctuation,
+                        Command.SwitchToNextMode
+                    )
+                )
+            } else {
+                Decision(handled = true)
+            }
+        }
+        KeyEvent.ACTION_UP -> {
+            if (poundLongPressTriggered) {
+                poundLongPressTriggered = false
+                Decision(handled = true)
+            } else {
+                Decision(
+                    handled = true,
+                    commands = listOf(Command.CommitPendingPunctuation)
+                )
+            }
+        }
+        else -> null
+    }
+
+    private fun handleChinesePendingPunctuationStar(
+        input: PhysicalT9KeyHandler.KeyInput
+    ): Decision? = when (input.action) {
+        KeyEvent.ACTION_DOWN -> Decision(handled = true)
+        KeyEvent.ACTION_UP -> Decision(
+            handled = true,
+            commands = listOf(Command.TogglePendingPunctuationSet)
+        )
+        else -> null
+    }
+
+    private fun handleChinesePendingPunctuationFocus(
+        input: PhysicalT9KeyHandler.KeyInput
+    ): Decision? {
+        if (input.action != KeyEvent.ACTION_DOWN) return null
+        val command = when (PhysicalT9KeyPolicy.focusKey(input.keyCode)) {
+            PhysicalT9KeyPolicy.FocusKey.LEFT -> Command.MoveBottomCandidate(delta = -1)
+            PhysicalT9KeyPolicy.FocusKey.RIGHT -> Command.MoveBottomCandidate(delta = 1)
+            PhysicalT9KeyPolicy.FocusKey.UP -> Command.OffsetBottomCandidatePage(delta = -1)
+            PhysicalT9KeyPolicy.FocusKey.DOWN -> Command.OffsetBottomCandidatePage(delta = 1)
+            PhysicalT9KeyPolicy.FocusKey.OK ->
+                Command.ConfirmSmartEnglishCandidate(hasPendingPunctuation = true)
+            null -> return null
+        }
+        return Decision(
+            handled = true,
+            commands = listOf(command),
+            consumedKeyUp = input.keyCode
+        )
     }
 
     private fun handleEnglish(

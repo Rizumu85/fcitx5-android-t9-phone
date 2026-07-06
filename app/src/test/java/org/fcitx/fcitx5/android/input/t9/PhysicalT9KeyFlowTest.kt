@@ -211,6 +211,197 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
+    fun chinesePendingPunctuationOneKeepsDeferredPunctuationSemantics() {
+        val flow = PhysicalT9KeyFlow()
+
+        val down = flow.handle(
+            input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                hasPendingPunctuation = true,
+                pendingPunctuationSet = PhysicalT9KeyHandler.PunctuationSet.CHINESE
+            )
+        )
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                hasPendingPunctuation = true,
+                pendingPunctuationOneKeyDeferred = true,
+                pendingPunctuationSet = PhysicalT9KeyHandler.PunctuationSet.CHINESE
+            )
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.SetPendingPunctuationOneKeyDeferred(true)), down?.commands)
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.HandleChinesePunctuationKey,
+                PhysicalT9KeyFlow.Command.SetPendingPunctuationOneKeyDeferred(false)
+            ),
+            up?.commands
+        )
+    }
+
+    @Test
+    fun chinesePendingPunctuationZeroCommitsWithoutSpace() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, hasPendingPunctuation = true)
+        )
+
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, hasPendingPunctuation = true)
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitPendingPunctuation), up?.commands)
+    }
+
+    @Test
+    fun chinesePendingPunctuationDigitShortPressCommitsThenTypesDigit() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(
+            input(KeyEvent.KEYCODE_6, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, hasPendingPunctuation = true)
+        )
+
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_6, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, hasPendingPunctuation = true)
+        )
+
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.CommitPendingPunctuation,
+                PhysicalT9KeyFlow.Command.CommitText("6")
+            ),
+            up?.commands
+        )
+    }
+
+    @Test
+    fun chinesePendingPunctuationDigitLongPressUsesShortcutOrLiteralFallbackAndSuppressesKeyUp() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(
+            input(KeyEvent.KEYCODE_9, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, hasPendingPunctuation = true)
+        )
+
+        val repeat = flow.handle(
+            input(KeyEvent.KEYCODE_9, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                hasPendingPunctuation = true,
+                heldPastLongPressDelay = true
+            )
+        )
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_9, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        )
+
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.CommitPendingPunctuationShortcutOrText(KeyEvent.KEYCODE_9, "9")),
+            repeat?.commands
+        )
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), up?.commands)
+    }
+
+    @Test
+    fun chinesePendingPunctuationPoundShortCommitsAndLongCommitsThenSwitchesMode() {
+        val shortFlow = PhysicalT9KeyFlow()
+        shortFlow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, hasPendingPunctuation = true)
+        )
+        val shortUp = shortFlow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, hasPendingPunctuation = true)
+        )
+
+        val longFlow = PhysicalT9KeyFlow()
+        longFlow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, hasPendingPunctuation = true)
+        )
+        val repeat = longFlow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                hasPendingPunctuation = true,
+                heldPastLongPressDelay = true
+            )
+        )
+        val longUp = longFlow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitPendingPunctuation), shortUp?.commands)
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.CommitPendingPunctuation,
+                PhysicalT9KeyFlow.Command.SwitchToNextMode
+            ),
+            repeat?.commands
+        )
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), longUp?.commands)
+    }
+
+    @Test
+    fun chinesePendingPunctuationStarTogglesSetOnKeyUp() {
+        val flow = PhysicalT9KeyFlow()
+
+        val down = flow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, hasPendingPunctuation = true)
+        )
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, hasPendingPunctuation = true)
+        )
+
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), down?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.TogglePendingPunctuationSet), up?.commands)
+    }
+
+    @Test
+    fun chinesePendingPunctuationFocusKeysConsumeAtEdges() {
+        val flow = PhysicalT9KeyFlow()
+
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_DPAD_UP, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, hasPendingPunctuation = true)
+        )
+        val ok = flow.handle(
+            input(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, hasPendingPunctuation = true)
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.OffsetBottomCandidatePage(delta = -1)), up?.commands)
+        assertEquals(KeyEvent.KEYCODE_DPAD_UP, up?.consumedKeyUp)
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.ConfirmSmartEnglishCandidate(hasPendingPunctuation = true)),
+            ok?.commands
+        )
+        assertEquals(KeyEvent.KEYCODE_DPAD_CENTER, ok?.consumedKeyUp)
+    }
+
+    @Test
+    fun chinesePendingPunctuationNonControlKeyCommitsThenFallsThrough() {
+        val flow = PhysicalT9KeyFlow()
+
+        val down = flow.handle(
+            input(KeyEvent.KEYCODE_A, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, hasPendingPunctuation = true)
+        )
+
+        assertEquals(false, down?.handled)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitPendingPunctuation), down?.commands)
+    }
+
+    @Test
     fun simpleEnglishDigitUsesMultiTapOnKeyDown() {
         val flow = PhysicalT9KeyFlow()
 

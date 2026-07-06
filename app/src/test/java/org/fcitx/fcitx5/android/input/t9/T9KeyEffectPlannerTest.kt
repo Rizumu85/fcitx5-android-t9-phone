@@ -43,9 +43,7 @@ class T9KeyEffectPlannerTest {
         )
 
         assertEquals(
-            T9KeyEffectPlanner.Effect.CommitHighlightedBottomCandidate(
-                handledWhenPendingPunctuation = true
-            ),
+            T9KeyEffectPlanner.Effect.CommitHighlightedBottomCandidate,
             effect
         )
         assertTrue(effect.consumeKeyUp)
@@ -62,13 +60,11 @@ class T9KeyEffectPlannerTest {
 
     private fun snapshot(
         mode: PhysicalT9KeyHandler.Mode,
-        hasPendingPunctuation: Boolean = false,
         hasTopPinyinCandidates: Boolean = false,
         candidateFocus: PhysicalT9KeyHandler.CandidateFocus =
             PhysicalT9KeyHandler.CandidateFocus.BOTTOM
     ): T9KeyEffectPlanner.Snapshot = T9KeyEffectPlanner.Snapshot(
         mode = mode,
-        hasPendingPunctuation = hasPendingPunctuation,
         hasTopPinyinCandidates = hasTopPinyinCandidates,
         candidateFocus = candidateFocus
     )

@@ -137,13 +137,6 @@ class PhysicalT9KeyHandler(private val host: Host) {
         if (!host.isInInputMode) return KeyResult(handled = false)
         if (input.action != KeyEvent.ACTION_DOWN) return KeyResult(handled = false)
 
-        if (host.mode == Mode.CHINESE &&
-            host.hasPendingPunctuation &&
-            !PhysicalT9KeyPolicy.isPendingPunctuationControlKey(keyCode)
-        ) {
-            host.commitPendingPunctuation()
-        }
-
         handleCommandKeyFlow(input).takeIf { it.handled }?.let { return it }
         handleT9SpecialKeyDown(keyCode, input).takeIf { it.handled }?.let { return it }
         handleChineseCandidateFocusNavigation(keyCode, input).takeIf { it.handled }?.let { return it }
@@ -192,6 +185,8 @@ class PhysicalT9KeyHandler(private val host: Host) {
                     host.commitPendingPunctuation()
                 PhysicalT9KeyFlow.Command.CancelPendingPunctuation ->
                     host.cancelPendingPunctuation()
+                PhysicalT9KeyFlow.Command.HandleChinesePunctuationKey ->
+                    host.handleChinesePunctuationKey()
                 PhysicalT9KeyFlow.Command.CancelMultiTapChar ->
                     host.cancelMultiTapChar()
                 PhysicalT9KeyFlow.Command.ShowSmartEnglishPunctuationCandidates ->
@@ -292,50 +287,6 @@ class PhysicalT9KeyHandler(private val host: Host) {
 
     private fun handleT9SpecialKeyDown(keyCode: Int, input: KeyInput): KeyResult {
         if (host.mode != Mode.CHINESE) return KeyResult(handled = false)
-        if (host.mode == Mode.CHINESE && host.hasPendingPunctuation) {
-            when (keyCode) {
-                KeyEvent.KEYCODE_1 -> {
-                    if (input.repeatCount == 0) {
-                        setDigitLongPressFlag(keyCode, false)
-                        if (host.mode == Mode.CHINESE) {
-                            host.setPendingPunctuationOneKeyDeferred(true)
-                        }
-                    } else if (consumePhysicalLongPressIfReady(keyCode, input)) {
-                        host.setPendingPunctuationOneKeyDeferred(false)
-                        host.commitPendingPunctuationShortcut(keyCode)
-                    }
-                    return KeyResult(handled = true)
-                }
-                KeyEvent.KEYCODE_STAR -> return KeyResult(handled = true)
-                KeyEvent.KEYCODE_POUND -> {
-                    if (input.repeatCount == 0) {
-                        poundLongPressTriggered = false
-                    } else if (consumePoundLongPressIfReady(input)) {
-                        host.commitPendingPunctuation()
-                        host.switchToNextMode()
-                    }
-                    return KeyResult(handled = true)
-                }
-                KeyEvent.KEYCODE_0 -> {
-                    if (input.repeatCount == 0) {
-                        setDigitLongPressFlag(keyCode, false)
-                    } else if (consumePhysicalLongPressIfReady(keyCode, input)) {
-                        if (host.commitPendingPunctuationShortcut(keyCode)) return KeyResult(handled = true)
-                        host.cancelPendingPunctuation()
-                        host.commitText("0")
-                    }
-                    return KeyResult(handled = true)
-                }
-                else -> if (PhysicalT9KeyPolicy.isPredictiveDigitKey(keyCode)) {
-                    if (input.repeatCount == 0) {
-                        setDigitLongPressFlag(keyCode, false)
-                    } else if (consumePhysicalLongPressIfReady(keyCode, input)) {
-                        host.commitPendingPunctuationShortcut(keyCode)
-                    }
-                    return KeyResult(handled = true)
-                }
-            }
-        }
 
         return when {
             keyCode == KeyEvent.KEYCODE_POUND -> {
@@ -457,13 +408,13 @@ class PhysicalT9KeyHandler(private val host: Host) {
     }
 
     private fun handleChineseCandidateFocusNavigation(keyCode: Int, input: KeyInput): KeyResult {
+        if (host.hasPendingPunctuation) return KeyResult(handled = false)
         val effect = effectPlanner.planChineseCandidateFocusNavigation(input, t9EffectSnapshot())
         return executeT9Effect(effect, keyCode)
     }
 
     private fun t9EffectSnapshot(): T9KeyEffectPlanner.Snapshot = T9KeyEffectPlanner.Snapshot(
         mode = host.mode,
-        hasPendingPunctuation = host.hasPendingPunctuation,
         hasTopPinyinCandidates = host.hasTopPinyinCandidates,
         candidateFocus = host.candidateFocus
     )
@@ -475,16 +426,13 @@ class PhysicalT9KeyHandler(private val host: Host) {
                 val moved = host.moveHighlightedBottomCandidate(effect.delta)
                 if (!moved) {
                     effect.fallbackSmartEnglishDelta?.let { host.moveSmartEnglishCandidate(it) }
-                    effect.handledWhenPendingPunctuation && host.hasPendingPunctuation ||
-                        effect.fallbackSmartEnglishDelta != null
+                    effect.fallbackSmartEnglishDelta != null
                 } else {
                     true
                 }
             }
             is T9KeyEffectPlanner.Effect.OffsetBottomCandidatePage ->
-                host.offsetBottomCandidatePage(effect.delta) ||
-                    (effect.handledWhenPendingPunctuation && host.hasPendingPunctuation) ||
-                    effect.alwaysHandled
+                host.offsetBottomCandidatePage(effect.delta) || effect.alwaysHandled
             is T9KeyEffectPlanner.Effect.MoveCandidateFocus -> {
                 host.moveCandidateFocus(effect.focus)
                 true
@@ -493,9 +441,8 @@ class PhysicalT9KeyHandler(private val host: Host) {
                 host.moveHighlightedPinyin(effect.delta)
             T9KeyEffectPlanner.Effect.CommitHighlightedPinyin ->
                 host.commitHighlightedPinyin()
-            is T9KeyEffectPlanner.Effect.CommitHighlightedBottomCandidate ->
-                host.commitHighlightedBottomCandidate() ||
-                    (effect.handledWhenPendingPunctuation && host.hasPendingPunctuation)
+            T9KeyEffectPlanner.Effect.CommitHighlightedBottomCandidate ->
+                host.commitHighlightedBottomCandidate()
             is T9KeyEffectPlanner.Effect.CancelMultiTapChar -> {
                 host.cancelMultiTapChar()
                 true
@@ -513,13 +460,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
         if (host.mode != Mode.CHINESE) return KeyResult(handled = false)
         return when {
             keyCode == KeyEvent.KEYCODE_POUND -> {
-                if (host.mode == Mode.CHINESE && host.hasPendingPunctuation) {
-                    if (!poundLongPressTriggered) {
-                        host.commitPendingPunctuation()
-                    }
-                    poundLongPressTriggered = false
-                    KeyResult(handled = true)
-                } else if (host.mode == Mode.CHINESE && host.chineseComposing) {
+                if (host.mode == Mode.CHINESE && host.chineseComposing) {
                     KeyResult(handled = false)
                 } else {
                     if (!poundLongPressTriggered) {
@@ -579,14 +520,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
     private fun handleChineseDigitKeyUp(keyCode: Int, input: KeyInput?): Boolean {
         return when (keyCode) {
             KeyEvent.KEYCODE_0 -> {
-                if (host.hasPendingPunctuation) {
-                    if (!isDigitLongPressFlagSet(keyCode)) {
-                        host.commitPendingPunctuation()
-                        host.commitText(" ")
-                    }
-                    setDigitLongPressFlag(keyCode, false)
-                    true
-                } else if (isDigitLongPressFlagSet(keyCode)) {
+                if (isDigitLongPressFlagSet(keyCode)) {
                     setDigitLongPressFlag(keyCode, false)
                     true
                 } else if (host.compositionKeyCount > 0) {
@@ -607,14 +541,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
                 }
             }
             KeyEvent.KEYCODE_1 -> {
-                if (host.hasPendingPunctuation) {
-                    if (!isDigitLongPressFlagSet(keyCode) && host.pendingPunctuationOneKeyDeferred) {
-                        host.handleChinesePunctuationKey()
-                    }
-                    setDigitLongPressFlag(keyCode, false)
-                    host.setPendingPunctuationOneKeyDeferred(false)
-                    true
-                } else if (isDigitLongPressFlagSet(keyCode)) {
+                if (isDigitLongPressFlagSet(keyCode)) {
                     setDigitLongPressFlag(keyCode, false)
                     true
                 } else if (host.compositionKeyCount > 0) {
@@ -630,15 +557,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
                 }
             }
             else -> if (PhysicalT9KeyPolicy.isPredictiveDigitKey(keyCode)) {
-                if (host.hasPendingPunctuation) {
-                    if (!isDigitLongPressFlagSet(keyCode)) {
-                        val digit = PhysicalT9KeyPolicy.t9Digit(keyCode) ?: return false
-                        host.commitPendingPunctuation()
-                        host.commitText(digit.toString())
-                    }
-                    setDigitLongPressFlag(keyCode, false)
-                    true
-                } else if (isDigitLongPressFlagSet(keyCode)) {
+                if (isDigitLongPressFlagSet(keyCode)) {
                     setDigitLongPressFlag(keyCode, false)
                     true
                 } else {
