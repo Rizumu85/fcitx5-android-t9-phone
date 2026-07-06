@@ -82,6 +82,7 @@ import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHandler
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHostAdapter
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9Coordinator
+import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9ModeController
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocusController
 import org.fcitx.fcitx5.android.input.t9.T9CandidateShortcutCommitter
@@ -491,9 +492,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var t9InputModeEnabled = keyboardPrefs.useT9KeyboardLayout.getValue()
 
     @Volatile
-    private var smartEnglishT9 = keyboardPrefs.smartEnglishT9.getValue()
-
-    @Volatile
     private var physicalLongPressDelay = keyboardPrefs.longPressDelay.getValue()
 
     @Volatile
@@ -517,8 +515,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
     private val smartEnglishT9ChangeListener =
         ManagedPreference.OnChangeListener<Boolean> { _, value ->
-            smartEnglishT9 = value
-            smartEnglishCoordinator.onEnabledChanged(value)
+            smartEnglishModeController.onPreferenceChanged(value)
         }
     private val physicalLongPressDelayChangeListener =
         ManagedPreference.OnChangeListener<Int> { _, value ->
@@ -1620,12 +1617,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         consumeShiftOnce = { smartEnglishCoordinator.consumeShiftOnce() },
         recordLearningChar = { char -> smartEnglishCoordinator.recordLearningChar(char) }
     )
+    private val smartEnglishModeController = SmartEnglishT9ModeController(
+        initialEnabled = keyboardPrefs.smartEnglishT9.getValue(),
+        setPreference = { enabled -> keyboardPrefs.smartEnglishT9.setValue(enabled) },
+        onEnabledChanged = { enabled -> smartEnglishCoordinator.onEnabledChanged(enabled) },
+        showModeIndicator = { label -> inputView?.showModeIndicatorBadge(label) }
+    )
     private val smartEnglishCoordinator: SmartEnglishT9Coordinator by lazy {
         SmartEnglishT9Coordinator(
             candidateLimit = SmartEnglishCandidateLimit,
             noMatchText = SmartEnglishNoMatchText,
             scope = lifecycleScope,
-            isEnabled = { smartEnglishT9 },
+            isEnabled = { smartEnglishModeController.enabled },
             isActive = ::isSmartEnglishT9Active,
             shouldLearnWords = ::shouldLearnEnglishWords,
             commitText = ::commitText,
@@ -1754,17 +1757,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         t9PunctuationCoordinator.previewCandidate(index)
 
     private fun isSmartEnglishT9Active(): Boolean =
-        t9InputModeEnabled && currentT9Mode == T9InputMode.ENGLISH && smartEnglishT9
+        t9InputModeEnabled && currentT9Mode == T9InputMode.ENGLISH && smartEnglishModeController.enabled
 
     fun isSmartEnglishT9InputModeActive(): Boolean = isSmartEnglishT9Active()
 
-    fun isSmartEnglishT9Enabled(): Boolean = smartEnglishT9
+    fun isSmartEnglishT9Enabled(): Boolean = smartEnglishModeController.enabled
 
     fun toggleSmartEnglishT9() {
-        smartEnglishT9 = !smartEnglishT9
-        keyboardPrefs.smartEnglishT9.setValue(smartEnglishT9)
-        smartEnglishCoordinator.onEnabledChanged(smartEnglishT9)
-        inputView?.showModeIndicatorBadge(if (smartEnglishT9) "T9" else "abc")
+        smartEnglishModeController.toggle()
     }
 
     fun getSmartEnglishT9Paged(): FcitxEvent.PagedCandidateEvent.Data? =
