@@ -172,6 +172,10 @@ class T9CandidateUiSnapshotPipelineTest {
         require(moved is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.ChineseBulk)
         assertEquals(1, moved.shown.data.cursorIndex)
 
+        val refreshed = pipeline.chineseBulkFilterState.paged
+        require(refreshed != null)
+        assertEquals(1, refreshed.data.cursorIndex)
+
         val shortcutCommit = pipeline.commitBottomCandidateAt(2)
         require(shortcutCommit is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.ChineseBulk)
         assertEquals(2, shortcutCommit.originalIndex)

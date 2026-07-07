@@ -159,6 +159,9 @@ class T9CandidateUiSnapshotPipeline(
     ): Boolean =
         chineseCandidatePipeline.offsetBulkFilteredPage(delta, layoutHint)
 
+    fun moveChineseBulkFilteredCursor(index: Int): T9PagedCandidates? =
+        chineseCandidatePipeline.moveBulkFilteredCursor(index)
+
     fun filterChinesePagedByPinyinPrefixes(
         data: FcitxEvent.PagedCandidateEvent.Data,
         prefixes: List<String>
@@ -366,9 +369,13 @@ class T9CandidateUiSnapshotPipeline(
                 )
             }
             ShownSource.CHINESE_BULK -> {
-                val nextPaged = shown.paged.copy(cursorIndex = next)
-                currentShown = shown.copy(paged = nextPaged)
-                MoveBottomCandidate.ChineseBulk(T9PagedCandidates(nextPaged, shown.originalIndices))
+                val nextShown = moveChineseBulkFilteredCursor(next)
+                    ?: T9PagedCandidates(shown.paged.copy(cursorIndex = next), shown.originalIndices)
+                currentShown = shown.copy(
+                    paged = nextShown.data,
+                    originalIndices = nextShown.originalIndices
+                )
+                MoveBottomCandidate.ChineseBulk(nextShown)
             }
             ShownSource.OTHER -> null
         }

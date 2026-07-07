@@ -75,6 +75,8 @@ object T9CandidatePresentationPlanner {
             cursorSource = cursorSource,
             applyChineseCursor = input.pendingPunctuationPaged == null &&
                 input.smartEnglishPaged == null &&
+                !useBulkFiltered &&
+                !usePendingBulkDisplay &&
                 !input.suppressEmptyCandidates &&
                 !input.pendingPinyinSelection &&
                 !input.waitForChineseCandidates &&

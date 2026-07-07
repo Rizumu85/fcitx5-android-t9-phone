@@ -49,7 +49,7 @@ class T9CandidatePresentationPlannerTest {
         )
 
         assertSame(bulk, plan.candidateSource)
-        assertTrue(plan.applyChineseCursor)
+        assertFalse(plan.applyChineseCursor)
         assertTrue(plan.usesBulkSelection)
         assertEquals("ni", plan.matchedPrefix)
         assertArrayEquals(intArrayOf(9), plan.cursorSource.originalIndices)

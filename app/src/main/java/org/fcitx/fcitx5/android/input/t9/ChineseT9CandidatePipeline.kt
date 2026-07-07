@@ -112,6 +112,19 @@ class ChineseT9CandidatePipeline(
         return true
     }
 
+    fun moveBulkFilteredCursor(index: Int): T9PagedCandidates? {
+        val shown = bulkFilteredPaged ?: return null
+        if (index !in shown.data.candidates.indices) return null
+        // Bulk-filtered Chinese candidates are rebuilt on every UI refresh, so the cursor must
+        // live with the filtered page instead of only the transient rendered snapshot.
+        hanziCursorIndex = index
+        bulkFilteredPaged = T9PagedCandidates(
+            data = shown.data.copy(cursorIndex = index),
+            originalIndices = shown.originalIndices
+        )
+        return bulkFilteredPaged
+    }
+
     fun offsetLocalBudgetedPage(delta: Int): Boolean {
         val current = localBudgetPager.currentPage() ?: return false
         val canOffset = if (delta > 0) current.hasNext else current.hasPrev
