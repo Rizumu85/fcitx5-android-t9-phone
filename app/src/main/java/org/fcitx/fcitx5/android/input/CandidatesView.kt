@@ -335,6 +335,7 @@ class CandidatesView(
             this@CandidatesView.effectiveT9CandidateFocus(pinyinOptions, useT9PinyinRow)
     })
     private var pinyinRowTargetVisible = false
+    private var pinyinRowRevealPending = false
 
     private val showPaginationArrows by candidatesPrefs.showPaginationArrows
     private val candidatesUi = PagedCandidatesUi(
@@ -910,6 +911,25 @@ class CandidatesView(
         }
     }
 
+    private fun schedulePinyinRowReveal() {
+        if (pinyinRowRevealPending) return
+        pinyinRowRevealPending = true
+        pinyinRowWrapper.postOnAnimation {
+            pinyinRowRevealPending = false
+            if (!pinyinRowTargetVisible) return@postOnAnimation
+            setPinyinRowHeight(pinyinBarRowHeightPx)
+            if (syncPinyinRowWidthToCandidates()) {
+                // Product decision: when candidate content changes, the pinyin row may have
+                // freshly rebound chips. Reveal it on the next frame so the user never sees the
+                // transient half-laid-out chip row captured in frame-by-frame testing.
+                showPinyinRowNow()
+            } else {
+                waitForPinyinRowLayout()
+                schedulePinyinRowReveal()
+            }
+        }
+    }
+
     private fun waitForPinyinRowLayout() {
         pinyinRowTargetVisible = true
         resetPinyinRowTransform()
@@ -948,7 +968,7 @@ class CandidatesView(
                     )) {
                         T9PinyinRowVisibilityPlanner.DeferredWidthAction.SHOW_NOW -> {
                             setPinyinRowHeight(pinyinBarRowHeightPx)
-                            showPinyinRowNow()
+                            schedulePinyinRowReveal()
                         }
                         T9PinyinRowVisibilityPlanner.DeferredWidthAction.KEEP_WAITING ->
                             setPinyinRowHeight(pinyinBarRowHeightPx)
@@ -1004,7 +1024,7 @@ class CandidatesView(
         val widthReady = syncPinyinRowWidthToCandidates()
         setPinyinRowHeight(pinyinBarRowHeightPx)
         if (widthReady && pinyinRowWrapper.visibility == View.INVISIBLE) {
-            showPinyinRowNow()
+            schedulePinyinRowReveal()
         }
         return widthReady
     }
