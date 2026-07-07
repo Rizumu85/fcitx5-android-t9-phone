@@ -120,3 +120,5 @@ otherwise.
   pinyin row window/highlight state into the snapshot pipeline.
 - [x] Narrow the T9 Candidate UI Snapshot Pipeline input seam by introducing a
   render-stable input snapshot while preserving the current visual algorithms.
+- [x] Remove the misdiagnosed pinyin-chip strip layout seam after frame
+  evidence showed the stale Hanzi candidate row was the true refresh bug.

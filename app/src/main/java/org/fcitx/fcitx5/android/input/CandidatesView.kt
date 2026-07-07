@@ -1085,8 +1085,8 @@ class CandidatesView(
         if (!pinyinRowTargetVisible) return true
         t9CandidateUiSnapshotPipeline.currentPinyinWindowState()?.let {
             // Product decision: candidate width changes can resize the second bubble even when
-            // the pinyin text itself is unchanged. The pinyin row is a synchronous drawing
-            // surface now, so resizing it no longer exposes half-laid-out chip frames.
+            // the pinyin text itself is unchanged. Re-apply the current pinyin snapshot before
+            // width sync so the row and bubble are aligned by one render-ready state.
             renderPinyinWindow(
                 state = it,
                 candidateRowWidthPx = null,

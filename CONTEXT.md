@@ -109,19 +109,6 @@ candidate can edge-align and how much width is needed for focus overflow. This
 keeps the tail rule at one seam instead of scattering it through TextView
 padding, candidate-width estimation, and pinyin-row surface alignment.
 
-### T9 Pinyin Chip Strip Layout
-
-The pinyin filter row is a small synchronous drawing surface. Its item bounds,
-content width, touch hit boxes, and folded-width estimates should come from one
-layout frame rather than being recomputed independently by the Android view and
-the width calculator.
-
-`T9PinyinChipStripLayout` owns that frame. The Android chip-strip adapter may
-apply the frame to a custom `View`, but it should not draw from a newer item
-list while the child view still has the previous measured width. This prevents
-the first frame of inputs such as `gel` from briefly showing clipped pinyin
-chips before the next layout pass corrects the row.
-
 ### Chinese T9 Candidate Frame Gate
 
 Chinese T9 candidate rendering must be source-fresh at the frame level. A frame

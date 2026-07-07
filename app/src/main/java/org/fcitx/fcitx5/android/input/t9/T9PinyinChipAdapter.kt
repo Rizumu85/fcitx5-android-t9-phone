@@ -12,7 +12,6 @@ import android.os.Build
 import android.text.TextPaint
 import android.view.MotionEvent
 import android.view.View
-import android.view.View.MeasureSpec
 import android.view.ViewGroup
 import android.widget.HorizontalScrollView
 import org.fcitx.fcitx5.android.data.theme.Theme
@@ -35,8 +34,6 @@ class T9PinyinChipAdapter(
     private var pinyins: List<String> = emptyList()
     private var highlightActive = false
 
-    // Product decision: the pinyin filter row must never expose a half-laid-out chip frame.
-    // Drawing the tiny fixed row as one surface keeps the visual state synchronous with render().
     private val stripView = PinyinChipStripView(
         context = context,
         theme = theme,
@@ -167,6 +164,8 @@ class T9PinyinChipAdapter(
         private val cornerRadiusPx: Float,
         private val onChipClick: (String) -> Unit
     ) : View(context) {
+        data class ItemBounds(val startPx: Int, val endPx: Int)
+
         private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             textSize = textSizeSp * context.resources.displayMetrics.scaledDensity
             InputUiFont.applyTo(this)
@@ -180,7 +179,7 @@ class T9PinyinChipAdapter(
         private var highlightedIndex: Int = 0
         private var highlightActive: Boolean = false
         private var touchDownX: Float? = null
-        private var frame = T9PinyinChipStripLayout.Frame.Empty
+        private val itemBounds = mutableListOf<ItemBounds>()
 
         var contentWidthPx: Int = 0
             private set
@@ -196,31 +195,27 @@ class T9PinyinChipAdapter(
         }
 
         fun reserveChipCapacity(count: Int) {
-            if (count > frame.itemBounds.size) {
+            if (count > itemBounds.size) {
                 requestLayout()
             }
         }
 
         fun submit(items: List<String>, highlightedIndex: Int, highlightActive: Boolean) {
-            val previousContentWidth = frame.contentWidthPx
             this.items = items
             this.highlightedIndex = highlightedIndex.coerceIn(0, items.lastIndex.coerceAtLeast(0))
             this.highlightActive = highlightActive
-            frame = measureFrame(items)
-            contentWidthPx = frame.contentWidthPx
-            // Product decision: the pinyin row is a synchronous drawing surface. Apply the
-            // new strip width in the same render call so a longer first pinyin frame cannot be
-            // clipped by the previous child width and then "fix itself" one frame later.
-            if (contentWidthPx != previousContentWidth) {
-                applyContentWidth(contentWidthPx.coerceAtLeast(1))
-            }
+            recalculateBounds()
+            requestLayout()
             invalidate()
         }
 
-        fun itemBounds(index: Int): T9PinyinChipStripLayout.ItemBounds? =
-            frame.itemBounds.getOrNull(index)
+        fun itemBounds(index: Int): ItemBounds? =
+            itemBounds.getOrNull(index)
 
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            if (itemBounds.size != items.size) {
+                recalculateBounds()
+            }
             val width = contentWidthPx.coerceAtLeast(1)
             setMeasuredDimension(
                 resolveSize(width, widthMeasureSpec),
@@ -231,14 +226,14 @@ class T9PinyinChipAdapter(
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             val baseline = textBaseline()
-            frame.items.forEachIndexed { index, item ->
-                val bounds = frame.itemBounds.getOrNull(index) ?: return@forEachIndexed
+            items.forEachIndexed { index, item ->
+                val bounds = itemBounds.getOrNull(index) ?: return@forEachIndexed
                 val active = highlightActive && index == highlightedIndex
                 if (active) {
                     activeRect.set(
                         bounds.startPx.toFloat(),
                         verticalPaddingPx.toFloat(),
-                        bounds.visualEndPx.toFloat(),
+                        bounds.endPx.toFloat() - if (index != items.lastIndex) horizontalPaddingPx else 0,
                         (height - verticalPaddingPx).toFloat()
                     )
                     canvas.drawRoundRect(activeRect, cornerRadiusPx, cornerRadiusPx, activeBackgroundPaint)
@@ -272,8 +267,8 @@ class T9PinyinChipAdapter(
                     val downX = touchDownX
                     touchDownX = null
                     if (downX != null && kotlin.math.abs(event.x - downX) <= touchSlopPx()) {
-                        val index = frame.itemBounds.indexOfFirst { event.x >= it.startPx && event.x <= it.endPx }
-                        frame.items.getOrNull(index)?.let(onChipClick)
+                        val index = itemBounds.indexOfFirst { event.x >= it.startPx && event.x <= it.endPx }
+                        items.getOrNull(index)?.let(onChipClick)
                     }
                     performClick()
                     return true
@@ -291,32 +286,17 @@ class T9PinyinChipAdapter(
             return true
         }
 
-        private fun measureFrame(items: List<String>): T9PinyinChipStripLayout.Frame =
-            T9PinyinChipStripLayout.plan(
-                T9PinyinChipStripLayout.Input(
-                    items = items,
-                    chipHorizontalPaddingPx = horizontalPaddingPx,
-                    chipSpacingPx = horizontalPaddingPx,
-                    measureTextWidthPx = { item ->
-                        ceil(textPaint.measureText(item).toDouble()).roundToInt()
-                    }
-                )
-            )
-
-        private fun applyContentWidth(width: Int) {
-            layoutParams?.let { params ->
-                if (params.width != width) {
-                    params.width = width
-                    layoutParams = params
-                }
-            } ?: requestLayout()
-            measure(
-                MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
-                MeasureSpec.makeMeasureSpec(rowHeightPx, MeasureSpec.EXACTLY)
-            )
-            if (this.width > 0 || height > 0) {
-                layout(left, top, left + width, top + rowHeightPx)
+        private fun recalculateBounds() {
+            itemBounds.clear()
+            var x = 0
+            items.forEachIndexed { index, item ->
+                val textWidth = ceil(textPaint.measureText(item).toDouble()).roundToInt()
+                val chipWidth = textWidth + horizontalPaddingPx * 2
+                val margin = if (index != items.lastIndex) horizontalPaddingPx else 0
+                itemBounds += ItemBounds(startPx = x, endPx = x + chipWidth + margin)
+                x += chipWidth + margin
             }
+            contentWidthPx = x
         }
 
         private fun textBaseline(): Float {
