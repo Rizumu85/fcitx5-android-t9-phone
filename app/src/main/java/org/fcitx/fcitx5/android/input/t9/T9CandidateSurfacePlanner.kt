@@ -20,7 +20,7 @@ object T9CandidateSurfacePlanner {
         val pinyinWidths: T9PinyinRowWidthCalculator.Widths?,
         val pinyinChipWidthsPx: List<Int>,
         val pinyinChipSpacingPx: Int,
-        val pinyinViewportWidthPx: Int?,
+        val pinyinFallbackViewportWidthPx: Int?,
         val maxRowWidthPx: Int,
         val minVisiblePinyinChips: Int,
         val pinyinRowFocused: Boolean
@@ -29,8 +29,7 @@ object T9CandidateSurfacePlanner {
     data class Plan(
         val shortcutLayout: T9ShortcutCandidateLayout,
         val candidatePolicyWidthPx: Int?,
-        val surfaceLayout: T9CandidateSurfaceLayout.Plan?,
-        val pinyinVisual: T9PinyinRowVisualPlanner.Plan?
+        val pinyinSurface: T9PinyinRowSurfacePlanner.Plan?
     )
 
     fun plan(input: Input): Plan {
@@ -53,54 +52,29 @@ object T9CandidateSurfacePlanner {
             maxRowWidthPx = input.widthBudget.maxWidthPx,
             trailingPaddingPx = input.trailingPaddingPx
         )
-        val surfaceLayout = surfaceLayout(input, input.candidateVisualWidthPx ?: candidatePolicyWidth)
-        val pinyinVisual = pinyinVisual(input, surfaceLayout)
+        val pinyinSurface = pinyinSurface(input, input.candidateVisualWidthPx ?: candidatePolicyWidth)
         return Plan(
             shortcutLayout = shortcutLayout,
             candidatePolicyWidthPx = candidatePolicyWidth,
-            surfaceLayout = surfaceLayout,
-            pinyinVisual = pinyinVisual
+            pinyinSurface = pinyinSurface
         )
     }
 
-    private fun surfaceLayout(
+    private fun pinyinSurface(
         input: Input,
         candidateSurfaceWidth: Int?
-    ): T9CandidateSurfaceLayout.Plan? {
-        candidateSurfaceWidth ?: return null
-        val pinyinWidths = input.pinyinWidths ?: return null
-        val pinyinState = input.pinyinState ?: return null
-        if (pinyinState.items.isEmpty()) return null
-        return T9CandidateSurfaceLayout.plan(
-            T9CandidateSurfaceLayout.Input(
+    ): T9PinyinRowSurfacePlanner.Plan? {
+        return T9PinyinRowSurfacePlanner.plan(
+            T9PinyinRowSurfacePlanner.Input(
                 candidateMeasuredWidthPx = candidateSurfaceWidth,
-                pinyinCount = pinyinState.items.size,
-                pinyinFullContentWidthPx = pinyinWidths.fullContentWidthPx,
-                pinyinFoldedContentWidthPx = pinyinWidths.foldedContentWidthPx,
-                maxRowWidthPx = input.maxRowWidthPx,
-                minVisiblePinyinChips = input.minVisiblePinyinChips,
-                pinyinRowFocused = input.pinyinRowFocused
-            )
-        )
-    }
-
-    private fun pinyinVisual(
-        input: Input,
-        surfaceLayout: T9CandidateSurfaceLayout.Plan?
-    ): T9PinyinRowVisualPlanner.Plan? {
-        val pinyinState = input.pinyinState ?: return null
-        val pinyinWidths = input.pinyinWidths ?: return null
-        val rowWidth = surfaceLayout?.rowWidthPx
-            ?: input.pinyinViewportWidthPx
-            ?: pinyinWidths.fullContentWidthPx
-        return T9PinyinRowVisualPlanner.plan(
-            T9PinyinRowVisualPlanner.Input(
-                state = pinyinState,
-                rowPlan = surfaceLayout?.pinyin,
-                rowWidthPx = rowWidth,
-                widths = pinyinWidths,
+                fallbackViewportWidthPx = input.pinyinFallbackViewportWidthPx,
+                state = input.pinyinState,
+                widths = input.pinyinWidths,
                 chipWidthsPx = input.pinyinChipWidthsPx,
-                chipSpacingPx = input.pinyinChipSpacingPx
+                chipSpacingPx = input.pinyinChipSpacingPx,
+                maxRowWidthPx = input.maxRowWidthPx,
+                minVisibleChips = input.minVisiblePinyinChips,
+                focused = input.pinyinRowFocused
             )
         )
     }

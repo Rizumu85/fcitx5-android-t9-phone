@@ -128,3 +128,6 @@ otherwise.
 - [x] Render focused folded pinyin as a whole-chip window inside the stable
   folded viewport, avoiding arbitrary left-edge clipping and layout-width
   churn when moving through hidden pinyin chips.
+- [x] Deepen the T9 Pinyin Row Surface seam so folded/full/focused pinyin row
+  width, hint, display window, and readiness are returned as one render-ready
+  plan for `CandidatesView`.

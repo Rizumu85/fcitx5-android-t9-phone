@@ -106,3 +106,9 @@ prevents refresh bugs where one state source updates while a second source
 rebuilds stale render state. The first narrowing slice preserves all existing
 visual algorithms and only moves the builder seam from scattered getters to a
 single collected snapshot.
+
+The Chinese T9 pinyin filter row is represented as a render-ready T9 Pinyin Row
+Surface. Width, folded ellipsis, focus-window display, highlight, and content
+readiness are planned together before `CandidatesView` touches Android views.
+This avoids repeated call-site recombination of the short-Hanzi-page folded row
+rules.

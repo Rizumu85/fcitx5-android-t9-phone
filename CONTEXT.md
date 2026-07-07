@@ -109,6 +109,21 @@ candidate can edge-align and how much width is needed for focus overflow. This
 keeps the tail rule at one seam instead of scattering it through TextView
 padding, candidate-width estimation, and pinyin-row surface alignment.
 
+### T9 Pinyin Row Surface
+
+The render-ready visual surface for the Chinese T9 pinyin filter row. It owns
+the folded versus full row decision, stable folded viewport width, ellipsis
+placement, focused whole-chip window, displayed pinyin items, highlighted chip,
+and readiness signal for the Android view reveal.
+
+`T9PinyinRowSurfacePlanner` is the external seam for these decisions. It may use
+smaller internal planners for width, overflow, and chip-window calculations, but
+callers should consume one surface plan instead of independently combining
+candidate row width, pinyin overflow state, focus state, and chip rendering.
+This keeps the short-Hanzi-page edge case local: when a page has very few Hanzi
+candidates but many pinyin chips, the focused pinyin row keeps the same folded
+viewport and renders whole chips without layout-width churn.
+
 ### Chinese T9 Candidate Frame Gate
 
 Chinese T9 candidate rendering must be source-fresh at the frame level. A frame

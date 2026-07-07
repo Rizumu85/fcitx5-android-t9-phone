@@ -27,11 +27,12 @@ class T9CandidateSurfacePlannerTest {
         assertEquals(296, plan.shortcutLayout.maxCandidateWidthPx)
         assertEquals(300, plan.shortcutLayout.maxRowWidthPx)
         assertEquals(73, plan.candidatePolicyWidthPx)
-        assertEquals(150, plan.surfaceLayout?.rowWidthPx)
-        assertTrue(requireNotNull(plan.surfaceLayout?.pinyin).folded)
-        assertTrue(requireNotNull(plan.surfaceLayout?.pinyin).showHint)
-        assertEquals(128, requireNotNull(plan.pinyinVisual).pinyinBarWidthPx)
-        assertEquals(132, requireNotNull(plan.pinyinVisual).overflowHintStartPx)
+        val pinyinSurface = requireNotNull(plan.pinyinSurface)
+        assertEquals(150, pinyinSurface.rowWidthPx)
+        assertTrue(pinyinSurface.contentReady)
+        assertTrue(pinyinSurface.showOverflowHint)
+        assertEquals(128, pinyinSurface.pinyinBarWidthPx)
+        assertEquals(132, pinyinSurface.overflowHintStartPx)
     }
 
     @Test
@@ -39,14 +40,15 @@ class T9CandidateSurfacePlannerTest {
         val plan = T9CandidateSurfacePlanner.plan(
             input(
                 candidates = emptyList(),
-                pinyinViewportWidthPx = 150
+                pinyinFallbackViewportWidthPx = 150
             )
         )
 
         assertEquals(null, plan.candidatePolicyWidthPx)
-        assertEquals(null, plan.surfaceLayout)
-        assertNotNull(plan.pinyinVisual)
-        assertEquals(150, requireNotNull(plan.pinyinVisual).pinyinBarWidthPx)
+        assertNotNull(plan.pinyinSurface)
+        assertEquals(false, requireNotNull(plan.pinyinSurface).contentReady)
+        assertEquals(null, requireNotNull(plan.pinyinSurface).rowWidthPx)
+        assertEquals(150, requireNotNull(plan.pinyinSurface).pinyinBarWidthPx)
     }
 
     @Test
@@ -59,14 +61,14 @@ class T9CandidateSurfacePlannerTest {
             )
         )
 
-        assertEquals(478, plan.surfaceLayout?.rowWidthPx)
-        assertEquals(478, requireNotNull(plan.pinyinVisual).pinyinBarWidthPx)
+        assertEquals(478, plan.pinyinSurface?.rowWidthPx)
+        assertEquals(478, requireNotNull(plan.pinyinSurface).pinyinBarWidthPx)
     }
 
     private fun input(
         candidates: List<String>,
         trailingPaddingPx: Int = 0,
-        pinyinViewportWidthPx: Int? = null,
+        pinyinFallbackViewportWidthPx: Int? = null,
         candidateVisualWidthPx: Int? = null,
         maxRowWidthPx: Int = 320
     ): T9CandidateSurfacePlanner.Input =
@@ -106,7 +108,7 @@ class T9CandidateSurfacePlannerTest {
             ),
             pinyinChipWidthsPx = listOf(34, 34, 24, 24, 14, 14, 14),
             pinyinChipSpacingPx = 4,
-            pinyinViewportWidthPx = pinyinViewportWidthPx,
+            pinyinFallbackViewportWidthPx = pinyinFallbackViewportWidthPx,
             maxRowWidthPx = maxRowWidthPx,
             minVisiblePinyinChips = 4,
             pinyinRowFocused = false

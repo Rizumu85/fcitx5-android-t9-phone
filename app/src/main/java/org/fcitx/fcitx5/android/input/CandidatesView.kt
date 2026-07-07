@@ -39,7 +39,6 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSnapshotKey
 import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiInputSnapshot
-import org.fcitx.fcitx5.android.input.t9.T9CandidateSurfaceLayout
 import org.fcitx.fcitx5.android.input.t9.T9CandidateSurfacePlanner
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiSnapshot
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiSnapshotPipeline
@@ -48,6 +47,7 @@ import org.fcitx.fcitx5.android.input.t9.T9CandidateUiRenderer
 import org.fcitx.fcitx5.android.input.t9.T9CandidateWidthBudget
 import org.fcitx.fcitx5.android.input.t9.T9PagedCandidates
 import org.fcitx.fcitx5.android.input.t9.T9PinyinChipAdapter
+import org.fcitx.fcitx5.android.input.t9.T9PinyinRowSurfacePlanner
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowVisibilityPlanner
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowWidthCalculator
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowWindow
@@ -1129,7 +1129,7 @@ class CandidatesView(
     }
 
     private fun syncPinyinRowWidthToCandidates(): Boolean {
-        val plan = currentSurfaceLayoutPlan()
+        val plan = currentPinyinSurfacePlan()
             ?.takeIf { it.contentReady }
             ?: return false
         val width = plan.rowWidthPx ?: return false
@@ -1192,23 +1192,28 @@ class CandidatesView(
         }
     }
 
-    private fun currentSurfaceLayoutPlan(
+    private fun currentPinyinSurfacePlan(
         candidateRowWidthPx: Int? = null,
-        widths: T9PinyinRowWidthCalculator.Widths? = pinyinRowWidths()
-    ): T9CandidateSurfaceLayout.Plan? {
-        if (t9RenderedPinyinItems.isEmpty()) return null
+        widths: T9PinyinRowWidthCalculator.Widths? = pinyinRowWidths(),
+        state: T9PinyinRowWindow.VisibleState? = currentPinyinWindowStateForLayout(),
+        pinyinChipWidthsPx: List<Int> = state?.items?.let(::pinyinChipWidthsPx).orEmpty()
+    ): T9PinyinRowSurfacePlanner.Plan? {
+        val pinyinState = state ?: return null
+        if (pinyinState.items.isEmpty()) return null
         val resolvedWidths = widths ?: return null
         val overrideWidth = candidateRowWidthPx
         if (overrideWidth != null) {
-            return T9CandidateSurfaceLayout.plan(
-                T9CandidateSurfaceLayout.Input(
+            return T9PinyinRowSurfacePlanner.plan(
+                T9PinyinRowSurfacePlanner.Input(
                     candidateMeasuredWidthPx = overrideWidth,
-                    pinyinCount = t9RenderedPinyinItems.size,
-                    pinyinFullContentWidthPx = resolvedWidths.fullContentWidthPx,
-                    pinyinFoldedContentWidthPx = resolvedWidths.foldedContentWidthPx,
+                    fallbackViewportWidthPx = pinyinRowViewportWidthPx(),
+                    state = pinyinState,
+                    widths = resolvedWidths,
+                    chipWidthsPx = pinyinChipWidthsPx,
+                    chipSpacingPx = dpCandidates(itemPaddingHorizontal),
                     maxRowWidthPx = pinyinRowMaxWidthPx(),
-                    minVisiblePinyinChips = T9_PINYIN_ROW_MIN_VISIBLE_CHIPS,
-                    pinyinRowFocused = service.getT9CandidateFocus() == T9CandidateFocus.TOP
+                    minVisibleChips = T9_PINYIN_ROW_MIN_VISIBLE_CHIPS,
+                    focused = service.getT9CandidateFocus() == T9CandidateFocus.TOP
                 )
             )
         }
@@ -1216,9 +1221,10 @@ class CandidatesView(
             ?.let { candidates ->
                 t9CandidateSurfacePlan(
                     candidates = candidates,
-                    pinyinState = currentPinyinWindowStateForLayout(),
-                    pinyinWidths = resolvedWidths
-                ).surfaceLayout
+                    pinyinState = pinyinState,
+                    pinyinWidths = resolvedWidths,
+                    pinyinChipWidthsPx = pinyinChipWidthsPx
+                ).pinyinSurface
             }
     }
 
@@ -1294,7 +1300,7 @@ class CandidatesView(
                 pinyinWidths = pinyinWidths,
                 pinyinChipWidthsPx = pinyinChipWidthsPx,
                 pinyinChipSpacingPx = dpCandidates(itemPaddingHorizontal),
-                pinyinViewportWidthPx = pinyinRowViewportWidthPx(),
+                pinyinFallbackViewportWidthPx = pinyinRowViewportWidthPx(),
                 maxRowWidthPx = pinyinRowMaxWidthPx(),
                 minVisiblePinyinChips = T9_PINYIN_ROW_MIN_VISIBLE_CHIPS,
                 pinyinRowFocused = service.getT9CandidateFocus() == T9CandidateFocus.TOP
@@ -1386,53 +1392,28 @@ class CandidatesView(
         t9RenderedPinyinItems = state.items
         val rowWidths = pinyinRowWidths()
             ?: return false
-        val surfacePlan = currentSurfaceLayoutPlan(candidateRowWidthPx, rowWidths)
+        val chipWidths = pinyinChipWidthsPx(state.items)
+        val surfacePlan = currentPinyinSurfacePlan(
+            candidateRowWidthPx = candidateRowWidthPx,
+            widths = rowWidths,
+            state = state,
+            pinyinChipWidthsPx = chipWidths
+        )
             ?: run {
                 if (updateVisibility) {
                     waitForPinyinRowLayout()
                 }
                 return false
             }
-        val rowPlan = surfacePlan.pinyin
-        val chipWidths = pinyinChipWidthsPx(state.items)
         surfacePlan.rowWidthPx?.let(::setPinyinRowWidth)
-        val visualPlan = t9ShownPaged
-            ?.let { candidates ->
-                t9CandidateSurfacePlan(
-                    candidates = candidates,
-                    pinyinState = state,
-                    pinyinWidths = rowWidths,
-                    pinyinChipWidthsPx = chipWidths
-                ).pinyinVisual
-            }
-            ?: T9CandidateSurfacePlanner.plan(
-                T9CandidateSurfacePlanner.Input(
-                    candidates = FcitxEvent.PagedCandidateEvent.Data.Empty,
-                    widthBudget = t9CandidateWidthBudget(),
-                    rowHorizontalPaddingPx = t9ShortcutRowPaddingPx(),
-                    trailingPaddingPx = t9ShortcutTrailingPaddingPx(),
-                    showPaginationArrows = showPaginationArrows,
-                    paginationWidthPx = dp(T9_PAGINATION_WIDTH_DP),
-                    candidateVisualWidthPx = t9ShortcutCandidatesUi.measuredToolbarWidthPx,
-                    pinyinState = state,
-                    pinyinWidths = rowWidths,
-                    pinyinChipWidthsPx = chipWidths,
-                    pinyinChipSpacingPx = dpCandidates(itemPaddingHorizontal),
-                    pinyinViewportWidthPx = pinyinRowViewportWidthPx() ?: rowWidths.fullContentWidthPx,
-                    maxRowWidthPx = pinyinRowMaxWidthPx(),
-                    minVisiblePinyinChips = T9_PINYIN_ROW_MIN_VISIBLE_CHIPS,
-                    pinyinRowFocused = service.getT9CandidateFocus() == T9CandidateFocus.TOP
-                )
-            ).pinyinVisual
-            ?: return false
-        t9RenderedPinyinUsesWindowedDisplay = visualPlan.usesWindowedDisplay
+        t9RenderedPinyinUsesWindowedDisplay = surfacePlan.usesWindowedDisplay
         updatePinyinOverflowHint(
-            visible = visualPlan.showOverflowHint,
-            startPx = visualPlan.overflowHintStartPx
+            visible = surfacePlan.showOverflowHint,
+            startPx = surfacePlan.overflowHintStartPx
         )
-        setPinyinBarWidth(visualPlan.pinyinBarWidthPx)
+        setPinyinBarWidth(surfacePlan.pinyinBarWidthPx)
         val changed = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.submit") {
-            pinyinBarAdapter.submitList(visualPlan.displayedItems, visualPlan.displayedHighlight)
+            pinyinBarAdapter.submitList(surfacePlan.displayedItems, surfacePlan.displayedHighlight)
         }
         val ready = if (updateVisibility) {
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.visibility") {
