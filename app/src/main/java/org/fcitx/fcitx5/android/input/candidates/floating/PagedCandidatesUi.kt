@@ -8,13 +8,10 @@ package org.fcitx.fcitx5.android.input.candidates.floating
 import android.content.Context
 import android.graphics.Rect
 import android.os.Build
-import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-import android.widget.FrameLayout
-import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.DiffUtil
@@ -25,8 +22,6 @@ import com.google.android.flexbox.FlexWrap
 import com.google.android.flexbox.FlexboxLayoutManager
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.core.FcitxEvent.PagedCandidateEvent.LayoutHint
-import org.fcitx.fcitx5.android.data.prefs.AppPrefs
-import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
 import org.fcitx.fcitx5.android.data.theme.Theme
 import kotlin.math.roundToInt
 import splitties.dimensions.dp
@@ -49,44 +44,21 @@ class PagedCandidatesUi(
 
     private var isVertical = false
     private var highlightActive = true
-    private var showShortcutLabels = false
-    private var shortcutLayout: ShortcutLayout? = null
-    private val t9InputModeEnabledPref = AppPrefs.getInstance().keyboard.useT9KeyboardLayout
-
-    @Volatile
-    private var t9InputModeEnabled = t9InputModeEnabledPref.getValue()
-
-    private val t9InputModeEnabledChangeListener =
-        ManagedPreference.OnChangeListener<Boolean> { _, value ->
-            t9InputModeEnabled = value
-        }
-
-    init {
-        t9InputModeEnabledPref.registerOnChangeListener(t9InputModeEnabledChangeListener)
-    }
 
     private val highlightOverflowPaddingPx =
         (highlightCornerRadiusPx * 0.35f).roundToInt().coerceAtLeast(ctx.dp(2))
-    private var shortcutLabelPaddingApplied = false
 
     private sealed class Row {
         data class Candidate(
             val position: Int,
             val candidate: FcitxEvent.Candidate,
             val active: Boolean,
-            val inactiveRow: Boolean,
-            val shortcutLabel: String?
+            val inactiveRow: Boolean
         ) : Row()
         data class Pagination(val hasPrev: Boolean, val hasNext: Boolean) : Row()
     }
 
-    private var renderRows: List<Row> = rowsFor(data, highlightActive, showShortcutLabels)
-
-    data class ShortcutLayout(
-        val maxCandidateWidthPx: Int,
-        val rowWidthPx: Int,
-        val trailingPaddingPx: Int
-    )
+    private var renderRows: List<Row> = rowsFor(data, highlightActive)
 
     sealed class UiHolder(open val ui: Ui) : RecyclerView.ViewHolder(ui.root) {
         class Candidate(override val ui: LabeledCandidateItemUi) : UiHolder(ui)
@@ -168,9 +140,9 @@ class PagedCandidatesUi(
                 row.candidate,
                 active = row.active,
                 inactiveRow = row.inactiveRow,
-                t9InputModeEnabled = t9InputModeEnabled,
-                shortcutLabel = row.shortcutLabel,
-                shortcutMaxWidthPx = shortcutLayout?.maxCandidateWidthPx
+                t9InputModeEnabled = false,
+                shortcutLabel = null,
+                shortcutMaxWidthPx = null
             )
         }
 
@@ -180,9 +152,9 @@ class PagedCandidatesUi(
                 row.candidate,
                 active = row.active,
                 inactiveRow = row.inactiveRow,
-                t9InputModeEnabled = t9InputModeEnabled,
-                shortcutLabel = row.shortcutLabel,
-                shortcutMaxWidthPx = shortcutLayout?.maxCandidateWidthPx
+                t9InputModeEnabled = false,
+                shortcutLabel = null,
+                shortcutMaxWidthPx = null
             )
         }
     }
@@ -190,9 +162,7 @@ class PagedCandidatesUi(
     private val flexboxLayoutManager = FlexboxLayoutManager(ctx).apply {
         flexWrap = FlexWrap.WRAP
     }
-    private var shortcutToolbarLayoutActive = false
-
-    private val recyclerRoot = recyclerView {
+    override val root = recyclerView {
         isFocusable = false
         isFocusableInTouchMode = false
         descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
@@ -218,75 +188,25 @@ class PagedCandidatesUi(
         })
     }
 
-    private val shortcutToolbarRoot = LinearLayout(ctx).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        isFocusable = false
-        isFocusableInTouchMode = false
-        descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
-        clipChildren = true
-        clipToPadding = false
-        visibility = View.GONE
-        setPadding(highlightOverflowPaddingPx, 0, highlightOverflowPaddingPx, 0)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            defaultFocusHighlightEnabled = false
-        }
-    }
-
-    override val root = FrameLayout(ctx).apply {
-        isFocusable = false
-        isFocusableInTouchMode = false
-        descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
-        clipChildren = false
-        clipToPadding = false
-        addView(recyclerRoot, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
-        addView(shortcutToolbarRoot, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
-    }
-    private val shortcutCandidateItems = mutableListOf<LabeledCandidateItemUi>()
-    private val shortcutPaginationItem = PaginationUi(ctx, theme).apply {
-        prevIcon.setOnClickListener { onPrevPage.invoke() }
-        nextIcon.setOnClickListener { onNextPage.invoke() }
-    }
-
     fun update(
         data: FcitxEvent.PagedCandidateEvent.Data,
-        orientation: FloatingCandidatesOrientation,
-        showShortcutLabels: Boolean = false,
-        shortcutLayout: ShortcutLayout? = null
+        orientation: FloatingCandidatesOrientation
     ) {
         val oldRows = renderRows
         val oldVertical = isVertical
-        val oldShortcutLabels = this.showShortcutLabels
-        val oldShortcutLayout = this.shortcutLayout
-        val nextVertical = if (showShortcutLabels) {
-            false
-        } else when (orientation) {
+        val nextVertical = when (orientation) {
             FloatingCandidatesOrientation.Automatic -> data.layoutHint == LayoutHint.Vertical
             else -> orientation == FloatingCandidatesOrientation.Vertical
         }
-        val layoutChanged = oldVertical != nextVertical ||
-            oldShortcutLabels != showShortcutLabels ||
-            oldShortcutLayout != shortcutLayout
+        val layoutChanged = oldVertical != nextVertical
         this.data = data
-        this.showShortcutLabels = showShortcutLabels
-        this.shortcutLayout = shortcutLayout
         this.isVertical = nextVertical
-        updateLayoutManager(showShortcutLabels)
-        updateRootWidth(showShortcutLabels, shortcutLayout)
-        updateShortcutToolbarClipping(showShortcutLabels)
+        updateLayoutManager()
         val newRows = rowsFor(
             data = data,
-            highlightActive = highlightActive,
-            showShortcutLabels = showShortcutLabels
+            highlightActive = highlightActive
         )
-        updateShortcutLabelOverflowPadding(showShortcutLabels, shortcutLayout)
         renderRows = newRows
-        if (showShortcutLabels) {
-            renderShortcutToolbar(newRows, shortcutLayout)
-            return
-        }
-        shortcutToolbarRoot.visibility = View.GONE
-        recyclerRoot.visibility = View.VISIBLE
         when {
             layoutChanged -> candidatesAdapter.notifyDataSetChanged()
             oldRows == newRows -> Unit
@@ -301,86 +221,16 @@ class PagedCandidatesUi(
         highlightActive = active
         val newRows = rowsFor(
             data = data,
-            highlightActive = highlightActive,
-            showShortcutLabels = showShortcutLabels
+            highlightActive = highlightActive
         )
         renderRows = newRows
-        if (showShortcutLabels) {
-            renderShortcutToolbar(newRows, shortcutLayout)
-            return
-        }
         if (oldRows != newRows) {
             DiffUtil.calculateDiff(rowDiff(oldRows, newRows))
                 .dispatchUpdatesTo(candidatesAdapter)
         }
     }
 
-    private fun updateShortcutLabelOverflowPadding(
-        enabled: Boolean,
-        shortcutLayout: ShortcutLayout?
-    ) {
-        val trailingPadding = if (enabled) {
-            shortcutLayout?.trailingPaddingPx?.coerceAtLeast(0) ?: 0
-        } else {
-            0
-        }
-        val verticalPadding = if (enabled) highlightOverflowPaddingPx else 0
-        val rightPadding = highlightOverflowPaddingPx + trailingPadding
-        if (
-            shortcutLabelPaddingApplied == enabled &&
-            shortcutToolbarRoot.paddingTop == verticalPadding &&
-            shortcutToolbarRoot.paddingBottom == verticalPadding &&
-            shortcutToolbarRoot.paddingLeft == highlightOverflowPaddingPx &&
-            shortcutToolbarRoot.paddingRight == rightPadding
-        ) return
-        shortcutLabelPaddingApplied = enabled
-        // T9 shortcut labels are a compact two-line surface. Keep a tiny bubble inset so font
-        // metrics and the focus outline do not get clipped at the toolbar boundary. The
-        // trailing reserve is a product-level rhythm choice: the last candidate always gets the
-        // same breathing room instead of inheriting noise from width estimation.
-        shortcutToolbarRoot.setPadding(
-            highlightOverflowPaddingPx,
-            verticalPadding,
-            rightPadding,
-            verticalPadding
-        )
-        if (!enabled) {
-            recyclerRoot.setPadding(highlightOverflowPaddingPx, 0, highlightOverflowPaddingPx, 0)
-        }
-    }
-
-    private fun updateRootWidth(
-        showShortcutLabels: Boolean,
-        shortcutLayout: ShortcutLayout?
-    ) {
-        val targetWidth = if (showShortcutLabels) {
-            shortcutLayout?.rowWidthPx?.takeIf { it > 0 } ?: WRAP_CONTENT
-        } else {
-            WRAP_CONTENT
-        }
-        root.updateLayoutParams<ViewGroup.LayoutParams> {
-            width = targetWidth
-        }
-    }
-
-    private fun updateShortcutToolbarClipping(enabled: Boolean) {
-        // T9 candidates are a paged toolbar, not a scrollable list. Clipping only in this mode
-        // keeps normal floating candidates' focus overflow unchanged.
-        recyclerRoot.clipChildren = enabled
-        recyclerRoot.clipToPadding = false
-        shortcutToolbarRoot.clipChildren = enabled
-        shortcutToolbarRoot.clipToPadding = false
-    }
-
-    private fun updateLayoutManager(showShortcutLabels: Boolean) {
-        if (showShortcutLabels) {
-            shortcutToolbarLayoutActive = true
-            return
-        }
-        if (shortcutToolbarLayoutActive) {
-            shortcutToolbarLayoutActive = false
-            recyclerRoot.layoutManager = flexboxLayoutManager
-        }
+    private fun updateLayoutManager() {
         flexboxLayoutManager.apply {
             if (isVertical) {
                 flexDirection = FlexDirection.COLUMN
@@ -392,81 +242,7 @@ class PagedCandidatesUi(
         }
     }
 
-    private fun renderShortcutToolbar(
-        rows: List<Row>,
-        shortcutLayout: ShortcutLayout?
-    ) {
-        recyclerRoot.visibility = View.GONE
-        shortcutToolbarRoot.visibility = View.VISIBLE
-        rows.forEachIndexed { index, row ->
-            val view = when (row) {
-                is Row.Candidate -> shortcutCandidateView(index, row, shortcutLayout)
-                is Row.Pagination -> shortcutPaginationView(row)
-            }
-            attachShortcutChild(view, index, index == rows.lastIndex)
-        }
-        while (shortcutToolbarRoot.childCount > rows.size) {
-            shortcutToolbarRoot.removeViewAt(shortcutToolbarRoot.childCount - 1)
-        }
-    }
-
-    private fun shortcutCandidateView(
-        displayIndex: Int,
-        row: Row.Candidate,
-        shortcutLayout: ShortcutLayout?
-    ): View {
-        val item = shortcutCandidateItems.getOrNull(displayIndex)
-            ?: LabeledCandidateItemUi(ctx, theme, setupTextView, highlightCornerRadiusPx).also {
-                shortcutCandidateItems += it
-            }
-        item.apply {
-            update(
-                row.candidate,
-                active = row.active,
-                inactiveRow = row.inactiveRow,
-                t9InputModeEnabled = t9InputModeEnabled,
-                shortcutLabel = row.shortcutLabel,
-                shortcutMaxWidthPx = shortcutLayout?.maxCandidateWidthPx
-            )
-            root.setOnClickListener {
-                onCandidateClick.invoke(row.position)
-            }
-        }
-        return item.root
-    }
-
-    private fun shortcutPaginationView(row: Row.Pagination): View {
-        return shortcutPaginationItem.apply {
-            update(hasPrev = row.hasPrev, hasNext = row.hasNext)
-        }.root
-    }
-
-    private fun attachShortcutChild(view: View, index: Int, last: Boolean) {
-        val params = (view.layoutParams as? LinearLayout.LayoutParams)
-            ?: LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
-        val rightMargin = if (last) 0 else itemSpacingPx
-        if (params.rightMargin != rightMargin) {
-            params.rightMargin = rightMargin
-            view.layoutParams = params
-        }
-        val existingIndex = shortcutToolbarRoot.indexOfChild(view)
-        when {
-            existingIndex == index -> Unit
-            existingIndex >= 0 -> {
-                shortcutToolbarRoot.removeViewAt(existingIndex)
-                shortcutToolbarRoot.addView(view, index, params)
-            }
-            index < shortcutToolbarRoot.childCount -> shortcutToolbarRoot.addView(view, index, params)
-            else -> shortcutToolbarRoot.addView(view, params)
-        }
-    }
-
     companion object {
-        private val shortcutLabels = arrayOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
-
-        private fun shortcutLabelForPosition(position: Int): String? =
-            shortcutLabels.getOrNull(position)
-
         private object SelectionPayload
     }
 
@@ -475,16 +251,14 @@ class PagedCandidatesUi(
 
     private fun rowsFor(
         data: FcitxEvent.PagedCandidateEvent.Data,
-        highlightActive: Boolean,
-        showShortcutLabels: Boolean
+        highlightActive: Boolean
     ): List<Row> {
         val rows = data.candidates.mapIndexed { position, candidate ->
             Row.Candidate(
                 position = position,
                 candidate = candidate,
                 active = highlightActive && position == data.cursorIndex,
-                inactiveRow = !highlightActive,
-                shortcutLabel = if (showShortcutLabels) shortcutLabelForPosition(position) else null
+                inactiveRow = !highlightActive
             )
         }.toMutableList<Row>()
         if (showPaginationArrows && (data.hasPrev || data.hasNext)) {
@@ -518,8 +292,7 @@ class PagedCandidatesUi(
                 return if (
                     old is Row.Candidate &&
                     new is Row.Candidate &&
-                    old.candidate == new.candidate &&
-                    old.shortcutLabel == new.shortcutLabel
+                    old.candidate == new.candidate
                 ) {
                     SelectionPayload
                 } else {
