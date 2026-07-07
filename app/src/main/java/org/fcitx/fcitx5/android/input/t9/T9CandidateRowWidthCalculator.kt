@@ -12,6 +12,7 @@ object T9CandidateRowWidthCalculator {
         val data: FcitxEvent.PagedCandidateEvent.Data,
         val widthBudget: T9CandidateWidthBudget,
         val rowHorizontalPaddingPx: Int,
+        val trailingPaddingPx: Int,
         val showPaginationArrows: Boolean,
         val paginationWidthPx: Int
     )
@@ -27,10 +28,15 @@ object T9CandidateRowWidthCalculator {
         } else {
             0
         }
-        // Product decision: the T9 candidate bubble follows visible row content, with spacing only
-        // between visible toolbar items. A trailing decoration made short English pages look like
-        // the bubble had arbitrary empty space after the final candidate.
-        return (inactiveCandidateWidth + paginationWidth + input.rowHorizontalPaddingPx * 2)
+        // Product decision: inter-candidate spacing and the final breathing room are separate.
+        // The tail reserve is fixed so the last candidate never inherits noise from text-width
+        // estimates, while pagination still uses a conservative row-width budget.
+        return (
+            inactiveCandidateWidth +
+                paginationWidth +
+                input.rowHorizontalPaddingPx * 2 +
+                input.trailingPaddingPx.coerceAtLeast(0)
+            )
             .coerceAtMost(input.widthBudget.maxWidthPx)
             .coerceAtLeast(1)
     }

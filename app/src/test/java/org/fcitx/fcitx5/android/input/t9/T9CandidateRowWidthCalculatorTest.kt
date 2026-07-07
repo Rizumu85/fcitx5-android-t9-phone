@@ -47,6 +47,18 @@ class T9CandidateRowWidthCalculatorTest {
     }
 
     @Test
+    fun trailingPaddingAddsFixedReserveAfterLastCandidate() {
+        val width = T9CandidateRowWidthCalculator.calculate(
+            input(
+                candidates = listOf("好", "的"),
+                trailingPaddingPx = 7
+            )
+        )
+
+        assertEquals(73, width)
+    }
+
+    @Test
     fun focusScaleDoesNotChangeLayoutWidth() {
         val width = T9CandidateRowWidthCalculator.calculate(
             input(
@@ -81,7 +93,8 @@ class T9CandidateRowWidthCalculatorTest {
         showPaginationArrows: Boolean = true,
         hasPrev: Boolean = false,
         hasNext: Boolean = false,
-        activeScalePercent: Int = 100
+        activeScalePercent: Int = 100,
+        trailingPaddingPx: Int = 0
     ): T9CandidateRowWidthCalculator.Input =
         T9CandidateRowWidthCalculator.Input(
             data = FcitxEvent.PagedCandidateEvent.Data(
@@ -102,6 +115,7 @@ class T9CandidateRowWidthCalculatorTest {
                 measureTextWidthPx = { it.length * 20 }
             ),
             rowHorizontalPaddingPx = 5,
+            trailingPaddingPx = trailingPaddingPx,
             showPaginationArrows = showPaginationArrows,
             paginationWidthPx = 20
         )

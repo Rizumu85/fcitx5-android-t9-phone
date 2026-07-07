@@ -11,6 +11,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -53,6 +54,21 @@ class ChineseT9CandidatePipelineTest {
 
         assertNull(pipeline.buildLocalBudgetedPagedFromCurrentPage(raw))
         assertFalse(pipeline.hasLocalBudgetCandidates)
+    }
+
+    @Test
+    fun localBudgetPageReusesSameInputResultAcrossRefreshes() {
+        val pipeline = pipeline(characterBudget = 4)
+        val raw = paged(
+            candidate("一二三"),
+            candidate("四五"),
+            candidate("六")
+        )
+
+        val first = pipeline.buildLocalBudgetedPagedFromCurrentPage(raw)
+        val repeated = pipeline.buildLocalBudgetedPagedFromCurrentPage(raw)
+
+        assertSame(first, repeated)
     }
 
     @Test

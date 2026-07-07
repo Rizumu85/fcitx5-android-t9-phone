@@ -32,7 +32,6 @@ import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrientation
 import org.fcitx.fcitx5.android.input.candidates.floating.PagedCandidatesUi
-import org.fcitx.fcitx5.android.input.candidates.floating.T9ShortcutCandidateWidthMeasurer
 import org.fcitx.fcitx5.android.input.preedit.PreeditUi
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidateLoadingState
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidatePipeline
@@ -206,6 +205,7 @@ class CandidatesView(
         refreshNow = ::updateUi
     )
     private val t9PinyinMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
+    private val t9CandidateMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
     private val t9CandidateUiRenderer = T9CandidateUiRenderer(object : T9CandidateUiRenderer.Delegate {
         override fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean) {
             this@CandidatesView.preferAboveCursorAnchor = preferAboveCursorAnchor
@@ -339,14 +339,6 @@ class CandidatesView(
             }
         }
     )
-    private val t9ShortcutCandidateWidthMeasurer by lazy {
-        T9ShortcutCandidateWidthMeasurer(
-            ctx = ctx,
-            theme = theme,
-            setupTextView = setupTextViewCandidates,
-            highlightCornerRadiusPx = dp(windowRadius)
-        )
-    }
 
     /** T9 pinyin selection bar: row above candidates, replaces number row when visible. */
     private val pinyinBarAdapter by lazy {
@@ -1242,7 +1234,11 @@ class CandidatesView(
         val widthBudget = t9CandidateWidthBudget()
         return PagedCandidatesUi.ShortcutLayout(
             maxCandidateWidthPx = widthBudget.maxCandidateWidthPx,
-            rowWidthPx = t9CandidateRowWidthPx(candidates) ?: widthBudget.maxWidthPx
+            // Decision: render-time T9 candidate rows wrap their actual chip content, while the
+            // lightweight width budget remains only for paging and pinyin-row policy. This keeps
+            // the final gap fixed and avoids expensive hidden View measurement on every key.
+            rowWidthPx = 0,
+            trailingPaddingPx = t9ShortcutTrailingPaddingPx()
         )
     }
 
@@ -1251,11 +1247,11 @@ class CandidatesView(
             T9CandidateRowWidthCalculator.Input(
                 data = data,
                 widthBudget = t9CandidateWidthBudget(),
-                // Decision: row content is measured with the real T9 chip view, then the row adds
-                // exactly the RecyclerView focus-overflow padding so the last scaled chip is not
-                // clipped. This keeps the pixel model tight without reintroducing arbitrary blank
-                // space after long English candidates.
+                // Decision: this estimate feeds paging and pinyin-row policy only; the rendered
+                // candidate row wraps actual chip content. Add the same fixed trailing reserve so
+                // pinyin folding follows the visual row rhythm without doing View measurement.
                 rowHorizontalPaddingPx = t9ShortcutRowPaddingPx(),
+                trailingPaddingPx = t9ShortcutTrailingPaddingPx(),
                 showPaginationArrows = showPaginationArrows,
                 paginationWidthPx = dp(T9_PAGINATION_WIDTH_DP)
             )
@@ -1264,25 +1260,26 @@ class CandidatesView(
     private fun t9ShortcutRowPaddingPx(): Int =
         (dp(windowRadius) * 0.35f).roundToInt().coerceAtLeast(dp(2))
 
+    private fun t9ShortcutTrailingPaddingPx(): Int =
+        dp(candidateItemSpacing)
+
     private fun t9CandidateWidthBudget(): T9CandidateWidthBudget {
         val maxWidthPx = pinyinRowMaxWidthPx()
         val itemSpacingPx = dp(candidateItemSpacing)
         val minimumCandidateWidthPx = (fontSize * ctx.resources.displayMetrics.scaledDensity * 1.35f)
             .roundToInt()
             .coerceAtLeast(1)
-        return T9CandidateWidthBudget.measuredCandidates(
+        val horizontalPaddingPx = dpCandidates(itemPaddingHorizontal)
+        val paint = t9CandidateMeasurePaint.apply {
+            textSize = fontSize * ctx.resources.displayMetrics.scaledDensity
+            InputUiFont.applyTo(this)
+        }
+        return T9CandidateWidthBudget(
             maxWidthPx = maxWidthPx,
             candidateSpacingPx = itemSpacingPx,
+            candidateHorizontalPaddingPx = horizontalPaddingPx,
             minimumCandidateWidthPx = minimumCandidateWidthPx,
-            measurementSignature = listOf(
-                fontSize,
-                itemPaddingHorizontal,
-                itemPaddingVertical,
-                windowRadius
-            ).joinToString("|"),
-            measureCandidateWidthPx = { candidate, maxCandidateWidthPx ->
-                t9ShortcutCandidateWidthMeasurer.measure(candidate, maxCandidateWidthPx)
-            }
+            measureTextWidthPx = { text -> paint.measureText(text).roundToInt() }
         )
     }
 

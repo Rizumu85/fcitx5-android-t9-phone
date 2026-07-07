@@ -80,7 +80,8 @@ class PagedCandidatesUi(
 
     data class ShortcutLayout(
         val maxCandidateWidthPx: Int,
-        val rowWidthPx: Int
+        val rowWidthPx: Int,
+        val trailingPaddingPx: Int
     )
 
     sealed class UiHolder(open val ui: Ui) : RecyclerView.ViewHolder(ui.root) {
@@ -243,7 +244,7 @@ class PagedCandidatesUi(
             highlightActive = highlightActive,
             showShortcutLabels = showShortcutLabels
         )
-        updateShortcutLabelOverflowPadding(showShortcutLabels)
+        updateShortcutLabelOverflowPadding(showShortcutLabels, shortcutLayout)
         renderRows = newRows
         when {
             layoutChanged -> candidatesAdapter.notifyDataSetChanged()
@@ -269,16 +270,33 @@ class PagedCandidatesUi(
         }
     }
 
-    private fun updateShortcutLabelOverflowPadding(enabled: Boolean) {
-        if (shortcutLabelPaddingApplied == enabled) return
-        shortcutLabelPaddingApplied = enabled
+    private fun updateShortcutLabelOverflowPadding(
+        enabled: Boolean,
+        shortcutLayout: ShortcutLayout?
+    ) {
+        val trailingPadding = if (enabled) {
+            shortcutLayout?.trailingPaddingPx?.coerceAtLeast(0) ?: 0
+        } else {
+            0
+        }
         val verticalPadding = if (enabled) highlightOverflowPaddingPx else 0
+        val rightPadding = highlightOverflowPaddingPx + trailingPadding
+        if (
+            shortcutLabelPaddingApplied == enabled &&
+            root.paddingTop == verticalPadding &&
+            root.paddingBottom == verticalPadding &&
+            root.paddingLeft == highlightOverflowPaddingPx &&
+            root.paddingRight == rightPadding
+        ) return
+        shortcutLabelPaddingApplied = enabled
         // T9 shortcut labels are a compact two-line surface. Keep a tiny bubble inset so font
-        // metrics and the focus outline do not get clipped at the RecyclerView boundary.
+        // metrics and the focus outline do not get clipped at the RecyclerView boundary. The
+        // trailing reserve is a product-level rhythm choice: the last candidate always gets the
+        // same breathing room instead of inheriting noise from width estimation.
         root.setPadding(
             highlightOverflowPaddingPx,
             verticalPadding,
-            highlightOverflowPaddingPx,
+            rightPadding,
             verticalPadding
         )
     }

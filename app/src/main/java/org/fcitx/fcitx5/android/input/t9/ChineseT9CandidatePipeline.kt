@@ -31,6 +31,21 @@ class ChineseT9CandidatePipeline(
     private var shownCandidateSignature = ""
     private var shownCursorContextSignature = ""
     private var hanziCursorIndex = -1
+    private var localBudgetInputCandidates: Array<FcitxEvent.Candidate>? = null
+    private var localBudgetInputKey: LocalBudgetInputKey? = null
+    private var localBudgetInputSignature = ""
+    private var localBudgetCachedPaged: T9PagedCandidates? = null
+    private var localBudgetCachedPageIndex = -1
+    private var localBudgetCachedNoPage = false
+
+    private data class LocalBudgetInputKey(
+        val cursorIndex: Int,
+        val layoutHint: FcitxEvent.PagedCandidateEvent.LayoutHint,
+        val hasPrev: Boolean,
+        val hasNext: Boolean,
+        val characterBudget: Int,
+        val widthSignature: String
+    )
 
     fun reset() {
         resetBulkFilter()
@@ -51,6 +66,12 @@ class ChineseT9CandidatePipeline(
         localBudgetPager.reset()
         localBudgetSignature = ""
         localBudgetNoPageSignature = ""
+        localBudgetInputCandidates = null
+        localBudgetInputKey = null
+        localBudgetInputSignature = ""
+        localBudgetCachedPaged = null
+        localBudgetCachedPageIndex = -1
+        localBudgetCachedNoPage = false
     }
 
     val hasLocalBudgetCandidates: Boolean
@@ -165,11 +186,40 @@ class ChineseT9CandidatePipeline(
         data: FcitxEvent.PagedCandidateEvent.Data
     ): T9PagedCandidates? {
         if (data.candidates.isEmpty()) return null
-        val signature = buildCandidateSignature(data)
+        val budget = characterBudget()
+        val widthBudget = widthBudget()
+        val inputKey = LocalBudgetInputKey(
+            cursorIndex = data.cursorIndex,
+            layoutHint = data.layoutHint,
+            hasPrev = data.hasPrev,
+            hasNext = data.hasNext,
+            characterBudget = budget,
+            widthSignature = widthBudget?.signature.orEmpty()
+        )
+        val sameInput = data.candidates === localBudgetInputCandidates &&
+            inputKey == localBudgetInputKey
+        if (sameInput) {
+            if (localBudgetCachedNoPage) return null
+            localBudgetCachedPaged?.takeIf {
+                localBudgetCachedPageIndex == localBudgetPager.pageIndex
+            }?.let { return it }
+        }
+        val signature = if (sameInput) {
+            localBudgetInputSignature
+        } else {
+            buildCandidateSignature(data, budget, widthBudget).also {
+                localBudgetInputCandidates = data.candidates
+                localBudgetInputKey = inputKey
+                localBudgetInputSignature = it
+                localBudgetCachedPaged = null
+                localBudgetCachedPageIndex = -1
+                localBudgetCachedNoPage = false
+            }
+        }
         if (signature == localBudgetNoPageSignature) return null
         if (signature != localBudgetSignature) {
             val indexedCandidates = dedupeDisplayCandidates(data.candidates.withIndex().toList())
-            localBudgetPager.update(signature, indexedCandidates, characterBudget(), widthBudget())
+            localBudgetPager.update(signature, indexedCandidates, budget, widthBudget)
             localBudgetSignature = signature
         }
         val page = localBudgetPager.currentPage() ?: return null
@@ -177,6 +227,9 @@ class ChineseT9CandidatePipeline(
             localBudgetNoPageSignature = signature
             localBudgetPager.reset()
             localBudgetSignature = ""
+            localBudgetCachedPaged = null
+            localBudgetCachedPageIndex = -1
+            localBudgetCachedNoPage = true
             return null
         }
         return page.toPagedCandidates(
@@ -184,7 +237,14 @@ class ChineseT9CandidatePipeline(
             cursorIndex = 0,
             hasExternalPrev = data.hasPrev,
             hasExternalNext = data.hasNext
-        )
+        ).also {
+            // Decision: a single Rime candidate update can trigger multiple layout refreshes before
+            // the user presses another key. Keep the already-budgeted page by input identity so UI
+            // refreshes do not rebuild a large candidate signature and page list in the hot path.
+            localBudgetCachedPaged = it
+            localBudgetCachedPageIndex = localBudgetPager.pageIndex
+            localBudgetCachedNoPage = false
+        }
     }
 
     fun applyHanziCursor(
@@ -244,8 +304,12 @@ class ChineseT9CandidatePipeline(
         }
     }
 
-    private fun buildCandidateSignature(data: FcitxEvent.PagedCandidateEvent.Data): String =
-        T9CandidateSnapshots.pagerContent(data, characterBudget(), widthBudget())
+    private fun buildCandidateSignature(
+        data: FcitxEvent.PagedCandidateEvent.Data,
+        characterBudget: Int,
+        widthBudget: T9CandidateWidthBudget?
+    ): String =
+        T9CandidateSnapshots.pagerContent(data, characterBudget, widthBudget)
 
     private fun buildShownCandidateSignature(data: FcitxEvent.PagedCandidateEvent.Data): String =
         buildString {
