@@ -226,7 +226,14 @@ class CandidatesView(
         ) {
             val rowSignature = candidateRowWidthSignature(candidates, orientation, showShortcutLabels)
             if (t9CandidateRowMeasurement.markContent(rowSignature)) {
-                if (pinyinRowTargetVisible && t9RenderedPinyinItems.isNotEmpty()) {
+                if (
+                    pinyinRowTargetVisible &&
+                    t9RenderedPinyinItems.isNotEmpty() &&
+                    pinyinRowWrapper.visibility != View.VISIBLE
+                ) {
+                    // Product decision: the pinyin row should not blink during normal candidate
+                    // updates. Only keep it hidden while the first visible row is still waiting
+                    // for a trustworthy candidate width.
                     pinyinBarView.visibility = View.INVISIBLE
                     pinyinRowWrapper.visibility = View.INVISIBLE
                 }
