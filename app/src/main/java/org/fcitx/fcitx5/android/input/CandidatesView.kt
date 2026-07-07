@@ -120,6 +120,7 @@ class CandidatesView(
 
     private var shouldUpdatePosition = false
     private var showAfterPositioned = false
+    private var showAfterPositionedContentReady = true
     private var preferAboveCursorAnchor = false
     private val chineseT9CandidateLoadingState = ChineseT9CandidateLoadingState()
 
@@ -262,6 +263,7 @@ class CandidatesView(
         override fun hideCandidateUi() {
             // RecyclerView won't update its items when ancestor view is GONE.
             showAfterPositioned = false
+            showAfterPositionedContentReady = true
             visibility = INVISIBLE
         }
     })
@@ -547,6 +549,7 @@ class CandidatesView(
     fun clearTransientState() {
         t9RefreshScheduler.cancel()
         showAfterPositioned = false
+        showAfterPositionedContentReady = true
         inputPanel = FcitxEvent.InputPanelEvent.Data()
         paged = FcitxEvent.PagedCandidateEvent.Data.Empty
         resetT9BulkFilterState()
@@ -599,6 +602,7 @@ class CandidatesView(
     fun hideT9CandidateUiImmediately() {
         t9RefreshScheduler.cancel()
         showAfterPositioned = false
+        showAfterPositionedContentReady = true
         t9CandidateUiRenderer.hideImmediately()
     }
 
@@ -1356,6 +1360,7 @@ class CandidatesView(
     }
 
     private fun showWhenPositioned(contentReady: Boolean) {
+        showAfterPositionedContentReady = contentReady
         if (!contentReady && visibility != VISIBLE) {
             showAfterPositioned = true
             shouldUpdatePosition = true
@@ -1424,6 +1429,13 @@ class CandidatesView(
         translationX = tX
         translationY = tY
         if (showAfterPositioned) {
+            if (!showAfterPositionedContentReady) {
+                // Product decision: the first Chinese T9 pinyin-filter frame should appear as one
+                // complete bubble. Positioning may finish before the pinyin row has a trustworthy
+                // width, so keep the whole candidate surface invisible until that row is ready.
+                shouldUpdatePosition = true
+                return
+            }
             showAfterPositioned = false
             super.setVisibility(VISIBLE)
         }
@@ -1553,6 +1565,7 @@ class CandidatesView(
     override fun setVisibility(visibility: Int) {
         if (visibility != VISIBLE) {
             showAfterPositioned = false
+            showAfterPositionedContentReady = true
             touchEventReceiverWindow.dismiss()
         }
         super.setVisibility(visibility)
