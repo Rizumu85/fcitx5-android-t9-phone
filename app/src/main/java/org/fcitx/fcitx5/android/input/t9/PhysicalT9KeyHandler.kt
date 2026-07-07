@@ -106,6 +106,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
         fun handleReturnKey()
         fun forwardChineseT9KeyShortPress(keyCode: Int, input: KeyInput): Boolean
         fun forwardChineseT9SeparatorShortPress(): Boolean
+        fun discardChineseCompositionForModeSwitch()
         fun moveCandidateFocus(focus: CandidateFocus)
         fun moveHighlightedPinyin(delta: Int): Boolean
         fun moveHighlightedBottomCandidate(delta: Int): Boolean
@@ -269,6 +270,8 @@ class PhysicalT9KeyHandler(private val host: Host) {
                     host.handleReturnKey()
                 PhysicalT9KeyFlow.Command.SwitchToNextMode ->
                     host.switchToNextMode()
+                PhysicalT9KeyFlow.Command.DiscardChineseCompositionForModeSwitch ->
+                    host.discardChineseCompositionForModeSwitch()
                 is PhysicalT9KeyFlow.Command.CommitNumberOperatorForKey ->
                     host.commitNumberOperatorForKey(command.keyCode, command.fallbackDigit)
                 PhysicalT9KeyFlow.Command.ShowNumberOperatorHintPanel ->

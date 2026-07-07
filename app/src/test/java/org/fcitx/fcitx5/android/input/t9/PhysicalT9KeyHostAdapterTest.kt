@@ -71,7 +71,8 @@ class PhysicalT9KeyHostAdapterTest {
         commitShortcut: (Int) -> Boolean = { false },
         appendSmartEnglishDigit: (Int) -> Unit = {},
         moveFocus: (T9CandidateFocus) -> Unit = {},
-        commitText: (String) -> Unit = {}
+        commitText: (String) -> Unit = {},
+        discardChineseCompositionForModeSwitch: () -> Unit = {}
     ): PhysicalT9KeyHostAdapter =
         PhysicalT9KeyHostAdapter(
             state = PhysicalT9KeyHostAdapter.State(
@@ -131,7 +132,8 @@ class PhysicalT9KeyHostAdapterTest {
                 commitLiteralStarInCurrentChineseState = {},
                 handleReturnKey = {},
                 forwardChineseT9KeyShortPress = { _, _ -> false },
-                forwardChineseT9SeparatorShortPress = { false }
+                forwardChineseT9SeparatorShortPress = { false },
+                discardChineseCompositionForModeSwitch = discardChineseCompositionForModeSwitch
             )
         )
 }

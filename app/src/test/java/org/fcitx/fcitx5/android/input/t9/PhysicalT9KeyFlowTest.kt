@@ -817,7 +817,7 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
-    fun chineseComposingPoundFallsThroughForRimePinyinPreviewPath() {
+    fun chineseComposingPoundShortPressFallsThroughForRimePinyinPreviewPath() {
         val flow = PhysicalT9KeyFlow()
 
         assertNull(
@@ -832,6 +832,38 @@ class PhysicalT9KeyFlowTest {
                 state(mode = PhysicalT9KeyHandler.Mode.CHINESE, chineseComposing = true)
             )
         )
+    }
+
+    @Test
+    fun chineseComposingPoundLongPressDiscardsCompositionAndSwitchesMode() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, chineseComposing = true)
+        )
+
+        val repeat = flow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                chineseComposing = true,
+                heldPastLongPressDelay = true
+            )
+        )
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, chineseComposing = true)
+        )
+
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.DiscardChineseCompositionForModeSwitch,
+                PhysicalT9KeyFlow.Command.SwitchToNextMode
+            ),
+            repeat?.commands
+        )
+        assertEquals(KeyEvent.KEYCODE_POUND, repeat?.consumedKeyUp)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), up?.commands)
     }
 
     @Test

@@ -74,7 +74,8 @@ class PhysicalT9KeyHostAdapter(
         val commitLiteralStarInCurrentChineseState: () -> Unit,
         val handleReturnKey: () -> Unit,
         val forwardChineseT9KeyShortPress: (Int, PhysicalT9KeyHandler.KeyInput) -> Boolean,
-        val forwardChineseT9SeparatorShortPress: () -> Boolean
+        val forwardChineseT9SeparatorShortPress: () -> Boolean,
+        val discardChineseCompositionForModeSwitch: () -> Unit
     )
 
     override val isInInputMode: Boolean
@@ -218,6 +219,9 @@ class PhysicalT9KeyHostAdapter(
 
     override fun forwardChineseT9SeparatorShortPress(): Boolean =
         platform.forwardChineseT9SeparatorShortPress()
+
+    override fun discardChineseCompositionForModeSwitch() =
+        platform.discardChineseCompositionForModeSwitch()
 
     override fun moveCandidateFocus(focus: PhysicalT9KeyHandler.CandidateFocus) =
         candidates.moveFocus(

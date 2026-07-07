@@ -341,6 +341,33 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
+    fun chineseCompositionPoundLongPressDiscardsCompositionAndSwitchesMode() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            chineseComposing = true,
+            compositionKeyCount = 2
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertFalse(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN)).handled)
+        val repeat = handler.handleKeyDown(
+            keyInput(
+                keyCode = KeyEvent.KEYCODE_POUND,
+                action = KeyEvent.ACTION_DOWN,
+                repeatCount = 1,
+                eventTime = 700L
+            )
+        )
+        val up = handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP))
+
+        assertTrue(repeat.handled)
+        assertEquals(KeyEvent.KEYCODE_POUND, repeat.consumedKeyUp)
+        assertEquals(1, host.discardChineseCompositionForModeSwitchCount)
+        assertEquals(1, host.switchToNextModeCount)
+        assertTrue(up.handled)
+    }
+
+    @Test
     fun chineseIdlePoundShortPressHandlesReturn() {
         val host = FakeHost(mode = PhysicalT9KeyHandler.Mode.CHINESE)
         val handler = PhysicalT9KeyHandler(host)
@@ -635,6 +662,7 @@ class PhysicalT9KeyHandlerTest {
         val forwardedChineseT9Keys = mutableListOf<Int>()
         var forwardChineseT9SeparatorCount = 0
         var togglePendingPunctuationSetCount = 0
+        var discardChineseCompositionForModeSwitchCount = 0
         val bottomCandidateMoves = mutableListOf<Int>()
         override val pendingPunctuationOneKeyDeferred: Boolean
             get() = pendingPunctuationOneKeyDeferredState
@@ -750,6 +778,11 @@ class PhysicalT9KeyHandlerTest {
             forwardChineseT9SeparatorCount += 1
             return false
         }
+
+        override fun discardChineseCompositionForModeSwitch() {
+            discardChineseCompositionForModeSwitchCount += 1
+        }
+
         override fun moveCandidateFocus(focus: PhysicalT9KeyHandler.CandidateFocus) {
             candidateFocus = focus
         }

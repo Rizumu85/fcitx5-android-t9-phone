@@ -89,6 +89,7 @@ class PhysicalT9KeyFlow {
         object HandleEnglishStarLongPress : Command()
         object HandleReturnKey : Command()
         object SwitchToNextMode : Command()
+        object DiscardChineseCompositionForModeSwitch : Command()
         data class CommitNumberOperatorForKey(
             val keyCode: Int,
             val fallbackDigit: Int
@@ -161,8 +162,7 @@ class PhysicalT9KeyFlow {
         input: PhysicalT9KeyHandler.KeyInput,
         state: State
     ): Decision? {
-        // Composing # keeps the existing Rime/Fcitx forwarding path for pinyin preview and expansion.
-        if (state.chineseComposing) return null
+        if (state.chineseComposing) return handleChineseComposingPound(input, state)
         return when (input.action) {
             KeyEvent.ACTION_DOWN -> {
                 if (input.repeatCount == 0) {
@@ -185,6 +185,40 @@ class PhysicalT9KeyFlow {
             }
             else -> null
         }
+    }
+
+    private fun handleChineseComposingPound(
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State
+    ): Decision? = when (input.action) {
+        KeyEvent.ACTION_DOWN -> {
+            if (input.repeatCount == 0) {
+                poundLongPressTriggered = false
+                // Short # stays on the existing Rime/Fcitx path for pinyin preview.
+                null
+            } else if (!poundLongPressTriggered && state.heldPastLongPressDelay) {
+                poundLongPressTriggered = true
+                Decision(
+                    handled = true,
+                    commands = listOf(
+                        Command.DiscardChineseCompositionForModeSwitch,
+                        Command.SwitchToNextMode
+                    ),
+                    consumedKeyUp = input.keyCode
+                )
+            } else {
+                Decision(handled = true)
+            }
+        }
+        KeyEvent.ACTION_UP -> {
+            if (poundLongPressTriggered) {
+                poundLongPressTriggered = false
+                Decision(handled = true)
+            } else {
+                null
+            }
+        }
+        else -> null
     }
 
     private fun handleChineseStar(

@@ -231,7 +231,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             commitLiteralStarInCurrentChineseState = { commitLiteralT9Star(getT9InputState()) },
             handleReturnKey = ::handleReturnKey,
             forwardChineseT9KeyShortPress = ::forwardChineseT9KeyShortPress,
-            forwardChineseT9SeparatorShortPress = ::forwardChineseT9SeparatorShortPress
+            forwardChineseT9SeparatorShortPress = ::forwardChineseT9SeparatorShortPress,
+            discardChineseCompositionForModeSwitch = ::discardChineseCompositionForModeSwitch
         )
     )
     private val physicalT9KeyHandler = PhysicalT9KeyHandler(physicalT9KeyHost)
@@ -446,6 +447,19 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (!t9InputModeEnabled || currentT9Mode != T9InputMode.CHINESE) return
         if (t9PunctuationCoordinator.isPending || getT9CompositionKeyCount() > 0) return
         clearT9CompositionState()
+        clearTransientInputUiState()
+        currentInputConnection?.finishComposingText()
+        postFcitxJob {
+            if (getRimeInput().isNotEmpty()) {
+                focusOutIn()
+            }
+        }
+    }
+
+    private fun discardChineseCompositionForModeSwitch() {
+        // Long-press # in Chinese composition means "I forgot to switch modes"; discard the
+        // unfinished Chinese input instead of committing or opening Rime's expansion list.
+        resetComposingState()
         clearTransientInputUiState()
         currentInputConnection?.finishComposingText()
         postFcitxJob {
