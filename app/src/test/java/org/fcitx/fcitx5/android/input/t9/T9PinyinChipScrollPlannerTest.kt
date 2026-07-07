@@ -19,8 +19,7 @@ class T9PinyinChipScrollPlannerTest {
             highlightedIndex = 5
         )
 
-        assertEquals(38, plan.scrollX)
-        assertEquals(12, plan.endPaddingPx)
+        assertEquals(26, plan.scrollX)
     }
 
     @Test
@@ -34,7 +33,6 @@ class T9PinyinChipScrollPlannerTest {
         )
 
         assertEquals(20, plan.scrollX)
-        assertEquals(0, plan.endPaddingPx)
     }
 
     @Test
@@ -47,12 +45,11 @@ class T9PinyinChipScrollPlannerTest {
             highlightedIndex = 1
         )
 
-        assertEquals(38, plan.scrollX)
-        assertEquals(12, plan.endPaddingPx)
+        assertEquals(26, plan.scrollX)
     }
 
     @Test
-    fun finalChipCanAlignToCleanBoundaryWithDynamicTail() {
+    fun finalChipIsCappedByAvailableScrollRangeWithoutChangingLayoutWidth() {
         val plan = T9PinyinChipScrollPlanner.plan(
             currentScrollX = 38,
             viewportWidthPx = 150,
@@ -61,8 +58,7 @@ class T9PinyinChipScrollPlannerTest {
             highlightedIndex = 6
         )
 
-        assertEquals(76, plan.scrollX)
-        assertEquals(28, plan.endPaddingPx)
+        assertEquals(48, plan.scrollX)
     }
 
     private val bounds = listOf(

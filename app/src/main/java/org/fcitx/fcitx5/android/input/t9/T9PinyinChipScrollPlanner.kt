@@ -9,8 +9,7 @@ object T9PinyinChipScrollPlanner {
     data class ItemBounds(val startPx: Int, val endPx: Int)
 
     data class Plan(
-        val scrollX: Int,
-        val endPaddingPx: Int
+        val scrollX: Int
     )
 
     fun plan(
@@ -21,7 +20,7 @@ object T9PinyinChipScrollPlanner {
         highlightedIndex: Int
     ): Plan {
         if (viewportWidthPx <= 0 || itemBounds.isEmpty()) {
-            return Plan(scrollX = currentScrollX.coerceAtLeast(0), endPaddingPx = 0)
+            return Plan(scrollX = currentScrollX.coerceAtLeast(0))
         }
         val highlighted = highlightedIndex.coerceIn(0, itemBounds.lastIndex)
         val item = itemBounds[highlighted]
@@ -36,12 +35,8 @@ object T9PinyinChipScrollPlanner {
                 itemBounds[start].startPx
             }
             else -> currentScrollX
-        }.coerceAtLeast(0)
-        // Product decision: focused folded pinyin should scroll on chip boundaries instead of
-        // slicing the leading chip. A small dynamic tail lets the final chip align cleanly even
-        // when the content is only slightly wider than the viewport.
-        val endPadding = (target + viewportWidthPx - contentWidthPx).coerceAtLeast(0)
-        return Plan(scrollX = target, endPaddingPx = endPadding)
+        }.coerceIn(0, (contentWidthPx - viewportWidthPx).coerceAtLeast(0))
+        return Plan(scrollX = target)
     }
 
     private fun cleanStartForTrailingItem(

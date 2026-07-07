@@ -122,7 +122,6 @@ class T9PinyinChipAdapter(
     }
 
     fun scrollToStart() {
-        stripView.setScrollEndPadding(0)
         if (root.scrollX != 0) {
             root.scrollTo(0, 0)
         }
@@ -148,16 +147,11 @@ class T9PinyinChipAdapter(
         val plan = T9PinyinChipScrollPlanner.plan(
             currentScrollX = root.scrollX,
             viewportWidthPx = viewportWidth,
-            contentWidthPx = stripView.itemContentWidthPx,
+            contentWidthPx = stripView.contentWidthPx,
             itemBounds = itemBounds,
             highlightedIndex = highlightedIndex
         )
-        val paddingChanged = stripView.setScrollEndPadding(plan.endPaddingPx)
-        if (paddingChanged) {
-            root.post {
-                root.scrollTo(plan.scrollX, 0)
-            }
-        } else if (plan.scrollX != root.scrollX) {
+        if (plan.scrollX != root.scrollX) {
             root.scrollTo(plan.scrollX, 0)
         }
     }
@@ -188,9 +182,6 @@ class T9PinyinChipAdapter(
         private var highlightActive: Boolean = false
         private var touchDownX: Float? = null
         private val itemBounds = mutableListOf<ItemBounds>()
-        private var scrollEndPaddingPx: Int = 0
-        var itemContentWidthPx: Int = 0
-            private set
 
         var contentWidthPx: Int = 0
             private set
@@ -212,13 +203,9 @@ class T9PinyinChipAdapter(
         }
 
         fun submit(items: List<String>, highlightedIndex: Int, highlightActive: Boolean) {
-            val itemsChanged = this.items != items
             this.items = items
             this.highlightedIndex = highlightedIndex.coerceIn(0, items.lastIndex.coerceAtLeast(0))
             this.highlightActive = highlightActive
-            if (itemsChanged) {
-                scrollEndPaddingPx = 0
-            }
             recalculateBounds()
             requestLayout()
             invalidate()
@@ -234,16 +221,6 @@ class T9PinyinChipAdapter(
                     endPx = it.endPx
                 )
             }
-
-        fun setScrollEndPadding(paddingPx: Int): Boolean {
-            val next = paddingPx.coerceAtLeast(0)
-            if (scrollEndPaddingPx == next) return false
-            scrollEndPaddingPx = next
-            contentWidthPx = itemContentWidthPx + scrollEndPaddingPx
-            requestLayout()
-            invalidate()
-            return true
-        }
 
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             if (itemBounds.size != items.size) {
@@ -329,8 +306,7 @@ class T9PinyinChipAdapter(
                 itemBounds += ItemBounds(startPx = x, endPx = x + chipWidth + margin)
                 x += chipWidth + margin
             }
-            itemContentWidthPx = x
-            contentWidthPx = itemContentWidthPx + scrollEndPaddingPx
+            contentWidthPx = x
         }
 
         private fun textBaseline(): Float {

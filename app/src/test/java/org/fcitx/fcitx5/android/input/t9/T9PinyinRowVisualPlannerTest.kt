@@ -30,7 +30,7 @@ class T9PinyinRowVisualPlannerTest {
     }
 
     @Test
-    fun focusedFoldedRowKeepsAllChipsForScrollAnchoring() {
+    fun focusedFoldedRowShowsWholeChipWindowInsideStableWidth() {
         val plan = T9PinyinRowVisualPlanner.plan(
             input(
                 rowPlan = T9PinyinOverflowPolicy.Plan(
@@ -41,11 +41,11 @@ class T9PinyinRowVisualPlannerTest {
             )
         )
 
-        assertEquals(listOf("gei", "hei", "ge", "he", "g", "h", "i"), plan.displayedItems)
+        assertEquals(listOf("gei", "hei", "ge", "he", "g"), plan.displayedItems)
         assertFalse(plan.showOverflowHint)
         assertEquals(150, plan.pinyinBarWidthPx)
         assertEquals(0, plan.overflowHintStartPx)
-        assertFalse(plan.usesWindowedDisplay)
+        assertTrue(plan.usesWindowedDisplay)
     }
 
     private fun input(

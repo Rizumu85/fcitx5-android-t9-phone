@@ -25,20 +25,6 @@ object T9PinyinRowVisualPlanner {
     )
 
     fun plan(input: Input): Plan {
-        val focusedFolded = input.rowPlan?.folded == true && input.rowPlan.showHint == false
-        if (focusedFolded) {
-            return Plan(
-                displayedItems = input.state.items,
-                displayedHighlight = input.state.highlightedIndex.coerceIn(
-                    0,
-                    input.state.items.lastIndex.coerceAtLeast(0)
-                ),
-                showOverflowHint = false,
-                overflowHintStartPx = 0,
-                pinyinBarWidthPx = input.rowWidthPx,
-                usesWindowedDisplay = false
-            )
-        }
         val renderPlan = T9PinyinRowRenderPlanner.plan(
             state = input.state,
             rowPlan = input.rowPlan,

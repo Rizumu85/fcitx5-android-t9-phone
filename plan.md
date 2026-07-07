@@ -125,6 +125,6 @@ otherwise.
 - [x] Keep folded pinyin width stable when focus moves from Hanzi candidates
   to the pinyin filter row, so short second pages do not collapse the focused
   pinyin viewport.
-- [x] Scroll focused folded pinyin by clean chip boundaries with dynamic tail
-  padding, avoiding arbitrary left-edge clipping when moving through hidden
-  pinyin chips.
+- [x] Render focused folded pinyin as a whole-chip window inside the stable
+  folded viewport, avoiding arbitrary left-edge clipping and layout-width
+  churn when moving through hidden pinyin chips.
