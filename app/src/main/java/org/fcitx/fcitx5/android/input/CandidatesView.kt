@@ -1036,12 +1036,10 @@ class CandidatesView(
 
     private fun syncVisiblePinyinRowLayout(): Boolean {
         if (!pinyinRowTargetVisible) return true
-        if (pinyinRowWrapper.visibility == View.VISIBLE && pinyinBarView.visibility == View.VISIBLE) {
-            // Product decision: once the filter row is visible, Hanzi candidate updates must not
-            // resync its width. That resync was the source of one-frame clipped pinyin chips.
-            return true
-        }
         t9CandidateUiSnapshotPipeline.currentPinyinWindowState()?.let {
+            // Product decision: candidate width changes can resize the second bubble even when
+            // the pinyin text itself is unchanged. The pinyin row is a synchronous drawing
+            // surface now, so resizing it no longer exposes half-laid-out chip frames.
             renderPinyinWindow(
                 state = it,
                 candidateRowWidthPx = null,
@@ -1240,6 +1238,7 @@ class CandidatesView(
                 data = data,
                 widthBudget = t9CandidateWidthBudget(),
                 rowHorizontalPaddingPx = (dp(windowRadius) * 0.35f).roundToInt().coerceAtLeast(dp(2)),
+                showPaginationArrows = showPaginationArrows,
                 paginationWidthPx = dp(T9_PAGINATION_WIDTH_DP)
             )
         )

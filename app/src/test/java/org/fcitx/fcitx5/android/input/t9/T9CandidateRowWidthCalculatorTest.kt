@@ -25,11 +25,37 @@ class T9CandidateRowWidthCalculatorTest {
         val width = T9CandidateRowWidthCalculator.calculate(
             input(
                 candidates = listOf("好", "的"),
+                showPaginationArrows = true,
                 hasNext = true
             )
         )
 
         assertEquals(90, width)
+    }
+
+    @Test
+    fun hiddenPaginationDoesNotReserveArrowWidth() {
+        val width = T9CandidateRowWidthCalculator.calculate(
+            input(
+                candidates = listOf("好", "的"),
+                showPaginationArrows = false,
+                hasNext = true
+            )
+        )
+
+        assertEquals(70, width)
+    }
+
+    @Test
+    fun focusReserveIsAppliedOnceForTheCurrentPage() {
+        val width = T9CandidateRowWidthCalculator.calculate(
+            input(
+                candidates = listOf("好", "的", "长词"),
+                activeScalePercent = 150
+            )
+        )
+
+        assertEquals(143, width)
     }
 
     @Test
@@ -52,8 +78,10 @@ class T9CandidateRowWidthCalculatorTest {
     private fun input(
         candidates: List<String>,
         maxWidthPx: Int = 300,
+        showPaginationArrows: Boolean = true,
         hasPrev: Boolean = false,
-        hasNext: Boolean = false
+        hasNext: Boolean = false,
+        activeScalePercent: Int = 100
     ): T9CandidateRowWidthCalculator.Input =
         T9CandidateRowWidthCalculator.Input(
             data = FcitxEvent.PagedCandidateEvent.Data(
@@ -70,10 +98,11 @@ class T9CandidateRowWidthCalculatorTest {
                 candidateSpacingPx = 4,
                 candidateHorizontalPaddingPx = 3,
                 minimumCandidateWidthPx = 10,
-                activeScalePercent = 100,
+                activeScalePercent = activeScalePercent,
                 measureTextWidthPx = { it.length * 20 }
             ),
             rowHorizontalPaddingPx = 5,
+            showPaginationArrows = showPaginationArrows,
             paginationWidthPx = 20
         )
 }

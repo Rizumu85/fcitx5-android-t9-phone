@@ -103,7 +103,7 @@ class T9CandidateUiRenderer(
                     delegate.renderPinyin(next.pinyinOptions, next.pinyinUseT9)
                 }
             }
-            patch.candidateContent && hasPinyinRow && !previousPinyinWasReady -> {
+            patch.candidateContent && hasPinyinRow -> {
                 T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyinLayout") {
                     delegate.syncPinyinLayout()
                 }

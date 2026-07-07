@@ -13,7 +13,7 @@ import org.junit.Test
 class T9CandidateUiRendererTest {
 
     @Test
-    fun readyVisiblePinyinRowIsNotReRenderedForCandidateContentChanges() {
+    fun readyVisiblePinyinRowSyncsLayoutForCandidateContentChanges() {
         val delegate = FakeDelegate()
         val renderer = T9CandidateUiRenderer(delegate)
 
@@ -21,7 +21,7 @@ class T9CandidateUiRendererTest {
         renderer.render(state(candidates = paged("alphabet")))
 
         assertEquals(1, delegate.renderPinyinCount)
-        assertEquals(0, delegate.syncPinyinLayoutCount)
+        assertEquals(1, delegate.syncPinyinLayoutCount)
     }
 
     @Test
@@ -57,7 +57,7 @@ class T9CandidateUiRendererTest {
         renderer.render(state(candidates = paged("alphabet")))
 
         assertEquals(listOf(true), delegate.showRequests)
-        assertEquals(0, delegate.syncPinyinLayoutCount)
+        assertEquals(1, delegate.syncPinyinLayoutCount)
     }
 
     @Test
