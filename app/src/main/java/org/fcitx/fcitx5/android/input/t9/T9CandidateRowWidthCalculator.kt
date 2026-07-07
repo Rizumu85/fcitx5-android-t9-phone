@@ -22,14 +22,14 @@ object T9CandidateRowWidthCalculator {
             input.widthBudget.candidateWidthPx(candidate, active = false)
         } - input.widthBudget.candidateSpacingPx.coerceAtLeast(0)
         val paginationWidth = if (input.showPaginationArrows && (input.data.hasPrev || input.data.hasNext)) {
-            input.paginationWidthPx.coerceAtLeast(0)
+            input.widthBudget.candidateSpacingPx.coerceAtLeast(0) +
+                input.paginationWidthPx.coerceAtLeast(0)
         } else {
             0
         }
-        // Product decision: the T9 candidate bubble follows the current page content, not
-        // RecyclerView's previous measured width. Short Hanzi pages should not inherit a wide
-        // page. Focus is drawn with View scale, which does not participate in natural layout
-        // measurement; the RecyclerView padding provides the drawing inset instead.
+        // Product decision: the T9 candidate bubble follows visible row content, with spacing only
+        // between visible toolbar items. A trailing decoration made short English pages look like
+        // the bubble had arbitrary empty space after the final candidate.
         return (inactiveCandidateWidth + paginationWidth + input.rowHorizontalPaddingPx * 2)
             .coerceAtMost(input.widthBudget.maxWidthPx)
             .coerceAtLeast(1)

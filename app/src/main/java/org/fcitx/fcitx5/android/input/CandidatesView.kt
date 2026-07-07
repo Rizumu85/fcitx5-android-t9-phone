@@ -1507,7 +1507,12 @@ class CandidatesView(
         ).apply { gravity = Gravity.START or Gravity.TOP })
         candidatesUi.root.addItemDecoration(object : RecyclerView.ItemDecoration() {
             override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
-                outRect.right = dp(candidateItemSpacing)
+                val position = parent.getChildAdapterPosition(view)
+                outRect.right = if (position != RecyclerView.NO_POSITION && position < state.itemCount - 1) {
+                    dp(candidateItemSpacing)
+                } else {
+                    0
+                }
             }
         })
         // Bubble 1: width by pinyin content, left-aligned

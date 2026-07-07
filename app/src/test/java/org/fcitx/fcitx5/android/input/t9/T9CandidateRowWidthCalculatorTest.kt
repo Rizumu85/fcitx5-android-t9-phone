@@ -21,7 +21,7 @@ class T9CandidateRowWidthCalculatorTest {
     }
 
     @Test
-    fun paginationAddsArrowReserve() {
+    fun paginationAddsArrowReserveAndSpacingBeforeArrows() {
         val width = T9CandidateRowWidthCalculator.calculate(
             input(
                 candidates = listOf("好", "的"),
@@ -30,7 +30,7 @@ class T9CandidateRowWidthCalculatorTest {
             )
         )
 
-        assertEquals(86, width)
+        assertEquals(90, width)
     }
 
     @Test
