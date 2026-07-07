@@ -51,6 +51,20 @@ The first migration slice should target Smart English physical-key behavior:
 long-press digit shortcuts. After each code slice, provide a concrete manual
 test checklist and wait for user confirmation before migrating the next slice.
 
+### Chinese T9 Composition Lifecycle
+
+The lifecycle of Chinese T9 composition covers the Kotlin-side digit/session
+model, presentation-cache invalidation, editor-tap cleanup, hidden-composition
+cleanup, virtual/physical backspace session updates, and forwarded key effects
+that decide whether candidate UI should refresh after Rime or disappear
+immediately.
+
+`ChineseT9CompositionLifecycle` owns these decisions. `FcitxInputMethodService`
+remains the Android/Fcitx adapter: it forwards keys to Rime, finishes composing
+text, refreshes views, and focuses Fcitx in or out, but it should ask the
+lifecycle whether a composition state transition occurred and which UI action
+that transition requires.
+
 ### T9 Candidate UI Snapshot Pipeline
 
 The complete T9 candidate UI refresh flow. It should turn the current IME

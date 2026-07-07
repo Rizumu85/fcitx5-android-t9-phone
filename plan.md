@@ -111,6 +111,15 @@ otherwise.
 - [ ] Move remaining Chinese special-key branches into the command-based flow
   in small slices, removing each replaced handler fallback as it migrates.
 
+## Chinese T9 Composition Lifecycle Architecture
+
+- [x] Decide that Chinese T9 composition lifecycle owns session mutation,
+  presentation-cache invalidation, and composition cleanup decisions while
+  `FcitxInputMethodService` stays the Android/Fcitx adapter.
+- [x] Move forwarded physical-key composition mutation into
+  `ChineseT9CompositionLifecycle` so the service only performs the returned UI
+  action.
+
 ## T9 Candidate UI Snapshot Pipeline Architecture
 
 - [x] Decide that the T9 Candidate UI Snapshot Pipeline owns render-ready
