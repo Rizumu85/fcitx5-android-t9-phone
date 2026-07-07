@@ -10,6 +10,7 @@ import android.os.Build
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.View.MeasureSpec
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -52,6 +53,8 @@ class T9ShortcutCandidatesUi(
         trailingPaddingPx = 0
     )
     private var renderRows: List<Row> = emptyList()
+    var measuredToolbarWidthPx: Int? = null
+        private set
 
     private val highlightOverflowPaddingPx =
         (highlightCornerRadiusPx * 0.35f).roundToInt().coerceAtLeast(ctx.dp(2))
@@ -128,6 +131,14 @@ class T9ShortcutCandidatesUi(
         while (root.childCount > rows.size) {
             root.removeViewAt(root.childCount - 1)
         }
+        // Product decision: the pinyin row should align with the rendered T9 toolbar, not with
+        // a TextPaint estimate. Measuring the real pooled toolbar keeps the bubble width stable
+        // while avoiding a hidden duplicate row.
+        root.measure(
+            MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
+            MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+        )
+        measuredToolbarWidthPx = root.measuredWidth.takeIf { it > 0 }
     }
 
     private fun candidateView(

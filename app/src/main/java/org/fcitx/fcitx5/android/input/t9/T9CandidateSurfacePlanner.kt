@@ -15,6 +15,7 @@ object T9CandidateSurfacePlanner {
         val trailingPaddingPx: Int,
         val showPaginationArrows: Boolean,
         val paginationWidthPx: Int,
+        val candidateVisualWidthPx: Int?,
         val pinyinState: T9PinyinRowWindow.VisibleState?,
         val pinyinWidths: T9PinyinRowWidthCalculator.Widths?,
         val pinyinChipWidthsPx: List<Int>,
@@ -50,7 +51,7 @@ object T9CandidateSurfacePlanner {
             rowWidthPx = 0,
             trailingPaddingPx = input.trailingPaddingPx
         )
-        val surfaceLayout = surfaceLayout(input, candidatePolicyWidth)
+        val surfaceLayout = surfaceLayout(input, input.candidateVisualWidthPx ?: candidatePolicyWidth)
         val pinyinVisual = pinyinVisual(input, surfaceLayout)
         return Plan(
             shortcutLayout = shortcutLayout,
@@ -62,15 +63,15 @@ object T9CandidateSurfacePlanner {
 
     private fun surfaceLayout(
         input: Input,
-        candidatePolicyWidth: Int?
+        candidateSurfaceWidth: Int?
     ): T9CandidateSurfaceLayout.Plan? {
-        candidatePolicyWidth ?: return null
+        candidateSurfaceWidth ?: return null
         val pinyinWidths = input.pinyinWidths ?: return null
         val pinyinState = input.pinyinState ?: return null
         if (pinyinState.items.isEmpty()) return null
         return T9CandidateSurfaceLayout.plan(
             T9CandidateSurfaceLayout.Input(
-                candidateMeasuredWidthPx = candidatePolicyWidth,
+                candidateMeasuredWidthPx = candidateSurfaceWidth,
                 pinyinCount = pinyinState.items.size,
                 pinyinFullContentWidthPx = pinyinWidths.fullContentWidthPx,
                 pinyinFoldedContentWidthPx = pinyinWidths.foldedContentWidthPx,

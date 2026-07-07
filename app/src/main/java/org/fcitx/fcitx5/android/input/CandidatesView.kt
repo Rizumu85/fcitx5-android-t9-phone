@@ -1289,6 +1289,7 @@ class CandidatesView(
                 trailingPaddingPx = t9ShortcutTrailingPaddingPx(),
                 showPaginationArrows = showPaginationArrows,
                 paginationWidthPx = dp(T9_PAGINATION_WIDTH_DP),
+                candidateVisualWidthPx = t9ShortcutCandidatesUi.measuredToolbarWidthPx,
                 pinyinState = pinyinState,
                 pinyinWidths = pinyinWidths,
                 pinyinChipWidthsPx = pinyinChipWidthsPx,
@@ -1394,6 +1395,7 @@ class CandidatesView(
             }
         val rowPlan = surfacePlan.pinyin
         val chipWidths = pinyinChipWidthsPx(state.items)
+        surfacePlan.rowWidthPx?.let(::setPinyinRowWidth)
         val visualPlan = t9ShownPaged
             ?.let { candidates ->
                 t9CandidateSurfacePlan(
@@ -1411,6 +1413,7 @@ class CandidatesView(
                     trailingPaddingPx = t9ShortcutTrailingPaddingPx(),
                     showPaginationArrows = showPaginationArrows,
                     paginationWidthPx = dp(T9_PAGINATION_WIDTH_DP),
+                    candidateVisualWidthPx = t9ShortcutCandidatesUi.measuredToolbarWidthPx,
                     pinyinState = state,
                     pinyinWidths = rowWidths,
                     pinyinChipWidthsPx = chipWidths,

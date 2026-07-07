@@ -47,10 +47,26 @@ class T9CandidateSurfacePlannerTest {
         assertEquals(150, requireNotNull(plan.pinyinVisual).pinyinBarWidthPx)
     }
 
+    @Test
+    fun usesRenderedCandidateWidthForPinyinSurfaceWhenAvailable() {
+        val plan = T9CandidateSurfacePlanner.plan(
+            input(
+                candidates = listOf("嘿", "给", "黑", "𬭶", "hehe", "heil", "heir"),
+                candidateVisualWidthPx = 478,
+                maxRowWidthPx = 600
+            )
+        )
+
+        assertEquals(478, plan.surfaceLayout?.rowWidthPx)
+        assertEquals(478, requireNotNull(plan.pinyinVisual).pinyinBarWidthPx)
+    }
+
     private fun input(
         candidates: List<String>,
         trailingPaddingPx: Int = 0,
-        pinyinViewportWidthPx: Int? = null
+        pinyinViewportWidthPx: Int? = null,
+        candidateVisualWidthPx: Int? = null,
+        maxRowWidthPx: Int = 320
     ): T9CandidateSurfacePlanner.Input =
         T9CandidateSurfacePlanner.Input(
             candidates = FcitxEvent.PagedCandidateEvent.Data(
@@ -74,6 +90,7 @@ class T9CandidateSurfacePlannerTest {
             trailingPaddingPx = trailingPaddingPx,
             showPaginationArrows = true,
             paginationWidthPx = 20,
+            candidateVisualWidthPx = candidateVisualWidthPx,
             pinyinState = T9PinyinRowWindow.VisibleState(
                 items = listOf("gei", "hei", "ge", "he", "g", "h", "i"),
                 highlightedIndex = 0,
@@ -88,7 +105,7 @@ class T9CandidateSurfacePlannerTest {
             pinyinChipWidthsPx = listOf(34, 34, 24, 24, 14, 14, 14),
             pinyinChipSpacingPx = 4,
             pinyinViewportWidthPx = pinyinViewportWidthPx,
-            maxRowWidthPx = 320,
+            maxRowWidthPx = maxRowWidthPx,
             minVisiblePinyinChips = 4,
             pinyinRowFocused = false
         )
