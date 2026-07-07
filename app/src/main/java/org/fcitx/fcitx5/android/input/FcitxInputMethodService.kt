@@ -1935,6 +1935,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun getT9CompositionKeyCount(): Int =
         chineseT9Session.keyCount()
 
+    fun getT9CompositionDigitSequence(): String =
+        chineseT9Session.digitSequence()
+
     private fun getT9CompositionRawSequence(): String =
         chineseT9Session.rawSequence()
 

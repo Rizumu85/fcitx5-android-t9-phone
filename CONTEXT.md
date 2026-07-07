@@ -121,3 +121,17 @@ apply the frame to a custom `View`, but it should not draw from a newer item
 list while the child view still has the previous measured width. This prevents
 the first frame of inputs such as `gel` from briefly showing clipped pinyin
 chips before the next layout pass corrects the row.
+
+### Chinese T9 Candidate Frame Gate
+
+Chinese T9 candidate rendering must be source-fresh at the frame level. A frame
+must not combine a new composition preview with a stale Rime candidate page, and
+it must not briefly show Rime's short current page when the bulk-budgeted page
+has already been requested but has not returned yet.
+
+`ChineseT9CandidateFreshness` owns the question "does this engine candidate page
+match the current T9 digit sequence?" `ChineseT9CandidateFrameGate` owns the
+decision to defer the whole frame while engine or bulk candidates are not ready.
+This keeps transitions such as `ge` -> `gel` atomic: the user may see the
+previous complete candidate frame for a moment, but should not see a partial
+`gel HDL` row one frame before the final `gel HDL Hardware ...` row.

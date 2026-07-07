@@ -44,13 +44,14 @@ object T9CandidateSourceControlPlanner {
         private val pendingPunctuationActive: Boolean,
         private val filterPrefixesEmpty: Boolean
     ) {
-        fun shouldBuildLocalBudget(hasBulkFilteredPage: Boolean): Boolean =
+        fun shouldBuildLocalBudget(hasBulkFilteredPage: Boolean, bulkFilterPending: Boolean): Boolean =
             surface == Surface.CHINESE &&
                 !suppressEmptyCandidates &&
                 !pendingPinyinSelection &&
                 !pendingPunctuationActive &&
                 filterPrefixesEmpty &&
                 !hasBulkFilteredPage &&
+                !bulkFilterPending &&
                 !waitForChineseCandidates
     }
 

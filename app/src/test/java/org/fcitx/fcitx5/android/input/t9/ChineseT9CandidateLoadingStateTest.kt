@@ -16,7 +16,7 @@ class ChineseT9CandidateLoadingStateTest {
     fun waitsAfterChineseCompositionStartsUntilEngineCandidatesArrive() {
         val state = ChineseT9CandidateLoadingState()
 
-        state.startIfNeeded(chineseT9Active = true, compositionKeyCount = 1)
+        state.startIfNeeded(chineseT9Active = true, digitSequence = "64")
 
         assertTrue(state.shouldWaitForCandidates(
             chineseT9Active = true,
@@ -26,7 +26,7 @@ class ChineseT9CandidateLoadingStateTest {
             rawCandidatesEmpty = false
         ))
 
-        state.onEngineCandidates(paged("你"), compositionKeyCount = 1)
+        state.onEngineCandidates(paged("你", comment = "ni"), digitSequence = "64")
 
         assertFalse(state.shouldWaitForCandidates(
             chineseT9Active = true,
@@ -53,7 +53,7 @@ class ChineseT9CandidateLoadingStateTest {
     @Test
     fun punctuationAndPinyinSelectionSuppressWaiting() {
         val state = ChineseT9CandidateLoadingState()
-        state.startIfNeeded(chineseT9Active = true, compositionKeyCount = 1)
+        state.startIfNeeded(chineseT9Active = true, digitSequence = "64")
 
         assertFalse(state.shouldWaitForCandidates(
             chineseT9Active = true,
@@ -71,9 +71,35 @@ class ChineseT9CandidateLoadingStateTest {
         ))
     }
 
-    private fun paged(text: String): FcitxEvent.PagedCandidateEvent.Data =
+    @Test
+    fun staleCandidatePageDoesNotReleaseWaitingState() {
+        val state = ChineseT9CandidateLoadingState()
+
+        state.startIfNeeded(chineseT9Active = true, digitSequence = "435")
+        state.onEngineCandidates(paged("个", comment = "ge"), digitSequence = "435")
+
+        assertTrue(state.shouldWaitForCandidates(
+            chineseT9Active = true,
+            compositionKeyCount = 3,
+            hasPendingPunctuation = false,
+            pendingPinyinSelection = false,
+            rawCandidatesEmpty = false
+        ))
+
+        state.onEngineCandidates(paged("gel"), digitSequence = "435")
+
+        assertFalse(state.shouldWaitForCandidates(
+            chineseT9Active = true,
+            compositionKeyCount = 3,
+            hasPendingPunctuation = false,
+            pendingPinyinSelection = false,
+            rawCandidatesEmpty = false
+        ))
+    }
+
+    private fun paged(text: String, comment: String = ""): FcitxEvent.PagedCandidateEvent.Data =
         FcitxEvent.PagedCandidateEvent.Data(
-            candidates = arrayOf(FcitxEvent.Candidate(label = "", text = text, comment = "")),
+            candidates = arrayOf(FcitxEvent.Candidate(label = "", text = text, comment = comment)),
             cursorIndex = 0,
             layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
             hasPrev = false,

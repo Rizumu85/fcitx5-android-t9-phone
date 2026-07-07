@@ -39,7 +39,7 @@ class T9CandidateSourceControlPlannerTest {
     @Test
     fun waitingChineseCandidatesDefersRenderAndClearsShownCandidates() {
         val loadingState = ChineseT9CandidateLoadingState().apply {
-            startIfNeeded(chineseT9Active = true, compositionKeyCount = 1)
+            startIfNeeded(chineseT9Active = true, digitSequence = "2")
         }
 
         val plan = T9CandidateSourceControlPlanner.plan(
@@ -54,7 +54,7 @@ class T9CandidateSourceControlPlannerTest {
         assertTrue(plan.deferRender)
         assertEquals(T9CandidateSourceControlPlanner.BulkAction.RESET, plan.bulkAction)
         assertEquals(T9CandidateSourceControlPlanner.FilterAction.EMPTY, plan.filterAction)
-        assertFalse(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false))
+        assertFalse(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false, bulkFilterPending = false))
     }
 
     @Test
@@ -77,8 +77,9 @@ class T9CandidateSourceControlPlannerTest {
 
         assertEquals(T9CandidateSourceControlPlanner.BulkAction.REQUEST, plan.bulkAction)
         assertEquals(T9CandidateSourceControlPlanner.FilterAction.CHINESE_PREFIX_FILTER, plan.filterAction)
-        assertTrue(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false))
-        assertFalse(plan.shouldBuildLocalBudget(hasBulkFilteredPage = true))
+        assertTrue(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false, bulkFilterPending = false))
+        assertFalse(plan.shouldBuildLocalBudget(hasBulkFilteredPage = true, bulkFilterPending = false))
+        assertFalse(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false, bulkFilterPending = true))
     }
 
     @Test
@@ -94,7 +95,7 @@ class T9CandidateSourceControlPlannerTest {
         assertFalse(plan.suppressEmptyCandidates)
         assertEquals(T9CandidateSourceControlPlanner.BulkAction.RESET, plan.bulkAction)
         assertEquals(T9CandidateSourceControlPlanner.FilterAction.CHINESE_PREFIX_FILTER, plan.filterAction)
-        assertFalse(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false))
+        assertFalse(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false, bulkFilterPending = false))
     }
 
     @Test
@@ -105,7 +106,7 @@ class T9CandidateSourceControlPlannerTest {
 
         assertEquals(T9CandidateSourceControlPlanner.BulkAction.RESET, plan.bulkAction)
         assertEquals(T9CandidateSourceControlPlanner.FilterAction.PASSTHROUGH, plan.filterAction)
-        assertFalse(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false))
+        assertFalse(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false, bulkFilterPending = false))
     }
 
     private fun input(

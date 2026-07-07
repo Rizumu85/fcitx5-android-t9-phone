@@ -529,7 +529,7 @@ class CandidatesView(
                 paged = it.data
                 chineseT9CandidateLoadingState.onEngineCandidates(
                     data = it.data,
-                    compositionKeyCount = service.getT9CompositionKeyCount()
+                    digitSequence = service.getT9CompositionDigitSequence()
                 )
                 refreshT9Ui()
             }
@@ -586,7 +586,7 @@ class CandidatesView(
     fun waitForT9EngineCandidatesThenRefresh() {
         chineseT9CandidateLoadingState.startIfNeeded(
             chineseT9Active = service.isChineseT9InputModeActive(),
-            compositionKeyCount = service.getT9CompositionKeyCount()
+            digitSequence = service.getT9CompositionDigitSequence()
         )
         refreshT9Ui()
     }

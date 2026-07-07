@@ -20,8 +20,8 @@ class ChineseT9CandidateLoadingState {
         state = State.IDLE
     }
 
-    fun startIfNeeded(chineseT9Active: Boolean, compositionKeyCount: Int) {
-        state = if (chineseT9Active && compositionKeyCount > 0) {
+    fun startIfNeeded(chineseT9Active: Boolean, digitSequence: String) {
+        state = if (chineseT9Active && digitSequence.any { it in '2'..'9' }) {
             State.WAITING_FOR_ENGINE
         } else {
             State.IDLE
@@ -30,9 +30,10 @@ class ChineseT9CandidateLoadingState {
 
     fun onEngineCandidates(
         data: FcitxEvent.PagedCandidateEvent.Data,
-        compositionKeyCount: Int
+        digitSequence: String
     ) {
-        if (data.candidates.isNotEmpty() || compositionKeyCount <= 0) {
+        val hasComposition = digitSequence.any { it in '2'..'9' }
+        if (!hasComposition || ChineseT9CandidateFreshness.matchesDigitSequence(data, digitSequence)) {
             state = State.IDLE
         }
     }

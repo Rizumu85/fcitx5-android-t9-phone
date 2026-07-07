@@ -91,7 +91,7 @@ class T9CandidateUiStateBuilderTest {
     @Test
     fun visibleChineseLoadingStateDefersRenderUntilEngineCandidatesArrive() {
         val loadingState = ChineseT9CandidateLoadingState().apply {
-            startIfNeeded(chineseT9Active = true, compositionKeyCount = 1)
+            startIfNeeded(chineseT9Active = true, digitSequence = "2")
         }
         val pipeline = FakePipeline(
             chinesePresentation = T9PresentationState(
@@ -116,7 +116,7 @@ class T9CandidateUiStateBuilderTest {
     @Test
     fun firstChineseLoadingStateDefersLocalPinyinRowBeforeWindowIsVisible() {
         val loadingState = ChineseT9CandidateLoadingState().apply {
-            startIfNeeded(chineseT9Active = true, compositionKeyCount = 1)
+            startIfNeeded(chineseT9Active = true, digitSequence = "2")
         }
         val pipeline = FakePipeline(
             chinesePresentation = T9PresentationState(
@@ -201,9 +201,43 @@ class T9CandidateUiStateBuilderTest {
         assertEquals(listOf("ni", "hao"), pipeline.presentationKeys.map { it.candidateComment })
     }
 
+    @Test
+    fun pendingChineseBulkPageDefersPartialRawCandidateFrame() {
+        val pipeline = FakePipeline(
+            bulkFilterState = ChineseT9CandidatePipeline.BulkFilterState(
+                paged = null,
+                matchedPrefix = null,
+                pending = true
+            )
+        )
+
+        val result = T9CandidateUiStateBuilder(pipeline).build(input(
+            rawPaged = paged(candidate("gel"), candidate("HDL")),
+            chineseActive = true,
+            chineseSnapshot = defaultChineseSnapshot().copy(
+                rawSequence = "435",
+                digitSequence = "435",
+                currentSegment = "435",
+                fullComposition = "435",
+                model = T9CompositionModel(unresolvedDigits = "435", rawPreedit = "435"),
+                keyCount = 3
+            )
+        ))
+
+        assertEquals(null, result)
+        assertEquals(1, pipeline.requestBulkFilteredCount)
+        assertEquals(0, pipeline.getT9PresentationCount)
+    }
+
     private class FakePipeline(
         private val chinesePresentation: T9PresentationState =
-            T9PresentationState(topReading = null, pinyinOptions = emptyList())
+            T9PresentationState(topReading = null, pinyinOptions = emptyList()),
+        private val bulkFilterState: ChineseT9CandidatePipeline.BulkFilterState =
+            ChineseT9CandidatePipeline.BulkFilterState(
+                paged = null,
+                matchedPrefix = null,
+                pending = false
+            )
     ) : T9CandidateUiStateBuilder.Pipeline {
         var filterPagedByPrefixesCount = 0
         var requestBulkFilteredCount = 0
@@ -227,11 +261,7 @@ class T9CandidateUiStateBuilderTest {
         }
 
         override fun getT9BulkFilterState(): ChineseT9CandidatePipeline.BulkFilterState =
-            ChineseT9CandidatePipeline.BulkFilterState(
-                paged = null,
-                matchedPrefix = null,
-                pending = false
-            )
+            bulkFilterState
 
         override fun filterPagedByT9PinyinPrefixes(
             data: FcitxEvent.PagedCandidateEvent.Data,

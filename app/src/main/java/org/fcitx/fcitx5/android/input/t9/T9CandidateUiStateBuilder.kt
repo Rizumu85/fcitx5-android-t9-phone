@@ -142,6 +142,17 @@ class T9CandidateUiStateBuilder(
                     }
             }
             val bulkFilterState = pipeline.getT9BulkFilterState()
+            if (ChineseT9CandidateFrameGate.shouldDefer(
+                    ChineseT9CandidateFrameGate.Input(
+                        chineseSurface = chineseSurface,
+                        engineCandidatesPending = sourcePlan.deferRender,
+                        bulkCandidatesPending = bulkFilterState.pending,
+                        hasBulkCandidatePage = bulkFilterState.paged != null
+                    )
+                )
+            ) {
+                return@measure null
+            }
             val filteredPaged = T9ResponsivenessTrace.measure("CandidatesView.updateUi.filterPaged") {
                 when (sourcePlan.filterAction) {
                     T9CandidateSourceControlPlanner.FilterAction.EMPTY ->
@@ -153,7 +164,8 @@ class T9CandidateUiStateBuilder(
                 }
             }
             val localBudgetedPaged = if (sourcePlan.shouldBuildLocalBudget(
-                    hasBulkFilteredPage = bulkFilterState.paged != null
+                    hasBulkFilteredPage = bulkFilterState.paged != null,
+                    bulkFilterPending = bulkFilterState.pending
                 )
             ) {
                 T9ResponsivenessTrace.measure("CandidatesView.updateUi.localBudgetPage") {
