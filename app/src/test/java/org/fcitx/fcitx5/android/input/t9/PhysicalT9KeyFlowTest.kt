@@ -835,6 +835,24 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
+    fun chineseCompositionKeysPoundShortPressDefersEvenBeforeEditorComposingArrives() {
+        val flow = PhysicalT9KeyFlow()
+
+        val down = flow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, compositionKeyCount = 2)
+        )
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, compositionKeyCount = 2)
+        )
+
+        assertEquals(true, down?.handled)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), down?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.ForwardChineseComposingPoundShortPress), up?.commands)
+    }
+
+    @Test
     fun chineseComposingPoundLongPressDiscardsCompositionAndSwitchesMode() {
         val flow = PhysicalT9KeyFlow()
         flow.handle(
@@ -864,6 +882,33 @@ class PhysicalT9KeyFlowTest {
         )
         assertEquals(KeyEvent.KEYCODE_POUND, repeat?.consumedKeyUp)
         assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), up?.commands)
+    }
+
+    @Test
+    fun chineseCompositionKeysPoundLongPressDiscardsBeforeEditorComposingArrives() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, compositionKeyCount = 2)
+        )
+
+        val repeat = flow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                compositionKeyCount = 2,
+                heldPastLongPressDelay = true
+            )
+        )
+
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.DiscardChineseCompositionForModeSwitch,
+                PhysicalT9KeyFlow.Command.SwitchToNextMode
+            ),
+            repeat?.commands
+        )
+        assertEquals(KeyEvent.KEYCODE_POUND, repeat?.consumedKeyUp)
     }
 
     @Test

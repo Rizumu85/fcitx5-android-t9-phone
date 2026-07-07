@@ -343,10 +343,55 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
+    fun chineseCompositionKeysPoundShortPressDefersBeforeEditorComposingArrives() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            chineseComposing = false,
+            compositionKeyCount = 2
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN)).handled)
+        assertEquals(emptyList<Int>(), host.forwardedChineseT9Keys)
+        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP)).handled)
+        assertEquals(listOf(KeyEvent.KEYCODE_POUND), host.forwardedChineseT9Keys)
+        assertEquals(0, host.handleReturnCount)
+    }
+
+    @Test
     fun chineseCompositionPoundLongPressDiscardsCompositionAndSwitchesMode() {
         val host = FakeHost(
             mode = PhysicalT9KeyHandler.Mode.CHINESE,
             chineseComposing = true,
+            compositionKeyCount = 2
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN)).handled)
+        assertEquals(emptyList<Int>(), host.forwardedChineseT9Keys)
+        val repeat = handler.handleKeyDown(
+            keyInput(
+                keyCode = KeyEvent.KEYCODE_POUND,
+                action = KeyEvent.ACTION_DOWN,
+                repeatCount = 1,
+                eventTime = 700L
+            )
+        )
+        val up = handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP))
+
+        assertTrue(repeat.handled)
+        assertEquals(KeyEvent.KEYCODE_POUND, repeat.consumedKeyUp)
+        assertEquals(1, host.discardChineseCompositionForModeSwitchCount)
+        assertEquals(1, host.switchToNextModeCount)
+        assertEquals(emptyList<Int>(), host.forwardedChineseT9Keys)
+        assertTrue(up.handled)
+    }
+
+    @Test
+    fun chineseCompositionKeysPoundLongPressDiscardsBeforeEditorComposingArrives() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            chineseComposing = false,
             compositionKeyCount = 2
         )
         val handler = PhysicalT9KeyHandler(host)

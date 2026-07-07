@@ -163,7 +163,7 @@ class PhysicalT9KeyFlow {
         input: PhysicalT9KeyHandler.KeyInput,
         state: State
     ): Decision? {
-        if (state.chineseComposing) return handleChineseComposingPound(input, state)
+        if (state.hasChineseComposition) return handleChineseComposingPound(input, state)
         return when (input.action) {
             KeyEvent.ACTION_DOWN -> {
                 if (input.repeatCount == 0) {
@@ -187,6 +187,9 @@ class PhysicalT9KeyFlow {
             else -> null
         }
     }
+
+    private val State.hasChineseComposition: Boolean
+        get() = chineseComposing || compositionKeyCount > 0
 
     private fun handleChineseComposingPound(
         input: PhysicalT9KeyHandler.KeyInput,
