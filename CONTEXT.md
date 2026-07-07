@@ -124,6 +124,19 @@ This keeps the short-Hanzi-page edge case local: when a page has very few Hanzi
 candidates but many pinyin chips, the focused pinyin row keeps the same folded
 viewport and renders whole chips without layout-width churn.
 
+### T9 Candidate Render Pass
+
+The render-time decision for which Android candidate UI regions should mutate
+for one `T9CandidateRenderState`. It owns the pinyin-row action (`render`,
+`sync layout`, `clear`, or `none`), the hidden-frame early exit, and the
+visibility request derived after pinyin readiness is known.
+
+`T9CandidateUiRenderer` should execute this pass against Android views, not
+re-derive pinyin reveal rules inline. This keeps the frame lifecycle local:
+candidate content changes may ask the pinyin row to realign, hidden frames skip
+child rendering, and pending first-frame pinyin reveal retries until content is
+ready without broad UI refresh churn.
+
 ### Chinese T9 Candidate Frame Gate
 
 Chinese T9 candidate rendering must be source-fresh at the frame level. A frame

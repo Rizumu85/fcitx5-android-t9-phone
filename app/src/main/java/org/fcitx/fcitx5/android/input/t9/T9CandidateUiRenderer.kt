@@ -45,13 +45,16 @@ class T9CandidateUiRenderer(
 
     fun render(next: T9CandidateRenderState) {
         val patch = T9CandidateRenderer.diff(previousState, next)
-        val visibilityRequest = T9CandidateVisibilityPlanner.Request(
-            shouldShow = next.shouldShow,
-            contentReady = previousVisibilityRequest?.contentReady ?: true,
-            preferAboveCursorAnchor = next.preferAboveCursorAnchor
+        val renderPass = T9CandidateRenderPassPlanner.plan(
+            T9CandidateRenderPassPlanner.Input(
+                previousState = previousState,
+                nextState = next,
+                patch = patch,
+                previousVisibilityRequest = previousVisibilityRequest
+            )
         )
-        if (!next.shouldShow) {
-            when (T9CandidateVisibilityPlanner.plan(previousVisibilityRequest, visibilityRequest)) {
+        if (renderPass.skipChildRender) {
+            when (renderPass.hiddenVisibilityAction) {
                 T9CandidateVisibilityPlanner.Action.HIDE ->
                     T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderVisibility") {
                         delegate.hideCandidateUi()
@@ -59,7 +62,7 @@ class T9CandidateUiRenderer(
                 T9CandidateVisibilityPlanner.Action.SHOW,
                 T9CandidateVisibilityPlanner.Action.NONE -> Unit
             }
-            previousVisibilityRequest = visibilityRequest
+            previousVisibilityRequest = renderPass.hiddenVisibilityRequest
             previousState = next
             return
         }
@@ -80,45 +83,32 @@ class T9CandidateUiRenderer(
                 )
             }
         }
-        val hasPinyinRow = next.pinyinUseT9 && next.pinyinOptions.isNotEmpty()
-        val previousPinyinWasReady = previousVisibilityRequest?.contentReady == true
-        val previousPanelWasShown = previousVisibilityRequest?.shouldShow == true
-        val shouldClearPinyinRow = !next.pinyinUseT9 &&
-            (previousState == null || previousState?.pinyinUseT9 == true || previousState?.pinyinOptions?.isNotEmpty() == true)
-        val shouldEnsurePinyinRow = hasPinyinRow && (
-            previousState == null ||
-                !previousPanelWasShown ||
-                previousState?.pinyinUseT9 != true ||
-                previousState?.pinyinOptions?.isEmpty() == true ||
-                !previousPinyinWasReady
-            )
-        val pinyinRowReady = when {
-            shouldClearPinyinRow -> {
+        val pinyinRowReady = when (renderPass.pinyinAction) {
+            T9CandidateRenderPassPlanner.PinyinAction.CLEAR -> {
                 T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin") {
                     delegate.renderPinyin(emptyList(), false)
                 }
             }
-            patch.pinyin || shouldEnsurePinyinRow -> {
+            T9CandidateRenderPassPlanner.PinyinAction.RENDER -> {
                 T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin") {
                     delegate.renderPinyin(next.pinyinOptions, next.pinyinUseT9)
                 }
             }
-            patch.candidateContent && hasPinyinRow -> {
+            T9CandidateRenderPassPlanner.PinyinAction.SYNC_LAYOUT -> {
                 T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyinLayout") {
                     delegate.syncPinyinLayout()
                 }
             }
-            else -> previousVisibilityRequest?.contentReady ?: true
+            T9CandidateRenderPassPlanner.PinyinAction.NONE -> renderPass.fallbackContentReady
         }
         if (patch.focus) {
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderFocus") {
                 delegate.renderFocus(next.focus)
             }
         }
-        val nextVisibilityRequest = T9CandidateVisibilityPlanner.Request(
-            shouldShow = next.shouldShow,
-            contentReady = pinyinRowReady,
-            preferAboveCursorAnchor = next.preferAboveCursorAnchor
+        val nextVisibilityRequest = T9CandidateRenderPassPlanner.visibleRequest(
+            nextState = next,
+            contentReady = pinyinRowReady
         )
         when (T9CandidateVisibilityPlanner.plan(previousVisibilityRequest, nextVisibilityRequest)) {
             T9CandidateVisibilityPlanner.Action.SHOW ->

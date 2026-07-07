@@ -112,3 +112,9 @@ Surface. Width, folded ellipsis, focus-window display, highlight, and content
 readiness are planned together before `CandidatesView` touches Android views.
 This avoids repeated call-site recombination of the short-Hanzi-page folded row
 rules.
+
+Render-time pinyin row mutations are selected by a T9 Candidate Render Pass.
+The pass decides whether the pinyin row should render, sync layout, clear, or
+stay untouched before the Android renderer performs the view operations. This
+keeps the pinyin reveal retry contract testable while preserving the existing
+visual output.

@@ -131,3 +131,6 @@ otherwise.
 - [x] Deepen the T9 Pinyin Row Surface seam so folded/full/focused pinyin row
   width, hint, display window, and readiness are returned as one render-ready
   plan for `CandidatesView`.
+- [x] Deepen the T9 Candidate Render Pass seam so pinyin render/sync/clear
+  decisions and hidden-frame visibility decisions are planned outside the
+  Android renderer.
