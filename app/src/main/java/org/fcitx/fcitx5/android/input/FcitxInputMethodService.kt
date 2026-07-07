@@ -462,10 +462,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         resetComposingState()
         clearTransientInputUiState()
         currentInputConnection?.finishComposingText()
+        candidatesView?.refreshT9Ui()
         postFcitxJob {
-            if (getRimeInput().isNotEmpty()) {
-                focusOutIn()
-            }
+            focusOutIn()
         }
     }
 

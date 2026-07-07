@@ -84,6 +84,7 @@ class PhysicalT9KeyFlow {
         data class CommitHanziShortcut(val keyCode: Int) : Command()
         data class ForwardChineseT9KeyShortPress(val keyCode: Int) : Command()
         object ForwardChineseT9SeparatorShortPress : Command()
+        object ForwardChineseComposingPoundShortPress : Command()
         object TogglePendingPunctuationSet : Command()
         object HandleEnglishStarShortPress : Command()
         object HandleEnglishStarLongPress : Command()
@@ -194,8 +195,9 @@ class PhysicalT9KeyFlow {
         KeyEvent.ACTION_DOWN -> {
             if (input.repeatCount == 0) {
                 poundLongPressTriggered = false
-                // Short # stays on the existing Rime/Fcitx path for pinyin preview.
-                null
+                // Defer composing # until key-up. If it becomes a long press, Rime never sees the
+                // key and cannot open its old expansion list before we switch modes.
+                Decision(handled = true)
             } else if (!poundLongPressTriggered && state.heldPastLongPressDelay) {
                 poundLongPressTriggered = true
                 Decision(
@@ -215,7 +217,10 @@ class PhysicalT9KeyFlow {
                 poundLongPressTriggered = false
                 Decision(handled = true)
             } else {
-                null
+                Decision(
+                    handled = true,
+                    commands = listOf(Command.ForwardChineseComposingPoundShortPress)
+                )
             }
         }
         else -> null

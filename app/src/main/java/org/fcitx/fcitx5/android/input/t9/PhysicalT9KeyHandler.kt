@@ -260,6 +260,8 @@ class PhysicalT9KeyHandler(private val host: Host) {
                     host.forwardChineseT9KeyShortPress(command.keyCode, input)
                 PhysicalT9KeyFlow.Command.ForwardChineseT9SeparatorShortPress ->
                     host.forwardChineseT9SeparatorShortPress()
+                PhysicalT9KeyFlow.Command.ForwardChineseComposingPoundShortPress ->
+                    host.forwardChineseT9KeyShortPress(KeyEvent.KEYCODE_POUND, input)
                 PhysicalT9KeyFlow.Command.TogglePendingPunctuationSet ->
                     host.togglePendingPunctuationSet()
                 PhysicalT9KeyFlow.Command.HandleEnglishStarShortPress ->

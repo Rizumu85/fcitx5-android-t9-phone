@@ -327,7 +327,7 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
-    fun chineseCompositionPoundFallsThroughToRimeForwardingPath() {
+    fun chineseCompositionPoundShortPressDefersRimeForwardingUntilKeyUp() {
         val host = FakeHost(
             mode = PhysicalT9KeyHandler.Mode.CHINESE,
             chineseComposing = true,
@@ -335,8 +335,10 @@ class PhysicalT9KeyHandlerTest {
         )
         val handler = PhysicalT9KeyHandler(host)
 
-        assertFalse(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN)).handled)
-        assertFalse(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP)).handled)
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN)).handled)
+        assertEquals(emptyList<Int>(), host.forwardedChineseT9Keys)
+        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP)).handled)
+        assertEquals(listOf(KeyEvent.KEYCODE_POUND), host.forwardedChineseT9Keys)
         assertEquals(0, host.handleReturnCount)
     }
 
@@ -349,7 +351,8 @@ class PhysicalT9KeyHandlerTest {
         )
         val handler = PhysicalT9KeyHandler(host)
 
-        assertFalse(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN)).handled)
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN)).handled)
+        assertEquals(emptyList<Int>(), host.forwardedChineseT9Keys)
         val repeat = handler.handleKeyDown(
             keyInput(
                 keyCode = KeyEvent.KEYCODE_POUND,
@@ -364,6 +367,7 @@ class PhysicalT9KeyHandlerTest {
         assertEquals(KeyEvent.KEYCODE_POUND, repeat.consumedKeyUp)
         assertEquals(1, host.discardChineseCompositionForModeSwitchCount)
         assertEquals(1, host.switchToNextModeCount)
+        assertEquals(emptyList<Int>(), host.forwardedChineseT9Keys)
         assertTrue(up.handled)
     }
 
