@@ -9,6 +9,8 @@ otherwise.
 Rizum Guidelines are active for this project/thread until the user says
 otherwise.
 
+- Spend time on thinking; you do not need to use the commentary channel to report progress to me.
+
 ## Version Control Backups
 
 - After each conversation that changes files, commit and push the completed
