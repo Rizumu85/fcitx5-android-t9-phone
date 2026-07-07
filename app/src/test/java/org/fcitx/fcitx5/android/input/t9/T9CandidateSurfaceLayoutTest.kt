@@ -74,7 +74,7 @@ class T9CandidateSurfaceLayoutTest {
     }
 
     @Test
-    fun focusedFoldedPinyinUsesHanziBubbleWidth() {
+    fun keepsFoldedWidthStableWhenPinyinRowIsFocused() {
         val plan = T9CandidateSurfaceLayout.plan(
             input(
                 candidateMeasuredWidthPx = 80,
@@ -84,7 +84,7 @@ class T9CandidateSurfaceLayoutTest {
             )
         )
 
-        assertEquals(80, plan.rowWidthPx)
+        assertEquals(150, plan.rowWidthPx)
         val pinyin = requireNotNull(plan.pinyin)
         assertTrue(pinyin.folded)
         assertFalse(pinyin.showHint)

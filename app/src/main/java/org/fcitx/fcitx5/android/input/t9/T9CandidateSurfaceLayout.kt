@@ -43,15 +43,10 @@ object T9CandidateSurfaceLayout {
             minVisibleChips = input.minVisiblePinyinChips,
             pinyinRowFocused = input.pinyinRowFocused
         )
-        // Product decision: the second bubble is visually a Hanzi candidate bubble. The pinyin
-        // filter may widen it only while the collapsed ellipsis is visible; once the user focuses
-        // the pinyin row, the viewport should stay anchored to the Hanzi bubble instead of
-        // expanding and changing proportions.
-        val pinyinWidth = if (pinyinPlan.folded && pinyinPlan.showHint) {
-            input.pinyinFoldedContentWidthPx
-        } else {
-            0
-        }
+        // Product decision: folded pinyin owns a stable viewport. The ellipsis disappears when
+        // the user focuses the pinyin row, but the bubble must keep the folded width so focus
+        // movement can reveal whole chips instead of collapsing to a short Hanzi page.
+        val pinyinWidth = if (pinyinPlan.folded) input.pinyinFoldedContentWidthPx else 0
         return Plan(
             contentReady = true,
             rowWidthPx = maxOf(safeCandidateWidth, pinyinWidth.coerceAtMost(maxWidth))

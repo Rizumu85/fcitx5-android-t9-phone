@@ -122,3 +122,6 @@ otherwise.
   render-stable input snapshot while preserving the current visual algorithms.
 - [x] Remove the misdiagnosed pinyin-chip strip layout seam after frame
   evidence showed the stale Hanzi candidate row was the true refresh bug.
+- [x] Keep folded pinyin width stable when focus moves from Hanzi candidates
+  to the pinyin filter row, so short second pages do not collapse the focused
+  pinyin viewport.
