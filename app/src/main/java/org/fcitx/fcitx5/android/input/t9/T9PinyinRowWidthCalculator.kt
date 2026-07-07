@@ -52,13 +52,13 @@ object T9PinyinRowWidthCalculator {
         items: List<String>,
         input: Input
     ): Int {
-        return items.withIndex().sumOf { (index, item) ->
-            val rightMarginPx = if (index != items.lastIndex) {
-                input.chipSpacingPx
-            } else {
-                0
-            }
-            input.measureTextWidthPx(item) + input.chipHorizontalPaddingPx * 2 + rightMarginPx
-        }
+        return T9PinyinChipStripLayout.plan(
+            T9PinyinChipStripLayout.Input(
+                items = items,
+                chipHorizontalPaddingPx = input.chipHorizontalPaddingPx,
+                chipSpacingPx = input.chipSpacingPx,
+                measureTextWidthPx = input.measureTextWidthPx
+            )
+        ).contentWidthPx
     }
 }
