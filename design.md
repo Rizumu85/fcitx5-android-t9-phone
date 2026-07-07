@@ -92,3 +92,17 @@ also running the short-press behavior.
 The same rule applies to the physical OK/confirm key used to enter selection
 mode, so laggy repeat events cannot trigger selection mode before the configured
 long-press threshold.
+
+## T9 Candidate UI Snapshot Pipeline Design
+
+`CandidatesView` acts as an Android view adapter for T9 candidates. It may
+collect measured view inputs, current Fcitx candidate data, and mode-specific
+runtime snapshots, but it should not decide which T9 candidate surface wins or
+how preview, paging, focus, and visibility rules combine.
+
+The snapshot pipeline consumes an immutable `T9CandidateUiInputSnapshot` for a
+single refresh pass. This keeps collection order separate from UI decisions and
+prevents refresh bugs where one state source updates while a second source
+rebuilds stale render state. The first narrowing slice preserves all existing
+visual algorithms and only moves the builder seam from scattered getters to a
+single collected snapshot.

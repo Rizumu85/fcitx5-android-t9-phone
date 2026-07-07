@@ -39,8 +39,10 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSnapshotKey
 import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
+import org.fcitx.fcitx5.android.input.t9.T9CandidateUiInputSnapshot
 import org.fcitx.fcitx5.android.input.t9.T9CandidateRowWidthCalculator
 import org.fcitx.fcitx5.android.input.t9.T9CandidateSurfaceLayout
+import org.fcitx.fcitx5.android.input.t9.T9CandidateUiSnapshot
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiSnapshotPipeline
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiStateBuilder
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiRenderer
@@ -252,25 +254,10 @@ class CandidatesView(
             visibility = INVISIBLE
         }
     })
-    private val t9CandidateUiStateBuilder = T9CandidateUiStateBuilder(object : T9CandidateUiStateBuilder.Delegate {
-        override fun getChineseT9InputSnapshot(
-            inputPanel: FcitxEvent.InputPanelEvent.Data
-        ): ChineseT9InputSnapshot =
-            service.getChineseT9InputSnapshot(inputPanel)
-
-        override fun isChineseT9InputModeActive(): Boolean = service.isChineseT9InputModeActive()
-
-        override fun isSmartEnglishT9InputModeActive(): Boolean = service.isSmartEnglishT9InputModeActive()
-
-        override fun getSmartEnglishT9Paged(): FcitxEvent.PagedCandidateEvent.Data? =
-            service.getSmartEnglishT9Paged()
-
+    private val t9CandidateUiStateBuilder = T9CandidateUiStateBuilder(object : T9CandidateUiStateBuilder.Pipeline {
         override fun buildSmartEnglishPaged(
             data: FcitxEvent.PagedCandidateEvent.Data
         ): T9PagedCandidates = t9CandidateUiSnapshotPipeline.buildSmartEnglishPaged(data)
-
-        override fun getPendingT9PunctuationPaged(): FcitxEvent.PagedCandidateEvent.Data? =
-            service.getPendingT9PunctuationPaged()
 
         override fun buildT9PendingPunctuationPaged(
             data: FcitxEvent.PagedCandidateEvent.Data
@@ -302,17 +289,17 @@ class CandidatesView(
             this@CandidatesView.resetT9LocalBudgetState()
         }
 
-        override fun buildT9CursorContextSignature(prefixes: List<String>): String =
-            t9CandidateUiSnapshotPipeline.buildChineseCursorContextSignature(inputPanel.preedit.toString(), prefixes)
+        override fun buildT9CursorContextSignature(
+            preedit: CharSequence,
+            prefixes: List<String>
+        ): String =
+            t9CandidateUiSnapshotPipeline.buildChineseCursorContextSignature(preedit, prefixes)
 
         override fun applyT9HanziCursor(
             data: FcitxEvent.PagedCandidateEvent.Data,
             cursorContextSignature: String
         ): FcitxEvent.PagedCandidateEvent.Data =
             t9CandidateUiSnapshotPipeline.applyChineseHanziCursor(data, cursorContextSignature)
-
-        override fun getSmartEnglishT9Presentation(): T9PresentationState? =
-            service.getSmartEnglishT9Presentation()
 
         override fun getT9PresentationState(
             key: ChineseT9PresentationSnapshotKey
@@ -322,11 +309,6 @@ class CandidatesView(
             service.clearHiddenChineseT9CompositionIfCandidateUiSuppressed()
         }
 
-        override fun effectiveT9CandidateFocus(
-            pinyinOptions: List<String>,
-            useT9PinyinRow: Boolean
-        ): T9CandidateFocus =
-            this@CandidatesView.effectiveT9CandidateFocus(pinyinOptions, useT9PinyinRow)
     })
     private var pinyinRowTargetVisible = false
     private var pinyinRowRevealPending = false
@@ -766,23 +748,59 @@ class CandidatesView(
     }
 
     private fun updateUi() = T9ResponsivenessTrace.measure("CandidatesView.updateUi") {
-        buildT9CandidateUiState()?.let { result ->
-            applyT9ShownState(result.shownState)
-            t9CandidateUiRenderer.render(result.renderState)
+        buildT9CandidateUiState()?.let { snapshot ->
+            applyT9CandidateUiSnapshot(snapshot)
+            t9CandidateUiRenderer.render(snapshot.renderState)
         }
     }
 
-    private fun buildT9CandidateUiState(): T9CandidateUiStateBuilder.Result? =
-        t9CandidateUiStateBuilder.build(
-            T9CandidateUiStateBuilder.Input(
+    private fun buildT9CandidateUiState(): T9CandidateUiSnapshot? {
+        val chineseT9Active = service.isChineseT9InputModeActive()
+        val smartEnglishActive = t9InputModeEnabled &&
+            !chineseT9Active &&
+            service.isSmartEnglishT9InputModeActive()
+        // Product decision: collect volatile service/view state once per frame so the snapshot
+        // pipeline decides from a stable picture instead of interleaving getters with UI rules.
+        return t9CandidateUiStateBuilder.build(
+            T9CandidateUiInputSnapshot(
                 t9InputModeEnabled = t9InputModeEnabled,
                 inputPanel = inputPanel,
                 rawPaged = paged,
                 orientation = orientation,
                 currentlyVisible = visibility == VISIBLE,
-                loadingState = chineseT9CandidateLoadingState
+                loadingState = chineseT9CandidateLoadingState,
+                widthBudget = t9CandidateWidthBudget(),
+                chineseT9Active = chineseT9Active,
+                smartEnglishActive = smartEnglishActive,
+                chineseSnapshot = if (chineseT9Active) {
+                    service.getChineseT9InputSnapshot(inputPanel)
+                } else {
+                    null
+                },
+                smartEnglishRawPaged = if (smartEnglishActive) {
+                    service.getSmartEnglishT9Paged()
+                } else {
+                    null
+                },
+                pendingPunctuationRawPaged = if (chineseT9Active || smartEnglishActive) {
+                    service.getPendingT9PunctuationPaged()
+                } else {
+                    null
+                },
+                smartEnglishPresentation = if (smartEnglishActive) {
+                    service.getSmartEnglishT9Presentation()
+                } else {
+                    null
+                },
+                currentFocus = service.getT9CandidateFocus()
             )
         )
+    }
+
+    private fun applyT9CandidateUiSnapshot(snapshot: T9CandidateUiSnapshot) {
+        snapshot.focusCorrection?.let(service::moveT9CandidateFocus)
+        applyT9ShownState(snapshot.shownState)
+    }
 
     private fun applyT9ShownState(shownState: T9CandidateUiStateBuilder.ShownState) {
         val snapshot = t9CandidateUiSnapshotPipeline.updateShownState(
@@ -800,18 +818,6 @@ class CandidatesView(
             shownState.originalIndices
         }
         t9ShownUsesLocalBudget = shownState.usesLocalBudget
-    }
-
-    private fun effectiveT9CandidateFocus(
-        pinyinOptions: List<String>,
-        useT9PinyinRow: Boolean
-    ): T9CandidateFocus {
-        val current = service.getT9CandidateFocus()
-        if (useT9PinyinRow && pinyinOptions.isNotEmpty()) return current
-        if (current == T9CandidateFocus.TOP) {
-            service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
-        }
-        return T9CandidateFocus.BOTTOM
     }
 
     private fun selectT9ShownHanziCandidate(shownIndex: Int): Boolean {

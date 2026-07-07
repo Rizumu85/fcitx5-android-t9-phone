@@ -16,57 +16,45 @@ import org.junit.Test
 class T9CandidateUiStateBuilderTest {
 
     @Test
-    fun chineseSurfaceDoesNotQuerySmartEnglishState() {
-        val delegate = FakeDelegate(
+    fun chineseSurfaceUsesChinesePresentationOnly() {
+        val pipeline = FakePipeline()
+        val result = T9CandidateUiStateBuilder(pipeline).build(input(
             chineseActive = true,
             smartEnglishActive = false
-        )
-        val result = T9CandidateUiStateBuilder(delegate).build(input())
+        ))
 
         assertNotNull(result)
-        assertEquals(1, delegate.chineseSnapshotCount)
-        assertEquals(0, delegate.isSmartEnglishActiveCount)
-        assertEquals(0, delegate.getSmartEnglishPagedCount)
-        assertEquals(0, delegate.getSmartEnglishPresentationCount)
-        assertEquals(1, delegate.getT9PresentationCount)
+        assertEquals(1, pipeline.getT9PresentationCount)
         assertFalse(result!!.renderState.preferAboveCursorAnchor)
     }
 
     @Test
     fun smartEnglishSurfaceDoesNotRunChineseCompositionOrFilteringWork() {
-        val delegate = FakeDelegate(
+        val pipeline = FakePipeline()
+        val result = T9CandidateUiStateBuilder(pipeline).build(input(
             chineseActive = false,
-            smartEnglishActive = true,
             smartEnglishPaged = paged("hello")
-        )
-        val result = T9CandidateUiStateBuilder(delegate).build(input())
+        ))
 
         assertNotNull(result)
-        assertEquals(0, delegate.chineseSnapshotCount)
-        assertEquals(1, delegate.isSmartEnglishActiveCount)
-        assertEquals(1, delegate.getSmartEnglishPagedCount)
-        assertEquals(1, delegate.getSmartEnglishPresentationCount)
-        assertEquals(0, delegate.filterPagedByPrefixesCount)
-        assertEquals(0, delegate.requestBulkFilteredCount)
-        assertEquals(0, delegate.buildCursorContextSignatureCount)
-        assertEquals(0, delegate.applyHanziCursorCount)
-        assertEquals(0, delegate.getT9PresentationCount)
+        assertEquals(0, pipeline.filterPagedByPrefixesCount)
+        assertEquals(0, pipeline.requestBulkFilteredCount)
+        assertEquals(0, pipeline.buildCursorContextSignatureCount)
+        assertEquals(0, pipeline.applyHanziCursorCount)
+        assertEquals(0, pipeline.getT9PresentationCount)
     }
 
     @Test
     fun smartEnglishPredictionCanReserveTopReadingRowWithoutText() {
-        val delegate = FakeDelegate(
+        val result = T9CandidateUiStateBuilder(FakePipeline()).build(input(
             chineseActive = false,
-            smartEnglishActive = true,
             smartEnglishPaged = paged("morning"),
             smartEnglishPresentation = T9PresentationState(
                 topReading = null,
                 pinyinOptions = emptyList(),
                 reserveTopReadingRow = true
             )
-        )
-
-        val result = T9CandidateUiStateBuilder(delegate).build(input())
+        ))
 
         assertNotNull(result)
         assertTrue(result!!.renderState.reservePreeditRow)
@@ -75,32 +63,26 @@ class T9CandidateUiStateBuilderTest {
 
     @Test
     fun smartEnglishPunctuationShowsSelectedPreviewInTopBubble() {
-        val delegate = FakeDelegate(
+        val pipeline = FakePipeline()
+        val result = T9CandidateUiStateBuilder(pipeline).build(input(
             chineseActive = false,
-            smartEnglishActive = true,
             smartEnglishPresentation = T9PresentationState(
                 topReading = text("hello"),
                 pinyinOptions = emptyList()
             ),
             pendingPunctuationPaged = pagedWithCursor(0, ".", ",")
-        )
-
-        val result = T9CandidateUiStateBuilder(delegate).build(input())
+        ))
 
         assertNotNull(result)
         assertEquals(".", result!!.renderState.panel.preedit.toString())
-        assertEquals(0, delegate.getSmartEnglishPresentationCount)
     }
 
     @Test
     fun smartEnglishPunctuationPreviewFollowsCandidateCursor() {
-        val delegate = FakeDelegate(
+        val result = T9CandidateUiStateBuilder(FakePipeline()).build(input(
             chineseActive = false,
-            smartEnglishActive = true,
             pendingPunctuationPaged = pagedWithCursor(1, ".", ",")
-        )
-
-        val result = T9CandidateUiStateBuilder(delegate).build(input())
+        ))
 
         assertNotNull(result)
         assertEquals(",", result!!.renderState.panel.preedit.toString())
@@ -111,25 +93,24 @@ class T9CandidateUiStateBuilderTest {
         val loadingState = ChineseT9CandidateLoadingState().apply {
             startIfNeeded(chineseT9Active = true, compositionKeyCount = 1)
         }
-        val delegate = FakeDelegate(
-            chineseActive = true,
-            smartEnglishActive = false,
+        val pipeline = FakePipeline(
             chinesePresentation = T9PresentationState(
                 topReading = null,
                 pinyinOptions = listOf("a", "b", "c")
             )
         )
 
-        val result = T9CandidateUiStateBuilder(delegate).build(
+        val result = T9CandidateUiStateBuilder(pipeline).build(
             input(
                 rawPaged = FcitxEvent.PagedCandidateEvent.Data.Empty,
+                chineseActive = true,
                 currentlyVisible = true,
                 loadingState = loadingState
             )
         )
 
         assertEquals(null, result)
-        assertEquals(0, delegate.getT9PresentationCount)
+        assertEquals(0, pipeline.getT9PresentationCount)
     }
 
     @Test
@@ -137,32 +118,37 @@ class T9CandidateUiStateBuilderTest {
         val loadingState = ChineseT9CandidateLoadingState().apply {
             startIfNeeded(chineseT9Active = true, compositionKeyCount = 1)
         }
-        val delegate = FakeDelegate(
-            chineseActive = true,
-            smartEnglishActive = false,
+        val pipeline = FakePipeline(
             chinesePresentation = T9PresentationState(
                 topReading = null,
                 pinyinOptions = listOf("a", "b", "c")
             )
         )
 
-        val result = T9CandidateUiStateBuilder(delegate).build(
+        val result = T9CandidateUiStateBuilder(pipeline).build(
             input(
                 rawPaged = FcitxEvent.PagedCandidateEvent.Data.Empty,
+                chineseActive = true,
                 currentlyVisible = false,
                 loadingState = loadingState
             )
         )
 
         assertEquals(null, result)
-        assertEquals(0, delegate.getT9PresentationCount)
+        assertEquals(0, pipeline.getT9PresentationCount)
     }
 
     @Test
     fun emptyChineseCompositionSuppressesStaleCandidatesAndPresentation() {
-        val delegate = FakeDelegate(
+        val pipeline = FakePipeline(
+            chinesePresentation = T9PresentationState(
+                topReading = text("stale"),
+                pinyinOptions = listOf("stale")
+            )
+        )
+
+        val result = T9CandidateUiStateBuilder(pipeline).build(input(
             chineseActive = true,
-            smartEnglishActive = false,
             chineseSnapshot = ChineseT9InputSnapshot(
                 rawSequence = "",
                 digitSequence = "",
@@ -173,80 +159,52 @@ class T9CandidateUiStateBuilderTest {
                 filterPrefixes = emptyList(),
                 hasPendingPinyinSelection = false,
                 sessionRevision = 2
-            ),
-            chinesePresentation = T9PresentationState(
-                topReading = text("stale"),
-                pinyinOptions = listOf("stale")
             )
-        )
-
-        val result = T9CandidateUiStateBuilder(delegate).build(
-            input(rawPaged = paged("旧"))
-        )
+        ).copy(rawPaged = paged("旧")))
 
         assertNotNull(result)
         assertFalse(result!!.renderState.shouldShow)
         assertTrue(result.renderState.candidates.candidates.isEmpty())
         assertTrue(result.renderState.pinyinOptions.isEmpty())
-        assertEquals(0, delegate.getT9PresentationCount)
+        assertEquals(0, pipeline.getT9PresentationCount)
     }
 
     @Test
     fun repeatedChineseSnapshotReusesPresentationState() {
-        val delegate = FakeDelegate(
-            chineseActive = true,
-            smartEnglishActive = false
-        )
-        val builder = T9CandidateUiStateBuilder(delegate)
+        val pipeline = FakePipeline()
+        val builder = T9CandidateUiStateBuilder(pipeline)
 
-        val first = builder.build(input(rawPaged = paged(candidate("你", comment = "ni"))))
-        val second = builder.build(input(rawPaged = paged(candidate("你", comment = "ni"))))
+        val first = builder.build(input(
+            rawPaged = paged(candidate("你", comment = "ni")),
+            chineseActive = true
+        ))
+        val second = builder.build(input(
+            rawPaged = paged(candidate("你", comment = "ni")),
+            chineseActive = true
+        ))
 
         assertNotNull(first)
         assertNotNull(second)
-        assertEquals(1, delegate.getT9PresentationCount)
-        assertEquals(1, delegate.presentationKeys.distinct().size)
+        assertEquals(1, pipeline.getT9PresentationCount)
+        assertEquals(1, pipeline.presentationKeys.distinct().size)
     }
 
     @Test
     fun chinesePresentationRebuildsWhenCandidatePreviewChanges() {
-        val delegate = FakeDelegate(
-            chineseActive = true,
-            smartEnglishActive = false
-        )
-        val builder = T9CandidateUiStateBuilder(delegate)
+        val pipeline = FakePipeline()
+        val builder = T9CandidateUiStateBuilder(pipeline)
 
-        builder.build(input(rawPaged = paged(candidate("你", comment = "ni"))))
-        builder.build(input(rawPaged = paged(candidate("好", comment = "hao"))))
+        builder.build(input(rawPaged = paged(candidate("你", comment = "ni")), chineseActive = true))
+        builder.build(input(rawPaged = paged(candidate("好", comment = "hao")), chineseActive = true))
 
-        assertEquals(2, delegate.getT9PresentationCount)
-        assertEquals(listOf("ni", "hao"), delegate.presentationKeys.map { it.candidateComment })
+        assertEquals(2, pipeline.getT9PresentationCount)
+        assertEquals(listOf("ni", "hao"), pipeline.presentationKeys.map { it.candidateComment })
     }
 
-    private class FakeDelegate(
-        private val chineseActive: Boolean,
-        private val smartEnglishActive: Boolean,
-        private val smartEnglishPaged: FcitxEvent.PagedCandidateEvent.Data? = null,
-        private val smartEnglishPresentation: T9PresentationState? = null,
-        private val pendingPunctuationPaged: FcitxEvent.PagedCandidateEvent.Data? = null,
-        private val chineseSnapshot: ChineseT9InputSnapshot = ChineseT9InputSnapshot(
-            rawSequence = "2",
-            digitSequence = "2",
-            currentSegment = "2",
-            fullComposition = "2",
-            model = T9CompositionModel(unresolvedDigits = "2", rawPreedit = "2"),
-            keyCount = 1,
-            filterPrefixes = emptyList(),
-            hasPendingPinyinSelection = false,
-            sessionRevision = 1
-        ),
+    private class FakePipeline(
         private val chinesePresentation: T9PresentationState =
             T9PresentationState(topReading = null, pinyinOptions = emptyList())
-    ) : T9CandidateUiStateBuilder.Delegate {
-        var chineseSnapshotCount = 0
-        var isSmartEnglishActiveCount = 0
-        var getSmartEnglishPagedCount = 0
-        var getSmartEnglishPresentationCount = 0
+    ) : T9CandidateUiStateBuilder.Pipeline {
         var filterPagedByPrefixesCount = 0
         var requestBulkFilteredCount = 0
         var buildCursorContextSignatureCount = 0
@@ -254,31 +212,9 @@ class T9CandidateUiStateBuilderTest {
         var getT9PresentationCount = 0
         val presentationKeys = mutableListOf<ChineseT9PresentationSnapshotKey>()
 
-        override fun getChineseT9InputSnapshot(
-            inputPanel: FcitxEvent.InputPanelEvent.Data
-        ): ChineseT9InputSnapshot {
-            chineseSnapshotCount += 1
-            return chineseSnapshot
-        }
-
-        override fun isChineseT9InputModeActive(): Boolean = chineseActive
-
-        override fun isSmartEnglishT9InputModeActive(): Boolean {
-            isSmartEnglishActiveCount += 1
-            return smartEnglishActive
-        }
-
-        override fun getSmartEnglishT9Paged(): FcitxEvent.PagedCandidateEvent.Data? {
-            getSmartEnglishPagedCount += 1
-            return smartEnglishPaged
-        }
-
         override fun buildSmartEnglishPaged(
             data: FcitxEvent.PagedCandidateEvent.Data
         ): T9PagedCandidates = T9PagedCandidates.passthrough(data)
-
-        override fun getPendingT9PunctuationPaged(): FcitxEvent.PagedCandidateEvent.Data? =
-            pendingPunctuationPaged
 
         override fun buildT9PendingPunctuationPaged(
             data: FcitxEvent.PagedCandidateEvent.Data
@@ -311,9 +247,12 @@ class T9CandidateUiStateBuilderTest {
 
         override fun resetT9LocalBudgetState() = Unit
 
-        override fun buildT9CursorContextSignature(prefixes: List<String>): String {
+        override fun buildT9CursorContextSignature(
+            preedit: CharSequence,
+            prefixes: List<String>
+        ): String {
             buildCursorContextSignatureCount += 1
-            return prefixes.joinToString()
+            return "$preedit|${prefixes.joinToString()}"
         }
 
         override fun applyT9HanziCursor(
@@ -324,11 +263,6 @@ class T9CandidateUiStateBuilderTest {
             return data
         }
 
-        override fun getSmartEnglishT9Presentation(): T9PresentationState? {
-            getSmartEnglishPresentationCount += 1
-            return smartEnglishPresentation
-        }
-
         override fun getT9PresentationState(key: ChineseT9PresentationSnapshotKey): T9PresentationState {
             getT9PresentationCount += 1
             presentationKeys += key
@@ -336,25 +270,48 @@ class T9CandidateUiStateBuilderTest {
         }
 
         override fun clearHiddenChineseT9CompositionIfCandidateUiSuppressed() = Unit
-
-        override fun effectiveT9CandidateFocus(
-            pinyinOptions: List<String>,
-            useT9PinyinRow: Boolean
-        ): T9CandidateFocus = T9CandidateFocus.BOTTOM
     }
 
     private fun input(
         rawPaged: FcitxEvent.PagedCandidateEvent.Data = paged("你"),
+        chineseActive: Boolean = true,
+        smartEnglishActive: Boolean = !chineseActive,
+        chineseSnapshot: ChineseT9InputSnapshot? = if (chineseActive) defaultChineseSnapshot() else null,
+        smartEnglishPaged: FcitxEvent.PagedCandidateEvent.Data? = null,
+        smartEnglishPresentation: T9PresentationState? = null,
+        pendingPunctuationPaged: FcitxEvent.PagedCandidateEvent.Data? = null,
         currentlyVisible: Boolean = false,
-        loadingState: ChineseT9CandidateLoadingState = ChineseT9CandidateLoadingState()
-    ): T9CandidateUiStateBuilder.Input =
-        T9CandidateUiStateBuilder.Input(
+        loadingState: ChineseT9CandidateLoadingState = ChineseT9CandidateLoadingState(),
+        currentFocus: T9CandidateFocus = T9CandidateFocus.BOTTOM
+    ): T9CandidateUiInputSnapshot =
+        T9CandidateUiInputSnapshot(
             t9InputModeEnabled = true,
             inputPanel = FcitxEvent.InputPanelEvent.Data(),
             rawPaged = rawPaged,
             orientation = FloatingCandidatesOrientation.Horizontal,
             currentlyVisible = currentlyVisible,
-            loadingState = loadingState
+            loadingState = loadingState,
+            widthBudget = null,
+            chineseT9Active = chineseActive,
+            smartEnglishActive = smartEnglishActive,
+            chineseSnapshot = chineseSnapshot,
+            smartEnglishRawPaged = smartEnglishPaged,
+            pendingPunctuationRawPaged = pendingPunctuationPaged,
+            smartEnglishPresentation = smartEnglishPresentation,
+            currentFocus = currentFocus
+        )
+
+    private fun defaultChineseSnapshot(): ChineseT9InputSnapshot =
+        ChineseT9InputSnapshot(
+            rawSequence = "2",
+            digitSequence = "2",
+            currentSegment = "2",
+            fullComposition = "2",
+            model = T9CompositionModel(unresolvedDigits = "2", rawPreedit = "2"),
+            keyCount = 1,
+            filterPrefixes = emptyList(),
+            hasPendingPinyinSelection = false,
+            sessionRevision = 1
         )
 
     private fun paged(text: String): FcitxEvent.PagedCandidateEvent.Data =

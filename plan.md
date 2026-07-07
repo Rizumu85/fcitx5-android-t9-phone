@@ -118,3 +118,5 @@ otherwise.
   offset state into the snapshot pipeline.
 - [x] Migrate Chinese local-budget candidate paging, Hanzi cursor state, and
   pinyin row window/highlight state into the snapshot pipeline.
+- [x] Narrow the T9 Candidate UI Snapshot Pipeline input seam by introducing a
+  render-stable input snapshot while preserving the current visual algorithms.
