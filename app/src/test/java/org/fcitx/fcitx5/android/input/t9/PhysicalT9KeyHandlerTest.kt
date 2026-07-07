@@ -303,9 +303,27 @@ class PhysicalT9KeyHandlerTest {
         val host = FakeHost(mode = PhysicalT9KeyHandler.Mode.CHINESE)
         val handler = PhysicalT9KeyHandler(host)
 
-        assertFalse(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN)).handled)
+        val down = handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN))
+
+        assertFalse(down.handled)
+        assertEquals(KeyEvent.KEYCODE_2, down.consumedKeyUp)
         assertFalse(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP)).handled)
         assertEquals(emptyList<String>(), host.committedTexts)
+    }
+
+    @Test
+    fun chineseTransientComposingWithoutCompositionKeysFallsThroughButConsumesKeyUp() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            chineseComposing = true,
+            compositionKeyCount = 0
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        val down = handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_4, KeyEvent.ACTION_DOWN))
+
+        assertFalse(down.handled)
+        assertEquals(KeyEvent.KEYCODE_4, down.consumedKeyUp)
     }
 
     @Test

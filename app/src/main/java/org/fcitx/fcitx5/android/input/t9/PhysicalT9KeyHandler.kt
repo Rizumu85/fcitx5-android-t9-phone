@@ -125,7 +125,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
         if (!host.isInInputMode) return KeyResult(handled = false)
         if (input.action != KeyEvent.ACTION_DOWN) return KeyResult(handled = false)
 
-        handleCommandKeyFlow(input).takeIf { it.handled }?.let { return it }
+        handleCommandKeyFlow(input).takeIf { it.handled || it.consumedKeyUp != null }?.let { return it }
         return KeyResult(handled = false)
     }
 

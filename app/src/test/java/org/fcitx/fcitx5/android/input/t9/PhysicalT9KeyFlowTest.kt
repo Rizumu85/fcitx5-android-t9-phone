@@ -629,13 +629,15 @@ class PhysicalT9KeyFlowTest {
     fun chineseComposingWithoutCompositionKeysDoesNotSwallowZeroOrOneShortPress() {
         val zeroFlow = PhysicalT9KeyFlow()
 
+        val zeroDown = zeroFlow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, chineseComposing = true)
+        )
         assertEquals(
             false,
-            zeroFlow.handle(
-                input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN),
-                state(mode = PhysicalT9KeyHandler.Mode.CHINESE, chineseComposing = true)
-            )?.handled
+            zeroDown?.handled
         )
+        assertEquals(KeyEvent.KEYCODE_0, zeroDown?.consumedKeyUp)
         assertNull(
             zeroFlow.handle(
                 input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_UP),
@@ -644,13 +646,15 @@ class PhysicalT9KeyFlowTest {
         )
 
         val oneFlow = PhysicalT9KeyFlow()
+        val oneDown = oneFlow.handle(
+            input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, chineseComposing = true)
+        )
         assertEquals(
             false,
-            oneFlow.handle(
-                input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN),
-                state(mode = PhysicalT9KeyHandler.Mode.CHINESE, chineseComposing = true)
-            )?.handled
+            oneDown?.handled
         )
+        assertEquals(KeyEvent.KEYCODE_1, oneDown?.consumedKeyUp)
         assertNull(
             oneFlow.handle(
                 input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP),
@@ -753,6 +757,7 @@ class PhysicalT9KeyFlowTest {
         )
 
         assertEquals(false, idleDown?.handled)
+        assertEquals(KeyEvent.KEYCODE_2, idleDown?.consumedKeyUp)
         assertNull(idleUp)
 
         val composingFlow = PhysicalT9KeyFlow()

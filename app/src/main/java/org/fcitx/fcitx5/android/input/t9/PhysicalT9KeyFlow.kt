@@ -319,8 +319,14 @@ class PhysicalT9KeyFlow {
             setDigitLongPressFlag(input.keyCode, false)
             return when {
                 state.compositionKeyCount > 0 -> Decision(handled = true)
-                state.chineseComposing -> Decision(handled = false)
-                shortPressIdleFallsThrough -> Decision(handled = false)
+                state.chineseComposing -> Decision(
+                    handled = false,
+                    consumedKeyUp = input.keyCode
+                )
+                shortPressIdleFallsThrough -> Decision(
+                    handled = false,
+                    consumedKeyUp = input.keyCode
+                )
                 else -> Decision(handled = true, commands = shortPressIdleCommands)
             }
         }
