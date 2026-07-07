@@ -38,6 +38,7 @@ class LabeledCandidateItemUi(
     private var lastCandidateText = ""
     private var lastCandidateComment = ""
     private var lastUsesShortcutLabel = false
+    private var lastShortcutEdgeAlignedEnd = false
 
     private val candidateText = TextView(ctx).apply {
         setupTextView(this)
@@ -93,15 +94,24 @@ class LabeledCandidateItemUi(
         inactiveRow: Boolean = false,
         t9InputModeEnabled: Boolean = false,
         shortcutLabel: String? = null,
-        shortcutMaxWidthPx: Int? = null
+        shortcutMaxWidthPx: Int? = null,
+        shortcutEdgeAlignedEnd: Boolean = false
     ) {
         val usesShortcutLabel = t9InputModeEnabled && shortcutLabel != null
         lastUsesShortcutLabel = usesShortcutLabel
+        lastShortcutEdgeAlignedEnd = usesShortcutLabel && shortcutEdgeAlignedEnd
         applyShortcutWidthLimit(if (usesShortcutLabel) shortcutMaxWidthPx else null)
         applyShortcutLineMetrics(usesShortcutLabel)
         root.gravity = if (usesShortcutLabel) Gravity.CENTER else Gravity.CENTER_VERTICAL
         root.minimumWidth = if (usesShortcutLabel) {
-            (candidateText.textSize * SHORTCUT_CANDIDATE_MIN_WIDTH_EM).toInt()
+            if (lastShortcutEdgeAlignedEnd) {
+                // Product decision: the final visible T9 shortcut chip is measured by its text.
+                // Otherwise the minimum tap target becomes visible as inconsistent blank space
+                // between the last word and the bubble edge.
+                0
+            } else {
+                (candidateText.textSize * SHORTCUT_CANDIDATE_MIN_WIDTH_EM).toInt()
+            }
         } else {
             0
         }

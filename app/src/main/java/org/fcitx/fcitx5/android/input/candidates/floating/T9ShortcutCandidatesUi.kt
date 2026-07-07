@@ -18,8 +18,7 @@ import androidx.core.view.updateLayoutParams
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.t9.T9ShortcutCandidateLayout
-import kotlin.math.roundToInt
-import splitties.dimensions.dp
+import org.fcitx.fcitx5.android.input.t9.T9ShortcutTailPolicy
 import splitties.views.dsl.core.Ui
 
 class T9ShortcutCandidatesUi(
@@ -50,14 +49,14 @@ class T9ShortcutCandidatesUi(
     private var layout = T9ShortcutCandidateLayout(
         maxCandidateWidthPx = 0,
         rowWidthPx = 0,
+        edgePaddingPx = 0,
+        maxRowWidthPx = 0,
         trailingPaddingPx = 0
     )
     private var renderRows: List<Row> = emptyList()
     var measuredToolbarWidthPx: Int? = null
         private set
 
-    private val highlightOverflowPaddingPx =
-        (highlightCornerRadiusPx * 0.35f).roundToInt().coerceAtLeast(ctx.dp(2))
     private val candidateItems = mutableListOf<LabeledCandidateItemUi>()
     private val paginationItem = PaginationUi(ctx, theme).apply {
         prevIcon.setOnClickListener { onPrevPage.invoke() }
@@ -95,11 +94,12 @@ class T9ShortcutCandidatesUi(
     }
 
     private fun updateRootBounds(layout: T9ShortcutCandidateLayout) {
+        val edgePadding = layout.edgePaddingPx.coerceAtLeast(0)
         val trailingPadding = layout.trailingPaddingPx.coerceAtLeast(0)
-        val verticalPadding = highlightOverflowPaddingPx
-        val rightPadding = highlightOverflowPaddingPx + trailingPadding
+        val verticalPadding = edgePadding
+        val rightPadding = edgePadding + trailingPadding
         if (
-            root.paddingLeft != highlightOverflowPaddingPx ||
+            root.paddingLeft != edgePadding ||
             root.paddingTop != verticalPadding ||
             root.paddingRight != rightPadding ||
             root.paddingBottom != verticalPadding
@@ -107,7 +107,7 @@ class T9ShortcutCandidatesUi(
             // Product decision: T9 shortcut candidates are a compact toolbar. The toolbar owns
             // its fixed trailing breath so the last candidate does not inherit text-width noise.
             root.setPadding(
-                highlightOverflowPaddingPx,
+                edgePadding,
                 verticalPadding,
                 rightPadding,
                 verticalPadding
@@ -123,7 +123,14 @@ class T9ShortcutCandidatesUi(
         renderRows = rows
         rows.forEachIndexed { index, row ->
             val view = when (row) {
-                is Row.Candidate -> candidateView(index, row)
+                is Row.Candidate -> candidateView(
+                    displayIndex = index,
+                    row = row,
+                    edgeAlignedEnd = T9ShortcutTailPolicy.edgeAlignsCandidateToBubbleTail(
+                        isCandidate = true,
+                        isLastVisibleItem = index == rows.lastIndex
+                    )
+                )
                 is Row.Pagination -> paginationView(row)
             }
             attachChild(view, index, index == rows.lastIndex)
@@ -131,19 +138,13 @@ class T9ShortcutCandidatesUi(
         while (root.childCount > rows.size) {
             root.removeViewAt(root.childCount - 1)
         }
-        // Product decision: the pinyin row should align with the rendered T9 toolbar, not with
-        // a TextPaint estimate. Measuring the real pooled toolbar keeps the bubble width stable
-        // while avoiding a hidden duplicate row.
-        root.measure(
-            MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
-            MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
-        )
-        measuredToolbarWidthPx = root.measuredWidth.takeIf { it > 0 }
+        measureToolbar(rows)
     }
 
     private fun candidateView(
         displayIndex: Int,
-        row: Row.Candidate
+        row: Row.Candidate,
+        edgeAlignedEnd: Boolean
     ): View {
         val item = candidateItems.getOrNull(displayIndex)
             ?: LabeledCandidateItemUi(ctx, theme, setupTextView, highlightCornerRadiusPx).also {
@@ -156,7 +157,8 @@ class T9ShortcutCandidatesUi(
                 inactiveRow = row.inactiveRow,
                 t9InputModeEnabled = true,
                 shortcutLabel = row.shortcutLabel,
-                shortcutMaxWidthPx = layout.maxCandidateWidthPx
+                shortcutMaxWidthPx = layout.maxCandidateWidthPx,
+                shortcutEdgeAlignedEnd = edgeAlignedEnd
             )
             root.setOnClickListener {
                 onCandidateClick.invoke(row.position)
@@ -189,6 +191,60 @@ class T9ShortcutCandidatesUi(
             index < root.childCount -> root.addView(view, index, params)
             else -> root.addView(view, params)
         }
+    }
+
+    private fun measureToolbar(rows: List<Row>) {
+        // Product decision: the pinyin row should align with the rendered T9 toolbar, not with
+        // a TextPaint estimate. Measuring the real pooled toolbar keeps the bubble width stable
+        // while avoiding a hidden duplicate row.
+        root.minimumWidth = 0
+        measureRoot()
+        val naturalWidth = root.measuredWidth
+        val lastBounds = measuredLastChildBounds(rows)
+        val stableWidth = T9ShortcutTailPolicy.stabilizedToolbarWidthPx(
+            naturalWidthPx = naturalWidth,
+            lastChildMeasuredRightPx = lastBounds?.right,
+            lastChildMeasuredWidthPx = lastBounds?.width,
+            lastChildScaleX = lastBounds?.scaleX ?: 1f,
+            edgePaddingPx = layout.edgePaddingPx,
+            trailingPaddingPx = layout.trailingPaddingPx,
+            maxRowWidthPx = layout.maxRowWidthPx
+        )
+        if (stableWidth != naturalWidth) {
+            root.minimumWidth = stableWidth
+            measureRoot()
+        }
+        measuredToolbarWidthPx = root.measuredWidth.takeIf { it > 0 }
+    }
+
+    private fun measureRoot() {
+        root.measure(
+            MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
+            MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+        )
+    }
+
+    private data class MeasuredChildBounds(
+        val right: Int,
+        val width: Int,
+        val scaleX: Float
+    )
+
+    private fun measuredLastChildBounds(rows: List<Row>): MeasuredChildBounds? {
+        if (rows.isEmpty() || root.childCount == 0) return null
+        var cursor = root.paddingLeft
+        var last: MeasuredChildBounds? = null
+        val count = minOf(rows.size, root.childCount)
+        for (index in 0 until count) {
+            val child = root.getChildAt(index)
+            val params = child.layoutParams as? LinearLayout.LayoutParams
+            cursor += params?.leftMargin ?: 0
+            val width = child.measuredWidth.coerceAtLeast(0)
+            val right = cursor + width
+            last = MeasuredChildBounds(right = right, width = width, scaleX = child.scaleX)
+            cursor = right + (params?.rightMargin ?: 0)
+        }
+        return last
     }
 
     private fun rowsFor(data: FcitxEvent.PagedCandidateEvent.Data): List<Row> {

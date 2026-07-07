@@ -94,3 +94,17 @@ paging, Hanzi cursor state, and pinyin row window/highlight state into the
 snapshot pipeline. `CandidatesView` may still render pinyin chips and request
 Android scrolling, but it should not own the pinyin window model or Chinese
 local-budget pager state once the slice is complete.
+
+### T9 Shortcut Tail Policy
+
+The visual tail of the T9 shortcut candidate row is the space between the final
+visible candidate and the bubble edge. The whole bubble may grow or shrink with
+candidate content, but this tail should not vary because a short final word hit
+the minimum shortcut-chip width, a long final word used its natural text width,
+or the focused shortcut chip applied its visual scale.
+
+`T9ShortcutTailPolicy` owns this rule as a small Module. The Android toolbar
+adapter may measure real pooled views, but it should ask the policy which final
+candidate can edge-align and how much width is needed for focus overflow. This
+keeps the tail rule at one seam instead of scattering it through TextView
+padding, candidate-width estimation, and pinyin-row surface alignment.

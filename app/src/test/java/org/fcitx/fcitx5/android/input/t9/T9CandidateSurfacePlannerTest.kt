@@ -22,8 +22,10 @@ class T9CandidateSurfacePlannerTest {
         )
 
         assertEquals(7, plan.shortcutLayout.trailingPaddingPx)
+        assertEquals(5, plan.shortcutLayout.edgePaddingPx)
         assertEquals(0, plan.shortcutLayout.rowWidthPx)
         assertEquals(296, plan.shortcutLayout.maxCandidateWidthPx)
+        assertEquals(300, plan.shortcutLayout.maxRowWidthPx)
         assertEquals(73, plan.candidatePolicyWidthPx)
         assertEquals(150, plan.surfaceLayout?.rowWidthPx)
         assertTrue(requireNotNull(plan.surfaceLayout?.pinyin).folded)

@@ -49,6 +49,8 @@ object T9CandidateSurfacePlanner {
             // Decision: render-time T9 candidate rows wrap their actual chip content. This
             // layout width remains zero until a future visual-width model intentionally owns it.
             rowWidthPx = 0,
+            edgePaddingPx = input.rowHorizontalPaddingPx,
+            maxRowWidthPx = input.widthBudget.maxWidthPx,
             trailingPaddingPx = input.trailingPaddingPx
         )
         val surfaceLayout = surfaceLayout(input, input.candidateVisualWidthPx ?: candidatePolicyWidth)

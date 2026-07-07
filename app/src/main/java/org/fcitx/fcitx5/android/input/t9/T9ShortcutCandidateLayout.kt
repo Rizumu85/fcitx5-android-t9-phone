@@ -8,5 +8,7 @@ package org.fcitx.fcitx5.android.input.t9
 data class T9ShortcutCandidateLayout(
     val maxCandidateWidthPx: Int,
     val rowWidthPx: Int,
+    val edgePaddingPx: Int,
+    val maxRowWidthPx: Int,
     val trailingPaddingPx: Int
 )
