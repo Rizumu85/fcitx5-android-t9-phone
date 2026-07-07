@@ -10,7 +10,7 @@ import org.fcitx.fcitx5.android.core.FcitxEvent
 
 class T9CandidateWidthBudget(
     val maxWidthPx: Int,
-    private val candidateSpacingPx: Int,
+    val candidateSpacingPx: Int,
     private val candidateHorizontalPaddingPx: Int,
     private val minimumCandidateWidthPx: Int,
     private val activeScalePercent: Int = ACTIVE_SCALE_PERCENT,

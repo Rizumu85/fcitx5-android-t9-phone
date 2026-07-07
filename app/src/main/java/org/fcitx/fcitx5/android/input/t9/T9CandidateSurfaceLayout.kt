@@ -44,9 +44,14 @@ object T9CandidateSurfaceLayout {
             pinyinRowFocused = input.pinyinRowFocused
         )
         // Product decision: the second bubble is visually a Hanzi candidate bubble. The pinyin
-        // filter may widen only the folded overflow affordance; otherwise short Hanzi pages must
-        // not inherit a wide pinyin row and leave a blank lower row.
-        val pinyinWidth = if (pinyinPlan.folded) input.pinyinFoldedContentWidthPx else 0
+        // filter may widen it only while the collapsed ellipsis is visible; once the user focuses
+        // the pinyin row, the viewport should stay anchored to the Hanzi bubble instead of
+        // expanding and changing proportions.
+        val pinyinWidth = if (pinyinPlan.folded && pinyinPlan.showHint) {
+            input.pinyinFoldedContentWidthPx
+        } else {
+            0
+        }
         return Plan(
             contentReady = true,
             rowWidthPx = maxOf(safeCandidateWidth, pinyinWidth.coerceAtMost(maxWidth))
