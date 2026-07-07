@@ -10,38 +10,67 @@ import org.junit.Test
 
 class T9PinyinChipScrollPlannerTest {
     @Test
-    fun hiddenTrailingChipScrollsOnlyUntilItIsVisible() {
-        val target = T9PinyinChipScrollPlanner.targetScrollX(
+    fun hiddenTrailingChipScrollsToCleanLeadingChipBoundary() {
+        val plan = T9PinyinChipScrollPlanner.plan(
             currentScrollX = 0,
             viewportWidthPx = 150,
-            itemStartPx = 140,
-            itemEndPx = 164
+            contentWidthPx = 176,
+            itemBounds = bounds,
+            highlightedIndex = 5
         )
 
-        assertEquals(14, target)
+        assertEquals(38, plan.scrollX)
+        assertEquals(12, plan.endPaddingPx)
     }
 
     @Test
     fun visibleChipKeepsCurrentScroll() {
-        val target = T9PinyinChipScrollPlanner.targetScrollX(
+        val plan = T9PinyinChipScrollPlanner.plan(
             currentScrollX = 20,
             viewportWidthPx = 150,
-            itemStartPx = 80,
-            itemEndPx = 120
+            contentWidthPx = 176,
+            itemBounds = bounds,
+            highlightedIndex = 2
         )
 
-        assertEquals(20, target)
+        assertEquals(20, plan.scrollX)
+        assertEquals(0, plan.endPaddingPx)
     }
 
     @Test
     fun leadingHiddenChipScrollsBackToItsStart() {
-        val target = T9PinyinChipScrollPlanner.targetScrollX(
+        val plan = T9PinyinChipScrollPlanner.plan(
             currentScrollX = 90,
             viewportWidthPx = 150,
-            itemStartPx = 64,
-            itemEndPx = 88
+            contentWidthPx = 176,
+            itemBounds = bounds,
+            highlightedIndex = 1
         )
 
-        assertEquals(64, target)
+        assertEquals(38, plan.scrollX)
+        assertEquals(12, plan.endPaddingPx)
     }
+
+    @Test
+    fun finalChipCanAlignToCleanBoundaryWithDynamicTail() {
+        val plan = T9PinyinChipScrollPlanner.plan(
+            currentScrollX = 38,
+            viewportWidthPx = 150,
+            contentWidthPx = 198,
+            itemBounds = bounds + T9PinyinChipScrollPlanner.ItemBounds(176, 198),
+            highlightedIndex = 6
+        )
+
+        assertEquals(76, plan.scrollX)
+        assertEquals(28, plan.endPaddingPx)
+    }
+
+    private val bounds = listOf(
+        T9PinyinChipScrollPlanner.ItemBounds(0, 38),
+        T9PinyinChipScrollPlanner.ItemBounds(38, 76),
+        T9PinyinChipScrollPlanner.ItemBounds(76, 104),
+        T9PinyinChipScrollPlanner.ItemBounds(104, 132),
+        T9PinyinChipScrollPlanner.ItemBounds(132, 154),
+        T9PinyinChipScrollPlanner.ItemBounds(154, 176)
+    )
 }
