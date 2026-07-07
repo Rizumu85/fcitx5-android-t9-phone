@@ -151,6 +151,19 @@ This keeps the short-Hanzi-page edge case local: when a page has very few Hanzi
 candidates but many pinyin chips, the focused pinyin row keeps the same folded
 viewport and renders whole chips without layout-width churn.
 
+### T9 Pinyin Row Android Adapter
+
+The Android rendering adapter for the Chinese T9 pinyin filter row. It turns a
+`T9PinyinRowSurfacePlanner` plan into chip-list contents, row width, overflow
+hint placement, first-frame reveal timing, highlight state, and scroll
+position.
+
+`CandidatesView` supplies Android measurements and candidate-surface callbacks,
+but it should not own pinyin-row reveal state, rendered chip state, or focused
+chip scrolling. Keeping those Android details behind one Adapter preserves the
+current bubble visuals while making future pinyin-row bugs local to the row
+instead of split between the snapshot pipeline and the view host.
+
 ### T9 Candidate Render Pass
 
 The render-time decision for which Android candidate UI regions should mutate
