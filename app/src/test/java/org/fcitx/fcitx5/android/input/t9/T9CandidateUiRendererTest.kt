@@ -13,14 +13,14 @@ import org.junit.Test
 class T9CandidateUiRendererTest {
 
     @Test
-    fun visiblePinyinRowIsEnsuredOnEveryRender() {
+    fun readyVisiblePinyinRowIsNotReRenderedForCandidateContentChanges() {
         val delegate = FakeDelegate()
         val renderer = T9CandidateUiRenderer(delegate)
 
         renderer.render(state(candidates = paged("a")))
         renderer.render(state(candidates = paged("alphabet")))
 
-        assertEquals(2, delegate.renderPinyinCount)
+        assertEquals(1, delegate.renderPinyinCount)
         assertEquals(0, delegate.syncPinyinLayoutCount)
     }
 
@@ -57,6 +57,7 @@ class T9CandidateUiRendererTest {
         renderer.render(state(candidates = paged("alphabet")))
 
         assertEquals(listOf(true), delegate.showRequests)
+        assertEquals(0, delegate.syncPinyinLayoutCount)
     }
 
     @Test

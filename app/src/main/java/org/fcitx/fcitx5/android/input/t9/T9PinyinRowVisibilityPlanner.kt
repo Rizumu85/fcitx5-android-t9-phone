@@ -42,7 +42,7 @@ object T9PinyinRowVisibilityPlanner {
             snapshot.wrapperVisibility == Visibility.VISIBLE &&
             snapshot.barVisibility == Visibility.VISIBLE
         ) {
-            return SetVisibleAction.SYNC_VISIBLE_LAYOUT
+            return SetVisibleAction.NOOP_READY
         }
         if (!requestedVisible) {
             return SetVisibleAction.HIDE_NOW

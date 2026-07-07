@@ -80,9 +80,18 @@ class T9CandidateUiRenderer(
                 )
             }
         }
+        val hasPinyinRow = next.pinyinUseT9 && next.pinyinOptions.isNotEmpty()
+        val previousPinyinWasReady = previousVisibilityRequest?.contentReady == true
+        val previousPanelWasShown = previousVisibilityRequest?.shouldShow == true
         val shouldClearPinyinRow = !next.pinyinUseT9 &&
             (previousState == null || previousState?.pinyinUseT9 == true || previousState?.pinyinOptions?.isNotEmpty() == true)
-        val shouldEnsurePinyinRow = next.pinyinUseT9 && next.pinyinOptions.isNotEmpty()
+        val shouldEnsurePinyinRow = hasPinyinRow && (
+            previousState == null ||
+                !previousPanelWasShown ||
+                previousState?.pinyinUseT9 != true ||
+                previousState?.pinyinOptions?.isEmpty() == true ||
+                !previousPinyinWasReady
+            )
         val pinyinRowReady = when {
             shouldClearPinyinRow -> {
                 T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin") {
@@ -94,7 +103,7 @@ class T9CandidateUiRenderer(
                     delegate.renderPinyin(next.pinyinOptions, next.pinyinUseT9)
                 }
             }
-            patch.candidateContent && next.pinyinUseT9 && next.pinyinOptions.isNotEmpty() -> {
+            patch.candidateContent && hasPinyinRow && !previousPinyinWasReady -> {
                 T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyinLayout") {
                     delegate.syncPinyinLayout()
                 }

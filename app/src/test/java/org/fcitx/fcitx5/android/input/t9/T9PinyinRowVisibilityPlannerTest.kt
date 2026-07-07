@@ -29,7 +29,7 @@ class T9PinyinRowVisibilityPlannerTest {
     }
 
     @Test
-    fun visibleRowRequestsLayoutSyncInsteadOfRecreatingVisibility() {
+    fun visibleRowTreatsRepeatedShowAsNoOp() {
         val action = T9PinyinRowVisibilityPlanner.planSetVisible(
             requestedVisible = true,
             snapshot = snapshot(
@@ -40,7 +40,7 @@ class T9PinyinRowVisibilityPlannerTest {
             widthReady = true
         )
 
-        assertEquals(SetVisibleAction.SYNC_VISIBLE_LAYOUT, action)
+        assertEquals(SetVisibleAction.NOOP_READY, action)
     }
 
     @Test

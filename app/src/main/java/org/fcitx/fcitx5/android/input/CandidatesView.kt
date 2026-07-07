@@ -1020,6 +1020,11 @@ class CandidatesView(
 
     private fun syncVisiblePinyinRowLayout(): Boolean {
         if (!pinyinRowTargetVisible) return true
+        if (pinyinRowWrapper.visibility == View.VISIBLE && pinyinBarView.visibility == View.VISIBLE) {
+            // Product decision: once the filter row is visible, Hanzi candidate updates must not
+            // resync its width. That resync was the source of one-frame clipped pinyin chips.
+            return true
+        }
         t9CandidateUiSnapshotPipeline.currentPinyinWindowState()?.let {
             renderPinyinWindow(
                 state = it,
