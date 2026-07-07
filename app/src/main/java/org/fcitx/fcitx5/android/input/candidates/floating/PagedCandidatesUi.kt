@@ -79,7 +79,8 @@ class PagedCandidatesUi(
     private var renderRows: List<Row> = rowsFor(data, highlightActive, showShortcutLabels)
 
     data class ShortcutLayout(
-        val maxCandidateWidthPx: Int
+        val maxCandidateWidthPx: Int,
+        val rowWidthPx: Int
     )
 
     sealed class UiHolder(open val ui: Ui) : RecyclerView.ViewHolder(ui.root) {
@@ -235,6 +236,7 @@ class PagedCandidatesUi(
         this.shortcutLayout = shortcutLayout
         this.isVertical = nextVertical
         updateLayoutManager(showShortcutLabels)
+        updateRootWidth(showShortcutLabels, shortcutLayout)
         updateShortcutToolbarClipping(showShortcutLabels)
         val newRows = rowsFor(
             data = data,
@@ -279,6 +281,20 @@ class PagedCandidatesUi(
             highlightOverflowPaddingPx,
             verticalPadding
         )
+    }
+
+    private fun updateRootWidth(
+        showShortcutLabels: Boolean,
+        shortcutLayout: ShortcutLayout?
+    ) {
+        val targetWidth = if (showShortcutLabels) {
+            shortcutLayout?.rowWidthPx?.takeIf { it > 0 } ?: WRAP_CONTENT
+        } else {
+            WRAP_CONTENT
+        }
+        root.updateLayoutParams<ViewGroup.LayoutParams> {
+            width = targetWidth
+        }
     }
 
     private fun updateShortcutToolbarClipping(enabled: Boolean) {

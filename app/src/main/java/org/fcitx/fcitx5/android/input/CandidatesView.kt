@@ -39,8 +39,7 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSnapshotKey
 import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
-import org.fcitx.fcitx5.android.input.t9.T9CandidateRowMeasurement
-import org.fcitx.fcitx5.android.input.t9.T9CandidateSnapshots
+import org.fcitx.fcitx5.android.input.t9.T9CandidateRowWidthCalculator
 import org.fcitx.fcitx5.android.input.t9.T9CandidateSurfaceLayout
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiSnapshotPipeline
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiStateBuilder
@@ -203,7 +202,6 @@ class CandidatesView(
         postRefresh = { block -> postOnAnimation(block) },
         refreshNow = ::updateUi
     )
-    private val t9CandidateRowMeasurement = T9CandidateRowMeasurement()
     private val t9PinyinMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
     private val t9CandidateMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
     private val t9CandidateUiRenderer = T9CandidateUiRenderer(object : T9CandidateUiRenderer.Delegate {
@@ -225,25 +223,11 @@ class CandidatesView(
             orientation: FloatingCandidatesOrientation,
             showShortcutLabels: Boolean
         ) {
-            val rowSignature = candidateRowWidthSignature(candidates, orientation, showShortcutLabels)
-            if (t9CandidateRowMeasurement.markContent(rowSignature)) {
-                if (
-                    pinyinRowTargetVisible &&
-                    t9RenderedPinyinItems.isNotEmpty() &&
-                    pinyinRowWrapper.visibility != View.VISIBLE
-                ) {
-                    // Product decision: the pinyin row should not blink during normal candidate
-                    // updates. Only keep it hidden while the first visible row is still waiting
-                    // for a trustworthy candidate width.
-                    pinyinBarView.visibility = View.INVISIBLE
-                    pinyinRowWrapper.visibility = View.INVISIBLE
-                }
-            }
             candidatesUi.update(
                 candidates,
                 orientation,
                 showShortcutLabels = showShortcutLabels,
-                shortcutLayout = t9ShortcutCandidateLayout().takeIf { showShortcutLabels }
+                shortcutLayout = t9ShortcutCandidateLayout(candidates).takeIf { showShortcutLabels }
             )
         }
 
@@ -559,7 +543,6 @@ class CandidatesView(
         t9CandidateUiSnapshotPipeline.reset()
         t9CandidateUiRenderer.reset()
         chineseT9CandidateLoadingState.reset()
-        t9CandidateRowMeasurement.clear()
         preeditUi.update(inputPanel)
         preeditUi.root.visibility = GONE
         t9CandidateUiSnapshotPipeline.clearPinyinWindow()
@@ -1192,7 +1175,7 @@ class CandidatesView(
         currentSurfaceLayoutPlan(candidateRowWidthPx)?.pinyin
 
     private fun currentCandidateRowWidthForPinyinPolicy(): Int? =
-        t9CandidateRowMeasurement.currentWidthPx()
+        t9ShownPaged?.let(::t9CandidateRowWidthPx)
 
     private fun pinyinRowViewportWidthPx(): Int? {
         pinyinRowWrapper.width.takeIf { it > 0 }?.let { return it }
@@ -1241,12 +1224,25 @@ class CandidatesView(
             .coerceAtLeast(1)
     }
 
-    private fun t9ShortcutCandidateLayout(): PagedCandidatesUi.ShortcutLayout {
+    private fun t9ShortcutCandidateLayout(
+        candidates: FcitxEvent.PagedCandidateEvent.Data
+    ): PagedCandidatesUi.ShortcutLayout {
         val widthBudget = t9CandidateWidthBudget()
         return PagedCandidatesUi.ShortcutLayout(
-            maxCandidateWidthPx = widthBudget.maxCandidateWidthPx
+            maxCandidateWidthPx = widthBudget.maxCandidateWidthPx,
+            rowWidthPx = t9CandidateRowWidthPx(candidates) ?: widthBudget.maxWidthPx
         )
     }
+
+    private fun t9CandidateRowWidthPx(data: FcitxEvent.PagedCandidateEvent.Data): Int? =
+        T9CandidateRowWidthCalculator.calculate(
+            T9CandidateRowWidthCalculator.Input(
+                data = data,
+                widthBudget = t9CandidateWidthBudget(),
+                rowHorizontalPaddingPx = (dp(windowRadius) * 0.35f).roundToInt().coerceAtLeast(dp(2)),
+                paginationWidthPx = dp(T9_PAGINATION_WIDTH_DP)
+            )
+        )
 
     private fun t9CandidateWidthBudget(): T9CandidateWidthBudget {
         val maxWidthPx = pinyinRowMaxWidthPx()
@@ -1267,17 +1263,6 @@ class CandidatesView(
             measureTextWidthPx = { text -> paint.measureText(text).roundToInt() }
         )
     }
-
-    private fun candidateRowWidthSignature(
-        candidates: FcitxEvent.PagedCandidateEvent.Data,
-        orientation: FloatingCandidatesOrientation,
-        showShortcutLabels: Boolean
-    ): String =
-        T9CandidateSnapshots.renderCandidates(
-            data = candidates,
-            orientation = orientation,
-            showShortcutLabels = showShortcutLabels
-        ).contentSignature
 
     private fun updatePinyinBar(candidates: List<String>, useT9: Boolean): Boolean {
         if (!useT9) {
@@ -1536,44 +1521,6 @@ class CandidatesView(
             startOfParent()
         })
 
-        // Layout can discover the candidate row width after the first render, but it must still
-        // respect the pinyin usability floor or the row flashes wide and immediately shrinks again.
-        bubble2Wrapper.viewTreeObserver.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {
-            override fun onGlobalLayout() {
-                val cw = candidatesUi.root.width
-                if (cw > 0) {
-                    t9CandidateRowMeasurement.remember(cw)
-                }
-                if (pinyinRowWrapper.visibility == View.VISIBLE) {
-                    return
-                }
-                val targetWidth = currentCandidateRowWidthForPinyinPolicy()
-                    ?.let { maxOf(it, pinyinRowDesiredWidthPx(it) ?: 0) }
-                    ?: return
-                val widthChanged =
-                    (pinyinRowWrapper.layoutParams as? FrameLayout.LayoutParams)?.width != targetWidth ||
-                    (pinyinBarView.layoutParams as? FrameLayout.LayoutParams)?.width != targetWidth
-                when (T9PinyinRowVisibilityPlanner.planLayoutPass(
-                    targetVisible = pinyinRowTargetVisible,
-                    wrapperVisibility = pinyinRowWrapper.visibility.toT9PinyinRowVisibility(),
-                    rowVisible = false,
-                    widthChanged = widthChanged,
-                    widthReady = true
-                )) {
-                    T9PinyinRowVisibilityPlanner.LayoutPassAction.APPLY_WIDTH -> {
-                        setPinyinRowWidth(targetWidth)
-                    }
-                    T9PinyinRowVisibilityPlanner.LayoutPassAction.SHOW_WAITING_ROW -> {
-                        if (widthChanged) {
-                            setPinyinRowWidth(targetWidth)
-                        }
-                        syncVisiblePinyinRowLayout()
-                    }
-                    T9PinyinRowVisibilityPlanner.LayoutPassAction.NONE -> Unit
-                }
-            }
-        })
-
         isFocusable = false
         layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
     }
@@ -1615,5 +1562,6 @@ class CandidatesView(
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
         private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 10
         private const val T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP = 2
+        private const val T9_PAGINATION_WIDTH_DP = 20
     }
 }

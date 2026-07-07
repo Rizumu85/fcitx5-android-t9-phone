@@ -69,30 +69,4 @@ object T9PinyinRowVisibilityPlanner {
             else -> DeferredWidthAction.KEEP_WAITING
         }
 
-    enum class LayoutPassAction {
-        NONE,
-        APPLY_WIDTH,
-        SHOW_WAITING_ROW
-    }
-
-    fun planLayoutPass(
-        targetVisible: Boolean,
-        wrapperVisibility: Visibility,
-        rowVisible: Boolean,
-        widthChanged: Boolean,
-        widthReady: Boolean
-    ): LayoutPassAction {
-        if (rowVisible) return LayoutPassAction.NONE
-        if (!widthReady) return LayoutPassAction.NONE
-        // Product decision: a row waiting invisibly for the first trusted Hanzi measurement should
-        // become visible in the same layout pass that validates its width, avoiding a clipped first frame.
-        if (targetVisible && wrapperVisibility == Visibility.INVISIBLE) {
-            return LayoutPassAction.SHOW_WAITING_ROW
-        }
-        return if (widthChanged) {
-            LayoutPassAction.APPLY_WIDTH
-        } else {
-            LayoutPassAction.NONE
-        }
-    }
 }

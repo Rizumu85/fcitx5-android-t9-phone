@@ -6,7 +6,6 @@
 package org.fcitx.fcitx5.android.input.t9
 
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowVisibilityPlanner.DeferredWidthAction
-import org.fcitx.fcitx5.android.input.t9.T9PinyinRowVisibilityPlanner.LayoutPassAction
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowVisibilityPlanner.SetVisibleAction
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowVisibilityPlanner.Visibility
 import org.junit.Assert.assertEquals
@@ -74,32 +73,6 @@ class T9PinyinRowVisibilityPlannerTest {
                 widthReady = true
             )
         )
-    }
-
-    @Test
-    fun layoutPassShowsInvisibleWaitingRowWhenWidthIsReady() {
-        val action = T9PinyinRowVisibilityPlanner.planLayoutPass(
-            targetVisible = true,
-            wrapperVisibility = Visibility.INVISIBLE,
-            rowVisible = false,
-            widthChanged = true,
-            widthReady = true
-        )
-
-        assertEquals(LayoutPassAction.SHOW_WAITING_ROW, action)
-    }
-
-    @Test
-    fun layoutPassAppliesWidthForHiddenPreparedRow() {
-        val action = T9PinyinRowVisibilityPlanner.planLayoutPass(
-            targetVisible = false,
-            wrapperVisibility = Visibility.GONE,
-            rowVisible = false,
-            widthChanged = true,
-            widthReady = true
-        )
-
-        assertEquals(LayoutPassAction.APPLY_WIDTH, action)
     }
 
     private fun snapshot(
