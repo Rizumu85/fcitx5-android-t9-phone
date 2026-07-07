@@ -51,6 +51,18 @@ The first migration slice should target Smart English physical-key behavior:
 long-press digit shortcuts. After each code slice, provide a concrete manual
 test checklist and wait for user confirmation before migrating the next slice.
 
+### Physical T9 Selection Mode
+
+The physical-key selection subflow inside Physical T9 Key Flow. It owns how
+D-pad, OK/select, Enter-as-select, and Smart English Space-as-select map onto
+the visible candidate surface: Chinese pinyin row versus Hanzi row, pending
+punctuation bottom row, and Smart English bottom row.
+
+`PhysicalT9SelectionMode` returns flow commands, not Android side effects. It
+keeps the product rule that visible T9 candidate rows consume physical focus
+keys even when a transient row mismatch leaves no movement command, so editor
+cursor movement cannot leak through the candidate UI.
+
 ### Chinese T9 Composition Lifecycle
 
 The lifecycle of Chinese T9 composition covers the Kotlin-side digit/session

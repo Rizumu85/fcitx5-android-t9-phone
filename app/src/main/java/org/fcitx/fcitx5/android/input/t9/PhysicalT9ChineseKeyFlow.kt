@@ -303,7 +303,11 @@ internal class PhysicalT9ChineseKeyFlow(
             input.keyCode == KeyEvent.KEYCODE_POUND -> handleChinesePendingPunctuationPound(input, state)
             input.keyCode == KeyEvent.KEYCODE_STAR -> handleChinesePendingPunctuationStar(input)
             PhysicalT9KeyPolicy.focusKey(input.keyCode) != null ->
-                handleChinesePendingPunctuationFocus(input)
+                PhysicalT9SelectionMode.handle(
+                    input = input,
+                    state = state,
+                    surface = PhysicalT9SelectionMode.Surface.PENDING_PUNCTUATION
+                )
             else -> null
         }
     }
@@ -467,82 +471,15 @@ internal class PhysicalT9ChineseKeyFlow(
         else -> null
     }
 
-    private fun handleChinesePendingPunctuationFocus(
-        input: PhysicalT9KeyHandler.KeyInput
-    ): Decision? {
-        if (input.action != KeyEvent.ACTION_DOWN) return null
-        val command = when (PhysicalT9KeyPolicy.focusKey(input.keyCode)) {
-            PhysicalT9KeyPolicy.FocusKey.LEFT -> Command.MoveBottomCandidate(delta = -1)
-            PhysicalT9KeyPolicy.FocusKey.RIGHT -> Command.MoveBottomCandidate(delta = 1)
-            PhysicalT9KeyPolicy.FocusKey.UP -> Command.OffsetBottomCandidatePage(delta = -1)
-            PhysicalT9KeyPolicy.FocusKey.DOWN -> Command.OffsetBottomCandidatePage(delta = 1)
-            PhysicalT9KeyPolicy.FocusKey.OK ->
-                Command.CommitBottomCandidate(BottomCandidateFallback.PENDING_PUNCTUATION)
-            null -> return null
-        }
-        return Decision(
-            handled = true,
-            commands = listOf(command),
-            consumedKeyUp = input.keyCode
-        )
-    }
-
     private fun handleChineseFocusNavigation(
         input: PhysicalT9KeyHandler.KeyInput,
         state: State
-    ): Decision? {
-        val focusKey = PhysicalT9KeyPolicy.focusKey(input.keyCode) ?: return null
-        if (!state.hasTopPinyinCandidates && !state.hasBottomCandidateRow) return null
-        // Visible candidate rows own focus keys, even when a transient row mismatch leaves no command to run.
-        val command = when (focusKey) {
-            PhysicalT9KeyPolicy.FocusKey.UP -> when {
-                state.candidateFocus == PhysicalT9KeyHandler.CandidateFocus.BOTTOM &&
-                    state.hasTopPinyinCandidates ->
-                    Command.MoveCandidateFocus(PhysicalT9KeyHandler.CandidateFocus.TOP)
-                state.hasBottomCandidateRow -> Command.OffsetBottomCandidatePage(delta = -1)
-                else -> null
-            }
-            PhysicalT9KeyPolicy.FocusKey.DOWN -> when (state.candidateFocus) {
-                PhysicalT9KeyHandler.CandidateFocus.TOP -> {
-                    if (state.hasBottomCandidateRow) {
-                        Command.MoveCandidateFocus(PhysicalT9KeyHandler.CandidateFocus.BOTTOM)
-                    } else {
-                        null
-                    }
-                }
-                PhysicalT9KeyHandler.CandidateFocus.BOTTOM -> {
-                    if (state.hasBottomCandidateRow) Command.OffsetBottomCandidatePage(delta = 1) else null
-                }
-            }
-            PhysicalT9KeyPolicy.FocusKey.LEFT -> when (state.candidateFocus) {
-                PhysicalT9KeyHandler.CandidateFocus.TOP ->
-                    if (state.hasTopPinyinCandidates) Command.MoveHighlightedPinyin(delta = -1) else null
-                PhysicalT9KeyHandler.CandidateFocus.BOTTOM ->
-                    if (state.hasBottomCandidateRow) Command.MoveBottomCandidate(delta = -1) else null
-            }
-            PhysicalT9KeyPolicy.FocusKey.RIGHT -> when (state.candidateFocus) {
-                PhysicalT9KeyHandler.CandidateFocus.TOP ->
-                    if (state.hasTopPinyinCandidates) Command.MoveHighlightedPinyin(delta = 1) else null
-                PhysicalT9KeyHandler.CandidateFocus.BOTTOM ->
-                    if (state.hasBottomCandidateRow) Command.MoveBottomCandidate(delta = 1) else null
-            }
-            PhysicalT9KeyPolicy.FocusKey.OK -> when (state.candidateFocus) {
-                PhysicalT9KeyHandler.CandidateFocus.TOP ->
-                    if (state.hasTopPinyinCandidates) Command.CommitHighlightedPinyin else null
-                PhysicalT9KeyHandler.CandidateFocus.BOTTOM ->
-                    if (state.hasBottomCandidateRow) {
-                        Command.CommitBottomCandidate(BottomCandidateFallback.NONE)
-                    } else {
-                        null
-                    }
-            }
-        }
-        return Decision(
-            handled = true,
-            commands = listOfNotNull(command),
-            consumedKeyUp = input.keyCode
+    ): Decision? =
+        PhysicalT9SelectionMode.handle(
+            input = input,
+            state = state,
+            surface = PhysicalT9SelectionMode.Surface.CHINESE_CANDIDATES
         )
-    }
 
     private fun isDigitLongPressFlagSet(keyCode: Int): Boolean =
         session.isDigitLongPressFlagSet(keyCode)

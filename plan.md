@@ -108,6 +108,9 @@ otherwise.
   mode module while preserving the same command interface.
 - [x] Split Chinese physical-key rules behind an internal mode module while
   preserving the same command interface.
+- [x] Extract Physical T9 Selection Mode so D-pad/OK selection commands for
+  Chinese candidates, pending punctuation, and Smart English live behind one
+  tested command-producing Module.
 - [ ] Move remaining Chinese special-key branches into the command-based flow
   in small slices, removing each replaced handler fallback as it migrates.
 

@@ -6,7 +6,6 @@
 package org.fcitx.fcitx5.android.input.t9
 
 import android.view.KeyEvent
-import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyFlow.BottomCandidateFallback
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyFlow.Command
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyFlow.Decision
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyFlow.State
@@ -433,40 +432,10 @@ internal class PhysicalT9EnglishKeyFlow(
         ) {
             return null
         }
-        val smartFocusKey = focusKey
-            ?: if (input.keyCode == KeyEvent.KEYCODE_SPACE) PhysicalT9KeyPolicy.FocusKey.OK else null
-        val command = when (smartFocusKey) {
-            PhysicalT9KeyPolicy.FocusKey.LEFT -> Command.MoveBottomCandidate(
-                delta = -1,
-                fallbackSmartEnglishDelta = (-1).takeUnless { state.hasPendingPunctuation }
-            )
-            PhysicalT9KeyPolicy.FocusKey.RIGHT -> Command.MoveBottomCandidate(
-                delta = 1,
-                fallbackSmartEnglishDelta = 1.takeUnless { state.hasPendingPunctuation }
-            )
-            PhysicalT9KeyPolicy.FocusKey.UP -> Command.OffsetBottomCandidatePage(
-                delta = -1
-            )
-            PhysicalT9KeyPolicy.FocusKey.DOWN -> Command.OffsetBottomCandidatePage(
-                delta = 1
-            )
-            PhysicalT9KeyPolicy.FocusKey.OK -> Command.CommitBottomCandidate(
-                if (state.hasPendingPunctuation) {
-                    BottomCandidateFallback.PENDING_PUNCTUATION
-                } else {
-                    BottomCandidateFallback.SMART_ENGLISH
-                }
-            )
-            null -> if (PhysicalT9KeyPolicy.isDeleteKey(input.keyCode)) {
-                Command.SmartEnglishDelete(state.hasPendingPunctuation)
-            } else {
-                return null
-            }
-        }
-        return Decision(
-            handled = true,
-            commands = listOf(command),
-            consumedKeyUp = input.keyCode
+        return PhysicalT9SelectionMode.handle(
+            input = input,
+            state = state,
+            surface = PhysicalT9SelectionMode.Surface.SMART_ENGLISH
         )
     }
 
