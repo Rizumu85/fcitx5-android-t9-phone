@@ -1237,7 +1237,10 @@ class CandidatesView(
             T9CandidateRowWidthCalculator.Input(
                 data = data,
                 widthBudget = t9CandidateWidthBudget(),
-                rowHorizontalPaddingPx = (dp(windowRadius) * 0.35f).roundToInt().coerceAtLeast(dp(2)),
+                // Product decision: PagedCandidatesUi already owns the T9 focus drawing inset.
+                // Adding another calculated row inset here made the new pixel-based width model
+                // feel wider than the old budgeted bubble without improving overflow safety.
+                rowHorizontalPaddingPx = 0,
                 showPaginationArrows = showPaginationArrows,
                 paginationWidthPx = dp(T9_PAGINATION_WIDTH_DP)
             )
