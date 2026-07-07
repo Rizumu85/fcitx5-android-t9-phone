@@ -39,6 +39,9 @@
 
 分发前请完整跑一遍下面的测试。
 
+For physical-key injection, T9 responsiveness tracing, and screen-recording
+frame analysis, see `docs/t9-debugging.md`.
+
 ### 中文 T9
 
 - 输入 `24`，拼音行应该出现 `ai`。
