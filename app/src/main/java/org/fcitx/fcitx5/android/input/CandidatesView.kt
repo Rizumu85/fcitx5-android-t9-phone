@@ -38,6 +38,7 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSnapshotKey
 import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
+import org.fcitx.fcitx5.android.input.t9.T9CandidateInteractionController
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiInputSnapshot
 import org.fcitx.fcitx5.android.input.t9.T9CandidateSurfacePlanner
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiSnapshot
@@ -196,6 +197,36 @@ class CandidatesView(
         widthBudget = ::t9CandidateWidthBudget,
         candidateMatchesPrefix = { candidate, prefix ->
             service.candidateMatchesT9ResolvedPrefix(candidate, prefix)
+        }
+    )
+    private val t9CandidateInteractionController = T9CandidateInteractionController(
+        pipeline = t9CandidateUiSnapshotPipeline,
+        host = object : T9CandidateInteractionController.Host {
+            override fun setSmartEnglishCandidateIndex(originalIndex: Int): Boolean =
+                service.setSmartEnglishCandidateIndex(originalIndex)
+
+            override fun commitSmartEnglishCandidate(originalIndex: Int): Boolean =
+                service.commitSmartEnglishCandidate(originalIndex)
+
+            override fun commitPendingPunctuationCandidate(originalIndex: Int): Boolean =
+                service.commitPendingT9PunctuationCandidate(originalIndex)
+
+            override fun previewPendingPunctuationCandidate(originalIndex: Int): Boolean =
+                service.previewPendingT9PunctuationCandidate(originalIndex)
+
+            override fun applyShownPage(shown: T9PagedCandidates) {
+                t9ShownPaged = shown.data
+            }
+
+            override fun refreshT9Ui() {
+                this@CandidatesView.refreshT9Ui()
+            }
+
+            override fun selectBulkCandidate(
+                originalIndex: Int,
+                selectedCandidate: FcitxEvent.Candidate,
+                matchedPrefix: String?
+            ): Boolean = selectT9BulkCandidate(originalIndex, selectedCandidate, matchedPrefix)
         }
     )
     private val t9RefreshScheduler = T9UiRefreshScheduler(
@@ -602,21 +633,17 @@ class CandidatesView(
     fun getHighlightedT9Pinyin(): String? = t9CandidateUiSnapshotPipeline.highlightedPinyin()
 
     fun commitT9HanziShortcut(index: Int): Boolean {
-        handleSnapshotPipelineCommit(index)?.let { return it }
+        t9CandidateInteractionController.commitBottomCandidate(index)?.let { return it }
         if (t9CandidateUiSnapshotPipeline.ownsCurrentShownState) return false
         return selectT9ShownHanziCandidate(index)
     }
 
     fun commitSmartEnglishShortcut(index: Int): Boolean {
-        val originalIndex = t9CandidateUiSnapshotPipeline.smartEnglishShortcutOriginalIndex(index)
-            ?: return false
-        return service.commitSmartEnglishCandidate(originalIndex)
+        return t9CandidateInteractionController.commitSmartEnglishShortcut(index)
     }
 
     fun commitT9PendingPunctuationShortcut(index: Int): Boolean {
-        val originalIndex = t9CandidateUiSnapshotPipeline.pendingPunctuationShortcutOriginalIndex(index)
-            ?: return false
-        return service.commitPendingT9PunctuationCandidate(originalIndex)
+        return t9CandidateInteractionController.commitPendingPunctuationShortcut(index)
     }
 
     fun getT9PreviewCommitText(): String? {
@@ -657,7 +684,7 @@ class CandidatesView(
             t9ShownPaged?.candidates?.isNotEmpty() == true
 
     fun moveHighlightedT9BottomCandidate(delta: Int): Boolean {
-        handleSnapshotPipelineMove(delta)?.let { return it }
+        t9CandidateInteractionController.moveBottomCandidate(delta)?.let { return it }
         if (t9CandidateUiSnapshotPipeline.ownsCurrentShownState) return false
         val shown = t9ShownPaged ?: return false
         if (shown.candidates.isEmpty()) return false
@@ -679,7 +706,7 @@ class CandidatesView(
     }
 
     fun offsetT9BottomCandidatePage(delta: Int): Boolean {
-        handleSnapshotPipelinePageOffset(delta)?.let { return it }
+        t9CandidateInteractionController.offsetBottomCandidatePage(delta)?.let { return it }
         if (t9CandidateUiSnapshotPipeline.ownsCurrentShownState) return false
         if (t9ShownUsesLocalBudget && t9CandidateUiSnapshotPipeline.hasChineseLocalBudgetCandidates) {
             if (offsetT9LocalBudgetedCandidatePage(delta)) return true
@@ -692,67 +719,12 @@ class CandidatesView(
     }
 
     fun commitHighlightedT9BottomCandidate(): Boolean {
-        handleSnapshotPipelineCommit()?.let { return it }
+        t9CandidateInteractionController.commitBottomCandidate()?.let { return it }
         if (t9CandidateUiSnapshotPipeline.ownsCurrentShownState) return false
         val shown = t9ShownPaged ?: return false
         val shownIndex = shown.cursorIndex
         if (shownIndex !in shown.candidates.indices) return false
         return selectT9ShownHanziCandidate(shownIndex)
-    }
-
-    private fun handleSnapshotPipelineMove(delta: Int): Boolean? =
-        when (val result = t9CandidateUiSnapshotPipeline.moveCurrentBottomCandidate(delta)) {
-            is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.SmartEnglish ->
-                service.setSmartEnglishCandidateIndex(result.nextOriginalIndex)
-            is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.PendingPunctuation -> {
-                applySnapshotPipelineShownPage(result.shown)
-                service.previewPendingT9PunctuationCandidate(result.previewOriginalIndex)
-                refreshT9Ui()
-                true
-            }
-            is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.ChineseBulk -> {
-                applySnapshotPipelineShownPage(result.shown)
-                refreshT9Ui()
-                true
-            }
-            null -> null
-        }
-
-    private fun handleSnapshotPipelinePageOffset(delta: Int): Boolean? =
-        when (val result = t9CandidateUiSnapshotPipeline.offsetCurrentPage(delta)) {
-            is T9CandidateUiSnapshotPipeline.PageOffset.SmartEnglish ->
-                service.setSmartEnglishCandidateIndex(result.nextOriginalIndex)
-            is T9CandidateUiSnapshotPipeline.PageOffset.PendingPunctuation -> {
-                applySnapshotPipelineShownPage(result.shown)
-                result.previewOriginalIndex?.let(service::previewPendingT9PunctuationCandidate)
-                refreshT9Ui()
-                true
-            }
-            is T9CandidateUiSnapshotPipeline.PageOffset.ChineseBulk -> {
-                applySnapshotPipelineShownPage(result.shown)
-                refreshT9Ui()
-                true
-            }
-            null -> null
-        }
-
-    private fun handleSnapshotPipelineCommit(shownIndex: Int? = null): Boolean? =
-        when (val result = if (shownIndex == null) {
-            t9CandidateUiSnapshotPipeline.commitCurrentBottomCandidate()
-        } else {
-            t9CandidateUiSnapshotPipeline.commitBottomCandidateAt(shownIndex)
-        }) {
-            is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.SmartEnglish ->
-                service.commitSmartEnglishCandidate(result.originalIndex)
-            is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.PendingPunctuation ->
-                service.commitPendingT9PunctuationCandidate(result.originalIndex)
-            is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.ChineseBulk ->
-                selectT9BulkCandidate(result.originalIndex, result.candidate, result.matchedPrefix)
-            null -> null
-        }
-
-    private fun applySnapshotPipelineShownPage(shown: T9PagedCandidates) {
-        t9ShownPaged = shown.data
     }
 
     private fun updateT9FocusIndicator(

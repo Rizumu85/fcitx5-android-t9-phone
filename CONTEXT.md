@@ -137,6 +137,20 @@ candidate content changes may ask the pinyin row to realign, hidden frames skip
 child rendering, and pending first-frame pinyin reveal retries until content is
 ready without broad UI refresh churn.
 
+### T9 Candidate Interaction Controller
+
+The command-side interaction surface for the currently rendered bottom
+candidate row when that row is owned by the T9 Candidate UI Snapshot Pipeline.
+It owns move, page, shortcut commit, and highlighted commit dispatch for Smart
+English, pending punctuation, and Chinese bulk-selection rows.
+
+`CandidatesView` may keep the legacy fallback for non-owned Rime candidate
+rows, but it should not duplicate source-specific side effects for rows already
+owned by the snapshot pipeline. `T9CandidateInteractionController` maps the
+pipeline's interaction results to host side effects such as Smart English index
+selection, punctuation preview, page application, refresh, and bulk Hanzi
+selection.
+
 ### Chinese T9 Candidate Frame Gate
 
 Chinese T9 candidate rendering must be source-fresh at the frame level. A frame

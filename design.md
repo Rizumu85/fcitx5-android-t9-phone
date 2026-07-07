@@ -118,3 +118,10 @@ The pass decides whether the pinyin row should render, sync layout, clear, or
 stay untouched before the Android renderer performs the view operations. This
 keeps the pinyin reveal retry contract testable while preserving the existing
 visual output.
+
+Owned bottom-row interactions go through a T9 Candidate Interaction Controller.
+The snapshot pipeline still owns the interaction state; the controller is the
+adapter seam that applies pipeline interaction results to host side effects.
+This keeps `CandidatesView` from carrying parallel Smart English, punctuation,
+and bulk-selection dispatch branches while preserving fallback handling for
+ordinary non-owned Rime candidates.

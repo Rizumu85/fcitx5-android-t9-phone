@@ -134,3 +134,6 @@ otherwise.
 - [x] Deepen the T9 Candidate Render Pass seam so pinyin render/sync/clear
   decisions and hidden-frame visibility decisions are planned outside the
   Android renderer.
+- [x] Deepen the T9 Candidate Interaction Controller seam so pipeline-owned
+  bottom-row move/page/commit side effects are dispatched outside
+  `CandidatesView`, while non-owned Rime candidate rows keep their fallback.
