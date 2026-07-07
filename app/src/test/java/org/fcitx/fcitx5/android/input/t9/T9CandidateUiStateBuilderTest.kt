@@ -74,6 +74,39 @@ class T9CandidateUiStateBuilderTest {
     }
 
     @Test
+    fun smartEnglishPunctuationShowsSelectedPreviewInTopBubble() {
+        val delegate = FakeDelegate(
+            chineseActive = false,
+            smartEnglishActive = true,
+            smartEnglishPresentation = T9PresentationState(
+                topReading = text("hello"),
+                pinyinOptions = emptyList()
+            ),
+            pendingPunctuationPaged = pagedWithCursor(0, ".", ",")
+        )
+
+        val result = T9CandidateUiStateBuilder(delegate).build(input())
+
+        assertNotNull(result)
+        assertEquals(".", result!!.renderState.panel.preedit.toString())
+        assertEquals(0, delegate.getSmartEnglishPresentationCount)
+    }
+
+    @Test
+    fun smartEnglishPunctuationPreviewFollowsCandidateCursor() {
+        val delegate = FakeDelegate(
+            chineseActive = false,
+            smartEnglishActive = true,
+            pendingPunctuationPaged = pagedWithCursor(1, ".", ",")
+        )
+
+        val result = T9CandidateUiStateBuilder(delegate).build(input())
+
+        assertNotNull(result)
+        assertEquals(",", result!!.renderState.panel.preedit.toString())
+    }
+
+    @Test
     fun visibleChineseLoadingStateDefersRenderUntilEngineCandidatesArrive() {
         val loadingState = ChineseT9CandidateLoadingState().apply {
             startIfNeeded(chineseT9Active = true, compositionKeyCount = 1)
@@ -195,6 +228,7 @@ class T9CandidateUiStateBuilderTest {
         private val smartEnglishActive: Boolean,
         private val smartEnglishPaged: FcitxEvent.PagedCandidateEvent.Data? = null,
         private val smartEnglishPresentation: T9PresentationState? = null,
+        private val pendingPunctuationPaged: FcitxEvent.PagedCandidateEvent.Data? = null,
         private val chineseSnapshot: ChineseT9InputSnapshot = ChineseT9InputSnapshot(
             rawSequence = "2",
             digitSequence = "2",
@@ -243,7 +277,8 @@ class T9CandidateUiStateBuilderTest {
             data: FcitxEvent.PagedCandidateEvent.Data
         ): T9PagedCandidates = T9PagedCandidates.passthrough(data)
 
-        override fun getPendingT9PunctuationPaged(): FcitxEvent.PagedCandidateEvent.Data? = null
+        override fun getPendingT9PunctuationPaged(): FcitxEvent.PagedCandidateEvent.Data? =
+            pendingPunctuationPaged
 
         override fun buildT9PendingPunctuationPaged(
             data: FcitxEvent.PagedCandidateEvent.Data
@@ -326,9 +361,21 @@ class T9CandidateUiStateBuilderTest {
         paged(candidate(text))
 
     private fun paged(vararg candidates: FcitxEvent.Candidate): FcitxEvent.PagedCandidateEvent.Data =
+        pagedWithCursor(0, *candidates)
+
+    private fun pagedWithCursor(
+        cursor: Int,
+        vararg words: String
+    ): FcitxEvent.PagedCandidateEvent.Data =
+        pagedWithCursor(cursor, *words.map(::candidate).toTypedArray())
+
+    private fun pagedWithCursor(
+        cursor: Int,
+        vararg candidates: FcitxEvent.Candidate
+    ): FcitxEvent.PagedCandidateEvent.Data =
         FcitxEvent.PagedCandidateEvent.Data(
             candidates = candidates.toList().toTypedArray(),
-            cursorIndex = 0,
+            cursorIndex = cursor,
             layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
             hasPrev = false,
             hasNext = false

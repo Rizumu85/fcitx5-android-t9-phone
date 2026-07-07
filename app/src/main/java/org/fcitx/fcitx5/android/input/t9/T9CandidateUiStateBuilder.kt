@@ -6,6 +6,8 @@
 package org.fcitx.fcitx5.android.input.t9
 
 import org.fcitx.fcitx5.android.core.FcitxEvent
+import org.fcitx.fcitx5.android.core.FormattedText
+import org.fcitx.fcitx5.android.core.TextFormatFlag
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrientation
 
 class T9CandidateUiStateBuilder(
@@ -206,7 +208,11 @@ class T9CandidateUiStateBuilder(
                     }
                     T9CandidateSourceControlPlanner.Surface.SMART_ENGLISH -> {
                         clearChinesePresentationState()
-                        delegate.getSmartEnglishT9Presentation()
+                        // Punctuation preview is mode-neutral: English users need the same top
+                        // bubble confirmation as Chinese before committing a symbol candidate.
+                        pendingPunctuationText(presentationPlan, effectivePaged)
+                            ?.let(::pendingPunctuationPresentationState)
+                            ?: delegate.getSmartEnglishT9Presentation()
                     }
                     T9CandidateSourceControlPlanner.Surface.OTHER -> {
                         clearChinesePresentationState()
@@ -272,5 +278,22 @@ class T9CandidateUiStateBuilder(
         return effectivePaged.candidates.getOrNull(effectivePaged.cursorIndex)?.text
             ?: effectivePaged.candidates.firstOrNull()?.text
     }
+
+    private fun pendingPunctuationPresentationState(text: String): T9PresentationState =
+        T9PresentationState(
+            topReading = formattedText(text),
+            pinyinOptions = emptyList()
+        )
+
+    private fun formattedText(text: String): FormattedText? =
+        if (text.isEmpty()) {
+            null
+        } else {
+            FormattedText(
+                strings = arrayOf(text),
+                flags = intArrayOf(TextFormatFlag.NoFlag.flag),
+                cursor = -1
+            )
+        }
 
 }
