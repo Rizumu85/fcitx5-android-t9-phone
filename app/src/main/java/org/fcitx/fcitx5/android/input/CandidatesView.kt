@@ -264,6 +264,7 @@ class CandidatesView(
             // RecyclerView won't update its items when ancestor view is GONE.
             showAfterPositioned = false
             showAfterPositionedContentReady = true
+            removePinyinRowRevealListener()
             visibility = INVISIBLE
         }
     })
@@ -345,6 +346,7 @@ class CandidatesView(
     })
     private var pinyinRowTargetVisible = false
     private var pinyinRowRevealPending = false
+    private var pinyinRowRevealPreDrawListener: OnPreDrawListener? = null
 
     private val showPaginationArrows by candidatesPrefs.showPaginationArrows
     private val candidatesUi = PagedCandidatesUi(
@@ -550,6 +552,7 @@ class CandidatesView(
         t9RefreshScheduler.cancel()
         showAfterPositioned = false
         showAfterPositionedContentReady = true
+        removePinyinRowRevealListener()
         inputPanel = FcitxEvent.InputPanelEvent.Data()
         paged = FcitxEvent.PagedCandidateEvent.Data.Empty
         resetT9BulkFilterState()
@@ -603,6 +606,7 @@ class CandidatesView(
         t9RefreshScheduler.cancel()
         showAfterPositioned = false
         showAfterPositionedContentReady = true
+        removePinyinRowRevealListener()
         t9CandidateUiRenderer.hideImmediately()
     }
 
@@ -925,20 +929,44 @@ class CandidatesView(
     private fun schedulePinyinRowReveal() {
         if (pinyinRowRevealPending) return
         pinyinRowRevealPending = true
-        pinyinRowWrapper.postOnAnimation {
-            pinyinRowRevealPending = false
-            if (!pinyinRowTargetVisible) return@postOnAnimation
-            setPinyinRowHeight(pinyinBarRowHeightPx)
-            if (syncPinyinRowWidthToCandidates()) {
-                // Product decision: when candidate content changes, the pinyin row may have
-                // freshly rebound chips. Reveal it on the next frame so the user never sees the
-                // transient half-laid-out chip row captured in frame-by-frame testing.
+        val listener = object : OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                if (!pinyinRowTargetVisible) {
+                    removePinyinRowRevealListener()
+                    return true
+                }
+                setPinyinRowHeight(pinyinBarRowHeightPx)
+                if (!isPinyinRowReadyForReveal()) {
+                    shouldUpdatePosition = true
+                    return true
+                }
+                removePinyinRowRevealListener()
                 showPinyinRowNow()
-            } else {
-                waitForPinyinRowLayout()
-                schedulePinyinRowReveal()
+                return true
             }
         }
+        pinyinRowRevealPreDrawListener = listener
+        pinyinRowWrapper.viewTreeObserver.addOnPreDrawListener(listener)
+        pinyinRowWrapper.requestLayout()
+        pinyinRowWrapper.invalidate()
+    }
+
+    private fun removePinyinRowRevealListener() {
+        pinyinRowRevealPreDrawListener?.let { listener ->
+            if (pinyinRowWrapper.viewTreeObserver.isAlive) {
+                pinyinRowWrapper.viewTreeObserver.removeOnPreDrawListener(listener)
+            }
+        }
+        pinyinRowRevealPreDrawListener = null
+        pinyinRowRevealPending = false
+    }
+
+    private fun isPinyinRowReadyForReveal(): Boolean {
+        if (!syncPinyinRowWidthToCandidates()) return false
+        if (pinyinBarView.width <= 0 && pinyinBarView.measuredWidth <= 0) return false
+        if (pinyinRowWrapper.width <= 0 && pinyinRowWrapper.measuredWidth <= 0) return false
+        if (pinyinBarAdapter.itemCount != t9RenderedPinyinItems.size) return false
+        return pinyinBarAdapter.laidOutContentWidthPx()?.let { it > 0 } == true
     }
 
     private fun waitForPinyinRowLayout() {
@@ -989,6 +1017,7 @@ class CandidatesView(
                 false
             }
             T9PinyinRowVisibilityPlanner.SetVisibleAction.HIDE_NOW -> {
+                removePinyinRowRevealListener()
                 pinyinBarAdapter.clear()
                 pinyinBarAdapter.scrollToStart()
                 t9RenderedPinyinItems = emptyList()
@@ -1566,12 +1595,14 @@ class CandidatesView(
         if (visibility != VISIBLE) {
             showAfterPositioned = false
             showAfterPositionedContentReady = true
+            removePinyinRowRevealListener()
             touchEventReceiverWindow.dismiss()
         }
         super.setVisibility(visibility)
     }
 
     override fun onDetachedFromWindow() {
+        removePinyinRowRevealListener()
         viewTreeObserver.removeOnPreDrawListener(preDrawListener)
         viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
         touchEventReceiverWindow.dismiss()
