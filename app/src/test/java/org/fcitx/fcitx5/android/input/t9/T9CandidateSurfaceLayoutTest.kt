@@ -39,6 +39,24 @@ class T9CandidateSurfaceLayoutTest {
     }
 
     @Test
+    fun nonFoldedPinyinDoesNotWidenShortHanziPages() {
+        val plan = T9CandidateSurfaceLayout.plan(
+            input(
+                candidateMeasuredWidthPx = 90,
+                pinyinCount = 4,
+                pinyinFullContentWidthPx = 260,
+                pinyinFoldedContentWidthPx = 150
+            )
+        )
+
+        assertEquals(90, plan.rowWidthPx)
+        val pinyin = requireNotNull(plan.pinyin)
+        assertFalse(pinyin.folded)
+        assertFalse(pinyin.showHint)
+        assertEquals(4, pinyin.visibleCount)
+    }
+
+    @Test
     fun letsFoldedPinyinWidthDriveShortHanziPages() {
         val plan = T9CandidateSurfaceLayout.plan(
             input(

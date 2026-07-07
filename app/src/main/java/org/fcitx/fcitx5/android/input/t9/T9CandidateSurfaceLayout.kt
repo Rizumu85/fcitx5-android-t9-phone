@@ -43,14 +43,10 @@ object T9CandidateSurfaceLayout {
             minVisibleChips = input.minVisiblePinyinChips,
             pinyinRowFocused = input.pinyinRowFocused
         )
-        // Product decision: Chinese T9 bubble width follows the real Hanzi row once it is
-        // measured, while the pinyin filter may still widen short Hanzi pages by its folded row.
-        // Estimation stays in paging; visual proportions come from measured UI.
-        val pinyinWidth = if (pinyinPlan.folded) {
-            input.pinyinFoldedContentWidthPx
-        } else {
-            input.pinyinFullContentWidthPx
-        }
+        // Product decision: the second bubble is visually a Hanzi candidate bubble. The pinyin
+        // filter may widen only the folded overflow affordance; otherwise short Hanzi pages must
+        // not inherit a wide pinyin row and leave a blank lower row.
+        val pinyinWidth = if (pinyinPlan.folded) input.pinyinFoldedContentWidthPx else 0
         return Plan(
             contentReady = true,
             rowWidthPx = maxOf(safeCandidateWidth, pinyinWidth.coerceAtMost(maxWidth))
