@@ -152,3 +152,7 @@ otherwise.
 - [x] Deepen the T9 Candidate Interaction Controller seam so pipeline-owned
   bottom-row move/page/commit side effects are dispatched outside
   `CandidatesView`, while non-owned Rime candidate rows keep their fallback.
+- [x] Deepen T9 Candidate Source Sessions so Smart English, pending
+  punctuation, Chinese local-budget/bulk source state, and owned shown-row
+  original-index mapping live behind one internal Module instead of directly in
+  the snapshot pipeline.

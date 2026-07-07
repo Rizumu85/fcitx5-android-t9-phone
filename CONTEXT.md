@@ -95,6 +95,14 @@ or select shown index, but it should not own the pager/cache rules for Smart
 English, pending punctuation, local Chinese budget pages, bulk Chinese
 selection, or pinyin row focus.
 
+`T9CandidateSourceSessions` owns source-specific candidate state for Smart
+English, pending punctuation, and Chinese candidate sources. The snapshot
+pipeline may choose which source is visible, but it should not also carry the
+individual source pagers, shortcut original-index mapping, bulk-filter state,
+or currently shown owned-row session. Keeping those sessions behind one
+internal Module prevents interaction fixes from spreading across the snapshot
+builder, Android view adapter, and per-source candidate implementations.
+
 The migration should be sliced by candidate source, but each completed slice
 must remove the replaced `CandidatesView` fallback. Start with Smart English
 and pending punctuation, then move Chinese local-budget and pinyin-row state,

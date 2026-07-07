@@ -1,0 +1,318 @@
+/*
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ * SPDX-FileCopyrightText: Copyright 2026 Fcitx5 for Android Contributors
+ */
+
+package org.fcitx.fcitx5.android.input.t9
+
+import org.fcitx.fcitx5.android.core.FcitxEvent
+
+class T9CandidateSourceSessions(
+    private val characterBudget: () -> Int,
+    private val widthBudget: () -> T9CandidateWidthBudget?,
+    candidateMatchesPrefix: (candidate: FcitxEvent.Candidate, prefix: String) -> Boolean
+) {
+    private val smartEnglishPageCache = T9SmartEnglishPageCache(characterBudget, widthBudget)
+    private val pendingPunctuationPager = T9CandidatePager()
+    private val chineseCandidatePipeline = ChineseT9CandidatePipeline(
+        characterBudget = characterBudget,
+        widthBudget = widthBudget,
+        candidateMatchesPrefix = candidateMatchesPrefix
+    )
+    // The owned bottom row needs one memory of "what the user is looking at"; scattering this
+    // across each source made page/move/shortcut fixes depend on render timing in CandidatesView.
+    private var currentShown: T9CandidateUiSnapshotPipeline.ShownSnapshot? = null
+
+    val shownSource: T9CandidateUiSnapshotPipeline.ShownSource
+        get() = currentShown?.source ?: T9CandidateUiSnapshotPipeline.ShownSource.OTHER
+
+    val ownsCurrentShownState: Boolean
+        get() = currentShown?.ownsPagingState == true
+
+    val hasCurrentBottomCandidateRow: Boolean
+        get() = currentShown?.paged?.candidates?.isNotEmpty() == true
+
+    val currentShownMatchedPrefix: String?
+        get() = currentShown?.matchedPrefix
+
+    val hasChineseLocalBudgetCandidates: Boolean
+        get() = chineseCandidatePipeline.hasLocalBudgetCandidates
+
+    val hasChineseBulkFilteredCandidates: Boolean
+        get() = chineseCandidatePipeline.hasBulkFilteredCandidates
+
+    val chineseBulkFilterState: ChineseT9CandidatePipeline.BulkFilterState
+        get() = chineseCandidatePipeline.bulkFilterState
+
+    fun reset() {
+        smartEnglishPageCache.reset()
+        pendingPunctuationPager.reset()
+        chineseCandidatePipeline.reset()
+        currentShown = null
+    }
+
+    fun resetChineseLocalBudgetState() {
+        chineseCandidatePipeline.resetLocalBudget()
+    }
+
+    fun resetChineseBulkFilterState() {
+        chineseCandidatePipeline.resetBulkFilter()
+    }
+
+    fun chineseBulkFilterRequestSignature(
+        prefixes: List<String>,
+        preedit: CharSequence,
+        candidates: Array<FcitxEvent.Candidate>
+    ): String =
+        chineseCandidatePipeline.bulkFilterRequestSignature(prefixes, preedit, candidates)
+
+    fun shouldRequestChineseBulkFilter(signature: String): Boolean =
+        chineseCandidatePipeline.shouldRequestBulkFilter(signature)
+
+    fun startChineseBulkFilterRequest(prefixes: List<String>, signature: String) {
+        chineseCandidatePipeline.startBulkFilterRequest(prefixes, signature)
+    }
+
+    fun finishChineseBulkFilterRequest(
+        signature: String,
+        rawCandidates: List<String>,
+        prefixes: List<String>,
+        layoutHint: FcitxEvent.PagedCandidateEvent.LayoutHint
+    ): ChineseT9CandidatePipeline.BulkFilterState? =
+        chineseCandidatePipeline.finishBulkFilterRequest(
+            signature = signature,
+            rawCandidates = rawCandidates,
+            prefixes = prefixes,
+            layoutHint = layoutHint
+        )
+
+    fun offsetChineseBulkFilteredPage(
+        delta: Int,
+        layoutHint: FcitxEvent.PagedCandidateEvent.LayoutHint
+    ): Boolean =
+        chineseCandidatePipeline.offsetBulkFilteredPage(delta, layoutHint)
+
+    fun moveChineseBulkFilteredCursor(index: Int): T9PagedCandidates? =
+        chineseCandidatePipeline.moveBulkFilteredCursor(index)
+
+    fun filterChinesePagedByPinyinPrefixes(
+        data: FcitxEvent.PagedCandidateEvent.Data,
+        prefixes: List<String>
+    ): Pair<T9PagedCandidates, String?> =
+        chineseCandidatePipeline.filterPagedByPinyinPrefixes(data, prefixes)
+
+    fun buildChineseLocalBudgetedPagedFromCurrentPage(
+        data: FcitxEvent.PagedCandidateEvent.Data
+    ): T9PagedCandidates? =
+        chineseCandidatePipeline.buildLocalBudgetedPagedFromCurrentPage(data)
+
+    fun offsetChineseLocalBudgetedPage(delta: Int): Boolean =
+        chineseCandidatePipeline.offsetLocalBudgetedPage(delta)
+
+    fun applyChineseHanziCursor(
+        data: FcitxEvent.PagedCandidateEvent.Data,
+        cursorContextSignature: String
+    ): FcitxEvent.PagedCandidateEvent.Data =
+        chineseCandidatePipeline.applyHanziCursor(data, cursorContextSignature)
+
+    fun moveChineseHanziCursor(
+        data: FcitxEvent.PagedCandidateEvent.Data,
+        index: Int
+    ): FcitxEvent.PagedCandidateEvent.Data? =
+        chineseCandidatePipeline.moveHanziCursor(data, index)
+
+    fun buildChineseCursorContextSignature(preedit: CharSequence, prefixes: List<String>): String =
+        chineseCandidatePipeline.buildCursorContextSignature(preedit, prefixes)
+
+    fun buildSmartEnglishPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates =
+        smartEnglishPageCache.build(data)
+
+    fun buildPendingPunctuationPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates {
+        val signature = T9CandidateSnapshots.pagerContent(data, characterBudget(), widthBudget())
+        pendingPunctuationPager.update(
+            signature,
+            data.candidates.withIndex().toList(),
+            characterBudget(),
+            widthBudget()
+        )
+        val selectedIndex = data.cursorIndex.coerceIn(data.candidates.indices)
+        val page = pendingPunctuationPager.selectPageContainingOriginalIndex(selectedIndex)
+            ?: return T9PagedCandidates.passthrough(data)
+        return page.toPagedCandidates(
+            layoutHint = data.layoutHint,
+            cursorIndex = page.cursorIndexForOriginalIndex(selectedIndex)
+        )
+    }
+
+    fun updateShownState(
+        paged: FcitxEvent.PagedCandidateEvent.Data,
+        originalIndices: IntArray,
+        usesSmartEnglish: Boolean,
+        usesPendingPunctuation: Boolean,
+        usesBulkSelection: Boolean,
+        matchedPrefix: String?
+    ): T9CandidateUiSnapshotPipeline.ShownSnapshot {
+        val source = when {
+            usesPendingPunctuation -> T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION
+            usesSmartEnglish -> T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH
+            usesBulkSelection -> T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK
+            else -> T9CandidateUiSnapshotPipeline.ShownSource.OTHER
+        }
+        return T9CandidateUiSnapshotPipeline.ShownSnapshot(
+            source = source,
+            paged = paged,
+            originalIndices = originalIndices,
+            matchedPrefix = matchedPrefix
+        ).also {
+            currentShown = it
+        }
+    }
+
+    fun smartEnglishShortcutOriginalIndex(shownIndex: Int): Int? {
+        val shown = currentShown
+            ?.takeIf { it.source == T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH }
+            ?: return null
+        return shown.originalIndexAt(shownIndex)
+    }
+
+    fun pendingPunctuationShortcutOriginalIndex(shownIndex: Int): Int? {
+        val shown = currentShown
+            ?.takeIf { it.source == T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION }
+            ?: return null
+        return shown.originalIndexAt(shownIndex)
+    }
+
+    fun moveCurrentBottomCandidate(delta: Int): T9CandidateUiSnapshotPipeline.MoveBottomCandidate? {
+        val shown = currentShown ?: return null
+        if (!shown.ownsPagingState || shown.paged.candidates.isEmpty()) return null
+        val next = shown.paged.cursorIndex + delta
+        return when {
+            next in shown.paged.candidates.indices -> moveWithinCurrentPage(shown, next)
+            next >= shown.paged.candidates.size && shown.paged.hasNext ->
+                offsetCurrentPage(1)?.toMoveResult()
+            next < 0 && shown.paged.hasPrev ->
+                offsetCurrentPage(-1)?.toMoveResult()
+            else -> null
+        }
+    }
+
+    fun offsetCurrentPage(delta: Int): T9CandidateUiSnapshotPipeline.PageOffset? =
+        when (currentShown?.source) {
+            T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH -> {
+                val page = smartEnglishPageCache.offset(delta) ?: return null
+                val nextOriginalIndex = page.candidates.firstOrNull()?.index ?: return null
+                T9CandidateUiSnapshotPipeline.PageOffset.SmartEnglish(nextOriginalIndex)
+            }
+            T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION -> {
+                val page = pendingPunctuationPager.offset(delta) ?: return null
+                val shown = page.toPagedCandidates(
+                    layoutHint = currentShown?.paged?.layoutHint
+                        ?: FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
+                    cursorIndex = page.cursorIndexForOriginalIndex(
+                        page.originalIndices.firstOrNull() ?: -1
+                    )
+                )
+                currentShown = T9CandidateUiSnapshotPipeline.ShownSnapshot(
+                    source = T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION,
+                    paged = shown.data,
+                    originalIndices = shown.originalIndices,
+                    matchedPrefix = null
+                )
+                T9CandidateUiSnapshotPipeline.PageOffset.PendingPunctuation(
+                    shown = shown,
+                    previewOriginalIndex = shown.originalIndices.firstOrNull()
+                )
+            }
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK -> {
+                val shown = currentShown ?: return null
+                if (!offsetChineseBulkFilteredPage(delta, shown.paged.layoutHint)) return null
+                val state = chineseBulkFilterState
+                val nextShown = state.paged ?: return null
+                currentShown = shown.copy(
+                    paged = nextShown.data,
+                    originalIndices = nextShown.originalIndices,
+                    matchedPrefix = state.matchedPrefix
+                )
+                T9CandidateUiSnapshotPipeline.PageOffset.ChineseBulk(nextShown)
+            }
+            else -> null
+        }
+
+    fun commitCurrentBottomCandidate(): T9CandidateUiSnapshotPipeline.CommitBottomCandidate? {
+        val shown = currentShown ?: return null
+        if (!shown.ownsPagingState) return null
+        return commitBottomCandidateAt(shown, shown.paged.cursorIndex)
+    }
+
+    fun commitBottomCandidateAt(shownIndex: Int): T9CandidateUiSnapshotPipeline.CommitBottomCandidate? {
+        val shown = currentShown ?: return null
+        if (!shown.ownsPagingState) return null
+        return commitBottomCandidateAt(shown, shownIndex)
+    }
+
+    private fun commitBottomCandidateAt(
+        shown: T9CandidateUiSnapshotPipeline.ShownSnapshot,
+        shownIndex: Int
+    ): T9CandidateUiSnapshotPipeline.CommitBottomCandidate? {
+        if (shownIndex !in shown.paged.candidates.indices) return null
+        val originalIndex = shown.originalIndexAt(shownIndex) ?: shownIndex
+        return when (shown.source) {
+            T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH ->
+                T9CandidateUiSnapshotPipeline.CommitBottomCandidate.SmartEnglish(originalIndex)
+            T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION ->
+                T9CandidateUiSnapshotPipeline.CommitBottomCandidate.PendingPunctuation(originalIndex)
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK -> {
+                val candidate = shown.paged.candidates.getOrNull(shownIndex) ?: return null
+                T9CandidateUiSnapshotPipeline.CommitBottomCandidate.ChineseBulk(
+                    originalIndex = originalIndex,
+                    candidate = candidate,
+                    matchedPrefix = shown.matchedPrefix
+                )
+            }
+            T9CandidateUiSnapshotPipeline.ShownSource.OTHER -> null
+        }
+    }
+
+    private fun moveWithinCurrentPage(
+        shown: T9CandidateUiSnapshotPipeline.ShownSnapshot,
+        next: Int
+    ): T9CandidateUiSnapshotPipeline.MoveBottomCandidate? {
+        val originalIndex = shown.originalIndexAt(next) ?: next
+        return when (shown.source) {
+            T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH ->
+                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.SmartEnglish(originalIndex)
+            T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION -> {
+                val nextPaged = shown.paged.copy(cursorIndex = next)
+                currentShown = shown.copy(paged = nextPaged)
+                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.PendingPunctuation(
+                    shown = T9PagedCandidates(nextPaged, shown.originalIndices),
+                    previewOriginalIndex = originalIndex
+                )
+            }
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK -> {
+                val nextShown = moveChineseBulkFilteredCursor(next)
+                    ?: T9PagedCandidates(shown.paged.copy(cursorIndex = next), shown.originalIndices)
+                currentShown = shown.copy(
+                    paged = nextShown.data,
+                    originalIndices = nextShown.originalIndices
+                )
+                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.ChineseBulk(nextShown)
+            }
+            T9CandidateUiSnapshotPipeline.ShownSource.OTHER -> null
+        }
+    }
+
+    private fun T9CandidateUiSnapshotPipeline.PageOffset.toMoveResult():
+        T9CandidateUiSnapshotPipeline.MoveBottomCandidate =
+        when (this) {
+            is T9CandidateUiSnapshotPipeline.PageOffset.SmartEnglish ->
+                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.SmartEnglish(nextOriginalIndex)
+            is T9CandidateUiSnapshotPipeline.PageOffset.PendingPunctuation ->
+                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.PendingPunctuation(
+                    shown = shown,
+                    previewOriginalIndex = previewOriginalIndex ?: -1
+                )
+            is T9CandidateUiSnapshotPipeline.PageOffset.ChineseBulk ->
+                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.ChineseBulk(shown)
+        }
+}
