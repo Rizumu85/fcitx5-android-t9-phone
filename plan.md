@@ -102,6 +102,12 @@ otherwise.
   candidate confirmation, and Backspace.
 - [x] Move number-mode digit, `*`, and `#` special-key branches into the
   command-based flow and remove the replaced handler fallback.
+- [x] Split number-mode Physical T9 rules behind an internal mode module while
+  preserving one command-based flow interface for callers.
+- [x] Split English and Smart English physical-key rules behind an internal
+  mode module while preserving the same command interface.
+- [x] Split Chinese physical-key rules behind an internal mode module while
+  preserving the same command interface.
 - [ ] Move remaining Chinese special-key branches into the command-based flow
   in small slices, removing each replaced handler fallback as it migrates.
 

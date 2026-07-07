@@ -36,6 +36,11 @@ events, including digit long-press flags, pound long-press state, and deferred
 Smart English digits. These are user-facing key-flow rules rather than Android
 platform adapter details.
 
+Mode-specific key rules may live behind internal Physical T9 Key Flow modules
+as long as callers still cross the same command-based flow interface. This
+keeps mode rules local without making `PhysicalT9KeyHandler` or
+`FcitxInputMethodService` learn another user-facing key contract.
+
 The refactor may be delivered in small slices, but it must not leave parallel
 legacy fallback behavior behind. Each migrated key-flow branch should remove
 the old branch it replaces, and the end state should have the command-based
