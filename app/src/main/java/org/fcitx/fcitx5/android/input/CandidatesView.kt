@@ -7,7 +7,6 @@ package org.fcitx.fcitx5.android.input
 
 import android.annotation.SuppressLint
 import android.graphics.Color
-import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.text.TextPaint
@@ -22,7 +21,6 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.annotation.Size
-import androidx.recyclerview.widget.RecyclerView
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.daemon.FcitxConnection
@@ -319,6 +317,7 @@ class CandidatesView(
         ctx, theme, setupTextViewCandidates,
         showPaginationArrows,
         dp(windowRadius),
+        dp(candidateItemSpacing),
         onCandidateClick = { shownIndex ->
             if (service.isSmartEnglishT9InputModeActive()) {
                 commitSmartEnglishShortcut(shownIndex)
@@ -1516,16 +1515,6 @@ class CandidatesView(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
         ).apply { gravity = Gravity.START or Gravity.TOP })
-        candidatesUi.root.addItemDecoration(object : RecyclerView.ItemDecoration() {
-            override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
-                val position = parent.getChildAdapterPosition(view)
-                outRect.right = if (position != RecyclerView.NO_POSITION && position < state.itemCount - 1) {
-                    dp(candidateItemSpacing)
-                } else {
-                    0
-                }
-            }
-        })
         // Bubble 1: width by pinyin content, left-aligned
         contentWrapper.addView(bubble1Wrapper, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT,

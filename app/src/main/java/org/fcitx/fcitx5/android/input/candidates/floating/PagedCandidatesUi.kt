@@ -6,15 +6,18 @@
 package org.fcitx.fcitx5.android.input.candidates.floating
 
 import android.content.Context
+import android.graphics.Rect
 import android.os.Build
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.DiffUtil
-import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.flexbox.AlignItems
 import com.google.android.flexbox.FlexDirection
@@ -36,6 +39,7 @@ class PagedCandidatesUi(
     private val setupTextView: TextView.() -> Unit,
     private val showPaginationArrows: Boolean,
     private val highlightCornerRadiusPx: Int,
+    private val itemSpacingPx: Int,
     private val onCandidateClick: (Int) -> Unit,
     private val onPrevPage: () -> Unit,
     private val onNextPage: () -> Unit
@@ -183,21 +187,12 @@ class PagedCandidatesUi(
         }
     }
 
-    private class ShortcutToolbarLayoutManager(context: Context) :
-        LinearLayoutManager(context, HORIZONTAL, false) {
-
-        override fun canScrollHorizontally(): Boolean = false
-
-        override fun canScrollVertically(): Boolean = false
-    }
-
     private val flexboxLayoutManager = FlexboxLayoutManager(ctx).apply {
         flexWrap = FlexWrap.WRAP
     }
-    private val shortcutToolbarLayoutManager = ShortcutToolbarLayoutManager(ctx)
     private var shortcutToolbarLayoutActive = false
 
-    override val root = recyclerView {
+    private val recyclerRoot = recyclerView {
         isFocusable = false
         isFocusableInTouchMode = false
         descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
@@ -211,6 +206,46 @@ class PagedCandidatesUi(
         clipChildren = false
         clipToPadding = false
         setPadding(highlightOverflowPaddingPx, 0, highlightOverflowPaddingPx, 0)
+        addItemDecoration(object : RecyclerView.ItemDecoration() {
+            override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
+                val position = parent.getChildAdapterPosition(view)
+                outRect.right = if (position != RecyclerView.NO_POSITION && position < state.itemCount - 1) {
+                    itemSpacingPx
+                } else {
+                    0
+                }
+            }
+        })
+    }
+
+    private val shortcutToolbarRoot = LinearLayout(ctx).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        isFocusable = false
+        isFocusableInTouchMode = false
+        descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        clipChildren = true
+        clipToPadding = false
+        visibility = View.GONE
+        setPadding(highlightOverflowPaddingPx, 0, highlightOverflowPaddingPx, 0)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            defaultFocusHighlightEnabled = false
+        }
+    }
+
+    override val root = FrameLayout(ctx).apply {
+        isFocusable = false
+        isFocusableInTouchMode = false
+        descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        clipChildren = false
+        clipToPadding = false
+        addView(recyclerRoot, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
+        addView(shortcutToolbarRoot, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
+    }
+    private val shortcutCandidateItems = mutableListOf<LabeledCandidateItemUi>()
+    private val shortcutPaginationItem = PaginationUi(ctx, theme).apply {
+        prevIcon.setOnClickListener { onPrevPage.invoke() }
+        nextIcon.setOnClickListener { onNextPage.invoke() }
     }
 
     fun update(
@@ -246,6 +281,12 @@ class PagedCandidatesUi(
         )
         updateShortcutLabelOverflowPadding(showShortcutLabels, shortcutLayout)
         renderRows = newRows
+        if (showShortcutLabels) {
+            renderShortcutToolbar(newRows, shortcutLayout)
+            return
+        }
+        shortcutToolbarRoot.visibility = View.GONE
+        recyclerRoot.visibility = View.VISIBLE
         when {
             layoutChanged -> candidatesAdapter.notifyDataSetChanged()
             oldRows == newRows -> Unit
@@ -264,6 +305,10 @@ class PagedCandidatesUi(
             showShortcutLabels = showShortcutLabels
         )
         renderRows = newRows
+        if (showShortcutLabels) {
+            renderShortcutToolbar(newRows, shortcutLayout)
+            return
+        }
         if (oldRows != newRows) {
             DiffUtil.calculateDiff(rowDiff(oldRows, newRows))
                 .dispatchUpdatesTo(candidatesAdapter)
@@ -283,22 +328,25 @@ class PagedCandidatesUi(
         val rightPadding = highlightOverflowPaddingPx + trailingPadding
         if (
             shortcutLabelPaddingApplied == enabled &&
-            root.paddingTop == verticalPadding &&
-            root.paddingBottom == verticalPadding &&
-            root.paddingLeft == highlightOverflowPaddingPx &&
-            root.paddingRight == rightPadding
+            shortcutToolbarRoot.paddingTop == verticalPadding &&
+            shortcutToolbarRoot.paddingBottom == verticalPadding &&
+            shortcutToolbarRoot.paddingLeft == highlightOverflowPaddingPx &&
+            shortcutToolbarRoot.paddingRight == rightPadding
         ) return
         shortcutLabelPaddingApplied = enabled
         // T9 shortcut labels are a compact two-line surface. Keep a tiny bubble inset so font
-        // metrics and the focus outline do not get clipped at the RecyclerView boundary. The
+        // metrics and the focus outline do not get clipped at the toolbar boundary. The
         // trailing reserve is a product-level rhythm choice: the last candidate always gets the
         // same breathing room instead of inheriting noise from width estimation.
-        root.setPadding(
+        shortcutToolbarRoot.setPadding(
             highlightOverflowPaddingPx,
             verticalPadding,
             rightPadding,
             verticalPadding
         )
+        if (!enabled) {
+            recyclerRoot.setPadding(highlightOverflowPaddingPx, 0, highlightOverflowPaddingPx, 0)
+        }
     }
 
     private fun updateRootWidth(
@@ -318,21 +366,20 @@ class PagedCandidatesUi(
     private fun updateShortcutToolbarClipping(enabled: Boolean) {
         // T9 candidates are a paged toolbar, not a scrollable list. Clipping only in this mode
         // keeps normal floating candidates' focus overflow unchanged.
-        root.clipChildren = enabled
-        root.clipToPadding = false
+        recyclerRoot.clipChildren = enabled
+        recyclerRoot.clipToPadding = false
+        shortcutToolbarRoot.clipChildren = enabled
+        shortcutToolbarRoot.clipToPadding = false
     }
 
     private fun updateLayoutManager(showShortcutLabels: Boolean) {
         if (showShortcutLabels) {
-            if (!shortcutToolbarLayoutActive) {
-                shortcutToolbarLayoutActive = true
-                root.layoutManager = shortcutToolbarLayoutManager
-            }
+            shortcutToolbarLayoutActive = true
             return
         }
         if (shortcutToolbarLayoutActive) {
             shortcutToolbarLayoutActive = false
-            root.layoutManager = flexboxLayoutManager
+            recyclerRoot.layoutManager = flexboxLayoutManager
         }
         flexboxLayoutManager.apply {
             if (isVertical) {
@@ -342,6 +389,75 @@ class PagedCandidatesUi(
                 flexDirection = FlexDirection.ROW
                 alignItems = AlignItems.BASELINE
             }
+        }
+    }
+
+    private fun renderShortcutToolbar(
+        rows: List<Row>,
+        shortcutLayout: ShortcutLayout?
+    ) {
+        recyclerRoot.visibility = View.GONE
+        shortcutToolbarRoot.visibility = View.VISIBLE
+        rows.forEachIndexed { index, row ->
+            val view = when (row) {
+                is Row.Candidate -> shortcutCandidateView(index, row, shortcutLayout)
+                is Row.Pagination -> shortcutPaginationView(row)
+            }
+            attachShortcutChild(view, index, index == rows.lastIndex)
+        }
+        while (shortcutToolbarRoot.childCount > rows.size) {
+            shortcutToolbarRoot.removeViewAt(shortcutToolbarRoot.childCount - 1)
+        }
+    }
+
+    private fun shortcutCandidateView(
+        displayIndex: Int,
+        row: Row.Candidate,
+        shortcutLayout: ShortcutLayout?
+    ): View {
+        val item = shortcutCandidateItems.getOrNull(displayIndex)
+            ?: LabeledCandidateItemUi(ctx, theme, setupTextView, highlightCornerRadiusPx).also {
+                shortcutCandidateItems += it
+            }
+        item.apply {
+            update(
+                row.candidate,
+                active = row.active,
+                inactiveRow = row.inactiveRow,
+                t9InputModeEnabled = t9InputModeEnabled,
+                shortcutLabel = row.shortcutLabel,
+                shortcutMaxWidthPx = shortcutLayout?.maxCandidateWidthPx
+            )
+            root.setOnClickListener {
+                onCandidateClick.invoke(row.position)
+            }
+        }
+        return item.root
+    }
+
+    private fun shortcutPaginationView(row: Row.Pagination): View {
+        return shortcutPaginationItem.apply {
+            update(hasPrev = row.hasPrev, hasNext = row.hasNext)
+        }.root
+    }
+
+    private fun attachShortcutChild(view: View, index: Int, last: Boolean) {
+        val params = (view.layoutParams as? LinearLayout.LayoutParams)
+            ?: LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
+        val rightMargin = if (last) 0 else itemSpacingPx
+        if (params.rightMargin != rightMargin) {
+            params.rightMargin = rightMargin
+            view.layoutParams = params
+        }
+        val existingIndex = shortcutToolbarRoot.indexOfChild(view)
+        when {
+            existingIndex == index -> Unit
+            existingIndex >= 0 -> {
+                shortcutToolbarRoot.removeViewAt(existingIndex)
+                shortcutToolbarRoot.addView(view, index, params)
+            }
+            index < shortcutToolbarRoot.childCount -> shortcutToolbarRoot.addView(view, index, params)
+            else -> shortcutToolbarRoot.addView(view, params)
         }
     }
 
