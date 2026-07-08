@@ -108,6 +108,19 @@ text, refreshes views, and focuses Fcitx in or out, but it should ask the
 lifecycle whether a composition state transition occurred and which UI action
 that transition requires.
 
+### Chinese T9 Presentation Source
+
+The Chinese T9 presentation source turns a stable Chinese presentation
+snapshot key into the top reading row and pinyin filter row shown by the T9
+candidate surface. It owns candidate-comment preview, separator-aware preview,
+resolved pinyin display, pending punctuation preview, digit-to-pinyin fallback
+display, and pinyin option generation.
+
+`ChineseT9PresentationSource` should keep these presentation rules out of
+`FcitxInputMethodService`. The service remains the Android/Fcitx adapter: it
+formats `FormattedText`, supplies Rime/input-panel snapshots, and asks
+`ChineseT9CompositionLifecycle` to cache source output.
+
 ### T9 Candidate UI Snapshot Pipeline
 
 The complete T9 candidate UI refresh flow. It should turn the current IME
