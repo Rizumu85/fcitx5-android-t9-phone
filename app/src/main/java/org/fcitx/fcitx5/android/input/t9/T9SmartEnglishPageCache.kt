@@ -27,9 +27,15 @@ class T9SmartEnglishPageCache(
     }
 
     fun build(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates {
-        val budget = characterBudget()
-        val widthBudget = widthBudget()
-        val signature = T9CandidateSnapshots.pagerContent(data, budget, widthBudget)
+        val budget = T9ResponsivenessTrace.measure("CandidatesView.updateUi.smartEnglishPage.characterBudget") {
+            characterBudget()
+        }
+        val widthBudget = T9ResponsivenessTrace.measure("CandidatesView.updateUi.smartEnglishPage.widthBudget") {
+            widthBudget()
+        }
+        val signature = T9ResponsivenessTrace.measure("CandidatesView.updateUi.smartEnglishPage.signature") {
+            T9CandidateSnapshots.pagerContent(data, budget, widthBudget)
+        }
         val selectedIndex = data.candidates.indices
             .takeIf { !it.isEmpty() }
             ?.let { data.cursorIndex.coerceIn(it) }
@@ -40,18 +46,22 @@ class T9SmartEnglishPageCache(
             }
         }
         if (signature != contentSignature) {
-            pager.update(signature, data.candidates.withIndex().toList(), budget, widthBudget)
+            T9ResponsivenessTrace.measure("CandidatesView.updateUi.smartEnglishPage.pagerUpdate") {
+                pager.update(signature, data.candidates.withIndex().toList(), budget, widthBudget)
+            }
             contentSignature = signature
         }
         cachedCursorIndex = selectedIndex
-        val next = pager.selectPageContainingOriginalIndex(selectedIndex)
-            ?.let { page ->
-                page.toPagedCandidates(
-                layoutHint = data.layoutHint,
-                    cursorIndex = page.cursorIndexForOriginalIndex(selectedIndex)
-                )
-            }
-            ?: T9PagedCandidates.passthrough(data)
+        val next = T9ResponsivenessTrace.measure("CandidatesView.updateUi.smartEnglishPage.selectPage") {
+            pager.selectPageContainingOriginalIndex(selectedIndex)
+                ?.let { page ->
+                    page.toPagedCandidates(
+                        layoutHint = data.layoutHint,
+                        cursorIndex = page.cursorIndexForOriginalIndex(selectedIndex)
+                    )
+                }
+                ?: T9PagedCandidates.passthrough(data)
+        }
         cachedPaged = next
         return next
     }

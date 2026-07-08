@@ -23,6 +23,7 @@ import com.google.android.flexbox.FlexboxLayoutManager
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.core.FcitxEvent.PagedCandidateEvent.LayoutHint
 import org.fcitx.fcitx5.android.data.theme.Theme
+import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
 import kotlin.math.roundToInt
 import splitties.dimensions.dp
 import splitties.views.dsl.core.Ui
@@ -201,17 +202,29 @@ class PagedCandidatesUi(
         val layoutChanged = oldVertical != nextVertical
         this.data = data
         this.isVertical = nextVertical
-        updateLayoutManager()
-        val newRows = rowsFor(
-            data = data,
-            highlightActive = highlightActive
-        )
+        T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.pagedLayoutManager") {
+            updateLayoutManager()
+        }
+        val newRows = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.pagedRows") {
+            rowsFor(
+                data = data,
+                highlightActive = highlightActive
+            )
+        }
         renderRows = newRows
         when {
-            layoutChanged -> candidatesAdapter.notifyDataSetChanged()
+            layoutChanged -> T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.pagedNotifyAll") {
+                candidatesAdapter.notifyDataSetChanged()
+            }
             oldRows == newRows -> Unit
-            else -> DiffUtil.calculateDiff(rowDiff(oldRows, newRows))
-                .dispatchUpdatesTo(candidatesAdapter)
+            else -> {
+                val diff = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.pagedDiff") {
+                    DiffUtil.calculateDiff(rowDiff(oldRows, newRows))
+                }
+                T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.pagedDispatch") {
+                    diff.dispatchUpdatesTo(candidatesAdapter)
+                }
+            }
         }
     }
 
@@ -219,14 +232,20 @@ class PagedCandidatesUi(
         if (highlightActive == active) return
         val oldRows = renderRows
         highlightActive = active
-        val newRows = rowsFor(
-            data = data,
-            highlightActive = highlightActive
-        )
+        val newRows = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.pagedHighlightRows") {
+            rowsFor(
+                data = data,
+                highlightActive = highlightActive
+            )
+        }
         renderRows = newRows
         if (oldRows != newRows) {
-            DiffUtil.calculateDiff(rowDiff(oldRows, newRows))
-                .dispatchUpdatesTo(candidatesAdapter)
+            val diff = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.pagedHighlightDiff") {
+                DiffUtil.calculateDiff(rowDiff(oldRows, newRows))
+            }
+            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.pagedHighlightDispatch") {
+                diff.dispatchUpdatesTo(candidatesAdapter)
+            }
         }
     }
 

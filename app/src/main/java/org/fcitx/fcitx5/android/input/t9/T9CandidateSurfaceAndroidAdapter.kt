@@ -42,15 +42,28 @@ class T9CandidateSurfaceAndroidAdapter(
         orientation: FloatingCandidatesOrientation,
         showShortcutLabels: Boolean
     ) {
+        T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.visibility") {
+            if (showShortcutLabels) {
+                candidatesUi.root.visibility = View.GONE
+                shortcutCandidatesUi.root.visibility = View.VISIBLE
+            } else {
+                shortcutCandidatesUi.root.visibility = View.GONE
+                candidatesUi.root.visibility = View.VISIBLE
+            }
+        }
         if (showShortcutLabels) {
-            candidatesUi.root.visibility = View.GONE
-            shortcutCandidatesUi.root.visibility = View.VISIBLE
-            shortcutCandidatesUi.update(candidates, shortcutCandidateLayout.invoke(candidates))
+            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutLayout") {
+                shortcutCandidateLayout.invoke(candidates)
+            }.let { layout ->
+                T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutUpdate") {
+                    shortcutCandidatesUi.update(candidates, layout)
+                }
+            }
             return
         }
-        shortcutCandidatesUi.root.visibility = View.GONE
-        candidatesUi.root.visibility = View.VISIBLE
-        candidatesUi.update(candidates, orientation)
+        T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.pagedUpdate") {
+            candidatesUi.update(candidates, orientation)
+        }
     }
 
     override fun renderPinyin(pinyinOptions: List<String>, pinyinUseT9: Boolean): Boolean =

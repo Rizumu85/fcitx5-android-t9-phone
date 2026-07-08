@@ -17,6 +17,7 @@ import android.widget.TextView
 import androidx.core.view.updateLayoutParams
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.data.theme.Theme
+import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
 import org.fcitx.fcitx5.android.input.t9.T9ShortcutCandidateLayout
 import org.fcitx.fcitx5.android.input.t9.T9ShortcutTailPolicy
 import splitties.views.dsl.core.Ui
@@ -83,8 +84,15 @@ class T9ShortcutCandidatesUi(
     ) {
         this.data = data
         this.layout = layout
-        updateRootBounds(layout)
-        render(rowsFor(data))
+        T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutRootBounds") {
+            updateRootBounds(layout)
+        }
+        val rows = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutRows") {
+            rowsFor(data)
+        }
+        T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutRender") {
+            render(rows)
+        }
     }
 
     fun setHighlightActive(active: Boolean) {
@@ -121,24 +129,30 @@ class T9ShortcutCandidatesUi(
 
     private fun render(rows: List<Row>) {
         renderRows = rows
-        rows.forEachIndexed { index, row ->
-            val view = when (row) {
-                is Row.Candidate -> candidateView(
-                    displayIndex = index,
-                    row = row,
-                    edgeAlignedEnd = T9ShortcutTailPolicy.edgeAlignsCandidateToBubbleTail(
-                        isCandidate = true,
-                        isLastVisibleItem = index == rows.lastIndex
+        T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutBind") {
+            rows.forEachIndexed { index, row ->
+                val view = when (row) {
+                    is Row.Candidate -> candidateView(
+                        displayIndex = index,
+                        row = row,
+                        edgeAlignedEnd = T9ShortcutTailPolicy.edgeAlignsCandidateToBubbleTail(
+                            isCandidate = true,
+                            isLastVisibleItem = index == rows.lastIndex
+                        )
                     )
-                )
-                is Row.Pagination -> paginationView(row)
+                    is Row.Pagination -> paginationView(row)
+                }
+                attachChild(view, index, index == rows.lastIndex)
             }
-            attachChild(view, index, index == rows.lastIndex)
         }
-        while (root.childCount > rows.size) {
-            root.removeViewAt(root.childCount - 1)
+        T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutTrim") {
+            while (root.childCount > rows.size) {
+                root.removeViewAt(root.childCount - 1)
+            }
         }
-        measureToolbar(rows)
+        T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutMeasure") {
+            measureToolbar(rows)
+        }
     }
 
     private fun candidateView(
@@ -198,21 +212,29 @@ class T9ShortcutCandidatesUi(
         // a TextPaint estimate. Measuring the real pooled toolbar keeps the bubble width stable
         // while avoiding a hidden duplicate row.
         root.minimumWidth = 0
-        measureRoot()
+        T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutMeasureNatural") {
+            measureRoot()
+        }
         val naturalWidth = root.measuredWidth
-        val lastBounds = measuredLastChildBounds(rows)
-        val stableWidth = T9ShortcutTailPolicy.stabilizedToolbarWidthPx(
-            naturalWidthPx = naturalWidth,
-            lastChildMeasuredRightPx = lastBounds?.right,
-            lastChildMeasuredWidthPx = lastBounds?.width,
-            lastChildScaleX = lastBounds?.scaleX ?: 1f,
-            edgePaddingPx = layout.edgePaddingPx,
-            trailingPaddingPx = layout.trailingPaddingPx,
-            maxRowWidthPx = layout.maxRowWidthPx
-        )
+        val lastBounds = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutLastBounds") {
+            measuredLastChildBounds(rows)
+        }
+        val stableWidth = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutTailPolicy") {
+            T9ShortcutTailPolicy.stabilizedToolbarWidthPx(
+                naturalWidthPx = naturalWidth,
+                lastChildMeasuredRightPx = lastBounds?.right,
+                lastChildMeasuredWidthPx = lastBounds?.width,
+                lastChildScaleX = lastBounds?.scaleX ?: 1f,
+                edgePaddingPx = layout.edgePaddingPx,
+                trailingPaddingPx = layout.trailingPaddingPx,
+                maxRowWidthPx = layout.maxRowWidthPx
+            )
+        }
         if (stableWidth != naturalWidth) {
             root.minimumWidth = stableWidth
-            measureRoot()
+            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutMeasureStable") {
+                measureRoot()
+            }
         }
         measuredToolbarWidthPx = root.measuredWidth.takeIf { it > 0 }
     }
