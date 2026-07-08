@@ -14,22 +14,6 @@ object T9ShortcutTailPolicy {
         isLastVisibleItem: Boolean
     ): Boolean = isCandidate && isLastVisibleItem
 
-    fun plannedToolbarWidthPx(
-        candidateContentWidthPx: Int,
-        tailScaleOverflowPx: Int,
-        edgePaddingPx: Int,
-        trailingPaddingPx: Int,
-        maxRowWidthPx: Int
-    ): Int {
-        val targetWidth = candidateContentWidthPx.coerceAtLeast(0) +
-            tailScaleOverflowPx.coerceAtLeast(0) +
-            edgePaddingPx.coerceAtLeast(0) * 2 +
-            trailingPaddingPx.coerceAtLeast(0)
-        return maxRowWidthPx.takeIf { it > 0 }
-            ?.let { targetWidth.coerceAtMost(it) }
-            ?: targetWidth
-    }
-
     fun stabilizedToolbarWidthPx(
         naturalWidthPx: Int,
         lastChildMeasuredRightPx: Int?,

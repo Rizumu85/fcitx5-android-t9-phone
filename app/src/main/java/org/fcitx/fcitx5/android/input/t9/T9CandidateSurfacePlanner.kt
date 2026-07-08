@@ -45,9 +45,9 @@ object T9CandidateSurfacePlanner {
         )
         val shortcutLayout = T9ShortcutCandidateLayout(
             maxCandidateWidthPx = input.widthBudget.maxCandidateWidthPx,
-            // Product decision: the bubble still grows from candidate content, but geometry
-            // owns that width so Android row rendering does not re-measure the toolbar on every key.
-            rowWidthPx = candidatePolicyWidth ?: 0,
+            // Decision: render-time T9 candidate rows wrap their actual chip content. This
+            // layout width remains zero until a future visual-width model intentionally owns it.
+            rowWidthPx = 0,
             edgePaddingPx = input.rowHorizontalPaddingPx,
             maxRowWidthPx = input.widthBudget.maxWidthPx,
             trailingPaddingPx = input.trailingPaddingPx

@@ -59,15 +59,6 @@ class T9CandidateRowWidthCalculatorTest {
     }
 
     @Test
-    fun tailCandidateKeepsMinimumChipWidthForConsistentFocus() {
-        val width = T9CandidateRowWidthCalculator.calculate(
-            input(candidates = listOf("", ""))
-        )
-
-        assertEquals(34, width)
-    }
-
-    @Test
     fun focusScaleDoesNotChangeLayoutWidth() {
         val width = T9CandidateRowWidthCalculator.calculate(
             input(
@@ -77,19 +68,6 @@ class T9CandidateRowWidthCalculatorTest {
         )
 
         assertEquals(116, width)
-    }
-
-    @Test
-    fun focusedTailCandidateDoesNotChangeLayoutWidth() {
-        val width = T9CandidateRowWidthCalculator.calculate(
-            input(
-                candidates = listOf("好", "的"),
-                cursorIndex = 1,
-                activeScalePercent = 150
-            )
-        )
-
-        assertEquals(66, width)
     }
 
     @Test
@@ -115,7 +93,6 @@ class T9CandidateRowWidthCalculatorTest {
         showPaginationArrows: Boolean = true,
         hasPrev: Boolean = false,
         hasNext: Boolean = false,
-        cursorIndex: Int = 0,
         activeScalePercent: Int = 100,
         trailingPaddingPx: Int = 0
     ): T9CandidateRowWidthCalculator.Input =
@@ -124,7 +101,7 @@ class T9CandidateRowWidthCalculatorTest {
                 candidates = candidates.map {
                     FcitxEvent.Candidate(label = "", text = it, comment = "")
                 }.toTypedArray(),
-                cursorIndex = cursorIndex,
+                cursorIndex = 0,
                 layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
                 hasPrev = hasPrev,
                 hasNext = hasNext

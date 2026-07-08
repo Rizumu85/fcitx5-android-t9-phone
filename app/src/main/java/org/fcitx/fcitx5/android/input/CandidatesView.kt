@@ -7,7 +7,6 @@ package org.fcitx.fcitx5.android.input
 
 import android.annotation.SuppressLint
 import android.graphics.Color
-import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.text.TextPaint
@@ -265,7 +264,6 @@ class CandidatesView(
     )
     private val t9PinyinMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
     private val t9CandidateMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
-    private val t9CandidateTextBounds = Rect()
     private val t9CandidateSurfaceGeometry = T9CandidateSurfaceGeometry(
         measurePinyinTextWidthPx = ::measureT9PinyinTextWidthPx,
         measureCandidateTextWidthPx = ::measureT9CandidateTextWidthPx
@@ -963,9 +961,7 @@ class CandidatesView(
             textSize = fontSize * ctx.resources.displayMetrics.scaledDensity
             InputUiFont.applyTo(this)
         }
-        if (text.isEmpty()) return 0
-        paint.getTextBounds(text, 0, text.length, t9CandidateTextBounds)
-        return t9CandidateTextBounds.width().coerceAtLeast(0)
+        return paint.measureText(text).roundToInt()
     }
 
     private fun currentPinyinSurfacePlan(
@@ -1064,9 +1060,7 @@ class CandidatesView(
         (dp(windowRadius) * 0.35f).roundToInt().coerceAtLeast(dp(2))
 
     private fun t9ShortcutTrailingPaddingPx(): Int =
-        // Product decision: the shortcut bubble tail should visually match the leading edge gap;
-        // inter-candidate spacing must not become extra blank space after the final candidate.
-        0
+        dp(candidateItemSpacing)
 
     private fun t9CandidateWidthBudget() =
         t9CandidateSurfaceGeometry.widthBudget(t9CandidateSurfaceGeometryMetrics())

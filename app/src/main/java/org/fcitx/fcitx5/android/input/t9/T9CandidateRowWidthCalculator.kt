@@ -19,30 +19,25 @@ object T9CandidateRowWidthCalculator {
 
     fun calculate(input: Input): Int? {
         if (input.data.candidates.isEmpty()) return null
-        val spacing = input.widthBudget.candidateSpacingPx.coerceAtLeast(0)
-        val hasPagination = input.showPaginationArrows && (input.data.hasPrev || input.data.hasNext)
         val inactiveCandidateWidth = input.data.candidates.sumOf { candidate ->
-            input.widthBudget.candidateChipWidthPx(
-                candidate = candidate,
-                enforceMinimumWidth = true
-            )
-        } + spacing * (input.data.candidates.size - 1).coerceAtLeast(0)
+            input.widthBudget.candidateWidthPx(candidate, active = false)
+        } - input.widthBudget.candidateSpacingPx.coerceAtLeast(0)
         val paginationWidth = if (input.showPaginationArrows && (input.data.hasPrev || input.data.hasNext)) {
-            spacing + input.paginationWidthPx.coerceAtLeast(0)
+            input.widthBudget.candidateSpacingPx.coerceAtLeast(0) +
+                input.paginationWidthPx.coerceAtLeast(0)
         } else {
             0
         }
-        val tailScaleOverflow = 0
-        // Product decision: the last shortcut chip keeps the same minimum visual width as the
-        // others. Its text aligns to the bubble tail in the Android adapter, so the row stays
-        // stable without making the final focused chip look smaller.
-        return T9ShortcutTailPolicy.plannedToolbarWidthPx(
-            candidateContentWidthPx = inactiveCandidateWidth + paginationWidth,
-            tailScaleOverflowPx = tailScaleOverflow,
-            edgePaddingPx = input.rowHorizontalPaddingPx,
-            trailingPaddingPx = input.trailingPaddingPx,
-            maxRowWidthPx = input.widthBudget.maxWidthPx
-        )
+        // Product decision: inter-candidate spacing and the final breathing room are separate.
+        // The tail reserve is fixed so the last candidate never inherits noise from text-width
+        // estimates, while pagination still uses a conservative row-width budget.
+        return (
+            inactiveCandidateWidth +
+                paginationWidth +
+                input.rowHorizontalPaddingPx * 2 +
+                input.trailingPaddingPx.coerceAtLeast(0)
+            )
+            .coerceAtMost(input.widthBudget.maxWidthPx)
             .coerceAtLeast(1)
     }
 }

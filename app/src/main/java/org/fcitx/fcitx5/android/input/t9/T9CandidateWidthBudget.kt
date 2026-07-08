@@ -30,30 +30,15 @@ class T9CandidateWidthBudget(
         candidateWidthPx(candidate, active = true)
 
     fun candidateWidthPx(candidate: FcitxEvent.Candidate, active: Boolean): Int {
-        val naturalWidth = candidateChipWidthPx(candidate)
+        val naturalWidth = (measureTextWidthPx(candidate.text) + candidateHorizontalPaddingPx * 2)
+            .coerceAtLeast(minimumCandidateWidthPx)
+            .coerceAtMost(maxCandidateWidthPx)
         val scaledWidth = if (active) {
             ceil(naturalWidth * activeScalePercent / 100f).toInt()
         } else {
             naturalWidth
         }
         return scaledWidth + candidateSpacingPx
-    }
-
-    fun candidateChipWidthPx(
-        candidate: FcitxEvent.Candidate,
-        enforceMinimumWidth: Boolean = true
-    ): Int {
-        val minimumWidth = if (enforceMinimumWidth) minimumCandidateWidthPx else 1
-        return (measureTextWidthPx(candidate.text) + candidateHorizontalPaddingPx * 2)
-            .coerceAtLeast(minimumWidth)
-            .coerceAtMost(maxCandidateWidthPx)
-    }
-
-    fun activeScaleOverflowPx(candidate: FcitxEvent.Candidate, enforceMinimumWidth: Boolean): Int {
-        val width = candidateChipWidthPx(candidate, enforceMinimumWidth)
-        return ceil(width * (activeScalePercent - 100).coerceAtLeast(0) / 100f / 2f)
-            .toInt()
-            .coerceAtLeast(0)
     }
 
     companion object {
