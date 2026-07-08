@@ -111,16 +111,6 @@ class CandidatesView(
     private var inputPanel = FcitxEvent.InputPanelEvent.Data()
     private var paged = FcitxEvent.PagedCandidateEvent.Data.Empty
 
-    /**
-     * horizontal, bottom, top
-     */
-    private val anchorPosition = floatArrayOf(0f, 0f, 0f)
-    private val parentSize = floatArrayOf(0f, 0f)
-
-    private var shouldUpdatePosition = false
-    private var showAfterPositioned = false
-    private var showAfterPositionedContentReady = true
-    private var preferAboveCursorAnchor = false
     private val chineseT9CandidateLoadingState = ChineseT9CandidateLoadingState()
 
     /**
@@ -128,7 +118,7 @@ class CandidatesView(
      * in either case, we should reposition it
      */
     private val layoutListener = OnGlobalLayoutListener {
-        shouldUpdatePosition = true
+        floatingWindowController.requestPositionUpdate()
     }
 
     /**
@@ -137,13 +127,57 @@ class CandidatesView(
      * and before any actual drawing to avoid flicker
      */
     private val preDrawListener = OnPreDrawListener {
-        if (shouldUpdatePosition || showAfterPositioned) {
-            updatePosition()
-        }
+        floatingWindowController.onPreDraw(floatingWindowPositionConfig())
         true
     }
 
     private val touchEventReceiverWindow = TouchEventReceiverWindow(this)
+    private val floatingWindowController = FloatingCandidateWindowController(
+        object : FloatingCandidateWindowController.Host {
+            override val visibility: Int
+                get() = this@CandidatesView.visibility
+
+            override val width: Int
+                get() = this@CandidatesView.width
+
+            override val height: Int
+                get() = this@CandidatesView.height
+
+            override val minWidth: Int
+                get() = this@CandidatesView.minWidth
+
+            override var maxWidth: Int
+                get() = this@CandidatesView.maxWidth
+                set(value) {
+                    this@CandidatesView.maxWidth = value
+                }
+
+            override fun requestLayout() {
+                this@CandidatesView.requestLayout()
+            }
+
+            override fun invalidate() {
+                this@CandidatesView.invalidate()
+            }
+
+            override fun setTranslation(x: Float, y: Float) {
+                this@CandidatesView.translationX = x
+                this@CandidatesView.translationY = y
+            }
+
+            override fun setVisibilityImmediately(visibility: Int) {
+                setCandidateWindowVisibilityImmediately(visibility)
+            }
+
+            override fun showTouchReceiverAt(x: Int, y: Int, width: Int, height: Int) {
+                touchEventReceiverWindow.showAt(x, y, width, height)
+            }
+
+            override fun dismissTouchReceiver() {
+                touchEventReceiverWindow.dismiss()
+            }
+        }
+    )
 
     private val setupTextView: TextView.() -> Unit = {
         textSize = fontSize.toFloat()
@@ -453,14 +487,15 @@ class CandidatesView(
                     this@CandidatesView.setCandidateRowTopOffset(offset)
                 }
 
-                override fun isCandidateSurfaceWaitingForPosition(): Boolean = showAfterPositioned
+                override fun isCandidateSurfaceWaitingForPosition(): Boolean =
+                    floatingWindowController.isWaitingForPosition
 
                 override fun showCandidateSurfaceWhenPositioned(contentReady: Boolean) {
-                    showWhenPositioned(contentReady)
+                    floatingWindowController.showWhenPositioned(contentReady)
                 }
 
                 override fun requestCandidateSurfacePositionUpdate() {
-                    shouldUpdatePosition = true
+                    floatingWindowController.requestPositionUpdate()
                 }
             }
         )
@@ -494,14 +529,13 @@ class CandidatesView(
         candidatesUi = candidatesUi,
         shortcutCandidatesUi = t9ShortcutCandidatesUi,
         shortcutCandidateLayout = ::t9ShortcutCandidateLayout,
-        setPreferAboveCursorAnchor = { preferAboveCursorAnchor = it },
-        showWhenPositioned = ::showWhenPositioned,
+        setPreferAboveCursorAnchor = floatingWindowController::setPreferAboveCursorAnchor,
+        showWhenPositioned = floatingWindowController::showWhenPositioned,
         hideSurfaceImmediately = {
             // RecyclerView won't update its items when ancestor view is GONE.
-            showAfterPositioned = false
-            showAfterPositionedContentReady = true
+            floatingWindowController.onSurfaceHidden()
             t9PinyinRowAdapter.removeRevealListener()
-            visibility = INVISIBLE
+            setCandidateWindowVisibilityImmediately(INVISIBLE)
         }
     )
     private val t9CandidateUiRenderer = T9CandidateUiRenderer(t9CandidateSurfaceAdapter)
@@ -602,8 +636,7 @@ class CandidatesView(
 
     fun clearTransientState() {
         t9RefreshScheduler.cancel()
-        showAfterPositioned = false
-        showAfterPositionedContentReady = true
+        floatingWindowController.onSurfaceHidden()
         t9CandidateSurfaceAdapter.removePinyinRevealListener()
         inputPanel = FcitxEvent.InputPanelEvent.Data()
         paged = FcitxEvent.PagedCandidateEvent.Data.Empty
@@ -646,8 +679,7 @@ class CandidatesView(
 
     fun hideT9CandidateUiImmediately() {
         t9RefreshScheduler.cancel()
-        showAfterPositioned = false
-        showAfterPositionedContentReady = true
+        floatingWindowController.onSurfaceHidden()
         t9CandidateSurfaceAdapter.removePinyinRevealListener()
         t9CandidateUiRenderer.hideImmediately()
     }
@@ -966,7 +998,7 @@ class CandidatesView(
     }
 
     private fun pinyinRowMaxWidthPx(): Int {
-        val parentWidthPx = parentSize[0].roundToInt()
+        val parentWidthPx = floatingWindowController.parentWidthPx
             .takeIf { it > 0 }
             ?: ctx.resources.displayMetrics.widthPixels
         val outerMaxWidthPx = maxWidth
@@ -1033,13 +1065,17 @@ class CandidatesView(
     private fun t9CandidateWidthBudget() =
         t9CandidateSurfaceGeometry.widthBudget(t9CandidateSurfaceGeometryMetrics())
 
-    private var bottomInsets = 0
-
     /** Horizontal gap from screen edge so the bubble doesn't touch left/right. */
     private val horizontalMarginPx: Int get() = dp(horizontalMargin)
 
     /** Extra bounds reserved for elevation shadows outside the visible bubble surface. */
     private val candidateShadowOutsetPx: Int get() = dp(12)
+
+    private fun floatingWindowPositionConfig(): FloatingCandidateWindowController.PositionConfig =
+        FloatingCandidateWindowController.PositionConfig(
+            horizontalMarginPx = horizontalMarginPx,
+            shadowOutsetPx = candidateShadowOutsetPx
+        )
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         // Enforce maxWidth so total width never exceeds (parent - 2*margin); ViewGroup does not do this by default
@@ -1051,99 +1087,12 @@ class CandidatesView(
         super.onMeasure(constrainedSpec, heightMeasureSpec)
     }
 
-    private fun showWhenPositioned(contentReady: Boolean) {
-        showAfterPositionedContentReady = contentReady
-        if (!contentReady && visibility != VISIBLE) {
-            showAfterPositioned = true
-            shouldUpdatePosition = true
-            super.setVisibility(INVISIBLE)
-            requestLayout()
-            invalidate()
-            return
-        }
-        if (visibility == VISIBLE) {
-            shouldUpdatePosition = true
-            requestLayout()
-            invalidate()
-            return
-        }
-        showAfterPositioned = true
-        shouldUpdatePosition = true
-        super.setVisibility(INVISIBLE)
-        requestLayout()
-        invalidate()
-    }
-
-    private fun updatePosition() {
-        val (parentWidth, parentHeight) = parentSize
-        val marginPx = horizontalMarginPx
-        if (parentWidth > 0) {
-            val shadowOutset = candidateShadowOutsetPx
-            val windowMargin = (marginPx - shadowOutset).coerceAtLeast(0)
-            val maxW = (parentWidth - 2 * windowMargin).toInt().coerceAtLeast(minWidth)
-            if (maxWidth != maxW) {
-                maxWidth = maxW
-                requestLayout()
-            }
-        }
-        if (visibility != VISIBLE && !showAfterPositioned) {
-            return
-        }
-        if (showAfterPositioned && (width <= 0 || height <= 0)) {
-            shouldUpdatePosition = true
-            requestLayout()
-            return
-        }
-        if (parentWidth <= 0 || parentHeight <= 0) {
-            translationX = 0f
-            translationY = 0f
-            return
-        }
-        val (_horizontal, bottom, top) = anchorPosition
-        val w: Int = width
-        val h: Int = height
-        val selfHeight = h.toFloat()
-        val tX: Float = (marginPx - candidateShadowOutsetPx).coerceAtLeast(0).toFloat()
-        val bottomLimit = parentHeight - bottomInsets
-        val bottomSpace = bottomLimit - bottom
-        // move CandidatesView above cursor anchor, only when
-        val tY: Float = if (preferAboveCursorAnchor) {
-            val maxY = (bottomLimit - selfHeight).coerceAtLeast(0f)
-            (top - selfHeight).coerceIn(0f, maxY)
-        } else if (
-            bottom + selfHeight > bottomLimit   // bottom space is not enough
-            && top > bottomSpace                // top space is larger than bottom
-        ) {
-            top - selfHeight
-        } else {
-            bottom
-        }
-        translationX = tX
-        translationY = tY
-        if (showAfterPositioned) {
-            if (!showAfterPositionedContentReady) {
-                // Product decision: the first Chinese T9 pinyin-filter frame should appear as one
-                // complete bubble. Positioning may finish before the pinyin row has a trustworthy
-                // width, so keep the whole candidate surface invisible until that row is ready.
-                shouldUpdatePosition = true
-                return
-            }
-            showAfterPositioned = false
-            super.setVisibility(VISIBLE)
-        }
-        touchEventReceiverWindow.showAt(tX.roundToInt(), tY.roundToInt(), w, h)
-        shouldUpdatePosition = false
+    private fun setCandidateWindowVisibilityImmediately(visibility: Int) {
+        super.setVisibility(visibility)
     }
 
     fun updateCursorAnchor(@Size(4) anchor: FloatArray, @Size(2) parent: FloatArray) {
-        val (horizontal, bottom, _, top) = anchor
-        val (parentWidth, parentHeight) = parent
-        anchorPosition[0] = horizontal
-        anchorPosition[1] = bottom
-        anchorPosition[2] = top
-        parentSize[0] = parentWidth
-        parentSize[1] = parentHeight
-        updatePosition()
+        floatingWindowController.updateCursorAnchor(anchor, parent, floatingWindowPositionConfig())
     }
 
     init {
@@ -1200,7 +1149,7 @@ class CandidatesView(
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            bottomInsets = getNavBarBottomInset(insets)
+            floatingWindowController.setBottomInsets(getNavBarBottomInset(insets))
         }
         return insets
     }
@@ -1213,10 +1162,8 @@ class CandidatesView(
 
     override fun setVisibility(visibility: Int) {
         if (visibility != VISIBLE) {
-            showAfterPositioned = false
-            showAfterPositionedContentReady = true
+            floatingWindowController.onSurfaceHidden()
             t9CandidateSurfaceAdapter.removePinyinRevealListener()
-            touchEventReceiverWindow.dismiss()
         }
         super.setVisibility(visibility)
     }
@@ -1225,7 +1172,7 @@ class CandidatesView(
         t9CandidateSurfaceAdapter.removePinyinRevealListener()
         viewTreeObserver.removeOnPreDrawListener(preDrawListener)
         viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
-        touchEventReceiverWindow.dismiss()
+        floatingWindowController.onDetached()
         super.onDetachedFromWindow()
     }
 

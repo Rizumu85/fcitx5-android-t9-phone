@@ -158,6 +158,20 @@ recombine pinyin widths, candidate widths, shortcut row tail policy, and focus
 state. This keeps the bubble-width design adjustable at one seam instead of
 spreading small ratio fixes through the floating window adapter.
 
+### Floating Candidate Window Controller
+
+The floating window controller owns candidate-surface anchoring outside the
+keyboard: cursor anchor snapshots, parent size, max window width, delayed show
+until layout is measured, delayed show until content is ready, above-cursor
+preference, navigation-bar bottom inset, translation, and the touch receiver
+popup.
+
+`CandidatesView` remains the Android view that hosts the candidate rows, but it
+should ask `FloatingCandidateWindowController` when to show, hide, position, or
+dismiss the floating surface. This keeps candidate row rendering independent
+from the timing rules that prevent first-frame flicker and misplaced touch
+receivers.
+
 The snapshot pipeline should preserve the current candidate bubble visual
 design while improving refresh locality. The goal is not a new visual style;
 the goal is fewer broad refreshes, fewer transient wrong rows, and fewer layout
