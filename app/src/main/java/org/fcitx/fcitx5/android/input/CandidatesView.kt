@@ -40,18 +40,16 @@ import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateInteractionController
 import org.fcitx.fcitx5.android.input.t9.T9CandidateSurfaceAndroidAdapter
+import org.fcitx.fcitx5.android.input.t9.T9CandidateSurfaceGeometry
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiInputSnapshot
-import org.fcitx.fcitx5.android.input.t9.T9CandidateSurfacePlanner
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiSnapshot
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiSnapshotPipeline
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiStateBuilder
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiRenderer
-import org.fcitx.fcitx5.android.input.t9.T9CandidateWidthBudget
 import org.fcitx.fcitx5.android.input.t9.T9PagedCandidates
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowAndroidAdapter
 import org.fcitx.fcitx5.android.input.t9.T9PinyinChipAdapter
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowSurfacePlanner
-import org.fcitx.fcitx5.android.input.t9.T9PinyinRowWidthCalculator
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowWindow
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
 import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
@@ -232,6 +230,10 @@ class CandidatesView(
     )
     private val t9PinyinMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
     private val t9CandidateMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
+    private val t9CandidateSurfaceGeometry = T9CandidateSurfaceGeometry(
+        measurePinyinTextWidthPx = ::measureT9PinyinTextWidthPx,
+        measureCandidateTextWidthPx = ::measureT9CandidateTextWidthPx
+    )
     private val t9CandidateUiStateBuilder = T9CandidateUiStateBuilder(object : T9CandidateUiStateBuilder.Pipeline {
         override fun buildSmartEnglishPaged(
             data: FcitxEvent.PagedCandidateEvent.Data
@@ -914,79 +916,38 @@ class CandidatesView(
         }
     }
 
-    private fun pinyinRowWidths(
-        visiblePinyin: List<String> = t9PinyinRowAdapter.renderedItems
-    ): T9PinyinRowWidthCalculator.Widths? {
-        visiblePinyin.takeIf { it.isNotEmpty() }
-            ?: return null
-        val paint = configuredPinyinMeasurePaint()
-        return T9PinyinRowWidthCalculator.calculate(
-            T9PinyinRowWidthCalculator.Input(
-                items = visiblePinyin,
-                minVisibleChips = T9_PINYIN_ROW_MIN_VISIBLE_CHIPS,
-                chipHorizontalPaddingPx = dpCandidates(itemPaddingHorizontal),
-                chipSpacingPx = dpCandidates(itemPaddingHorizontal),
-                overflowHintTextWidthPx = pinyinOverflowHintTextWidthPx(),
-                overflowHintSpacingPx = dpCandidates(itemPaddingHorizontal),
-                foldedEdgeSafetyPx = dp(T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP),
-                measureTextWidthPx = { pinyinTextWidthPx(it, paint) }
-            )
-        )
-    }
-
-    private fun configuredPinyinMeasurePaint(): TextPaint =
-        t9PinyinMeasurePaint.apply {
+    private fun measureT9PinyinTextWidthPx(text: String): Int {
+        val paint = t9PinyinMeasurePaint.apply {
             textSize = compactTopRowFontSizeSp * ctx.resources.displayMetrics.scaledDensity
             InputUiFont.applyTo(this)
         }
-
-    private fun pinyinTextWidthPx(text: String, paint: TextPaint): Int {
         return ceil(paint.measureText(text).toDouble()).toInt()
     }
 
-    private fun pinyinChipWidthsPx(items: List<String>): List<Int> {
-        val chipPaddingPx = dpCandidates(itemPaddingHorizontal)
-        val paint = configuredPinyinMeasurePaint()
-        return items.map { pinyin ->
-            pinyinTextWidthPx(pinyin, paint) + chipPaddingPx * 2
+    private fun measureT9CandidateTextWidthPx(text: String): Int {
+        val paint = t9CandidateMeasurePaint.apply {
+            textSize = fontSize * ctx.resources.displayMetrics.scaledDensity
+            InputUiFont.applyTo(this)
         }
+        return paint.measureText(text).roundToInt()
     }
 
     private fun currentPinyinSurfacePlan(
         candidateRowWidthPx: Int? = null,
         state: T9PinyinRowWindow.VisibleState? = t9PinyinRowAdapter.currentWindowStateForLayout(),
-        renderedItems: List<String> = state?.items ?: t9PinyinRowAdapter.renderedItems,
-        widths: T9PinyinRowWidthCalculator.Widths? = pinyinRowWidths(renderedItems),
-        pinyinChipWidthsPx: List<Int> = state?.items?.let(::pinyinChipWidthsPx).orEmpty()
+        renderedItems: List<String> = state?.items ?: t9PinyinRowAdapter.renderedItems
     ): T9PinyinRowSurfacePlanner.Plan? {
-        val pinyinState = state ?: return null
-        if (pinyinState.items.isEmpty()) return null
-        val resolvedWidths = widths ?: return null
-        val overrideWidth = candidateRowWidthPx
-        if (overrideWidth != null) {
-            return T9PinyinRowSurfacePlanner.plan(
-                T9PinyinRowSurfacePlanner.Input(
-                    candidateMeasuredWidthPx = overrideWidth,
-                    fallbackViewportWidthPx = pinyinRowViewportWidthPx(),
-                    state = pinyinState,
-                    widths = resolvedWidths,
-                    chipWidthsPx = pinyinChipWidthsPx,
-                    chipSpacingPx = dpCandidates(itemPaddingHorizontal),
-                    maxRowWidthPx = pinyinRowMaxWidthPx(),
-                    minVisibleChips = T9_PINYIN_ROW_MIN_VISIBLE_CHIPS,
-                    focused = service.getT9CandidateFocus() == T9CandidateFocus.TOP
-                )
-            )
-        }
-        return t9ShownPaged
-            ?.let { candidates ->
-                t9CandidateSurfacePlan(
-                    candidates = candidates,
-                    pinyinState = pinyinState,
-                    pinyinWidths = resolvedWidths,
-                    pinyinChipWidthsPx = pinyinChipWidthsPx
-                ).pinyinSurface
-            }
+        val candidates = t9ShownPaged
+            ?: candidateRowWidthPx?.let { FcitxEvent.PagedCandidateEvent.Data.Empty }
+            ?: return null
+        return t9CandidateSurfaceGeometry.pinyinSurfacePlan(
+            input = t9CandidateSurfaceGeometryInput(
+                candidates = candidates,
+                pinyinState = state,
+                renderedPinyinItems = renderedItems
+            ),
+            candidateRowWidthPx = candidateRowWidthPx
+        )
     }
 
     private fun pinyinRowViewportWidthPx(): Int? {
@@ -1000,8 +961,7 @@ class CandidatesView(
     }
 
     private fun pinyinOverflowHintTextWidthPx(): Int {
-        val paint = configuredPinyinMeasurePaint()
-        return ceil(paint.measureText("\u2026").toDouble()).toInt()
+        return measureT9PinyinTextWidthPx("\u2026")
             .coerceAtLeast(dp(T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP))
     }
 
@@ -1023,30 +983,45 @@ class CandidatesView(
     }
 
     private fun t9CandidateSurfacePlan(
+        candidates: FcitxEvent.PagedCandidateEvent.Data
+    ) =
+        t9CandidateSurfaceGeometry.surfacePlan(
+            t9CandidateSurfaceGeometryInput(candidates = candidates)
+        )
+
+    private fun t9CandidateSurfaceGeometryInput(
         candidates: FcitxEvent.PagedCandidateEvent.Data,
         pinyinState: T9PinyinRowWindow.VisibleState? = t9PinyinRowAdapter.currentWindowStateForLayout(),
-        pinyinWidths: T9PinyinRowWidthCalculator.Widths? =
-            pinyinRowWidths(pinyinState?.items ?: t9PinyinRowAdapter.renderedItems),
-        pinyinChipWidthsPx: List<Int> = pinyinState?.items?.let(::pinyinChipWidthsPx).orEmpty()
-    ): T9CandidateSurfacePlanner.Plan =
-        T9CandidateSurfacePlanner.plan(
-            T9CandidateSurfacePlanner.Input(
-                candidates = candidates,
-                widthBudget = t9CandidateWidthBudget(),
-                rowHorizontalPaddingPx = t9ShortcutRowPaddingPx(),
-                trailingPaddingPx = t9ShortcutTrailingPaddingPx(),
-                showPaginationArrows = showPaginationArrows,
-                paginationWidthPx = dp(T9_PAGINATION_WIDTH_DP),
-                candidateVisualWidthPx = t9ShortcutCandidatesUi.measuredToolbarWidthPx,
-                pinyinState = pinyinState,
-                pinyinWidths = pinyinWidths,
-                pinyinChipWidthsPx = pinyinChipWidthsPx,
-                pinyinChipSpacingPx = dpCandidates(itemPaddingHorizontal),
-                pinyinFallbackViewportWidthPx = pinyinRowViewportWidthPx(),
-                maxRowWidthPx = pinyinRowMaxWidthPx(),
-                minVisiblePinyinChips = T9_PINYIN_ROW_MIN_VISIBLE_CHIPS,
-                pinyinRowFocused = service.getT9CandidateFocus() == T9CandidateFocus.TOP
-            )
+        renderedPinyinItems: List<String> = pinyinState?.items ?: t9PinyinRowAdapter.renderedItems
+    ): T9CandidateSurfaceGeometry.SurfaceInput =
+        T9CandidateSurfaceGeometry.SurfaceInput(
+            candidates = candidates,
+            metrics = t9CandidateSurfaceGeometryMetrics(),
+            candidateVisualWidthPx = t9ShortcutCandidatesUi.measuredToolbarWidthPx,
+            pinyinState = pinyinState,
+            renderedPinyinItems = renderedPinyinItems,
+            pinyinFallbackViewportWidthPx = pinyinRowViewportWidthPx(),
+            pinyinRowFocused = service.getT9CandidateFocus() == T9CandidateFocus.TOP
+        )
+
+    private fun t9CandidateSurfaceGeometryMetrics(): T9CandidateSurfaceGeometry.Metrics =
+        T9CandidateSurfaceGeometry.Metrics(
+            maxRowWidthPx = pinyinRowMaxWidthPx(),
+            candidateSpacingPx = dp(candidateItemSpacing),
+            candidateHorizontalPaddingPx = dpCandidates(itemPaddingHorizontal),
+            minimumCandidateWidthPx = (fontSize * ctx.resources.displayMetrics.scaledDensity * 1.35f)
+                .roundToInt()
+                .coerceAtLeast(1),
+            rowHorizontalPaddingPx = t9ShortcutRowPaddingPx(),
+            trailingPaddingPx = t9ShortcutTrailingPaddingPx(),
+            showPaginationArrows = showPaginationArrows,
+            paginationWidthPx = dp(T9_PAGINATION_WIDTH_DP),
+            pinyinChipHorizontalPaddingPx = dpCandidates(itemPaddingHorizontal),
+            pinyinChipSpacingPx = dpCandidates(itemPaddingHorizontal),
+            pinyinOverflowHintTextWidthPx = pinyinOverflowHintTextWidthPx(),
+            pinyinOverflowHintSpacingPx = dpCandidates(itemPaddingHorizontal),
+            pinyinFoldedEdgeSafetyPx = dp(T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP),
+            minVisiblePinyinChips = T9_PINYIN_ROW_MIN_VISIBLE_CHIPS
         )
 
     private fun t9ShortcutRowPaddingPx(): Int =
@@ -1055,25 +1030,8 @@ class CandidatesView(
     private fun t9ShortcutTrailingPaddingPx(): Int =
         dp(candidateItemSpacing)
 
-    private fun t9CandidateWidthBudget(): T9CandidateWidthBudget {
-        val maxWidthPx = pinyinRowMaxWidthPx()
-        val itemSpacingPx = dp(candidateItemSpacing)
-        val minimumCandidateWidthPx = (fontSize * ctx.resources.displayMetrics.scaledDensity * 1.35f)
-            .roundToInt()
-            .coerceAtLeast(1)
-        val horizontalPaddingPx = dpCandidates(itemPaddingHorizontal)
-        val paint = t9CandidateMeasurePaint.apply {
-            textSize = fontSize * ctx.resources.displayMetrics.scaledDensity
-            InputUiFont.applyTo(this)
-        }
-        return T9CandidateWidthBudget(
-            maxWidthPx = maxWidthPx,
-            candidateSpacingPx = itemSpacingPx,
-            candidateHorizontalPaddingPx = horizontalPaddingPx,
-            minimumCandidateWidthPx = minimumCandidateWidthPx,
-            measureTextWidthPx = { text -> paint.measureText(text).roundToInt() }
-        )
-    }
+    private fun t9CandidateWidthBudget() =
+        t9CandidateSurfaceGeometry.widthBudget(t9CandidateSurfaceGeometryMetrics())
 
     private var bottomInsets = 0
 

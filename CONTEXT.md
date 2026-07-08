@@ -145,6 +145,19 @@ window measurement, insets, touch receiver placement, and width-budget helpers.
 This keeps visual row rendering local without reopening the delicate floating
 window positioning rules.
 
+### T9 Candidate Surface Geometry
+
+The geometry module for the T9 candidate surface. It owns the shared sizing
+rules for candidate width budget, shortcut candidate layout, pinyin chip
+measurement, folded pinyin row width, pinyin focus viewport, pagination width,
+and visual tail padding.
+
+`CandidatesView` supplies Android measurements and preference-derived pixel
+values, then consumes one geometry result. It should not independently
+recombine pinyin widths, candidate widths, shortcut row tail policy, and focus
+state. This keeps the bubble-width design adjustable at one seam instead of
+spreading small ratio fixes through the floating window adapter.
+
 The snapshot pipeline should preserve the current candidate bubble visual
 design while improving refresh locality. The goal is not a new visual style;
 the goal is fewer broad refreshes, fewer transient wrong rows, and fewer layout
