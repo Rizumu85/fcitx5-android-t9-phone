@@ -68,6 +68,19 @@ keeps the product rule that visible T9 candidate rows consume physical focus
 keys even when a transient row mismatch leaves no movement command, so editor
 cursor movement cannot leak through the candidate UI.
 
+### Smart English Lifecycle
+
+The Smart English input lifecycle covers digit composition, candidate lookup,
+candidate focus, committing selected words, spacing policy, continuous
+next-word prediction, TT9-style pair-frequency reranking, case state, and
+learned word/pair recording.
+
+`SmartEnglishLifecycle` owns these transitions behind one Module so the
+controller and physical-key flow do not need to know whether the visible
+candidate came from active digits or from prediction context. Android-specific
+work remains outside the lifecycle: the controller warms dictionaries and the
+IME service commits text and refreshes candidate UI through adapter callbacks.
+
 ### Chinese T9 Composition Lifecycle
 
 The lifecycle of Chinese T9 composition covers the Kotlin-side digit/session
