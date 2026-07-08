@@ -59,12 +59,12 @@ class T9CandidateRowWidthCalculatorTest {
     }
 
     @Test
-    fun tailCandidateDoesNotInheritMinimumTapWidthAsBlankSpace() {
+    fun tailCandidateKeepsMinimumChipWidthForConsistentFocus() {
         val width = T9CandidateRowWidthCalculator.calculate(
             input(candidates = listOf("", ""))
         )
 
-        assertEquals(30, width)
+        assertEquals(34, width)
     }
 
     @Test
@@ -80,7 +80,7 @@ class T9CandidateRowWidthCalculatorTest {
     }
 
     @Test
-    fun focusedTailCandidateReservesScaleOverflow() {
+    fun focusedTailCandidateDoesNotChangeLayoutWidth() {
         val width = T9CandidateRowWidthCalculator.calculate(
             input(
                 candidates = listOf("好", "的"),
@@ -89,7 +89,7 @@ class T9CandidateRowWidthCalculatorTest {
             )
         )
 
-        assertEquals(73, width)
+        assertEquals(66, width)
     }
 
     @Test

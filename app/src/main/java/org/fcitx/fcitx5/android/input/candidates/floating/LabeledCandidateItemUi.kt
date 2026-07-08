@@ -71,6 +71,7 @@ class LabeledCandidateItemUi(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             defaultFocusHighlightEnabled = false
         }
+        addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> applyShortcutPivot() }
         candidateText.setPadding(0, 0, 0, 0)
         addView(
             candidateText,
@@ -102,19 +103,17 @@ class LabeledCandidateItemUi(
         lastShortcutEdgeAlignedEnd = usesShortcutLabel && shortcutEdgeAlignedEnd
         applyShortcutWidthLimit(if (usesShortcutLabel) shortcutMaxWidthPx else null)
         applyShortcutLineMetrics(usesShortcutLabel)
-        root.gravity = if (usesShortcutLabel) Gravity.CENTER else Gravity.CENTER_VERTICAL
+        root.gravity = when {
+            lastShortcutEdgeAlignedEnd -> Gravity.END or Gravity.CENTER_VERTICAL
+            usesShortcutLabel -> Gravity.CENTER
+            else -> Gravity.CENTER_VERTICAL
+        }
         root.minimumWidth = if (usesShortcutLabel) {
-            if (lastShortcutEdgeAlignedEnd) {
-                // Product decision: the final visible T9 shortcut chip is measured by its text.
-                // Otherwise the minimum tap target becomes visible as inconsistent blank space
-                // between the last word and the bubble edge.
-                0
-            } else {
-                (candidateText.textSize * SHORTCUT_CANDIDATE_MIN_WIDTH_EM).toInt()
-            }
+            (candidateText.textSize * SHORTCUT_CANDIDATE_MIN_WIDTH_EM).toInt()
         } else {
             0
         }
+        applyShortcutPivot()
         candidateText.includeFontPadding = true
         // T9 shortcut chips use real child views instead of newline spans. RecyclerView/Flexbox
         // sometimes reuses and measures candidates before the final draw pass; keeping text and
@@ -193,6 +192,7 @@ class LabeledCandidateItemUi(
         // T9 shortcut chips are two measured rows. Scaling only horizontally keeps the familiar
         // focus width without lying to the parent layout about vertical bounds.
         val targetScaleY = if (lastUsesShortcutLabel) 1f else targetScale
+        applyShortcutPivot()
         if (lastActive == active && activeBackground.alpha == targetAlpha) {
             root.scaleX = targetScale
             root.scaleY = targetScaleY
@@ -202,6 +202,19 @@ class LabeledCandidateItemUi(
         activeBackground.alpha = targetAlpha
         root.scaleX = targetScale
         root.scaleY = targetScaleY
+    }
+
+    private fun applyShortcutPivot() {
+        val width = root.width.takeIf { it > 0 } ?: root.measuredWidth
+        if (width <= 0) return
+        root.pivotX = if (lastUsesShortcutLabel && lastShortcutEdgeAlignedEnd) {
+            // Product decision: the last chip is visually anchored to the bubble tail. Scaling
+            // inward avoids a one-frame bubble stretch when focus moves onto the final shortcut.
+            width.toFloat()
+        } else {
+            width / 2f
+        }
+        root.pivotY = root.height.takeIf { it > 0 }?.let { it / 2f } ?: root.pivotY
     }
 
     private fun applyShortcutWidthLimit(maxRootWidthPx: Int?) {

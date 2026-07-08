@@ -170,6 +170,12 @@ inter-candidate spacing belongs only between candidates; it should not be added
 again after the final visible candidate, because that reads as accidental empty
 space.
 
+The final visible shortcut chip should keep the same minimum visual width as
+other shortcut chips. Its content may align to the bubble tail and its focus
+scale should anchor to the tail edge, so focusing the final candidate does not
+resize the bubble and short punctuation chips do not look like a different
+control.
+
 ### Floating Candidate Window Controller
 
 The floating window controller owns candidate-surface anchoring outside the

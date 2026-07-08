@@ -21,33 +21,21 @@ object T9CandidateRowWidthCalculator {
         if (input.data.candidates.isEmpty()) return null
         val spacing = input.widthBudget.candidateSpacingPx.coerceAtLeast(0)
         val hasPagination = input.showPaginationArrows && (input.data.hasPrev || input.data.hasNext)
-        val lastCandidateIndex = input.data.candidates.lastIndex
-        val inactiveCandidateWidth = input.data.candidates.mapIndexed { index, candidate ->
-            val edgeAlignedTail = !hasPagination && index == lastCandidateIndex
+        val inactiveCandidateWidth = input.data.candidates.sumOf { candidate ->
             input.widthBudget.candidateChipWidthPx(
                 candidate = candidate,
-                enforceMinimumWidth = !edgeAlignedTail
+                enforceMinimumWidth = true
             )
-        }.sum() + spacing * (input.data.candidates.size - 1).coerceAtLeast(0)
+        } + spacing * (input.data.candidates.size - 1).coerceAtLeast(0)
         val paginationWidth = if (input.showPaginationArrows && (input.data.hasPrev || input.data.hasNext)) {
             spacing + input.paginationWidthPx.coerceAtLeast(0)
         } else {
             0
         }
-        val tailScaleOverflow = if (
-            !hasPagination &&
-            input.data.cursorIndex == lastCandidateIndex
-        ) {
-            input.widthBudget.activeScaleOverflowPx(
-                candidate = input.data.candidates[lastCandidateIndex],
-                enforceMinimumWidth = false
-            )
-        } else {
-            0
-        }
-        // Product decision: inter-candidate spacing and the final breathing room are separate.
-        // The tail reserve is fixed so the last candidate never inherits noise from text-width
-        // estimates, while pagination still uses a conservative row-width budget.
+        val tailScaleOverflow = 0
+        // Product decision: the last shortcut chip keeps the same minimum visual width as the
+        // others. Its text aligns to the bubble tail in the Android adapter, so the row stays
+        // stable without making the final focused chip look smaller.
         return T9ShortcutTailPolicy.plannedToolbarWidthPx(
             candidateContentWidthPx = inactiveCandidateWidth + paginationWidth,
             tailScaleOverflowPx = tailScaleOverflow,
