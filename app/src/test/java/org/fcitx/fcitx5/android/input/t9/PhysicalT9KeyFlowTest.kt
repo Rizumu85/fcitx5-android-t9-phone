@@ -109,7 +109,7 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
-    fun smartEnglishZeroCommitsCandidateOrMultiTapThenSpace() {
+    fun smartEnglishZeroCommitsPendingOrLiteralSpace() {
         val flow = PhysicalT9KeyFlow()
         flow.handle(input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN), state())
 
@@ -117,9 +117,7 @@ class PhysicalT9KeyFlowTest {
 
         assertEquals(
             listOf(
-                PhysicalT9KeyFlow.Command.CommitSmartEnglishCandidateOrMultiTap,
-                PhysicalT9KeyFlow.Command.CommitPendingPunctuation,
-                PhysicalT9KeyFlow.Command.CommitText(" "),
+                PhysicalT9KeyFlow.Command.CommitEnglishPendingOrSpace,
                 PhysicalT9KeyFlow.Command.FlushEnglishLearningWord
             ),
             up?.commands

@@ -56,6 +56,7 @@ class PhysicalT9KeyFlow {
             val continuePrediction: Boolean
         ) : Command()
         object CommitSmartEnglishCandidateOrMultiTap : Command()
+        object CommitEnglishPendingOrSpace : Command()
         object CommitEnglishPendingOrReturn : Command()
         data class AppendSmartEnglishDigit(val digit: Int) : Command()
         object ResetSmartEnglishT9 : Command()

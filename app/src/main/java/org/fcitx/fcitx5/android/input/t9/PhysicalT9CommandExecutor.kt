@@ -52,6 +52,14 @@ internal class PhysicalT9CommandExecutor(
                     host.commitMultiTapChar()
                 }
             }
+            PhysicalT9KeyFlow.Command.CommitEnglishPendingOrSpace -> {
+                // English 0 keeps old "space when idle" behavior, but a smart candidate owns its trailing space.
+                if (!host.commitSmartEnglishCandidate()) {
+                    host.commitMultiTapChar()
+                    host.commitPendingPunctuation()
+                    host.commitText(" ")
+                }
+            }
             PhysicalT9KeyFlow.Command.CommitEnglishPendingOrReturn -> {
                 val hadPendingChar =
                     host.commitSmartEnglishCandidate() ||

@@ -45,6 +45,44 @@ class PhysicalT9CommandExecutorTest {
     }
 
     @Test
+    fun commitEnglishPendingOrSpaceDoesNotAddLiteralSpaceAfterSmartEnglishCommit() {
+        val host = RecordingHost(commitSmartEnglishCandidateResult = true)
+        val executor = PhysicalT9CommandExecutor(host)
+
+        executor.execute(
+            listOf(PhysicalT9KeyFlow.Command.CommitEnglishPendingOrSpace),
+            input()
+        )
+
+        assertEquals(listOf("commitSmartEnglishCandidate:true:true"), host.calls)
+    }
+
+    @Test
+    fun commitEnglishPendingOrSpaceAddsLiteralSpaceWhenNoSmartEnglishCandidateCommits() {
+        val host = RecordingHost(
+            commitSmartEnglishCandidateResult = false,
+            commitMultiTapCharResult = true,
+            commitPendingPunctuationResult = false
+        )
+        val executor = PhysicalT9CommandExecutor(host)
+
+        executor.execute(
+            listOf(PhysicalT9KeyFlow.Command.CommitEnglishPendingOrSpace),
+            input()
+        )
+
+        assertEquals(
+            listOf(
+                "commitSmartEnglishCandidate:true:true",
+                "commitMultiTapChar",
+                "commitPendingPunctuation",
+                "commitText: "
+            ),
+            host.calls
+        )
+    }
+
+    @Test
     fun bottomCandidateFallbackRunsOnlyWhenVisibleRowDoesNotCommit() {
         val host = RecordingHost(commitHighlightedBottomCandidateResult = false)
         val executor = PhysicalT9CommandExecutor(host)

@@ -219,9 +219,7 @@ internal class PhysicalT9EnglishKeyFlow(
                     emptyList()
                 } else {
                     listOf(
-                        Command.CommitSmartEnglishCandidateOrMultiTap,
-                        Command.CommitPendingPunctuation,
-                        Command.CommitText(" "),
+                        Command.CommitEnglishPendingOrSpace,
                         Command.FlushEnglishLearningWord
                     )
                 }
@@ -260,9 +258,7 @@ internal class PhysicalT9EnglishKeyFlow(
                     emptyList()
                 } else {
                     listOf(
-                        Command.CommitSmartEnglishCandidateOrMultiTap,
-                        Command.CommitPendingPunctuation,
-                        Command.CommitText(" "),
+                        Command.CommitEnglishPendingOrSpace,
                         Command.FlushEnglishLearningWord
                     )
                 }
