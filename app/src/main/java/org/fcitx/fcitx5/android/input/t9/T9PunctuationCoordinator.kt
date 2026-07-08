@@ -8,81 +8,74 @@ package org.fcitx.fcitx5.android.input.t9
 import org.fcitx.fcitx5.android.core.FcitxEvent
 
 class T9PunctuationCoordinator(
-    private val session: T9PunctuationSession = T9PunctuationSession(),
+    session: T9PunctuationSession = T9PunctuationSession(),
     private val clearTransientInputUiState: () -> Unit,
     private val refreshUi: () -> Unit,
     private val cancelTimeout: () -> Unit,
     private val commitText: (String) -> Unit
 ) {
+    private val lifecycle = T9PunctuationLifecycle(session)
+
     val isPending: Boolean
-        get() = session.isPending
+        get() = lifecycle.isPending
 
     val oneKeyDeferred: Boolean
-        get() = session.oneKeyDeferred
+        get() = lifecycle.oneKeyDeferred
 
     val pendingText: String?
-        get() = session.pendingText
+        get() = lifecycle.pendingText
 
     val physicalSet: PhysicalT9KeyHandler.PunctuationSet
-        get() = when (session.set) {
-            T9PunctuationSession.Set.CHINESE -> PhysicalT9KeyHandler.PunctuationSet.CHINESE
-            T9PunctuationSession.Set.ENGLISH -> PhysicalT9KeyHandler.PunctuationSet.ENGLISH
-        }
+        get() = lifecycle.physicalSet
 
     fun setOneKeyDeferred(value: Boolean) {
-        session.setOneKeyDeferred(value)
+        lifecycle.setOneKeyDeferred(value)
     }
 
     fun showEnglishCandidates() {
-        session.showEnglishCandidates()
-        showPending()
+        apply(lifecycle.showEnglishCandidates())
     }
 
     fun paged(): FcitxEvent.PagedCandidateEvent.Data? =
-        session.paged()
+        lifecycle.paged()
 
     fun selectAndCommitCandidate(index: Int): Boolean {
-        session.selectCandidate(index) ?: return false
-        return commit()
+        return apply(lifecycle.selectAndCommitCandidate(index))
     }
 
     fun previewCandidate(index: Int): Boolean {
-        session.selectCandidate(index) ?: return false
-        refreshUi()
-        return true
+        return apply(lifecycle.previewCandidate(index))
     }
 
     fun handleChineseKey(hasCompositionKeys: Boolean): Boolean {
-        cancelTimeout()
-        session.handleChineseKey(hasCompositionKeys) ?: return true
-        showPending()
-        return true
+        return apply(lifecycle.handleChineseKey(hasCompositionKeys))
     }
 
     fun toggleSet(): Boolean {
-        session.toggleSet() ?: return false
-        showPending()
-        return true
+        return apply(lifecycle.toggleSet())
     }
 
     fun commit(): Boolean {
-        cancelTimeout()
-        val punctuation = session.commit() ?: return false
-        commitText(punctuation)
-        refreshUi()
-        return true
+        return apply(lifecycle.commit())
     }
 
     fun cancel(): Boolean {
-        cancelTimeout()
-        if (!session.cancel()) return false
-        refreshUi()
-        return true
+        return apply(lifecycle.cancel())
     }
 
-    private fun showPending() {
-        clearTransientInputUiState()
-        refreshUi()
-        cancelTimeout()
+    private fun apply(result: T9PunctuationLifecycle.Result): Boolean {
+        result.effects.forEach { effect ->
+            when (effect) {
+                T9PunctuationLifecycle.Effect.ClearTransientInputUiState ->
+                    clearTransientInputUiState()
+                T9PunctuationLifecycle.Effect.RefreshUi ->
+                    refreshUi()
+                T9PunctuationLifecycle.Effect.CancelTimeout ->
+                    cancelTimeout()
+                is T9PunctuationLifecycle.Effect.CommitText ->
+                    commitText(effect.text)
+            }
+        }
+        return result.handled
     }
 }

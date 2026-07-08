@@ -81,6 +81,19 @@ candidate came from active digits or from prediction context. Android-specific
 work remains outside the lifecycle: the controller warms dictionaries and the
 IME service commits text and refreshes candidate UI through adapter callbacks.
 
+### T9 Punctuation Lifecycle
+
+The T9 punctuation lifecycle covers pending punctuation state, Chinese versus
+English punctuation sets, one-key deferred Chinese punctuation, candidate
+preview, shortcut selection, commit, cancel, and UI refresh side effects.
+
+`T9PunctuationLifecycle` owns punctuation state transitions and returns
+ordered effects. `T9PunctuationCoordinator` is the adapter that executes those
+effects against Android/Fcitx callbacks such as clearing transient input UI,
+refreshing candidates, cancelling punctuation timeout, and committing text.
+This keeps punctuation behavior testable without depending on the IME service
+or physical-key flow.
+
 ### Chinese T9 Composition Lifecycle
 
 The lifecycle of Chinese T9 composition covers the Kotlin-side digit/session
