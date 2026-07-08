@@ -20,6 +20,11 @@ methods. This keeps multi-step key behavior, such as Smart English `1` and `#`
 follow-up actions, testable as ordered outcomes before Android/Fcitx side
 effects run.
 
+`PhysicalT9CommandExecutor` owns the side-effect ordering for flow commands.
+This keeps the flow's interface focused on user-facing decisions while keeping
+fallback execution rules, such as "commit Smart English, then multi-tap, then
+pending punctuation, otherwise return", local to one adapter-facing module.
+
 Commands should stay at the domain level. For example, the flow may request
 `CommitSmartEnglishCandidate` with spacing/prediction policy and then
 `ShowEnglishPunctuationCandidates`, but it should not compute the committed
