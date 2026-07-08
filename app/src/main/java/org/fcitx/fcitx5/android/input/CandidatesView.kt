@@ -1064,7 +1064,9 @@ class CandidatesView(
         (dp(windowRadius) * 0.35f).roundToInt().coerceAtLeast(dp(2))
 
     private fun t9ShortcutTrailingPaddingPx(): Int =
-        dp(candidateItemSpacing)
+        // Product decision: the shortcut bubble tail should visually match the leading edge gap;
+        // inter-candidate spacing must not become extra blank space after the final candidate.
+        0
 
     private fun t9CandidateWidthBudget() =
         t9CandidateSurfaceGeometry.widthBudget(t9CandidateSurfaceGeometryMetrics())

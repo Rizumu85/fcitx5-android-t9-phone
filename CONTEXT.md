@@ -165,6 +165,11 @@ padding, pagination, tail spacing, and focused-tail scale overflow. Android
 rendering adapters should consume that planned width instead of measuring the
 shortcut candidate view tree on every key event.
 
+The default shortcut bubble tail is symmetric with the leading edge gap. Extra
+inter-candidate spacing belongs only between candidates; it should not be added
+again after the final visible candidate, because that reads as accidental empty
+space.
+
 ### Floating Candidate Window Controller
 
 The floating window controller owns candidate-surface anchoring outside the
