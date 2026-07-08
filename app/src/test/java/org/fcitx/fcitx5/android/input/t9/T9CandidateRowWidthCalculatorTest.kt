@@ -59,6 +59,15 @@ class T9CandidateRowWidthCalculatorTest {
     }
 
     @Test
+    fun tailCandidateDoesNotInheritMinimumTapWidthAsBlankSpace() {
+        val width = T9CandidateRowWidthCalculator.calculate(
+            input(candidates = listOf("", ""))
+        )
+
+        assertEquals(30, width)
+    }
+
+    @Test
     fun focusScaleDoesNotChangeLayoutWidth() {
         val width = T9CandidateRowWidthCalculator.calculate(
             input(
@@ -68,6 +77,19 @@ class T9CandidateRowWidthCalculatorTest {
         )
 
         assertEquals(116, width)
+    }
+
+    @Test
+    fun focusedTailCandidateReservesScaleOverflow() {
+        val width = T9CandidateRowWidthCalculator.calculate(
+            input(
+                candidates = listOf("好", "的"),
+                cursorIndex = 1,
+                activeScalePercent = 150
+            )
+        )
+
+        assertEquals(73, width)
     }
 
     @Test
@@ -93,6 +115,7 @@ class T9CandidateRowWidthCalculatorTest {
         showPaginationArrows: Boolean = true,
         hasPrev: Boolean = false,
         hasNext: Boolean = false,
+        cursorIndex: Int = 0,
         activeScalePercent: Int = 100,
         trailingPaddingPx: Int = 0
     ): T9CandidateRowWidthCalculator.Input =
@@ -101,7 +124,7 @@ class T9CandidateRowWidthCalculatorTest {
                 candidates = candidates.map {
                     FcitxEvent.Candidate(label = "", text = it, comment = "")
                 }.toTypedArray(),
-                cursorIndex = 0,
+                cursorIndex = cursorIndex,
                 layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
                 hasPrev = hasPrev,
                 hasNext = hasNext

@@ -10,7 +10,6 @@ import android.os.Build
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.view.View.MeasureSpec
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -56,7 +55,6 @@ class T9ShortcutCandidatesUi(
     )
     private var renderRows: List<Row> = emptyList()
     private var renderStructure: RenderStructure? = null
-    private var measureStructure: MeasureStructure? = null
     var measuredToolbarWidthPx: Int? = null
         private set
 
@@ -97,7 +95,7 @@ class T9ShortcutCandidatesUi(
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutSelection") {
                 renderSelection(rows)
             }
-            measureToolbarIfNeeded(rows, nextStructure)
+            publishPlannedToolbarWidth()
             return
         }
         T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutRender") {
@@ -112,7 +110,7 @@ class T9ShortcutCandidatesUi(
         val nextStructure = renderStructureFor(rows, layout)
         if (nextStructure == renderStructure && root.childCount >= rows.size) {
             renderSelection(rows)
-            measureToolbarIfNeeded(rows, nextStructure)
+            publishPlannedToolbarWidth()
             return
         }
         render(rows, nextStructure)
@@ -171,12 +169,9 @@ class T9ShortcutCandidatesUi(
                 root.removeViewAt(root.childCount - 1)
             }
         }
-        T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutMeasure") {
-            measureToolbar(rows)
-        }
+        publishPlannedToolbarWidth()
         renderRows = rows
         renderStructure = structure
-        measureStructure = measureStructureFor(rows, structure)
     }
 
     private fun renderSelection(rows: List<Row>) {
@@ -199,16 +194,8 @@ class T9ShortcutCandidatesUi(
         renderRows = rows
     }
 
-    private fun measureToolbarIfNeeded(
-        rows: List<Row>,
-        structure: RenderStructure
-    ) {
-        val nextMeasure = measureStructureFor(rows, structure)
-        if (nextMeasure == measureStructure) return
-        T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutMeasure") {
-            measureToolbar(rows)
-        }
-        measureStructure = nextMeasure
+    private fun publishPlannedToolbarWidth() {
+        measuredToolbarWidthPx = layout.rowWidthPx.takeIf { it > 0 }
     }
 
     private fun candidateView(
@@ -263,68 +250,6 @@ class T9ShortcutCandidatesUi(
         }
     }
 
-    private fun measureToolbar(rows: List<Row>) {
-        // Product decision: the pinyin row should align with the rendered T9 toolbar, not with
-        // a TextPaint estimate. Measuring the real pooled toolbar keeps the bubble width stable
-        // while avoiding a hidden duplicate row.
-        root.minimumWidth = 0
-        T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutMeasureNatural") {
-            measureRoot()
-        }
-        val naturalWidth = root.measuredWidth
-        val lastBounds = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutLastBounds") {
-            measuredLastChildBounds(rows)
-        }
-        val stableWidth = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutTailPolicy") {
-            T9ShortcutTailPolicy.stabilizedToolbarWidthPx(
-                naturalWidthPx = naturalWidth,
-                lastChildMeasuredRightPx = lastBounds?.right,
-                lastChildMeasuredWidthPx = lastBounds?.width,
-                lastChildScaleX = lastBounds?.scaleX ?: 1f,
-                edgePaddingPx = layout.edgePaddingPx,
-                trailingPaddingPx = layout.trailingPaddingPx,
-                maxRowWidthPx = layout.maxRowWidthPx
-            )
-        }
-        if (stableWidth != naturalWidth) {
-            root.minimumWidth = stableWidth
-            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutMeasureStable") {
-                measureRoot()
-            }
-        }
-        measuredToolbarWidthPx = root.measuredWidth.takeIf { it > 0 }
-    }
-
-    private fun measureRoot() {
-        root.measure(
-            MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
-            MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
-        )
-    }
-
-    private data class MeasuredChildBounds(
-        val right: Int,
-        val width: Int,
-        val scaleX: Float
-    )
-
-    private fun measuredLastChildBounds(rows: List<Row>): MeasuredChildBounds? {
-        if (rows.isEmpty() || root.childCount == 0) return null
-        var cursor = root.paddingLeft
-        var last: MeasuredChildBounds? = null
-        val count = minOf(rows.size, root.childCount)
-        for (index in 0 until count) {
-            val child = root.getChildAt(index)
-            val params = child.layoutParams as? LinearLayout.LayoutParams
-            cursor += params?.leftMargin ?: 0
-            val width = child.measuredWidth.coerceAtLeast(0)
-            val right = cursor + width
-            last = MeasuredChildBounds(right = right, width = width, scaleX = child.scaleX)
-            cursor = right + (params?.rightMargin ?: 0)
-        }
-        return last
-    }
-
     private fun rowsFor(data: FcitxEvent.PagedCandidateEvent.Data): List<Row> {
         val rows = data.candidates.mapIndexed { position, candidate ->
             Row.Candidate(
@@ -356,11 +281,6 @@ class T9ShortcutCandidatesUi(
         data class Pagination(val hasPrev: Boolean, val hasNext: Boolean) : RowStructure()
     }
 
-    private data class MeasureStructure(
-        val renderStructure: RenderStructure,
-        val tailCandidateActive: Boolean
-    )
-
     private fun renderStructureFor(
         rows: List<Row>,
         layout: T9ShortcutCandidateLayout
@@ -381,17 +301,6 @@ class T9ShortcutCandidatesUi(
                     )
                 }
             }
-        )
-
-    private fun measureStructureFor(
-        rows: List<Row>,
-        structure: RenderStructure
-    ): MeasureStructure =
-        MeasureStructure(
-            renderStructure = structure,
-            // The focused tail chip can draw wider than its measured width; only that visual
-            // state needs a second pass after a selection-only update.
-            tailCandidateActive = (rows.lastOrNull() as? Row.Candidate)?.active == true
         )
 
     companion object {

@@ -49,6 +49,19 @@ class T9ShortcutTailPolicyTest {
     }
 
     @Test
+    fun plannedToolbarWidthUsesFixedTailAndFocusOverflow() {
+        val width = T9ShortcutTailPolicy.plannedToolbarWidthPx(
+            candidateContentWidthPx = 56,
+            tailScaleOverflowPx = 7,
+            edgePaddingPx = 5,
+            trailingPaddingPx = 4,
+            maxRowWidthPx = 200
+        )
+
+        assertEquals(77, width)
+    }
+
+    @Test
     fun neverShrinksNaturalWidthOrExceedsTheRowBudget() {
         val alreadyWideEnough = T9ShortcutTailPolicy.stabilizedToolbarWidthPx(
             naturalWidthPx = 140,

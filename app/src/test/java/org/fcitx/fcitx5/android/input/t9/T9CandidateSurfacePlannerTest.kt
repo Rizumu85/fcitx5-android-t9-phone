@@ -23,7 +23,7 @@ class T9CandidateSurfacePlannerTest {
 
         assertEquals(7, plan.shortcutLayout.trailingPaddingPx)
         assertEquals(5, plan.shortcutLayout.edgePaddingPx)
-        assertEquals(0, plan.shortcutLayout.rowWidthPx)
+        assertEquals(73, plan.shortcutLayout.rowWidthPx)
         assertEquals(296, plan.shortcutLayout.maxCandidateWidthPx)
         assertEquals(300, plan.shortcutLayout.maxRowWidthPx)
         assertEquals(73, plan.candidatePolicyWidthPx)
@@ -63,6 +63,19 @@ class T9CandidateSurfacePlannerTest {
 
         assertEquals(478, plan.pinyinSurface?.rowWidthPx)
         assertEquals(478, requireNotNull(plan.pinyinSurface).pinyinBarWidthPx)
+    }
+
+    @Test
+    fun shortcutLayoutWidthFollowsContentWithoutMinimumWidthTailNoise() {
+        val plan = T9CandidateSurfacePlanner.plan(
+            input(
+                candidates = listOf("I"),
+                trailingPaddingPx = 7
+            )
+        )
+
+        assertEquals(43, plan.shortcutLayout.rowWidthPx)
+        assertEquals(43, plan.candidatePolicyWidthPx)
     }
 
     private fun input(

@@ -19,25 +19,42 @@ object T9CandidateRowWidthCalculator {
 
     fun calculate(input: Input): Int? {
         if (input.data.candidates.isEmpty()) return null
-        val inactiveCandidateWidth = input.data.candidates.sumOf { candidate ->
-            input.widthBudget.candidateWidthPx(candidate, active = false)
-        } - input.widthBudget.candidateSpacingPx.coerceAtLeast(0)
+        val spacing = input.widthBudget.candidateSpacingPx.coerceAtLeast(0)
+        val hasPagination = input.showPaginationArrows && (input.data.hasPrev || input.data.hasNext)
+        val lastCandidateIndex = input.data.candidates.lastIndex
+        val inactiveCandidateWidth = input.data.candidates.mapIndexed { index, candidate ->
+            val edgeAlignedTail = !hasPagination && index == lastCandidateIndex
+            input.widthBudget.candidateChipWidthPx(
+                candidate = candidate,
+                enforceMinimumWidth = !edgeAlignedTail
+            )
+        }.sum() + spacing * (input.data.candidates.size - 1).coerceAtLeast(0)
         val paginationWidth = if (input.showPaginationArrows && (input.data.hasPrev || input.data.hasNext)) {
-            input.widthBudget.candidateSpacingPx.coerceAtLeast(0) +
-                input.paginationWidthPx.coerceAtLeast(0)
+            spacing + input.paginationWidthPx.coerceAtLeast(0)
+        } else {
+            0
+        }
+        val tailScaleOverflow = if (
+            !hasPagination &&
+            input.data.cursorIndex == lastCandidateIndex
+        ) {
+            input.widthBudget.activeScaleOverflowPx(
+                candidate = input.data.candidates[lastCandidateIndex],
+                enforceMinimumWidth = false
+            )
         } else {
             0
         }
         // Product decision: inter-candidate spacing and the final breathing room are separate.
         // The tail reserve is fixed so the last candidate never inherits noise from text-width
         // estimates, while pagination still uses a conservative row-width budget.
-        return (
-            inactiveCandidateWidth +
-                paginationWidth +
-                input.rowHorizontalPaddingPx * 2 +
-                input.trailingPaddingPx.coerceAtLeast(0)
-            )
-            .coerceAtMost(input.widthBudget.maxWidthPx)
+        return T9ShortcutTailPolicy.plannedToolbarWidthPx(
+            candidateContentWidthPx = inactiveCandidateWidth + paginationWidth,
+            tailScaleOverflowPx = tailScaleOverflow,
+            edgePaddingPx = input.rowHorizontalPaddingPx,
+            trailingPaddingPx = input.trailingPaddingPx,
+            maxRowWidthPx = input.widthBudget.maxWidthPx
+        )
             .coerceAtLeast(1)
     }
 }

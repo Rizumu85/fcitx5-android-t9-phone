@@ -158,6 +158,13 @@ recombine pinyin widths, candidate widths, shortcut row tail policy, and focus
 state. This keeps the bubble-width design adjustable at one seam instead of
 spreading small ratio fixes through the floating window adapter.
 
+The T9 candidate bubble width is still content-driven: short candidate pages
+should produce shorter bubbles and long candidate pages should expand up to the
+screen budget. The geometry module owns this content width from text metrics,
+padding, pagination, tail spacing, and focused-tail scale overflow. Android
+rendering adapters should consume that planned width instead of measuring the
+shortcut candidate view tree on every key event.
+
 ### Floating Candidate Window Controller
 
 The floating window controller owns candidate-surface anchoring outside the
