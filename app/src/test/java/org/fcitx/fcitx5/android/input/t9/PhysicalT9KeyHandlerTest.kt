@@ -497,6 +497,21 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
+    fun chinesePendingPunctuationBackspaceCancelsAndConsumesKeyUp() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            hasPendingPunctuation = true
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        val down = handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_DEL, KeyEvent.ACTION_DOWN))
+
+        assertTrue(down.handled)
+        assertEquals(KeyEvent.KEYCODE_DEL, down.consumedKeyUp)
+        assertEquals(1, host.cancelPendingPunctuationCount)
+    }
+
+    @Test
     fun chinesePendingPunctuationNavigationConsumesEvenWhenPageCannotMove() {
         val host = FakeHost(
             mode = PhysicalT9KeyHandler.Mode.CHINESE,

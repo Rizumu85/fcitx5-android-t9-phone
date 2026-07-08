@@ -302,6 +302,7 @@ internal class PhysicalT9ChineseKeyFlow(
             digit != null && digit in 2..9 -> handleChinesePendingPunctuationDigit(input, state, digit)
             input.keyCode == KeyEvent.KEYCODE_POUND -> handleChinesePendingPunctuationPound(input, state)
             input.keyCode == KeyEvent.KEYCODE_STAR -> handleChinesePendingPunctuationStar(input)
+            PhysicalT9KeyPolicy.isDeleteKey(input.keyCode) -> handleChinesePendingPunctuationDelete(input)
             PhysicalT9KeyPolicy.focusKey(input.keyCode) != null ->
                 PhysicalT9SelectionMode.handle(
                     input = input,
@@ -310,6 +311,18 @@ internal class PhysicalT9ChineseKeyFlow(
                 )
             else -> null
         }
+    }
+
+    private fun handleChinesePendingPunctuationDelete(
+        input: PhysicalT9KeyHandler.KeyInput
+    ): Decision? = when (input.action) {
+        KeyEvent.ACTION_DOWN -> Decision(
+            handled = true,
+            commands = listOf(Command.CancelPendingPunctuation),
+            consumedKeyUp = input.keyCode
+        )
+        KeyEvent.ACTION_UP -> Decision(handled = true)
+        else -> null
     }
 
     private fun handleChinesePendingPunctuationOne(

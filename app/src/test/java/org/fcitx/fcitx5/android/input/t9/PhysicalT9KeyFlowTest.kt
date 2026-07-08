@@ -390,6 +390,19 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
+    fun chinesePendingPunctuationBackspaceCancelsInsteadOfLeakingToApp() {
+        val flow = PhysicalT9KeyFlow()
+
+        val down = flow.handle(
+            input(KeyEvent.KEYCODE_DEL, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, hasPendingPunctuation = true)
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CancelPendingPunctuation), down?.commands)
+        assertEquals(KeyEvent.KEYCODE_DEL, down?.consumedKeyUp)
+    }
+
+    @Test
     fun chineseFocusNavigationMovesBetweenPinyinAndBottomRows() {
         val flow = PhysicalT9KeyFlow()
 
