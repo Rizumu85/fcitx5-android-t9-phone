@@ -55,6 +55,8 @@ class T9ShortcutCandidatesUi(
         trailingPaddingPx = 0
     )
     private var renderRows: List<Row> = emptyList()
+    private var renderStructure: RenderStructure? = null
+    private var measureStructure: MeasureStructure? = null
     var measuredToolbarWidthPx: Int? = null
         private set
 
@@ -90,15 +92,30 @@ class T9ShortcutCandidatesUi(
         val rows = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutRows") {
             rowsFor(data)
         }
+        val nextStructure = renderStructureFor(rows, layout)
+        if (nextStructure == renderStructure && root.childCount >= rows.size) {
+            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutSelection") {
+                renderSelection(rows)
+            }
+            measureToolbarIfNeeded(rows, nextStructure)
+            return
+        }
         T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutRender") {
-            render(rows)
+            render(rows, nextStructure)
         }
     }
 
     fun setHighlightActive(active: Boolean) {
         if (highlightActive == active) return
         highlightActive = active
-        render(rowsFor(data))
+        val rows = rowsFor(data)
+        val nextStructure = renderStructureFor(rows, layout)
+        if (nextStructure == renderStructure && root.childCount >= rows.size) {
+            renderSelection(rows)
+            measureToolbarIfNeeded(rows, nextStructure)
+            return
+        }
+        render(rows, nextStructure)
     }
 
     private fun updateRootBounds(layout: T9ShortcutCandidateLayout) {
@@ -122,13 +139,17 @@ class T9ShortcutCandidatesUi(
             )
         }
         val targetWidth = layout.rowWidthPx.takeIf { it > 0 } ?: WRAP_CONTENT
-        root.updateLayoutParams<ViewGroup.LayoutParams> {
-            width = targetWidth
+        if (root.layoutParams?.width != targetWidth) {
+            root.updateLayoutParams<ViewGroup.LayoutParams> {
+                width = targetWidth
+            }
         }
     }
 
-    private fun render(rows: List<Row>) {
-        renderRows = rows
+    private fun render(
+        rows: List<Row>,
+        structure: RenderStructure
+    ) {
         T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutBind") {
             rows.forEachIndexed { index, row ->
                 val view = when (row) {
@@ -153,6 +174,41 @@ class T9ShortcutCandidatesUi(
         T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutMeasure") {
             measureToolbar(rows)
         }
+        renderRows = rows
+        renderStructure = structure
+        measureStructure = measureStructureFor(rows, structure)
+    }
+
+    private fun renderSelection(rows: List<Row>) {
+        val previousRows = renderRows
+        rows.forEachIndexed { index, row ->
+            val previous = previousRows.getOrNull(index)
+            if (row !is Row.Candidate || previous !is Row.Candidate) return@forEachIndexed
+            if (previous.active == row.active && previous.inactiveRow == row.inactiveRow) {
+                return@forEachIndexed
+            }
+            candidateItems.getOrNull(index)?.updateSelection(
+                candidate = row.candidate,
+                active = row.active,
+                inactiveRow = row.inactiveRow,
+                t9InputModeEnabled = true,
+                shortcutLabel = row.shortcutLabel,
+                shortcutMaxWidthPx = layout.maxCandidateWidthPx
+            )
+        }
+        renderRows = rows
+    }
+
+    private fun measureToolbarIfNeeded(
+        rows: List<Row>,
+        structure: RenderStructure
+    ) {
+        val nextMeasure = measureStructureFor(rows, structure)
+        if (nextMeasure == measureStructure) return
+        T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutMeasure") {
+            measureToolbar(rows)
+        }
+        measureStructure = nextMeasure
     }
 
     private fun candidateView(
@@ -284,6 +340,59 @@ class T9ShortcutCandidatesUi(
         }
         return rows
     }
+
+    private data class RenderStructure(
+        val layout: T9ShortcutCandidateLayout,
+        val rows: List<RowStructure>
+    )
+
+    private sealed class RowStructure {
+        data class Candidate(
+            val label: String,
+            val text: String,
+            val comment: String,
+            val shortcutLabel: String
+        ) : RowStructure()
+        data class Pagination(val hasPrev: Boolean, val hasNext: Boolean) : RowStructure()
+    }
+
+    private data class MeasureStructure(
+        val renderStructure: RenderStructure,
+        val tailCandidateActive: Boolean
+    )
+
+    private fun renderStructureFor(
+        rows: List<Row>,
+        layout: T9ShortcutCandidateLayout
+    ): RenderStructure =
+        RenderStructure(
+            layout = layout,
+            rows = rows.map { row ->
+                when (row) {
+                    is Row.Candidate -> RowStructure.Candidate(
+                        label = row.candidate.label,
+                        text = row.candidate.text,
+                        comment = row.candidate.comment,
+                        shortcutLabel = row.shortcutLabel
+                    )
+                    is Row.Pagination -> RowStructure.Pagination(
+                        hasPrev = row.hasPrev,
+                        hasNext = row.hasNext
+                    )
+                }
+            }
+        )
+
+    private fun measureStructureFor(
+        rows: List<Row>,
+        structure: RenderStructure
+    ): MeasureStructure =
+        MeasureStructure(
+            renderStructure = structure,
+            // The focused tail chip can draw wider than its measured width; only that visual
+            // state needs a second pass after a selection-only update.
+            tailCandidateActive = (rows.lastOrNull() as? Row.Candidate)?.active == true
+        )
 
     companion object {
         private val shortcutLabels = arrayOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
