@@ -133,6 +133,18 @@ may measure, render, scroll, and set view visibility, but it should not own the
 rules for which T9 surface is shown, which candidate page is active, whether a
 top reading row is reserved, or whether the UI should remain visible.
 
+### T9 Candidate Surface Android Adapter
+
+The Android adapter for the visible T9 candidate surface: top preedit bubble,
+pinyin filter row, Hanzi/Smart English/punctuation candidate row, shortcut
+candidate row, focus highlight, and immediate hide/clear operations.
+
+`T9CandidateSurfaceAndroidAdapter` owns rendering into Android row widgets.
+`CandidatesView` remains the floating window adapter: it owns cursor anchoring,
+window measurement, insets, touch receiver placement, and width-budget helpers.
+This keeps visual row rendering local without reopening the delicate floating
+window positioning rules.
+
 The snapshot pipeline should preserve the current candidate bubble visual
 design while improving refresh locality. The goal is not a new visual style;
 the goal is fewer broad refreshes, fewer transient wrong rows, and fewer layout

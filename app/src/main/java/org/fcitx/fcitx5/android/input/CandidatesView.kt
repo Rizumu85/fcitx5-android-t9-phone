@@ -39,6 +39,7 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSnapshotKey
 import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateInteractionController
+import org.fcitx.fcitx5.android.input.t9.T9CandidateSurfaceAndroidAdapter
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiInputSnapshot
 import org.fcitx.fcitx5.android.input.t9.T9CandidateSurfacePlanner
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiSnapshot
@@ -188,7 +189,6 @@ class CandidatesView(
     private var t9ShownPaged: FcitxEvent.PagedCandidateEvent.Data? = null
     private var t9ShownOriginalIndices = intArrayOf()
     private var t9ShownUsesLocalBudget = false
-    private var lastRenderedT9Focus = T9CandidateFocus.BOTTOM
     private val t9CandidateUiSnapshotPipeline = T9CandidateUiSnapshotPipeline(
         characterBudget = { t9HanziCharacterBudget },
         widthBudget = ::t9CandidateWidthBudget,
@@ -232,49 +232,6 @@ class CandidatesView(
     )
     private val t9PinyinMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
     private val t9CandidateMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
-    private val t9CandidateUiRenderer = T9CandidateUiRenderer(object : T9CandidateUiRenderer.Delegate {
-        override fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean) {
-            this@CandidatesView.preferAboveCursorAnchor = preferAboveCursorAnchor
-        }
-
-        override fun renderPreedit(panel: FcitxEvent.InputPanelEvent.Data, reserveRow: Boolean) {
-            preeditUi.update(panel)
-            preeditUi.root.visibility = when {
-                preeditUi.visible -> VISIBLE
-                reserveRow -> INVISIBLE
-                else -> GONE
-            }
-        }
-
-        override fun renderCandidates(
-            candidates: FcitxEvent.PagedCandidateEvent.Data,
-            orientation: FloatingCandidatesOrientation,
-            showShortcutLabels: Boolean
-        ) {
-            renderCandidateRow(candidates, orientation, showShortcutLabels)
-        }
-
-        override fun renderPinyin(pinyinOptions: List<String>, pinyinUseT9: Boolean): Boolean =
-            t9PinyinRowAdapter.render(pinyinOptions, pinyinUseT9)
-
-        override fun syncPinyinLayout(): Boolean = t9PinyinRowAdapter.syncVisibleLayout()
-
-        override fun renderFocus(focus: T9CandidateFocus) {
-            updateT9FocusIndicator(focus)
-        }
-
-        override fun showWhenPositioned(contentReady: Boolean) {
-            this@CandidatesView.showWhenPositioned(contentReady)
-        }
-
-        override fun hideCandidateUi() {
-            // RecyclerView won't update its items when ancestor view is GONE.
-            showAfterPositioned = false
-            showAfterPositionedContentReady = true
-            t9PinyinRowAdapter.removeRevealListener()
-            visibility = INVISIBLE
-        }
-    })
     private val t9CandidateUiStateBuilder = T9CandidateUiStateBuilder(object : T9CandidateUiStateBuilder.Pipeline {
         override fun buildSmartEnglishPaged(
             data: FcitxEvent.PagedCandidateEvent.Data
@@ -529,6 +486,24 @@ class CandidatesView(
         }
     }
 
+    private val t9CandidateSurfaceAdapter: T9CandidateSurfaceAndroidAdapter = T9CandidateSurfaceAndroidAdapter(
+        preeditUi = preeditUi,
+        pinyinRowAdapter = t9PinyinRowAdapter,
+        candidatesUi = candidatesUi,
+        shortcutCandidatesUi = t9ShortcutCandidatesUi,
+        shortcutCandidateLayout = ::t9ShortcutCandidateLayout,
+        setPreferAboveCursorAnchor = { preferAboveCursorAnchor = it },
+        showWhenPositioned = ::showWhenPositioned,
+        hideSurfaceImmediately = {
+            // RecyclerView won't update its items when ancestor view is GONE.
+            showAfterPositioned = false
+            showAfterPositionedContentReady = true
+            t9PinyinRowAdapter.removeRevealListener()
+            visibility = INVISIBLE
+        }
+    )
+    private val t9CandidateUiRenderer = T9CandidateUiRenderer(t9CandidateSurfaceAdapter)
+
     private fun dpCandidates(value: Int): Int = (value * ctx.resources.displayMetrics.density).toInt()
 
     /** Height of one lower Hanzi candidate row. Compact top rows are a ratio of this baseline. */
@@ -627,21 +602,16 @@ class CandidatesView(
         t9RefreshScheduler.cancel()
         showAfterPositioned = false
         showAfterPositionedContentReady = true
-        t9PinyinRowAdapter.removeRevealListener()
+        t9CandidateSurfaceAdapter.removePinyinRevealListener()
         inputPanel = FcitxEvent.InputPanelEvent.Data()
         paged = FcitxEvent.PagedCandidateEvent.Data.Empty
         resetT9BulkFilterState()
         t9CandidateUiSnapshotPipeline.reset()
         t9CandidateUiRenderer.reset()
         chineseT9CandidateLoadingState.reset()
-        preeditUi.update(inputPanel)
-        preeditUi.root.visibility = GONE
-        t9PinyinRowAdapter.clear()
-        lastRenderedT9Focus = T9CandidateFocus.BOTTOM
+        t9CandidateSurfaceAdapter.clear(inputPanel, paged, orientation)
         service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
         updateT9FocusIndicator()
-        candidatesUi.update(paged, orientation)
-        t9ShortcutCandidatesUi.root.visibility = GONE
         visibility = INVISIBLE
     }
 
@@ -676,7 +646,7 @@ class CandidatesView(
         t9RefreshScheduler.cancel()
         showAfterPositioned = false
         showAfterPositionedContentReady = true
-        t9PinyinRowAdapter.removeRevealListener()
+        t9CandidateSurfaceAdapter.removePinyinRevealListener()
         t9CandidateUiRenderer.hideImmediately()
     }
 
@@ -773,27 +743,7 @@ class CandidatesView(
     private fun updateT9FocusIndicator(
         focus: T9CandidateFocus = service.getT9CandidateFocus()
     ) {
-        val topFocused = focus == T9CandidateFocus.TOP
-        t9PinyinRowAdapter.renderFocus(focus, lastRenderedT9Focus)
-        candidatesUi.setHighlightActive(!topFocused)
-        t9ShortcutCandidatesUi.setHighlightActive(!topFocused)
-        lastRenderedT9Focus = focus
-    }
-
-    private fun renderCandidateRow(
-        candidates: FcitxEvent.PagedCandidateEvent.Data,
-        orientation: FloatingCandidatesOrientation,
-        showShortcutLabels: Boolean
-    ) {
-        if (showShortcutLabels) {
-            candidatesUi.root.visibility = GONE
-            t9ShortcutCandidatesUi.root.visibility = VISIBLE
-            t9ShortcutCandidatesUi.update(candidates, t9ShortcutCandidateLayout(candidates))
-            return
-        }
-        t9ShortcutCandidatesUi.root.visibility = GONE
-        candidatesUi.root.visibility = VISIBLE
-        candidatesUi.update(candidates, orientation)
+        t9CandidateSurfaceAdapter.renderFocus(focus)
     }
 
     private fun updateUi() = T9ResponsivenessTrace.measure("CandidatesView.updateUi") {
@@ -1307,14 +1257,14 @@ class CandidatesView(
         if (visibility != VISIBLE) {
             showAfterPositioned = false
             showAfterPositionedContentReady = true
-            t9PinyinRowAdapter.removeRevealListener()
+            t9CandidateSurfaceAdapter.removePinyinRevealListener()
             touchEventReceiverWindow.dismiss()
         }
         super.setVisibility(visibility)
     }
 
     override fun onDetachedFromWindow() {
-        t9PinyinRowAdapter.removeRevealListener()
+        t9CandidateSurfaceAdapter.removePinyinRevealListener()
         viewTreeObserver.removeOnPreDrawListener(preDrawListener)
         viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
         touchEventReceiverWindow.dismiss()
