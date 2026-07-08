@@ -7,6 +7,7 @@ package org.fcitx.fcitx5.android.input
 
 import android.annotation.SuppressLint
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.text.TextPaint
@@ -264,6 +265,7 @@ class CandidatesView(
     )
     private val t9PinyinMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
     private val t9CandidateMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
+    private val t9CandidateTextBounds = Rect()
     private val t9CandidateSurfaceGeometry = T9CandidateSurfaceGeometry(
         measurePinyinTextWidthPx = ::measureT9PinyinTextWidthPx,
         measureCandidateTextWidthPx = ::measureT9CandidateTextWidthPx
@@ -961,7 +963,9 @@ class CandidatesView(
             textSize = fontSize * ctx.resources.displayMetrics.scaledDensity
             InputUiFont.applyTo(this)
         }
-        return paint.measureText(text).roundToInt()
+        if (text.isEmpty()) return 0
+        paint.getTextBounds(text, 0, text.length, t9CandidateTextBounds)
+        return t9CandidateTextBounds.width().coerceAtLeast(0)
     }
 
     private fun currentPinyinSurfacePlan(
