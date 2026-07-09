@@ -5,6 +5,22 @@
 Rizum Guidelines are active for this project/thread until the user says
 otherwise.
 
+## Scheme-Aware `1` and `*` Migration
+
+- [x] Record the agreed current-mode and future-scheme key roles in analysis
+  and design before implementation.
+- [x] Replace key-named English case commands with semantic case-cycle
+  commands.
+- [x] Move Pinyin and English punctuation entry from short `1` to short `*`
+  while preserving long-press candidate shortcuts and number-mode behavior.
+- [x] Add focused Physical T9 Key Flow, case lifecycle, and punctuation
+  lifecycle regression tests.
+- [x] Add an ADR for Pinyin, Stroke, Zhuyin, English, and number key contracts,
+  including Stroke `6` as unknown stroke and the performance architecture.
+- [x] Run focused unit tests and a Kotlin compile check.
+- [x] Commit implementation and architecture documentation separately, then
+  push both commits.
+
 ## Current Input-Method Follow-up
 
 - [x] Diagnose hardware-key passthrough in game/emulator `TYPE_NULL` contexts.
@@ -72,14 +88,14 @@ otherwise.
 - [ ] Confirm smart English respects the T9 candidate budget setting, supports
   page up/down, and commits visible candidates by long-pressing `1..9,0`.
 - [ ] Confirm smart-English first-page up does not move the editor cursor, and
-  `1` punctuation candidates can move, commit, and page normally.
+  `*` punctuation candidates can move, commit, and page normally.
 - [ ] Confirm hot/laggy physical-key typing no longer leaks digits or triggers
   long-press choices during short presses.
 - [ ] Confirm immediately pressing physical Backspace after enabling typing
   deletes text instead of returning/backing out.
 - [ ] Confirm number mode short digits still input digits, long digits still
-  input operators, and `*` switches punctuation sets only while punctuation
-  candidates are pending.
+  input operators, short `*` inserts a literal star, and long `*` opens the
+  operator panel.
 - [ ] Confirm DPAD center, Enter, and numpad Enter act consistently for
   candidate/confirmation contexts.
 - [ ] Watch for the intermittent Rime/default-only recovery issue after

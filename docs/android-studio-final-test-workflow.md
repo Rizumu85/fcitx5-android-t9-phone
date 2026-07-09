@@ -55,8 +55,13 @@ frame analysis, see `docs/t9-debugging.md`.
 
 - 长按 `#` 切到 `En`。
 - 连续按 `2`，应在 `a`、`b`、`c` 之间循环。
-- 输入字母前短按 `*`，下一个字母应只大写一次。
-- 长按 `*`，应进入大写锁定；再次关闭前字母都应保持大写。
+- Short-press `1` repeatedly; case should cycle through `abc`, `Abc`, `ABC`,
+  then return to `abc`.
+- With a Smart English candidate visible, short-press `*`; the candidate should
+  commit without a space and the English punctuation row should open.
+- Long-press `1` with candidates visible; it should still select shortcut `1`
+  rather than changing case.
+- Long-press `*`; it should insert a literal `*` rather than opening punctuation.
 - 按 `0` 时，如果有未确认的 multi-tap 字母，应先提交字母再输入空格。
 
 ### 数字模式
@@ -64,12 +69,18 @@ frame analysis, see `docs/t9-debugging.md`.
 - 长按 `#` 切到 `123`。
 - 按 `0-9`，每个按键都应直接输入对应数字。
 - 按 `*`，应直接输入普通 `*`。
-- 长按数字键或 `*`，不应打开 Rime 候选，也不应重复输入异常文本。
+- Long-press a digit to enter its mapped operator, and long-press `*` to open
+  the number operator panel. Neither action should open Rime candidates or
+  repeat text unexpectedly.
 
-### 中文/数字模式的 `*` 行为
+### 中文/数字模式的 `1` 和 `*` 行为
 
-- 中文模式下，`*` 应直接输入普通 `*`，不应打开标点候选行。
-- 中文组合状态下按 `*`，应替换/清掉当前组合并输入 `*`。
+- In idle Pinyin mode, short `1` should not open punctuation. During Pinyin
+  composition it should keep acting as the syllable separator.
+- In Chinese mode, short `*` should open Chinese punctuation. With an active
+  composition it should first commit the highlighted Hanzi candidate.
+- In Chinese mode, long `*` should replace/clear the current composition and
+  insert a literal `*`.
 - 数字模式下，`*` 也应直接输入普通 `*`。
 
 ## 4. 分发包内容

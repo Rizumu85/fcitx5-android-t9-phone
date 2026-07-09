@@ -1,5 +1,40 @@
 # Analysis
 
+## Current Task: Scheme-Aware `1` and `*` Roles
+
+The punctuation key cannot remain globally assigned to `1`. Future Stroke
+input needs `1..5` for horizontal, vertical, left-falling, dot/right-falling,
+and bend strokes, with `6` as the unknown-stroke wildcard. Future Zhuyin input
+also needs `1` for the `ㄅㄆㄇㄈ` group. English does not use short `1` for a
+letter group, so it can use short `1` for case selection instead.
+
+The stable cross-scheme role is therefore `*` as the text-symbol entry point,
+not `1` as punctuation. The change is not a literal global key swap: Pinyin
+keeps composing `1` as its syllable separator, Stroke and Zhuyin use `1` as
+input data, English uses short `1` to cycle case, and number mode keeps `1` as
+the digit. Long-press digit shortcuts remain available, including long `1` for
+the first visible candidate or literal `1` fallback.
+
+Success criteria for the implemented modes:
+
+- Pinyin short `1` still separates an active composition but no longer opens
+  punctuation while idle.
+- English short `1` cycles `abc -> Abc -> ABC -> abc`; long `1` keeps candidate
+  shortcut/literal-number behavior.
+- Text-mode short `*` commits pending text without a space when necessary and
+  opens the mode-appropriate punctuation candidates.
+- Pressing short `*` again while punctuation is visible toggles its Chinese or
+  English set; long `*` commits a literal star.
+- Number mode keeps its existing digit, literal-star, and operator-panel rules.
+- The physical-key decision path remains synchronous and allocation-light; it
+  emits semantic commands and does not perform dictionary lookup, Rime work,
+  or Android view measurement.
+
+Stroke and Zhuyin engines are not part of this implementation slice. Their
+agreed key maps and performance architecture are recorded in an ADR so their
+later adapters join the existing command and candidate-snapshot pipelines
+without another physical-key rewrite.
+
 ## Current Task
 
 The active work is a T9 input-method follow-up covering hardware keyboard

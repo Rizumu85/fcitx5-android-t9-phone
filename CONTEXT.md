@@ -56,6 +56,31 @@ The first migration slice should target Smart English physical-key behavior:
 long-press digit shortcuts. After each code slice, provide a concrete manual
 test checklist and wait for user confirmation before migrating the next slice.
 
+### Physical T9 Input Scheme
+
+The mechanism-specific interpretation of the physical keypad inside one
+top-level input mode. Pinyin, Stroke, Zhuyin, Smart English, simple English,
+and number input do not share one literal key map: they share semantic actions
+such as punctuation entry, candidate shortcuts, confirmation, return, and mode
+switching, then reserve digit groups for their own composition data.
+
+`*` is the common symbol-entry key for text schemes. `1` belongs to the active
+scheme: Pinyin separator, Stroke horizontal stroke, Zhuyin `ㄅㄆㄇㄈ`, or
+English case cycle. Number mode keeps literal numeric behavior. Key-flow
+commands must describe these semantic actions rather than the historical key
+that triggered them.
+
+Stroke means the five-stroke mobile input method (horizontal, vertical,
+left-falling, dot/right-falling, and bend), not Wubi 86. Its sixth input token
+is the unknown-stroke wildcard. The internal token stays semantic and the
+engine Adapter translates it to the backend-specific wildcard representation.
+
+New Chinese mechanisms join the existing Physical T9 Key Flow and T9 Candidate
+UI Snapshot Pipeline. They own compact composition sessions and cached engine
+snapshots, while `FcitxInputMethodService` remains a platform Adapter. They must
+not introduce direct dictionary work, Rime calls, or Android view measurement
+into the synchronous physical-key decision path.
+
 ### Physical Input Router
 
 The ordered physical-key routing Module above Physical T9 Key Flow. It owns
@@ -99,8 +124,8 @@ IME service commits text and refreshes candidate UI through adapter callbacks.
 ### T9 Punctuation Lifecycle
 
 The T9 punctuation lifecycle covers pending punctuation state, Chinese versus
-English punctuation sets, one-key deferred Chinese punctuation, candidate
-preview, shortcut selection, commit, cancel, and UI refresh side effects.
+English punctuation sets, explicit symbol-key entry, candidate preview,
+shortcut selection, commit, cancel, and UI refresh side effects.
 
 `T9PunctuationLifecycle` owns punctuation state transitions and returns
 ordered effects. `T9PunctuationCoordinator` is the adapter that executes those

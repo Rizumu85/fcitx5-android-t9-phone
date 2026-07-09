@@ -1,5 +1,34 @@
 # Design
 
+## Scheme-Aware Physical Key Design
+
+Physical keys map to domain commands through the active input scheme rather
+than carrying one global meaning. `*` is the shared symbol entry point for text
+schemes, while `1` remains available to the scheme: Pinyin separator, Stroke
+horizontal stroke, Zhuyin `ㄅㄆㄇㄈ`, or English case cycle. Number mode remains
+numeric and keeps its current `*` operator behavior.
+
+English case uses one short-press cycle (`abc`, `Abc`, `ABC`) so long `1`
+remains the first candidate shortcut. Text-mode `*` owns a complete ordered
+interaction: commit the pending word or Chinese candidate without adding a
+space, stop English next-word prediction for this boundary, then open the
+correct punctuation set. A second short `*` toggles the pending punctuation
+set; long `*` inserts a literal star.
+
+The key-flow Interface exposes semantic commands such as cycling English case,
+showing Chinese or English punctuation, and committing a literal star. Command
+names must not retain the old physical key that happened to trigger them. The
+mode-specific Physical T9 Key Flow Modules decide commands from one immutable
+state snapshot; the command executor and host Adapter own side-effect ordering.
+
+Future Stroke and Zhuyin implementations should add scheme-specific adapters,
+not branches in `FcitxInputMethodService`. Their composition sessions own raw
+codes and candidate lookup. The candidate UI continues to consume render-ready
+snapshots, so a new mechanism does not create a parallel row renderer or
+paging implementation. Lookup dictionaries are warmed outside key handling,
+and each key press only mutates a compact session key and requests one cached
+candidate snapshot.
+
 ## Project Goal
 
 Maintain a physical-key-friendly Android T9 input method that remains usable in
