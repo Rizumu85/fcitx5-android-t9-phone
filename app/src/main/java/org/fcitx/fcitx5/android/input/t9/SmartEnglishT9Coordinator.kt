@@ -138,11 +138,8 @@ class SmartEnglishT9Coordinator(
     fun consumeShiftOnce() =
         controller.consumeShiftOnce()
 
-    fun toggleShiftOnce(): String =
-        controller.toggleShiftOnce()
-
-    fun toggleCaps(): String =
-        controller.toggleCaps()
+    fun cycleCase(): String =
+        controller.cycleCase()
 
     fun recordLearningChar(char: Char) =
         controller.recordLearningChar(char)

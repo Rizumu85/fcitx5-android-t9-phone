@@ -22,20 +22,20 @@ internal class PhysicalT9CommandExecutor(
         input: PhysicalT9KeyHandler.KeyInput
     ) {
         when (command) {
-            is PhysicalT9KeyFlow.Command.SetPendingPunctuationOneKeyDeferred ->
-                host.setPendingPunctuationOneKeyDeferred(command.value)
             is PhysicalT9KeyFlow.Command.CommitPendingPunctuationShortcut ->
                 host.commitPendingPunctuationShortcut(command.keyCode)
             PhysicalT9KeyFlow.Command.CommitPendingPunctuation ->
                 host.commitPendingPunctuation()
             PhysicalT9KeyFlow.Command.CancelPendingPunctuation ->
                 host.cancelPendingPunctuation()
-            PhysicalT9KeyFlow.Command.HandleChinesePunctuationKey ->
-                host.handleChinesePunctuationKey()
+            PhysicalT9KeyFlow.Command.ShowChinesePunctuationCandidates ->
+                host.showChinesePunctuationCandidates()
+            PhysicalT9KeyFlow.Command.ShowEnglishPunctuationCandidates ->
+                host.showEnglishPunctuationCandidates()
+            PhysicalT9KeyFlow.Command.CommitChineseCandidateAndShowPunctuation ->
+                host.commitChineseCandidateAndShowPunctuation()
             PhysicalT9KeyFlow.Command.CancelMultiTapChar ->
                 host.cancelMultiTapChar()
-            PhysicalT9KeyFlow.Command.ShowSmartEnglishPunctuationCandidates ->
-                host.showSmartEnglishPunctuationCandidates()
             is PhysicalT9KeyFlow.Command.HandleMultiTapKey ->
                 host.handleMultiTapKey(command.keyCode)
             PhysicalT9KeyFlow.Command.CommitMultiTapChar ->
@@ -122,10 +122,8 @@ internal class PhysicalT9CommandExecutor(
                 host.forwardChineseT9KeyShortPress(KeyEvent.KEYCODE_POUND, input)
             PhysicalT9KeyFlow.Command.TogglePendingPunctuationSet ->
                 host.togglePendingPunctuationSet()
-            PhysicalT9KeyFlow.Command.HandleEnglishStarShortPress ->
-                host.handleEnglishStarShortPress()
-            PhysicalT9KeyFlow.Command.HandleEnglishStarLongPress ->
-                host.handleEnglishStarLongPress()
+            PhysicalT9KeyFlow.Command.CycleEnglishCase ->
+                host.cycleEnglishCase()
             PhysicalT9KeyFlow.Command.HandleReturnKey ->
                 host.handleReturnKey()
             PhysicalT9KeyFlow.Command.SwitchToNextMode ->
@@ -136,8 +134,8 @@ internal class PhysicalT9CommandExecutor(
                 host.commitNumberOperatorForKey(command.keyCode, command.fallbackDigit)
             PhysicalT9KeyFlow.Command.ShowNumberOperatorHintPanel ->
                 host.showNumberOperatorHintPanel()
-            PhysicalT9KeyFlow.Command.CommitLiteralStarInCurrentChineseState ->
-                host.commitLiteralStarInCurrentChineseState()
+            PhysicalT9KeyFlow.Command.CommitLiteralStar ->
+                host.commitLiteralStar()
         }
     }
 }

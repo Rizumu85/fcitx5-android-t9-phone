@@ -27,8 +27,7 @@ class T9PunctuationSession(
     private data class State(
         val set: Set = Set.CHINESE,
         val index: Int = 0,
-        val text: String? = null,
-        val oneKeyDeferred: Boolean = false
+        val text: String? = null
     ) {
         val isPending: Boolean
             get() = text != null
@@ -39,17 +38,12 @@ class T9PunctuationSession(
     val isPending: Boolean
         get() = state.isPending
 
-    val oneKeyDeferred: Boolean
-        get() = state.oneKeyDeferred
-
     val pendingText: String?
         get() = state.text
 
-    val set: Set
-        get() = state.set
-
-    fun setOneKeyDeferred(value: Boolean) {
-        state = state.copy(oneKeyDeferred = value)
+    fun showChineseCandidates(): String {
+        state = State(set = Set.CHINESE)
+        return showPending()
     }
 
     fun showEnglishCandidates(): String {
@@ -77,16 +71,6 @@ class T9PunctuationSession(
         val text = punctuations[index]
         state = state.copy(index = index, text = text)
         return text
-    }
-
-    fun handleChineseKey(hasCompositionKeys: Boolean): String? {
-        if (!state.isPending && hasCompositionKeys) return null
-        state = if (!state.isPending) {
-            State()
-        } else {
-            state.copy(index = (state.index + 1) % activePunctuationList().size)
-        }
-        return showPending()
     }
 
     fun toggleSet(): String? {

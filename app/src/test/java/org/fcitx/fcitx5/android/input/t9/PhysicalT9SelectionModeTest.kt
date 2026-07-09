@@ -116,9 +116,6 @@ class PhysicalT9SelectionModeTest {
         chineseComposing: Boolean = false,
         compositionKeyCount: Int = 0,
         hasPendingPunctuation: Boolean = false,
-        pendingPunctuationOneKeyDeferred: Boolean = false,
-        pendingPunctuationSet: PhysicalT9KeyHandler.PunctuationSet =
-            PhysicalT9KeyHandler.PunctuationSet.CHINESE,
         hasSmartEnglishDigits: Boolean = false,
         hasSmartEnglishCandidates: Boolean = false,
         hasMultiTapPendingChar: Boolean = false,
@@ -134,8 +131,6 @@ class PhysicalT9SelectionModeTest {
             chineseComposing = chineseComposing,
             compositionKeyCount = compositionKeyCount,
             hasPendingPunctuation = hasPendingPunctuation,
-            pendingPunctuationOneKeyDeferred = pendingPunctuationOneKeyDeferred,
-            pendingPunctuationSet = pendingPunctuationSet,
             hasSmartEnglishDigits = hasSmartEnglishDigits,
             hasSmartEnglishCandidates = hasSmartEnglishCandidates,
             hasMultiTapPendingChar = hasMultiTapPendingChar,

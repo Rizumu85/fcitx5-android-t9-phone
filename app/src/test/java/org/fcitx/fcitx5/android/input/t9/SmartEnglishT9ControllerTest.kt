@@ -32,7 +32,7 @@ class SmartEnglishT9ControllerTest {
     fun commitCandidateAppliesShiftOnceAndResetsDigits() {
         val host = FakeHost()
         val controller = host.controller()
-        controller.toggleShiftOnce()
+        controller.cycleCase()
         controller.appendDigit(2)
 
         assertTrue(controller.commitCandidate())
@@ -40,6 +40,17 @@ class SmartEnglishT9ControllerTest {
         assertEquals(listOf("A "), host.committedTexts)
         assertFalse(controller.hasDigits)
         assertEquals("abc", controller.caseLabel)
+    }
+
+    @Test
+    fun caseCycleVisitsShiftOnceCapsAndOff() {
+        val host = FakeHost()
+        val controller = host.controller()
+
+        assertEquals("Abc", controller.cycleCase())
+        assertEquals("ABC", controller.cycleCase())
+        assertEquals("abc", controller.cycleCase())
+        assertEquals(3, host.refreshCount)
     }
 
     @Test

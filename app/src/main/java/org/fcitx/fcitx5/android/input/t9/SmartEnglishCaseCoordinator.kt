@@ -6,20 +6,14 @@
 package org.fcitx.fcitx5.android.input.t9
 
 class SmartEnglishCaseCoordinator(
-    private val toggleShiftOnce: () -> Unit,
-    private val toggleCaps: () -> Unit,
+    private val cycleCase: () -> Unit,
     private val pendingMultiTapDisplay: () -> String?,
     private val setComposingText: (String) -> Unit,
     private val caseLabel: () -> String,
     private val showModeIndicator: (String) -> Unit
 ) {
-    fun handleShortPress() {
-        toggleShiftOnce()
-        refreshVisibleCaseState()
-    }
-
-    fun handleLongPress() {
-        toggleCaps()
+    fun cycle() {
+        cycleCase()
         refreshVisibleCaseState()
     }
 

@@ -22,7 +22,8 @@ class T9CandidateInteractionController(
             originalIndex: Int,
             selectedCandidate: FcitxEvent.Candidate,
             matchedPrefix: String?,
-            fromAllCandidates: Boolean
+            fromAllCandidates: Boolean,
+            onSelected: (() -> Unit)? = null
         ): Boolean
     }
 
@@ -94,5 +95,18 @@ class T9CandidateInteractionController(
                 )
             null -> null
         }
+    }
+
+    fun commitCurrentChineseCandidate(onSelected: () -> Unit): Boolean? {
+        val result = pipeline.commitCurrentBottomCandidate()
+            as? T9CandidateUiSnapshotPipeline.CommitBottomCandidate.Chinese
+            ?: return null
+        return host.selectChineseCandidate(
+            result.originalIndex,
+            result.candidate,
+            result.matchedPrefix,
+            result.fromAllCandidates,
+            onSelected
+        )
     }
 }

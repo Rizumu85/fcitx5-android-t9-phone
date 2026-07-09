@@ -25,20 +25,12 @@ class T9PunctuationLifecycle(
     val isPending: Boolean
         get() = session.isPending
 
-    val oneKeyDeferred: Boolean
-        get() = session.oneKeyDeferred
-
     val pendingText: String?
         get() = session.pendingText
 
-    val physicalSet: PhysicalT9KeyHandler.PunctuationSet
-        get() = when (session.set) {
-            T9PunctuationSession.Set.CHINESE -> PhysicalT9KeyHandler.PunctuationSet.CHINESE
-            T9PunctuationSession.Set.ENGLISH -> PhysicalT9KeyHandler.PunctuationSet.ENGLISH
-        }
-
-    fun setOneKeyDeferred(value: Boolean) {
-        session.setOneKeyDeferred(value)
+    fun showChineseCandidates(): Result {
+        session.showChineseCandidates()
+        return showPending()
     }
 
     fun showEnglishCandidates(): Result {
@@ -60,18 +52,6 @@ class T9PunctuationLifecycle(
             handled = true,
             effects = listOf(Effect.RefreshUi)
         )
-    }
-
-    fun handleChineseKey(hasCompositionKeys: Boolean): Result {
-        val punctuation = session.handleChineseKey(hasCompositionKeys)
-        return if (punctuation == null) {
-            Result(
-                handled = true,
-                effects = listOf(Effect.CancelTimeout)
-            )
-        } else {
-            showPending(prefix = listOf(Effect.CancelTimeout))
-        }
     }
 
     fun toggleSet(): Result {

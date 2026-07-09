@@ -13,15 +13,55 @@ import org.junit.Test
 class PhysicalT9KeyFlowTest {
 
     @Test
-    fun smartEnglishOneCommitsCandidateWithoutPredictionThenShowsPunctuation() {
+    fun smartEnglishOneCyclesCaseWithoutCommittingCandidate() {
         val flow = PhysicalT9KeyFlow()
 
-        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), flow.handle(
+        flow.handle(
             input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN),
             state(hasSmartEnglishCandidates = true)
-        )?.commands)
+        )
         val up = flow.handle(
             input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP),
+            state(hasSmartEnglishCandidates = true)
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CycleEnglishCase), up?.commands)
+    }
+
+    @Test
+    fun smartEnglishOneLongPressKeepsFirstCandidateShortcut() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(
+            input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN),
+            state(hasSmartEnglishCandidates = true)
+        )
+
+        val repeat = flow.handle(
+            input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(hasSmartEnglishCandidates = true, heldPastLongPressDelay = true)
+        )
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP),
+            state()
+        )
+
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.CommitSmartEnglishShortcut(KeyEvent.KEYCODE_1)),
+            repeat?.commands
+        )
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), up?.commands)
+    }
+
+    @Test
+    fun smartEnglishStarCommitsCandidateWithoutPredictionThenShowsPunctuation() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN),
+            state(hasSmartEnglishCandidates = true)
+        )
+
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP),
             state(hasSmartEnglishCandidates = true)
         )
 
@@ -31,21 +71,8 @@ class PhysicalT9KeyFlowTest {
                     appendSpace = false,
                     continuePrediction = false
                 ),
-                PhysicalT9KeyFlow.Command.ShowSmartEnglishPunctuationCandidates
+                PhysicalT9KeyFlow.Command.ShowEnglishPunctuationCandidates
             ),
-            up?.commands
-        )
-    }
-
-    @Test
-    fun smartEnglishOneWithoutCandidateShowsPunctuation() {
-        val flow = PhysicalT9KeyFlow()
-        flow.handle(input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN), state())
-
-        val up = flow.handle(input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP), state())
-
-        assertEquals(
-            listOf(PhysicalT9KeyFlow.Command.ShowSmartEnglishPunctuationCandidates),
             up?.commands
         )
     }
@@ -206,32 +233,29 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
-    fun chinesePendingPunctuationOneKeepsDeferredPunctuationSemantics() {
+    fun chinesePendingPunctuationOneCommitsThenTypesDigit() {
         val flow = PhysicalT9KeyFlow()
 
         val down = flow.handle(
             input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN),
             state(
                 mode = PhysicalT9KeyHandler.Mode.CHINESE,
-                hasPendingPunctuation = true,
-                pendingPunctuationSet = PhysicalT9KeyHandler.PunctuationSet.CHINESE
+                hasPendingPunctuation = true
             )
         )
         val up = flow.handle(
             input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP),
             state(
                 mode = PhysicalT9KeyHandler.Mode.CHINESE,
-                hasPendingPunctuation = true,
-                pendingPunctuationOneKeyDeferred = true,
-                pendingPunctuationSet = PhysicalT9KeyHandler.PunctuationSet.CHINESE
+                hasPendingPunctuation = true
             )
         )
 
-        assertEquals(listOf(PhysicalT9KeyFlow.Command.SetPendingPunctuationOneKeyDeferred(true)), down?.commands)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), down?.commands)
         assertEquals(
             listOf(
-                PhysicalT9KeyFlow.Command.HandleChinesePunctuationKey,
-                PhysicalT9KeyFlow.Command.SetPendingPunctuationOneKeyDeferred(false)
+                PhysicalT9KeyFlow.Command.CommitPendingPunctuation,
+                PhysicalT9KeyFlow.Command.CommitText("1")
             ),
             up?.commands
         )
@@ -675,7 +699,7 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
-    fun chineseIdleOneUsesDeferredPunctuationAndLongPressCommitsLiteralOne() {
+    fun chineseIdleOneIsQuietAndLongPressCommitsLiteralOne() {
         val shortFlow = PhysicalT9KeyFlow()
 
         val down = shortFlow.handle(
@@ -684,20 +708,11 @@ class PhysicalT9KeyFlowTest {
         )
         val up = shortFlow.handle(
             input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP),
-            state(
-                mode = PhysicalT9KeyHandler.Mode.CHINESE,
-                pendingPunctuationOneKeyDeferred = true
-            )
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
         )
 
-        assertEquals(listOf(PhysicalT9KeyFlow.Command.SetPendingPunctuationOneKeyDeferred(true)), down?.commands)
-        assertEquals(
-            listOf(
-                PhysicalT9KeyFlow.Command.HandleChinesePunctuationKey,
-                PhysicalT9KeyFlow.Command.SetPendingPunctuationOneKeyDeferred(false)
-            ),
-            up?.commands
-        )
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), down?.commands)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), up?.commands)
 
         val longFlow = PhysicalT9KeyFlow()
         longFlow.handle(
@@ -710,11 +725,7 @@ class PhysicalT9KeyFlowTest {
         )
 
         assertEquals(
-            listOf(
-                PhysicalT9KeyFlow.Command.SetPendingPunctuationOneKeyDeferred(false),
-                PhysicalT9KeyFlow.Command.CancelPendingPunctuation,
-                PhysicalT9KeyFlow.Command.CommitText("1")
-            ),
+            listOf(PhysicalT9KeyFlow.Command.CommitText("1")),
             repeat?.commands
         )
     }
@@ -954,25 +965,39 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
-    fun chineseStarCommitsLiteralOnlyOnKeyDownAndDoesNotToggleOnKeyUp() {
-        val flow = PhysicalT9KeyFlow()
+    fun chineseStarShowsPunctuationAndLongPressCommitsLiteralStar() {
+        val shortFlow = PhysicalT9KeyFlow()
 
-        val down = flow.handle(
+        val down = shortFlow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, compositionKeyCount = 2)
+        )
+        val up = shortFlow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, compositionKeyCount = 2)
+        )
+
+        val longFlow = PhysicalT9KeyFlow()
+        longFlow.handle(
             input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN),
             state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
         )
-        val repeat = flow.handle(
+        val repeat = longFlow.handle(
             input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN, repeatCount = 1),
             state(mode = PhysicalT9KeyHandler.Mode.CHINESE, heldPastLongPressDelay = true)
         )
-        val up = flow.handle(
+        val longUp = longFlow.handle(
             input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP),
             state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
         )
 
-        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitLiteralStarInCurrentChineseState), down?.commands)
-        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), repeat?.commands)
-        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), up?.commands)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), down?.commands)
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.CommitChineseCandidateAndShowPunctuation),
+            up?.commands
+        )
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitLiteralStar), repeat?.commands)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), longUp?.commands)
     }
 
     @Test
@@ -1027,7 +1052,14 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
-    fun simpleEnglishStarShortAndLongPressStayInFlow() {
+    fun simpleEnglishOneCyclesCaseAndStarOpensPunctuation() {
+        val oneFlow = PhysicalT9KeyFlow()
+        oneFlow.handle(input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN), state(isSmartEnglishActive = false))
+        val oneUp = oneFlow.handle(
+            input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP),
+            state(isSmartEnglishActive = false)
+        )
+
         val shortFlow = PhysicalT9KeyFlow()
         shortFlow.handle(input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN), state(isSmartEnglishActive = false))
         val shortUp = shortFlow.handle(
@@ -1046,8 +1078,15 @@ class PhysicalT9KeyFlowTest {
             state(isSmartEnglishActive = false)
         )
 
-        assertEquals(listOf(PhysicalT9KeyFlow.Command.HandleEnglishStarShortPress), shortUp?.commands)
-        assertEquals(listOf(PhysicalT9KeyFlow.Command.HandleEnglishStarLongPress), repeat?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CycleEnglishCase), oneUp?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.ShowEnglishPunctuationCandidates), shortUp?.commands)
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.CommitLiteralStar,
+                PhysicalT9KeyFlow.Command.FlushEnglishLearningWord
+            ),
+            repeat?.commands
+        )
         assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), longUp?.commands)
     }
 
@@ -1192,7 +1231,7 @@ class PhysicalT9KeyFlowTest {
         )
 
         assertEquals(
-            listOf(PhysicalT9KeyFlow.Command.CommitLiteralStarInCurrentChineseState),
+            listOf(PhysicalT9KeyFlow.Command.CommitLiteralStar),
             shortUp?.commands
         )
         assertEquals(listOf(PhysicalT9KeyFlow.Command.ShowNumberOperatorHintPanel), repeat?.commands)
@@ -1249,9 +1288,6 @@ class PhysicalT9KeyFlowTest {
         chineseComposing: Boolean = false,
         compositionKeyCount: Int = 0,
         hasPendingPunctuation: Boolean = false,
-        pendingPunctuationOneKeyDeferred: Boolean = false,
-        pendingPunctuationSet: PhysicalT9KeyHandler.PunctuationSet =
-            PhysicalT9KeyHandler.PunctuationSet.ENGLISH,
         hasSmartEnglishDigits: Boolean = false,
         hasSmartEnglishCandidates: Boolean = false,
         hasMultiTapPendingChar: Boolean = false,
@@ -1267,8 +1303,6 @@ class PhysicalT9KeyFlowTest {
             chineseComposing = chineseComposing,
             compositionKeyCount = compositionKeyCount,
             hasPendingPunctuation = hasPendingPunctuation,
-            pendingPunctuationOneKeyDeferred = pendingPunctuationOneKeyDeferred,
-            pendingPunctuationSet = pendingPunctuationSet,
             hasSmartEnglishDigits = hasSmartEnglishDigits,
             hasSmartEnglishCandidates = hasSmartEnglishCandidates,
             hasMultiTapPendingChar = hasMultiTapPendingChar,

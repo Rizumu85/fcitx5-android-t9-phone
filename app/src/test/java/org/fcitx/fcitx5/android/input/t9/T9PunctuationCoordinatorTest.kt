@@ -79,16 +79,16 @@ class T9PunctuationCoordinatorTest {
     }
 
     @Test
-    fun chineseKeyWithCompositionIsConsumedWithoutShowingCandidates() {
+    fun showChineseCandidatesStartsChineseSet() {
         val host = Host()
         val coordinator = host.coordinator()
 
-        assertTrue(coordinator.handleChineseKey(hasCompositionKeys = true))
+        coordinator.showChineseCandidates()
 
-        assertFalse(coordinator.isPending)
-        assertNull(coordinator.pendingText)
-        assertEquals(0, host.clearCount)
-        assertEquals(0, host.refreshCount)
+        assertTrue(coordinator.isPending)
+        assertEquals("，", coordinator.pendingText)
+        assertEquals(1, host.clearCount)
+        assertEquals(1, host.refreshCount)
         assertEquals(1, host.cancelTimeoutCount)
         assertTrue(host.commits.isEmpty())
     }

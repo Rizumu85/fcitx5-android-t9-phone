@@ -134,9 +134,6 @@ class PhysicalT9CommandExecutorTest {
         override val chineseComposing: Boolean = false,
         override val compositionKeyCount: Int = 0,
         override val hasPendingPunctuation: Boolean = false,
-        override val pendingPunctuationOneKeyDeferred: Boolean = false,
-        override val pendingPunctuationSet: PhysicalT9KeyHandler.PunctuationSet =
-            PhysicalT9KeyHandler.PunctuationSet.CHINESE,
         override val hasSmartEnglishDigits: Boolean = false,
         override val hasSmartEnglishCandidates: Boolean = false,
         override val hasMultiTapPendingChar: Boolean = false,
@@ -153,9 +150,6 @@ class PhysicalT9CommandExecutorTest {
         val calls = mutableListOf<String>()
 
         override fun keyHeldPastLongPressDelay(input: PhysicalT9KeyHandler.KeyInput): Boolean = false
-        override fun setPendingPunctuationOneKeyDeferred(value: Boolean) {
-            calls += "setPendingPunctuationOneKeyDeferred:$value"
-        }
         override fun commitPendingPunctuationShortcut(keyCode: Int): Boolean {
             calls += "commitPendingPunctuationShortcut:$keyCode"
             return commitPendingPunctuationShortcutResult
@@ -176,9 +170,14 @@ class PhysicalT9CommandExecutorTest {
             calls += "cancelPendingPunctuation"
             return false
         }
-        override fun handleChinesePunctuationKey(): Boolean {
-            calls += "handleChinesePunctuationKey"
-            return false
+        override fun showChinesePunctuationCandidates() {
+            calls += "showChinesePunctuationCandidates"
+        }
+        override fun showEnglishPunctuationCandidates() {
+            calls += "showEnglishPunctuationCandidates"
+        }
+        override fun commitChineseCandidateAndShowPunctuation() {
+            calls += "commitChineseCandidateAndShowPunctuation"
         }
         override fun togglePendingPunctuationSet(): Boolean {
             calls += "togglePendingPunctuationSet"
@@ -197,14 +196,11 @@ class PhysicalT9CommandExecutorTest {
         override fun showNumberOperatorHintPanel() {
             calls += "showNumberOperatorHintPanel"
         }
-        override fun commitLiteralStarInCurrentChineseState() {
-            calls += "commitLiteralStarInCurrentChineseState"
+        override fun commitLiteralStar() {
+            calls += "commitLiteralStar"
         }
-        override fun handleEnglishStarShortPress() {
-            calls += "handleEnglishStarShortPress"
-        }
-        override fun handleEnglishStarLongPress() {
-            calls += "handleEnglishStarLongPress"
+        override fun cycleEnglishCase() {
+            calls += "cycleEnglishCase"
         }
         override fun handleMultiTapKey(keyCode: Int): Boolean {
             calls += "handleMultiTapKey:$keyCode"
@@ -216,9 +212,6 @@ class PhysicalT9CommandExecutorTest {
         }
         override fun cancelMultiTapChar() {
             calls += "cancelMultiTapChar"
-        }
-        override fun showSmartEnglishPunctuationCandidates() {
-            calls += "showSmartEnglishPunctuationCandidates"
         }
         override fun appendSmartEnglishDigit(digit: Int) {
             calls += "appendSmartEnglishDigit:$digit"

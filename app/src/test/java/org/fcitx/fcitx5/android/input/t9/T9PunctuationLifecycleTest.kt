@@ -32,15 +32,20 @@ class T9PunctuationLifecycleTest {
     }
 
     @Test
-    fun chineseCompositionKeyOnlyConsumesAndCancelsTimeout() {
+    fun showChineseCandidatesStartsPendingAndReturnsUiEffects() {
         val lifecycle = lifecycle()
 
-        val result = lifecycle.handleChineseKey(hasCompositionKeys = true)
+        val result = lifecycle.showChineseCandidates()
 
         assertTrue(result.handled)
-        assertFalse(lifecycle.isPending)
+        assertTrue(lifecycle.isPending)
+        assertEquals("，", lifecycle.pendingText)
         assertEquals(
-            listOf(T9PunctuationLifecycle.Effect.CancelTimeout),
+            listOf(
+                T9PunctuationLifecycle.Effect.ClearTransientInputUiState,
+                T9PunctuationLifecycle.Effect.RefreshUi,
+                T9PunctuationLifecycle.Effect.CancelTimeout
+            ),
             result.effects
         )
     }

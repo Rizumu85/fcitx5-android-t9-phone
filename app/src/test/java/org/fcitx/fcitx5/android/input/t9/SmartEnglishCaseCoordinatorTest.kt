@@ -11,7 +11,7 @@ import org.junit.Test
 class SmartEnglishCaseCoordinatorTest {
 
     @Test
-    fun shortPressRefreshesPendingMultiTapComposition() {
+    fun cycleRefreshesPendingMultiTapComposition() {
         val events = mutableListOf<String>()
         val coordinator = coordinator(
             events = events,
@@ -19,13 +19,13 @@ class SmartEnglishCaseCoordinatorTest {
             caseLabel = "Abc"
         )
 
-        coordinator.handleShortPress()
+        coordinator.cycle()
 
-        assertEquals(listOf("shift", "compose:B"), events)
+        assertEquals(listOf("cycle", "compose:B"), events)
     }
 
     @Test
-    fun longPressShowsCaseBadgeWhenNoPendingMultiTapChar() {
+    fun cycleShowsCaseBadgeWhenNoPendingMultiTapChar() {
         val events = mutableListOf<String>()
         val coordinator = coordinator(
             events = events,
@@ -33,9 +33,9 @@ class SmartEnglishCaseCoordinatorTest {
             caseLabel = "ABC"
         )
 
-        coordinator.handleLongPress()
+        coordinator.cycle()
 
-        assertEquals(listOf("caps", "badge:ABC"), events)
+        assertEquals(listOf("cycle", "badge:ABC"), events)
     }
 
     private fun coordinator(
@@ -44,8 +44,7 @@ class SmartEnglishCaseCoordinatorTest {
         caseLabel: String
     ): SmartEnglishCaseCoordinator =
         SmartEnglishCaseCoordinator(
-            toggleShiftOnce = { events += "shift" },
-            toggleCaps = { events += "caps" },
+            cycleCase = { events += "cycle" },
             pendingMultiTapDisplay = { pendingDisplay },
             setComposingText = { events += "compose:$it" },
             caseLabel = { caseLabel },

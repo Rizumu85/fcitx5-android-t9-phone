@@ -164,8 +164,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             chineseComposing = { getT9InputState() == ChineseT9CompositionLifecycle.InputState.COMPOSING },
             compositionKeyCount = ::getT9CompositionKeyCount,
             hasPendingPunctuation = { t9PunctuationCoordinator.isPending },
-            pendingPunctuationOneKeyDeferred = { t9PunctuationCoordinator.oneKeyDeferred },
-            pendingPunctuationSet = { t9PunctuationCoordinator.physicalSet },
             hasSmartEnglishDigits = { smartEnglishCoordinator.hasDigits },
             hasSmartEnglishCandidates = { smartEnglishCoordinator.hasCandidates },
             hasMultiTapPendingChar = { t9MultiTapCoordinator.hasPendingChar },
@@ -178,17 +176,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             }
         ),
         punctuation = PhysicalT9KeyHostAdapter.PunctuationActions(
-            setOneKeyDeferred = { value -> t9PunctuationCoordinator.setOneKeyDeferred(value) },
             commitShortcut = t9CandidateShortcutCommitter::commitPendingPunctuationKey,
             commit = { t9PunctuationCoordinator.commit() },
             cancel = { t9PunctuationCoordinator.cancel() },
-            handleChineseKey = {
-                t9PunctuationCoordinator.handleChineseKey(
-                    hasCompositionKeys = getT9CompositionKeyCount() > 0
-                )
-            },
+            showChineseCandidates = { t9PunctuationCoordinator.showChineseCandidates() },
+            showEnglishCandidates = { t9PunctuationCoordinator.showEnglishCandidates() },
             toggleSet = { t9PunctuationCoordinator.toggleSet() },
-            showSmartEnglishCandidates = { t9PunctuationCoordinator.showEnglishCandidates() }
         ),
         english = PhysicalT9KeyHostAdapter.EnglishActions(
             commitSmartEnglishShortcut = t9CandidateShortcutCommitter::commitSmartEnglishKey,
@@ -203,8 +196,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             moveSmartEnglishCandidate = { delta -> smartEnglishCoordinator.moveCandidate(delta) },
             smartEnglishBackspace = { smartEnglishCoordinator.backspace() },
             flushLearningWord = { smartEnglishCoordinator.flushLearningWord() },
-            handleStarShortPress = { smartEnglishCaseCoordinator.handleShortPress() },
-            handleStarLongPress = { smartEnglishCaseCoordinator.handleLongPress() },
+            cycleCase = { smartEnglishCaseCoordinator.cycle() },
             handleMultiTapKey = { keyCode -> t9MultiTapCoordinator.handleKey(keyCode) },
             commitMultiTapChar = { t9MultiTapCoordinator.commitPending() },
             cancelMultiTapChar = { t9MultiTapCoordinator.cancelPending() }
@@ -216,7 +208,19 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             moveHighlightedBottomCandidate = { delta -> candidatesView?.moveHighlightedT9BottomCandidate(delta) == true },
             offsetBottomCandidatePage = { delta -> candidatesView?.offsetT9BottomCandidatePage(delta) == true },
             commitHighlightedPinyin = ::commitHighlightedT9Pinyin,
-            commitHighlightedBottomCandidate = { candidatesView?.commitHighlightedT9BottomCandidate() == true }
+            commitHighlightedBottomCandidate = { candidatesView?.commitHighlightedT9BottomCandidate() == true },
+            commitChineseCandidateAndShowPunctuation = {
+                val selectionScheduled = candidatesView?.commitHighlightedT9ChineseCandidate {
+                    t9PunctuationCoordinator.showChineseCandidates()
+                } == true
+                // Never overlay punctuation on a live composition when its candidate snapshot
+                // is not ready; the later Rime event would replace the punctuation surface.
+                if (!selectionScheduled &&
+                    getT9InputState() == ChineseT9CompositionLifecycle.InputState.IDLE
+                ) {
+                    t9PunctuationCoordinator.showChineseCandidates()
+                }
+            }
         ),
         platform = PhysicalT9KeyHostAdapter.PlatformActions(
             switchToNextMode = ::switchToNextT9Mode,
@@ -226,7 +230,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 commitNumberModeOperator(operator)
             },
             showNumberOperatorHintPanel = ::showNumberOperatorHintPanel,
-            commitLiteralStarInCurrentChineseState = { commitLiteralT9Star(getT9InputState()) },
+            commitLiteralStar = { commitLiteralT9Star(getT9InputState()) },
             handleReturnKey = ::handleReturnKey,
             forwardChineseT9KeyShortPress = ::forwardChineseT9KeyShortPress,
             forwardChineseT9SeparatorShortPress = ::forwardChineseT9SeparatorShortPress,
@@ -1621,8 +1625,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         recordLearningChar = { char -> smartEnglishCoordinator.recordLearningChar(char) }
     )
     private val smartEnglishCaseCoordinator = SmartEnglishCaseCoordinator(
-        toggleShiftOnce = { smartEnglishCoordinator.toggleShiftOnce() },
-        toggleCaps = { smartEnglishCoordinator.toggleCaps() },
+        cycleCase = { smartEnglishCoordinator.cycleCase() },
         pendingMultiTapDisplay = { t9MultiTapCoordinator.pendingDisplayText() },
         setComposingText = { text -> currentInputConnection?.setComposingText(text, 1) },
         caseLabel = { smartEnglishCoordinator.caseLabel },

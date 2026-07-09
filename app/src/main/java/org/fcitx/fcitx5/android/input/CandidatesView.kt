@@ -246,12 +246,14 @@ class CandidatesView(
                 originalIndex: Int,
                 selectedCandidate: FcitxEvent.Candidate,
                 matchedPrefix: String?,
-                fromAllCandidates: Boolean
+                fromAllCandidates: Boolean,
+                onSelected: (() -> Unit)?
             ): Boolean = selectT9ChineseCandidate(
                 originalIndex,
                 selectedCandidate,
                 matchedPrefix,
-                fromAllCandidates
+                fromAllCandidates,
+                onSelected
             )
         }
     )
@@ -681,6 +683,10 @@ class CandidatesView(
         return t9CandidateInteractionController.commitBottomCandidate() ?: false
     }
 
+    fun commitHighlightedT9ChineseCandidate(onSelected: () -> Unit): Boolean {
+        return t9CandidateInteractionController.commitCurrentChineseCandidate(onSelected) ?: false
+    }
+
     private fun updateT9FocusIndicator(
         focus: T9CandidateFocus = service.getT9CandidateFocus()
     ) {
@@ -745,7 +751,8 @@ class CandidatesView(
         originalIndex: Int,
         selectedCandidate: FcitxEvent.Candidate,
         matchedPrefix: String?,
-        fromAllCandidates: Boolean
+        fromAllCandidates: Boolean,
+        onSelected: (() -> Unit)? = null
     ): Boolean {
         val prefixToConsume = matchedPrefix?.takeIf {
             service.shouldConsumeT9ResolvedPinyinPrefixAfterHanziSelection(it, selectedCandidate)
@@ -756,10 +763,17 @@ class CandidatesView(
             } else {
                 it.select(originalIndex)
             }
-            if (selected && prefixToConsume != null) {
-                post { service.consumeT9ResolvedPinyinPrefix(prefixToConsume) }
-            } else if (selected && service.isChineseT9InputModeActive()) {
-                post { service.consumeT9PinyinFromSelectedCandidate(selectedCandidate) }
+            if (selected) {
+                post {
+                    if (prefixToConsume != null) {
+                        service.consumeT9ResolvedPinyinPrefix(prefixToConsume)
+                    } else if (service.isChineseT9InputModeActive()) {
+                        service.consumeT9PinyinFromSelectedCandidate(selectedCandidate)
+                    }
+                    // Punctuation must appear only after Rime accepts the selected Hanzi;
+                    // otherwise the asynchronous select can overwrite the new punctuation row.
+                    onSelected?.invoke()
+                }
             }
         }
         return true

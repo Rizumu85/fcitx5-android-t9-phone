@@ -12,7 +12,6 @@ internal class PhysicalT9KeyFlowSession {
     // matching key-up after a mode switch still resolve through one physical-key timeline.
     private val keyLongPressFlags = BooleanArray(KeyEvent.KEYCODE_STAR + 1)
 
-    var englishOneLongPressTriggered: Boolean = false
     var poundLongPressTriggered: Boolean = false
     var pendingSmartEnglishDigitKeyCode: Int? = null
     var pendingSmartEnglishDigit: Int = -1

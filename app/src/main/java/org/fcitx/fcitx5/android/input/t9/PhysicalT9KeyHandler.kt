@@ -20,11 +20,6 @@ class PhysicalT9KeyHandler(private val host: Host) {
         BOTTOM
     }
 
-    enum class PunctuationSet {
-        CHINESE,
-        ENGLISH
-    }
-
     data class KeyResult(
         val handled: Boolean,
         val consumedKeyUp: Int? = null
@@ -65,8 +60,6 @@ class PhysicalT9KeyHandler(private val host: Host) {
         val chineseComposing: Boolean
         val compositionKeyCount: Int
         val hasPendingPunctuation: Boolean
-        val pendingPunctuationOneKeyDeferred: Boolean
-        val pendingPunctuationSet: PunctuationSet
         val hasSmartEnglishDigits: Boolean
         val hasSmartEnglishCandidates: Boolean
         val hasMultiTapPendingChar: Boolean
@@ -75,25 +68,24 @@ class PhysicalT9KeyHandler(private val host: Host) {
         val candidateFocus: CandidateFocus
 
         fun keyHeldPastLongPressDelay(input: KeyInput): Boolean
-        fun setPendingPunctuationOneKeyDeferred(value: Boolean)
         fun commitPendingPunctuationShortcut(keyCode: Int): Boolean
         fun commitHanziShortcut(keyCode: Int): Boolean
         fun commitSmartEnglishShortcut(keyCode: Int): Boolean
         fun commitPendingPunctuation(): Boolean
         fun cancelPendingPunctuation(): Boolean
-        fun handleChinesePunctuationKey(): Boolean
+        fun showChinesePunctuationCandidates()
+        fun showEnglishPunctuationCandidates()
+        fun commitChineseCandidateAndShowPunctuation()
         fun togglePendingPunctuationSet(): Boolean
         fun switchToNextMode()
         fun commitText(text: String)
         fun commitNumberOperatorForKey(keyCode: Int, fallbackDigit: Int): Boolean
         fun showNumberOperatorHintPanel()
-        fun commitLiteralStarInCurrentChineseState()
-        fun handleEnglishStarShortPress()
-        fun handleEnglishStarLongPress()
+        fun commitLiteralStar()
+        fun cycleEnglishCase()
         fun handleMultiTapKey(keyCode: Int): Boolean
         fun commitMultiTapChar(): Boolean
         fun cancelMultiTapChar()
-        fun showSmartEnglishPunctuationCandidates()
         fun appendSmartEnglishDigit(digit: Int)
         fun resetSmartEnglishT9()
         fun commitSmartEnglishCandidate(
@@ -156,8 +148,6 @@ class PhysicalT9KeyHandler(private val host: Host) {
             chineseComposing = host.chineseComposing,
             compositionKeyCount = host.compositionKeyCount,
             hasPendingPunctuation = host.hasPendingPunctuation,
-            pendingPunctuationOneKeyDeferred = host.pendingPunctuationOneKeyDeferred,
-            pendingPunctuationSet = host.pendingPunctuationSet,
             hasSmartEnglishDigits = host.hasSmartEnglishDigits,
             hasSmartEnglishCandidates = host.hasSmartEnglishCandidates,
             hasMultiTapPendingChar = host.hasMultiTapPendingChar,

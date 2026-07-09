@@ -19,17 +19,11 @@ class T9PunctuationCoordinator(
     val isPending: Boolean
         get() = lifecycle.isPending
 
-    val oneKeyDeferred: Boolean
-        get() = lifecycle.oneKeyDeferred
-
     val pendingText: String?
         get() = lifecycle.pendingText
 
-    val physicalSet: PhysicalT9KeyHandler.PunctuationSet
-        get() = lifecycle.physicalSet
-
-    fun setOneKeyDeferred(value: Boolean) {
-        lifecycle.setOneKeyDeferred(value)
+    fun showChineseCandidates() {
+        apply(lifecycle.showChineseCandidates())
     }
 
     fun showEnglishCandidates() {
@@ -45,10 +39,6 @@ class T9PunctuationCoordinator(
 
     fun previewCandidate(index: Int): Boolean {
         return apply(lifecycle.previewCandidate(index))
-    }
-
-    fun handleChineseKey(hasCompositionKeys: Boolean): Boolean {
-        return apply(lifecycle.handleChineseKey(hasCompositionKeys))
     }
 
     fun toggleSet(): Boolean {

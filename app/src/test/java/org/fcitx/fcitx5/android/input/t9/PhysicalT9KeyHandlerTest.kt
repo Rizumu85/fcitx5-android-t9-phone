@@ -175,7 +175,7 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
-    fun smartEnglishOneKeyCommitsPredictionWithoutSpaceThenShowsPunctuation() {
+    fun smartEnglishOneKeyCyclesCaseWithoutCommittingPrediction() {
         val host = FakeHost(
             mode = PhysicalT9KeyHandler.Mode.ENGLISH,
             isSmartEnglishActive = true,
@@ -188,14 +188,14 @@ class PhysicalT9KeyHandlerTest {
         assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP)).handled)
 
         assertEquals(0, host.resetSmartEnglishCount)
-        assertEquals(1, host.showSmartEnglishPunctuationCount)
-        assertEquals(listOf(false), host.commitSmartEnglishCandidateAppendSpace)
-        assertEquals(listOf(false), host.commitSmartEnglishCandidateContinuePrediction)
+        assertEquals(1, host.cycleEnglishCaseCount)
+        assertEquals(0, host.showEnglishPunctuationCount)
+        assertEquals(emptyList<Boolean>(), host.commitSmartEnglishCandidateAppendSpace)
         assertEquals(emptyList<String>(), host.committedTexts)
     }
 
     @Test
-    fun smartEnglishOneKeyCommitsTypedCandidateWithoutSpaceThenShowsPunctuation() {
+    fun smartEnglishStarCommitsTypedCandidateWithoutSpaceThenShowsPunctuation() {
         val host = FakeHost(
             mode = PhysicalT9KeyHandler.Mode.ENGLISH,
             isSmartEnglishActive = true,
@@ -204,11 +204,11 @@ class PhysicalT9KeyHandlerTest {
         )
         val handler = PhysicalT9KeyHandler(host)
 
-        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN)).handled)
-        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP)).handled)
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN)).handled)
+        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP)).handled)
 
         assertEquals(0, host.resetSmartEnglishCount)
-        assertEquals(1, host.showSmartEnglishPunctuationCount)
+        assertEquals(1, host.showEnglishPunctuationCount)
         assertEquals(listOf(false), host.commitSmartEnglishCandidateAppendSpace)
         assertEquals(listOf(false), host.commitSmartEnglishCandidateContinuePrediction)
     }
@@ -428,14 +428,15 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
-    fun chineseStarKeyUpDoesNotTogglePunctuationSet() {
+    fun chineseStarShortPressShowsChinesePunctuation() {
         val host = FakeHost(mode = PhysicalT9KeyHandler.Mode.CHINESE)
         val handler = PhysicalT9KeyHandler(host)
 
         assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN)).handled)
         assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP)).handled)
 
-        assertEquals(1, host.commitLiteralStarCount)
+        assertEquals(1, host.showChinesePunctuationCount)
+        assertEquals(0, host.commitLiteralStarCount)
         assertEquals(0, host.togglePendingPunctuationSetCount)
     }
 
@@ -455,7 +456,7 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
-    fun chinesePendingPunctuationOneShortPressUsesDeferredPunctuationCommand() {
+    fun chinesePendingPunctuationOneShortPressCommitsThenTypesOne() {
         val host = FakeHost(
             mode = PhysicalT9KeyHandler.Mode.CHINESE,
             hasPendingPunctuation = true
@@ -463,11 +464,10 @@ class PhysicalT9KeyHandlerTest {
         val handler = PhysicalT9KeyHandler(host)
 
         assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN)).handled)
-        assertTrue(host.pendingPunctuationOneKeyDeferred)
         assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP)).handled)
 
-        assertEquals(1, host.handleChinesePunctuationCount)
-        assertFalse(host.pendingPunctuationOneKeyDeferred)
+        assertEquals(1, host.commitPendingPunctuationCount)
+        assertEquals(listOf("1"), host.committedTexts)
     }
 
     @Test
@@ -687,9 +687,6 @@ class PhysicalT9KeyHandlerTest {
         override var chineseComposing: Boolean = false,
         override var compositionKeyCount: Int = 0,
         override var hasPendingPunctuation: Boolean = false,
-        private var pendingPunctuationOneKeyDeferredState: Boolean = false,
-        override var pendingPunctuationSet: PhysicalT9KeyHandler.PunctuationSet =
-            PhysicalT9KeyHandler.PunctuationSet.CHINESE,
         override var hasSmartEnglishDigits: Boolean = false,
         override var hasSmartEnglishCandidates: Boolean = hasSmartEnglishDigits,
         override var hasMultiTapPendingChar: Boolean = false,
@@ -711,7 +708,9 @@ class PhysicalT9KeyHandlerTest {
         val commitSmartEnglishCandidateAppendSpace = mutableListOf<Boolean>()
         val commitSmartEnglishCandidateContinuePrediction = mutableListOf<Boolean>()
         var commitHighlightedBottomCandidateCount = 0
-        var showSmartEnglishPunctuationCount = 0
+        var showChinesePunctuationCount = 0
+        var showEnglishPunctuationCount = 0
+        var cycleEnglishCaseCount = 0
         var handleReturnCount = 0
         val numberOperatorKeys = mutableListOf<Int>()
         val numberOperatorFallbackDigits = mutableListOf<Int>()
@@ -720,7 +719,6 @@ class PhysicalT9KeyHandlerTest {
         var switchToNextModeCount = 0
         var commitPendingPunctuationCount = 0
         var cancelPendingPunctuationCount = 0
-        var handleChinesePunctuationCount = 0
         val pendingPunctuationShortcutKeys = mutableListOf<Int>()
         val hanziShortcutKeys = mutableListOf<Int>()
         val forwardedChineseT9Keys = mutableListOf<Int>()
@@ -728,15 +726,8 @@ class PhysicalT9KeyHandlerTest {
         var togglePendingPunctuationSetCount = 0
         var discardChineseCompositionForModeSwitchCount = 0
         val bottomCandidateMoves = mutableListOf<Int>()
-        override val pendingPunctuationOneKeyDeferred: Boolean
-            get() = pendingPunctuationOneKeyDeferredState
-
         override fun keyHeldPastLongPressDelay(input: PhysicalT9KeyHandler.KeyInput): Boolean =
             input.repeatCount > 0 && input.eventTime - input.downTime >= 500L
-
-        override fun setPendingPunctuationOneKeyDeferred(value: Boolean) {
-            pendingPunctuationOneKeyDeferredState = value
-        }
 
         override fun commitPendingPunctuationShortcut(keyCode: Int): Boolean {
             pendingPunctuationShortcutKeys += keyCode
@@ -758,9 +749,15 @@ class PhysicalT9KeyHandlerTest {
             cancelPendingPunctuationCount += 1
             return false
         }
-        override fun handleChinesePunctuationKey(): Boolean {
-            handleChinesePunctuationCount += 1
-            return false
+        override fun showChinesePunctuationCandidates() {
+            showChinesePunctuationCount += 1
+        }
+        override fun showEnglishPunctuationCandidates() {
+            showEnglishPunctuationCount += 1
+        }
+        override fun commitChineseCandidateAndShowPunctuation() {
+            commitHighlightedBottomCandidateCount += 1
+            showChinesePunctuationCount += 1
         }
         override fun togglePendingPunctuationSet(): Boolean {
             togglePendingPunctuationSetCount += 1
@@ -784,17 +781,15 @@ class PhysicalT9KeyHandlerTest {
             showNumberOperatorHintPanelCount += 1
         }
 
-        override fun commitLiteralStarInCurrentChineseState() {
+        override fun commitLiteralStar() {
             commitLiteralStarCount += 1
         }
-        override fun handleEnglishStarShortPress() = Unit
-        override fun handleEnglishStarLongPress() = Unit
+        override fun cycleEnglishCase() {
+            cycleEnglishCaseCount += 1
+        }
         override fun handleMultiTapKey(keyCode: Int): Boolean = false
         override fun commitMultiTapChar(): Boolean = false
         override fun cancelMultiTapChar() = Unit
-        override fun showSmartEnglishPunctuationCandidates() {
-            showSmartEnglishPunctuationCount += 1
-        }
 
         override fun appendSmartEnglishDigit(digit: Int) {
             appendedSmartEnglishDigits += digit

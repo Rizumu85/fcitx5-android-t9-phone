@@ -127,11 +127,8 @@ class SmartEnglishT9Controller private constructor(
     fun consumeShiftOnce() =
         lifecycle.consumeShiftOnce()
 
-    fun toggleShiftOnce(): String =
-        lifecycle.toggleShiftOnce()
-
-    fun toggleCaps(): String =
-        lifecycle.toggleCaps()
+    fun cycleCase(): String =
+        lifecycle.cycleCase()
 
     fun recordLearningChar(char: Char) =
         lifecycle.recordLearningChar(char)

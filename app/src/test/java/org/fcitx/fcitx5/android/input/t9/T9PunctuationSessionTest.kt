@@ -14,29 +14,15 @@ import org.junit.Test
 class T9PunctuationSessionTest {
 
     @Test
-    fun chineseKeyStartsAndCyclesPendingPunctuation() {
+    fun chineseCandidatesStartFromChineseSet() {
         val session = T9PunctuationSession(
             chinesePunctuation = listOf(",", "."),
             englishPunctuation = listOf("!")
         )
 
-        assertEquals(",", session.handleChineseKey(hasCompositionKeys = false))
+        assertEquals(",", session.showChineseCandidates())
         assertTrue(session.isPending)
         assertEquals(",", session.pendingText)
-
-        assertEquals(".", session.handleChineseKey(hasCompositionKeys = false))
-        assertEquals(".", session.pendingText)
-    }
-
-    @Test
-    fun chineseKeyDoesNotStartPunctuationWhileCompositionHasKeys() {
-        val session = T9PunctuationSession(
-            chinesePunctuation = listOf(","),
-            englishPunctuation = listOf("!")
-        )
-
-        assertNull(session.handleChineseKey(hasCompositionKeys = true))
-        assertFalse(session.isPending)
     }
 
     @Test

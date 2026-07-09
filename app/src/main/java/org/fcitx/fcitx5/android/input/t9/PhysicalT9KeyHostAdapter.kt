@@ -20,8 +20,6 @@ class PhysicalT9KeyHostAdapter(
         val chineseComposing: () -> Boolean,
         val compositionKeyCount: () -> Int,
         val hasPendingPunctuation: () -> Boolean,
-        val pendingPunctuationOneKeyDeferred: () -> Boolean,
-        val pendingPunctuationSet: () -> PhysicalT9KeyHandler.PunctuationSet,
         val hasSmartEnglishDigits: () -> Boolean,
         val hasSmartEnglishCandidates: () -> Boolean,
         val hasMultiTapPendingChar: () -> Boolean,
@@ -32,13 +30,12 @@ class PhysicalT9KeyHostAdapter(
     )
 
     data class PunctuationActions(
-        val setOneKeyDeferred: (Boolean) -> Unit,
         val commitShortcut: (Int) -> Boolean,
         val commit: () -> Boolean,
         val cancel: () -> Boolean,
-        val handleChineseKey: () -> Boolean,
+        val showChineseCandidates: () -> Unit,
+        val showEnglishCandidates: () -> Unit,
         val toggleSet: () -> Boolean,
-        val showSmartEnglishCandidates: () -> Unit
     )
 
     data class EnglishActions(
@@ -49,8 +46,7 @@ class PhysicalT9KeyHostAdapter(
         val moveSmartEnglishCandidate: (Int) -> Boolean,
         val smartEnglishBackspace: () -> Boolean,
         val flushLearningWord: () -> Unit,
-        val handleStarShortPress: () -> Unit,
-        val handleStarLongPress: () -> Unit,
+        val cycleCase: () -> Unit,
         val handleMultiTapKey: (Int) -> Boolean,
         val commitMultiTapChar: () -> Boolean,
         val cancelMultiTapChar: () -> Unit
@@ -63,7 +59,8 @@ class PhysicalT9KeyHostAdapter(
         val moveHighlightedBottomCandidate: (Int) -> Boolean,
         val offsetBottomCandidatePage: (Int) -> Boolean,
         val commitHighlightedPinyin: () -> Boolean,
-        val commitHighlightedBottomCandidate: () -> Boolean
+        val commitHighlightedBottomCandidate: () -> Boolean,
+        val commitChineseCandidateAndShowPunctuation: () -> Unit
     )
 
     data class PlatformActions(
@@ -71,7 +68,7 @@ class PhysicalT9KeyHostAdapter(
         val commitText: (String) -> Unit,
         val commitNumberOperatorForKey: (keyCode: Int, fallbackDigit: Int) -> Boolean,
         val showNumberOperatorHintPanel: () -> Unit,
-        val commitLiteralStarInCurrentChineseState: () -> Unit,
+        val commitLiteralStar: () -> Unit,
         val handleReturnKey: () -> Unit,
         val forwardChineseT9KeyShortPress: (Int, PhysicalT9KeyHandler.KeyInput) -> Boolean,
         val forwardChineseT9SeparatorShortPress: () -> Boolean,
@@ -100,12 +97,6 @@ class PhysicalT9KeyHostAdapter(
     override val hasPendingPunctuation: Boolean
         get() = state.hasPendingPunctuation()
 
-    override val pendingPunctuationOneKeyDeferred: Boolean
-        get() = state.pendingPunctuationOneKeyDeferred()
-
-    override val pendingPunctuationSet: PhysicalT9KeyHandler.PunctuationSet
-        get() = state.pendingPunctuationSet()
-
     override val hasSmartEnglishDigits: Boolean
         get() = state.hasSmartEnglishDigits()
 
@@ -130,9 +121,6 @@ class PhysicalT9KeyHostAdapter(
     override fun keyHeldPastLongPressDelay(input: PhysicalT9KeyHandler.KeyInput): Boolean =
         state.keyHeldPastLongPressDelay(input)
 
-    override fun setPendingPunctuationOneKeyDeferred(value: Boolean) =
-        punctuation.setOneKeyDeferred(value)
-
     override fun commitPendingPunctuationShortcut(keyCode: Int): Boolean =
         punctuation.commitShortcut(keyCode)
 
@@ -148,8 +136,14 @@ class PhysicalT9KeyHostAdapter(
     override fun cancelPendingPunctuation(): Boolean =
         punctuation.cancel()
 
-    override fun handleChinesePunctuationKey(): Boolean =
-        punctuation.handleChineseKey()
+    override fun showChinesePunctuationCandidates() =
+        punctuation.showChineseCandidates()
+
+    override fun showEnglishPunctuationCandidates() =
+        punctuation.showEnglishCandidates()
+
+    override fun commitChineseCandidateAndShowPunctuation() =
+        candidates.commitChineseCandidateAndShowPunctuation()
 
     override fun togglePendingPunctuationSet(): Boolean =
         punctuation.toggleSet()
@@ -166,14 +160,11 @@ class PhysicalT9KeyHostAdapter(
     override fun showNumberOperatorHintPanel() =
         platform.showNumberOperatorHintPanel()
 
-    override fun commitLiteralStarInCurrentChineseState() =
-        platform.commitLiteralStarInCurrentChineseState()
+    override fun commitLiteralStar() =
+        platform.commitLiteralStar()
 
-    override fun handleEnglishStarShortPress() =
-        english.handleStarShortPress()
-
-    override fun handleEnglishStarLongPress() =
-        english.handleStarLongPress()
+    override fun cycleEnglishCase() =
+        english.cycleCase()
 
     override fun handleMultiTapKey(keyCode: Int): Boolean =
         english.handleMultiTapKey(keyCode)
@@ -183,9 +174,6 @@ class PhysicalT9KeyHostAdapter(
 
     override fun cancelMultiTapChar() =
         english.cancelMultiTapChar()
-
-    override fun showSmartEnglishPunctuationCandidates() =
-        punctuation.showSmartEnglishCandidates()
 
     override fun appendSmartEnglishDigit(digit: Int) =
         english.appendSmartEnglishDigit(digit)

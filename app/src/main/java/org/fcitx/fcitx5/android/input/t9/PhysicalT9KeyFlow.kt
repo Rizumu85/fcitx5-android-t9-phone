@@ -13,8 +13,6 @@ class PhysicalT9KeyFlow {
         val chineseComposing: Boolean,
         val compositionKeyCount: Int,
         val hasPendingPunctuation: Boolean,
-        val pendingPunctuationOneKeyDeferred: Boolean,
-        val pendingPunctuationSet: PhysicalT9KeyHandler.PunctuationSet,
         val hasSmartEnglishDigits: Boolean,
         val hasSmartEnglishCandidates: Boolean,
         val hasMultiTapPendingChar: Boolean,
@@ -37,7 +35,6 @@ class PhysicalT9KeyFlow {
     }
 
     sealed class Command {
-        data class SetPendingPunctuationOneKeyDeferred(val value: Boolean) : Command()
         data class CommitPendingPunctuationShortcut(val keyCode: Int) : Command()
         data class CommitPendingPunctuationShortcutOrText(
             val keyCode: Int,
@@ -45,9 +42,10 @@ class PhysicalT9KeyFlow {
         ) : Command()
         object CommitPendingPunctuation : Command()
         object CancelPendingPunctuation : Command()
-        object HandleChinesePunctuationKey : Command()
         object CancelMultiTapChar : Command()
-        object ShowSmartEnglishPunctuationCandidates : Command()
+        object ShowChinesePunctuationCandidates : Command()
+        object ShowEnglishPunctuationCandidates : Command()
+        object CommitChineseCandidateAndShowPunctuation : Command()
         data class HandleMultiTapKey(val keyCode: Int) : Command()
         object CommitMultiTapChar : Command()
         data class CommitSmartEnglishShortcut(val keyCode: Int) : Command()
@@ -85,8 +83,7 @@ class PhysicalT9KeyFlow {
         object ForwardChineseT9SeparatorShortPress : Command()
         object ForwardChineseComposingPoundShortPress : Command()
         object TogglePendingPunctuationSet : Command()
-        object HandleEnglishStarShortPress : Command()
-        object HandleEnglishStarLongPress : Command()
+        object CycleEnglishCase : Command()
         object HandleReturnKey : Command()
         object SwitchToNextMode : Command()
         object DiscardChineseCompositionForModeSwitch : Command()
@@ -95,7 +92,7 @@ class PhysicalT9KeyFlow {
             val fallbackDigit: Int
         ) : Command()
         object ShowNumberOperatorHintPanel : Command()
-        object CommitLiteralStarInCurrentChineseState : Command()
+        object CommitLiteralStar : Command()
     }
 
     // Mode modules stay private to this flow so callers still test one command interface.

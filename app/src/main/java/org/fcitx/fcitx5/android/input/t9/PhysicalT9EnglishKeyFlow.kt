@@ -48,12 +48,46 @@ internal class PhysicalT9EnglishKeyFlow(
     private fun handleEnglishOne(
         input: PhysicalT9KeyHandler.KeyInput,
         state: State
-    ): Decision? =
-        if (state.isSmartEnglishActive) {
-            handleSmartEnglishOne(input, state)
-        } else {
-            handleSimpleEnglishOne(input, state)
+    ): Decision? = when (input.action) {
+        KeyEvent.ACTION_DOWN -> {
+            if (input.repeatCount == 0) {
+                setDigitLongPressFlag(input.keyCode, false)
+                Decision(handled = true)
+            } else if (!isDigitLongPressFlagSet(input.keyCode) && state.heldPastLongPressDelay) {
+                setDigitLongPressFlag(input.keyCode, true)
+                Decision(
+                    handled = true,
+                    commands = when {
+                        state.hasPendingPunctuation -> listOf(
+                            Command.CommitPendingPunctuationShortcut(KeyEvent.KEYCODE_1)
+                        )
+                        state.isSmartEnglishActive && state.hasSmartEnglishCandidates -> listOf(
+                            Command.CommitSmartEnglishShortcut(KeyEvent.KEYCODE_1)
+                        )
+                        else -> listOf(
+                            Command.CancelMultiTapChar,
+                            Command.CommitText("1"),
+                            Command.FlushEnglishLearningWord
+                        )
+                    }
+                )
+            } else {
+                Decision(handled = true)
+            }
         }
+        KeyEvent.ACTION_UP -> {
+            val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
+            setDigitLongPressFlag(input.keyCode, false)
+            Decision(
+                handled = true,
+                commands = when {
+                    wasLongPress || state.hasPendingPunctuation -> emptyList()
+                    else -> listOf(Command.CycleEnglishCase)
+                }
+            )
+        }
+        else -> null
+    }
 
     private fun handleEnglishZero(
         input: PhysicalT9KeyHandler.KeyInput,
@@ -75,108 +109,6 @@ internal class PhysicalT9EnglishKeyFlow(
         } else {
             handleSimpleEnglishPredictiveDigit(input, state, digit)
         }
-
-    private fun handleSmartEnglishOne(
-        input: PhysicalT9KeyHandler.KeyInput,
-        state: State
-    ): Decision? = when (input.action) {
-        KeyEvent.ACTION_DOWN -> {
-            if (input.repeatCount == 0) {
-                session.englishOneLongPressTriggered = false
-                setDigitLongPressFlag(input.keyCode, false)
-                Decision(handled = true)
-            } else if (!session.englishOneLongPressTriggered && state.heldPastLongPressDelay) {
-                session.englishOneLongPressTriggered = true
-                setDigitLongPressFlag(input.keyCode, true)
-                Decision(
-                    handled = true,
-                    commands = when {
-                        state.hasPendingPunctuation -> listOf(
-                            Command.SetPendingPunctuationOneKeyDeferred(false),
-                            Command.CommitPendingPunctuationShortcut(KeyEvent.KEYCODE_1)
-                        )
-                        state.hasSmartEnglishCandidates -> listOf(
-                            Command.CommitSmartEnglishShortcut(KeyEvent.KEYCODE_1)
-                        )
-                        else -> listOf(
-                            Command.CancelPendingPunctuation,
-                            Command.CancelMultiTapChar,
-                            Command.CommitText("1")
-                        )
-                    }
-                )
-            } else {
-                Decision(handled = true)
-            }
-        }
-        KeyEvent.ACTION_UP -> {
-            if (session.englishOneLongPressTriggered) {
-                session.englishOneLongPressTriggered = false
-                setDigitLongPressFlag(input.keyCode, false)
-                Decision(handled = true)
-            } else {
-                setDigitLongPressFlag(input.keyCode, false)
-                Decision(
-                    handled = true,
-                    commands = smartEnglishOneShortPressCommands(state)
-                )
-            }
-        }
-        else -> null
-    }
-
-    private fun handleSimpleEnglishOne(
-        input: PhysicalT9KeyHandler.KeyInput,
-        state: State
-    ): Decision? = when (input.action) {
-        KeyEvent.ACTION_DOWN -> {
-            if (input.repeatCount == 0) {
-                session.englishOneLongPressTriggered = false
-                setDigitLongPressFlag(input.keyCode, false)
-                Decision(
-                    handled = true,
-                    commands = listOf(Command.HandleMultiTapKey(input.keyCode))
-                )
-            } else if (!session.englishOneLongPressTriggered && state.heldPastLongPressDelay) {
-                session.englishOneLongPressTriggered = true
-                setDigitLongPressFlag(input.keyCode, true)
-                Decision(
-                    handled = true,
-                    commands = listOf(
-                        Command.CancelPendingPunctuation,
-                        Command.CancelMultiTapChar,
-                        Command.CommitText("1")
-                    )
-                )
-            } else {
-                Decision(handled = true)
-            }
-        }
-        KeyEvent.ACTION_UP -> {
-            session.englishOneLongPressTriggered = false
-            setDigitLongPressFlag(input.keyCode, false)
-            Decision(handled = true, commands = emptyList())
-        }
-        else -> null
-    }
-
-    private fun smartEnglishOneShortPressCommands(state: State): List<Command> = when {
-        state.pendingPunctuationOneKeyDeferred &&
-            state.pendingPunctuationSet == PhysicalT9KeyHandler.PunctuationSet.ENGLISH ->
-            listOf(
-                Command.ShowSmartEnglishPunctuationCandidates,
-                Command.SetPendingPunctuationOneKeyDeferred(false)
-            )
-        state.hasPendingPunctuation -> emptyList()
-        state.hasSmartEnglishCandidates -> listOf(
-            Command.CommitSmartEnglishCandidate(
-                appendSpace = false,
-                continuePrediction = false
-            ),
-            Command.ShowSmartEnglishPunctuationCandidates
-        )
-        else -> listOf(Command.ShowSmartEnglishPunctuationCandidates)
-    }
 
     private fun handleSmartEnglishZero(
         input: PhysicalT9KeyHandler.KeyInput,
@@ -535,7 +467,20 @@ internal class PhysicalT9EnglishKeyFlow(
                 setDigitLongPressFlag(input.keyCode, true)
                 Decision(
                     handled = true,
-                    commands = listOf(Command.HandleEnglishStarLongPress)
+                    commands = buildList {
+                        when {
+                            state.hasPendingPunctuation -> add(Command.CancelPendingPunctuation)
+                            state.isSmartEnglishActive && state.hasSmartEnglishCandidates -> add(
+                                Command.CommitSmartEnglishCandidate(
+                                    appendSpace = false,
+                                    continuePrediction = false
+                                )
+                            )
+                            state.hasMultiTapPendingChar -> add(Command.CommitMultiTapChar)
+                        }
+                        add(Command.CommitLiteralStar)
+                        add(Command.FlushEnglishLearningWord)
+                    }
                 )
             } else {
                 Decision(handled = true)
@@ -549,7 +494,18 @@ internal class PhysicalT9EnglishKeyFlow(
                 commands = when {
                     wasLongPress -> emptyList()
                     state.hasPendingPunctuation -> listOf(Command.TogglePendingPunctuationSet)
-                    else -> listOf(Command.HandleEnglishStarShortPress)
+                    state.isSmartEnglishActive && state.hasSmartEnglishCandidates -> listOf(
+                        Command.CommitSmartEnglishCandidate(
+                            appendSpace = false,
+                            continuePrediction = false
+                        ),
+                        Command.ShowEnglishPunctuationCandidates
+                    )
+                    state.hasMultiTapPendingChar -> listOf(
+                        Command.CommitMultiTapChar,
+                        Command.ShowEnglishPunctuationCandidates
+                    )
+                    else -> listOf(Command.ShowEnglishPunctuationCandidates)
                 }
             )
         }

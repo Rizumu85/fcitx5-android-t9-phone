@@ -82,8 +82,6 @@ class PhysicalT9KeyHostAdapterTest {
                 chineseComposing = { false },
                 compositionKeyCount = { 0 },
                 hasPendingPunctuation = { false },
-                pendingPunctuationOneKeyDeferred = { false },
-                pendingPunctuationSet = { PhysicalT9KeyHandler.PunctuationSet.CHINESE },
                 hasSmartEnglishDigits = { false },
                 hasSmartEnglishCandidates = { false },
                 hasMultiTapPendingChar = { false },
@@ -93,13 +91,12 @@ class PhysicalT9KeyHostAdapterTest {
                 keyHeldPastLongPressDelay = { false }
             ),
             punctuation = PhysicalT9KeyHostAdapter.PunctuationActions(
-                setOneKeyDeferred = {},
                 commitShortcut = commitShortcut,
                 commit = { false },
                 cancel = { false },
-                handleChineseKey = { false },
-                toggleSet = { false },
-                showSmartEnglishCandidates = {}
+                showChineseCandidates = {},
+                showEnglishCandidates = {},
+                toggleSet = { false }
             ),
             english = PhysicalT9KeyHostAdapter.EnglishActions(
                 commitSmartEnglishShortcut = { false },
@@ -109,8 +106,7 @@ class PhysicalT9KeyHostAdapterTest {
                 moveSmartEnglishCandidate = { false },
                 smartEnglishBackspace = { false },
                 flushLearningWord = {},
-                handleStarShortPress = {},
-                handleStarLongPress = {},
+                cycleCase = {},
                 handleMultiTapKey = { false },
                 commitMultiTapChar = { false },
                 cancelMultiTapChar = {}
@@ -122,14 +118,15 @@ class PhysicalT9KeyHostAdapterTest {
                 moveHighlightedBottomCandidate = { false },
                 offsetBottomCandidatePage = { false },
                 commitHighlightedPinyin = { false },
-                commitHighlightedBottomCandidate = { false }
+                commitHighlightedBottomCandidate = { false },
+                commitChineseCandidateAndShowPunctuation = {}
             ),
             platform = PhysicalT9KeyHostAdapter.PlatformActions(
                 switchToNextMode = {},
                 commitText = commitText,
                 commitNumberOperatorForKey = { _, _ -> false },
                 showNumberOperatorHintPanel = {},
-                commitLiteralStarInCurrentChineseState = {},
+                commitLiteralStar = {},
                 handleReturnKey = {},
                 forwardChineseT9KeyShortPress = { _, _ -> false },
                 forwardChineseT9SeparatorShortPress = { false },

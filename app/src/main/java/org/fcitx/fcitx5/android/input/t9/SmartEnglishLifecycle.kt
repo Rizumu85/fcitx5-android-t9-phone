@@ -202,19 +202,13 @@ internal class SmartEnglishLifecycle(
         }
     }
 
-    fun toggleShiftOnce(): String {
+    fun cycleCase(): String {
         caseState = when (caseState) {
             CaseState.OFF -> CaseState.SHIFT_ONCE
-            CaseState.SHIFT_ONCE, CaseState.CAPS -> CaseState.OFF
-        }
-        return caseLabel
-    }
-
-    fun toggleCaps(): String {
-        caseState = when (caseState) {
-            CaseState.OFF, CaseState.SHIFT_ONCE -> CaseState.CAPS
+            CaseState.SHIFT_ONCE -> CaseState.CAPS
             CaseState.CAPS -> CaseState.OFF
         }
+        refreshUi()
         return caseLabel
     }
 

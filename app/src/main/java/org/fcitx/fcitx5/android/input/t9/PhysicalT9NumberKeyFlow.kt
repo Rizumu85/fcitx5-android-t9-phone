@@ -120,7 +120,7 @@ internal class PhysicalT9NumberKeyFlow(
                 commands = if (wasLongPress) {
                     emptyList()
                 } else {
-                    listOf(PhysicalT9KeyFlow.Command.CommitLiteralStarInCurrentChineseState)
+                    listOf(PhysicalT9KeyFlow.Command.CommitLiteralStar)
                 }
             )
         }

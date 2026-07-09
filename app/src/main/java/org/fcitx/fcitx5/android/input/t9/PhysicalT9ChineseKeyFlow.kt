@@ -34,7 +34,7 @@ internal class PhysicalT9ChineseKeyFlow(
         val digit = PhysicalT9KeyPolicy.t9Digit(input.keyCode)
         return when {
             input.keyCode == KeyEvent.KEYCODE_POUND -> handleChinesePound(input, state)
-            input.keyCode == KeyEvent.KEYCODE_STAR -> handleChineseStar(input)
+            input.keyCode == KeyEvent.KEYCODE_STAR -> handleChineseStar(input, state)
             digit != null -> handleChineseDigit(input, state, digit)
             else -> null
         }
@@ -126,17 +126,41 @@ internal class PhysicalT9ChineseKeyFlow(
     }
 
     private fun handleChineseStar(
-        input: PhysicalT9KeyHandler.KeyInput
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State
     ): Decision? = when (input.action) {
-        KeyEvent.ACTION_DOWN -> Decision(
-            handled = true,
-            commands = if (input.repeatCount == 0) {
-                listOf(Command.CommitLiteralStarInCurrentChineseState)
+        KeyEvent.ACTION_DOWN -> {
+            if (input.repeatCount == 0) {
+                setDigitLongPressFlag(input.keyCode, false)
+                Decision(handled = true)
+            } else if (!isDigitLongPressFlagSet(input.keyCode) && state.heldPastLongPressDelay) {
+                setDigitLongPressFlag(input.keyCode, true)
+                Decision(
+                    handled = true,
+                    commands = listOf(Command.CommitLiteralStar)
+                )
             } else {
-                emptyList()
+                Decision(handled = true)
             }
-        )
-        KeyEvent.ACTION_UP -> Decision(handled = true)
+        }
+        KeyEvent.ACTION_UP -> {
+            val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
+            setDigitLongPressFlag(input.keyCode, false)
+            Decision(
+                handled = true,
+                commands = if (wasLongPress) {
+                    emptyList()
+                } else {
+                    listOf(
+                        if (state.hasChineseComposition) {
+                            Command.CommitChineseCandidateAndShowPunctuation
+                        } else {
+                            Command.ShowChinesePunctuationCandidates
+                        }
+                    )
+                }
+            )
+        }
         else -> null
     }
 
@@ -191,13 +215,9 @@ internal class PhysicalT9ChineseKeyFlow(
             input = input,
             state = state,
             longPressWhenComposing = listOf(Command.CommitHanziShortcut(input.keyCode)),
-            longPressWhenIdle = listOf(
-                Command.SetPendingPunctuationOneKeyDeferred(false),
-                Command.CancelPendingPunctuation,
-                Command.CommitText("1")
-            ),
+            longPressWhenIdle = listOf(Command.CommitText("1")),
             shortPressIdleFallsThrough = false,
-            shortPressIdleCommands = listOf(Command.SetPendingPunctuationOneKeyDeferred(true))
+            shortPressIdleCommands = emptyList()
         )
         KeyEvent.ACTION_UP -> {
             val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
@@ -207,10 +227,6 @@ internal class PhysicalT9ChineseKeyFlow(
                 commands = when {
                     wasLongPress -> emptyList()
                     state.compositionKeyCount > 0 -> listOf(Command.ForwardChineseT9SeparatorShortPress)
-                    state.pendingPunctuationOneKeyDeferred -> listOf(
-                        Command.HandleChinesePunctuationKey,
-                        Command.SetPendingPunctuationOneKeyDeferred(false)
-                    )
                     else -> emptyList()
                 }
             )
@@ -297,11 +313,10 @@ internal class PhysicalT9ChineseKeyFlow(
         }
         val digit = PhysicalT9KeyPolicy.t9Digit(input.keyCode)
         return when {
-            input.keyCode == KeyEvent.KEYCODE_1 -> handleChinesePendingPunctuationOne(input, state)
             input.keyCode == KeyEvent.KEYCODE_0 -> handleChinesePendingPunctuationZero(input, state)
-            digit != null && digit in 2..9 -> handleChinesePendingPunctuationDigit(input, state, digit)
+            digit != null && digit in 1..9 -> handleChinesePendingPunctuationDigit(input, state, digit)
             input.keyCode == KeyEvent.KEYCODE_POUND -> handleChinesePendingPunctuationPound(input, state)
-            input.keyCode == KeyEvent.KEYCODE_STAR -> handleChinesePendingPunctuationStar(input)
+            input.keyCode == KeyEvent.KEYCODE_STAR -> handleChinesePendingPunctuationStar(input, state)
             PhysicalT9KeyPolicy.isDeleteKey(input.keyCode) -> handleChinesePendingPunctuationDelete(input)
             PhysicalT9KeyPolicy.focusKey(input.keyCode) != null ->
                 PhysicalT9SelectionMode.handle(
@@ -322,50 +337,6 @@ internal class PhysicalT9ChineseKeyFlow(
             consumedKeyUp = input.keyCode
         )
         KeyEvent.ACTION_UP -> Decision(handled = true)
-        else -> null
-    }
-
-    private fun handleChinesePendingPunctuationOne(
-        input: PhysicalT9KeyHandler.KeyInput,
-        state: State
-    ): Decision? = when (input.action) {
-        KeyEvent.ACTION_DOWN -> {
-            if (input.repeatCount == 0) {
-                setDigitLongPressFlag(input.keyCode, false)
-                Decision(
-                    handled = true,
-                    commands = listOf(Command.SetPendingPunctuationOneKeyDeferred(true))
-                )
-            } else if (!isDigitLongPressFlagSet(input.keyCode) && state.heldPastLongPressDelay) {
-                setDigitLongPressFlag(input.keyCode, true)
-                Decision(
-                    handled = true,
-                    commands = listOf(
-                        Command.SetPendingPunctuationOneKeyDeferred(false),
-                        Command.CommitPendingPunctuationShortcutOrText(input.keyCode, "1")
-                    )
-                )
-            } else {
-                Decision(handled = true)
-            }
-        }
-        KeyEvent.ACTION_UP -> {
-            val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
-            setDigitLongPressFlag(input.keyCode, false)
-            Decision(
-                handled = true,
-                commands = if (wasLongPress) {
-                    emptyList()
-                } else {
-                    buildList {
-                        if (state.pendingPunctuationOneKeyDeferred) {
-                            add(Command.HandleChinesePunctuationKey)
-                        }
-                        add(Command.SetPendingPunctuationOneKeyDeferred(false))
-                    }
-                }
-            )
-        }
         else -> null
     }
 
@@ -474,13 +445,38 @@ internal class PhysicalT9ChineseKeyFlow(
     }
 
     private fun handleChinesePendingPunctuationStar(
-        input: PhysicalT9KeyHandler.KeyInput
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State
     ): Decision? = when (input.action) {
-        KeyEvent.ACTION_DOWN -> Decision(handled = true)
-        KeyEvent.ACTION_UP -> Decision(
-            handled = true,
-            commands = listOf(Command.TogglePendingPunctuationSet)
-        )
+        KeyEvent.ACTION_DOWN -> {
+            if (input.repeatCount == 0) {
+                setDigitLongPressFlag(input.keyCode, false)
+                Decision(handled = true)
+            } else if (!isDigitLongPressFlagSet(input.keyCode) && state.heldPastLongPressDelay) {
+                setDigitLongPressFlag(input.keyCode, true)
+                Decision(
+                    handled = true,
+                    commands = listOf(
+                        Command.CancelPendingPunctuation,
+                        Command.CommitLiteralStar
+                    )
+                )
+            } else {
+                Decision(handled = true)
+            }
+        }
+        KeyEvent.ACTION_UP -> {
+            val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
+            setDigitLongPressFlag(input.keyCode, false)
+            Decision(
+                handled = true,
+                commands = if (wasLongPress) {
+                    emptyList()
+                } else {
+                    listOf(Command.TogglePendingPunctuationSet)
+                }
+            )
+        }
         else -> null
     }
 

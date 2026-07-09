@@ -61,6 +61,24 @@ class T9CandidateInteractionControllerTest {
     }
 
     @Test
+    fun chinesePunctuationFollowUpRunsAfterCandidateSelection() {
+        val pipeline = pipelineWithShown(
+            source = T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_ENGINE,
+            originalIndices = intArrayOf(4),
+            paged = paged(cursor = 0, "好")
+        )
+        val host = FakeHost()
+        var followedUp = false
+
+        val handled = T9CandidateInteractionController(pipeline, host)
+            .commitCurrentChineseCandidate { followedUp = true }
+
+        assertEquals(true, handled)
+        assertTrue(followedUp)
+        assertEquals(listOf(FakeHost.ChineseSelection(4, "好", null, false)), host.chineseSelections)
+    }
+
+    @Test
     fun nonOwnedShownStateReturnsNullForFallbackPath() {
         val pipeline = pipelineWithShown(
             source = T9CandidateUiSnapshotPipeline.ShownSource.OTHER,
@@ -155,7 +173,8 @@ class T9CandidateInteractionControllerTest {
             originalIndex: Int,
             selectedCandidate: FcitxEvent.Candidate,
             matchedPrefix: String?,
-            fromAllCandidates: Boolean
+            fromAllCandidates: Boolean,
+            onSelected: (() -> Unit)?
         ): Boolean {
             chineseSelections += ChineseSelection(
                 originalIndex,
@@ -163,6 +182,7 @@ class T9CandidateInteractionControllerTest {
                 matchedPrefix,
                 fromAllCandidates
             )
+            onSelected?.invoke()
             return true
         }
     }
