@@ -81,6 +81,7 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSource
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHandler
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHostAdapter
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
+import org.fcitx.fcitx5.android.input.t9.PhysicalInputRouter
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9Coordinator
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishCaseCoordinator
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishLearningPolicy
@@ -309,7 +310,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             else -> return false
         }
         commitText(text)
-        t9ConsumedNavigationKeyUp = keyCode
         return true
     }
 
@@ -321,7 +321,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         val lastSelection = selection.latest
         if (!deleteBeforeCursorDirectly()) return false
         recordPasswordInputPreviewBackspace(selectionDeleted = lastSelection.isNotEmpty())
-        t9ConsumedNavigationKeyUp = keyCode
         return true
     }
 
@@ -453,6 +452,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun resetPhysicalSelectionState() {
+        physicalInputRouter.reset()
         physicalSelectionMode = false
         pendingPhysicalSelectionOkKeyCode = null
         physicalSelectionOkLongPressTriggered = false
@@ -1253,32 +1253,26 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return when {
             keyCode == KeyEvent.KEYCODE_DPAD_UP -> {
                 performPhysicalSelectionContextAction(android.R.id.copy, "复制")
-                t9ConsumedNavigationKeyUp = keyCode
                 true
             }
             keyCode == KeyEvent.KEYCODE_DPAD_LEFT -> {
                 performPhysicalSelectionContextAction(android.R.id.cut, "剪切")
-                t9ConsumedNavigationKeyUp = keyCode
                 true
             }
             keyCode == KeyEvent.KEYCODE_DPAD_RIGHT -> {
                 performPhysicalSelectionContextAction(android.R.id.paste, "粘贴")
-                t9ConsumedNavigationKeyUp = keyCode
                 true
             }
             keyCode == KeyEvent.KEYCODE_DPAD_DOWN -> {
                 performPhysicalSelectionDeleteAction()
-                t9ConsumedNavigationKeyUp = keyCode
                 true
             }
             PhysicalT9KeyPolicy.isDeleteKey(keyCode) -> {
                 cancelPhysicalSelectionActionPanelSelection()
-                t9ConsumedNavigationKeyUp = keyCode
                 true
             }
             PhysicalT9KeyPolicy.isConfirmKey(keyCode) -> {
                 dismissPhysicalSelectionActionPanel()
-                t9ConsumedNavigationKeyUp = keyCode
                 true
             }
             else -> {
@@ -1318,13 +1312,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             return when {
                 keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT -> {
                     movePhysicalSelectionFocus(if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) -1 else 1)
-                    t9ConsumedNavigationKeyUp = keyCode
                     true
                 }
                 keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN -> {
                     physicalSelectionRangeActive = true
                     sendCombinationKeyEvents(keyCode, shift = true)
-                    t9ConsumedNavigationKeyUp = keyCode
                     true
                 }
                 PhysicalT9KeyPolicy.isConfirmKey(keyCode) -> {
@@ -1332,7 +1324,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                         val showActions = currentInputSelection.isNotEmpty()
                         exitPhysicalSelectionMode(showBadge = !showActions)
                         showPhysicalSelectionActionPanel()
-                        t9ConsumedNavigationKeyUp = keyCode
                     }
                     true
                 }
@@ -1581,7 +1572,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private val t9CandidateFocusController = T9CandidateFocusController(
         onFocusChanged = { candidatesView?.syncT9CandidateFocus() }
     )
-    private var t9ConsumedNavigationKeyUp: Int? = null
     private var physicalSelectionMode = false
     private var physicalSelectionActionPanelActive = false
     private var pendingPhysicalSelectionOkKeyCode: Int? = null
@@ -1589,6 +1579,34 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var physicalSelectionAnchor = -1
     private var physicalSelectionFocus = -1
     private var physicalSelectionRangeActive = false
+    private val physicalInputRouter by lazy {
+        PhysicalInputRouter(
+            mapInput = ::mapKeyEvent,
+            keyDownRoutes = listOf(
+                PhysicalInputRouter.Route(::routeNumberTransientPanelKeyDown),
+                PhysicalInputRouter.Route(::routeSelectionActionPanelKeyDown),
+                PhysicalInputRouter.Route(::routePasswordHorizontalFocusKeyDown),
+                PhysicalInputRouter.Route(::routePasswordBackspaceKeyDown),
+                PhysicalInputRouter.Route(::routePasswordLiteralKeyDown),
+                PhysicalInputRouter.Route(::routeActiveSelectionModeKeyDown),
+                PhysicalInputRouter.Route(::routeT9KeyDown),
+                PhysicalInputRouter.Route(::routeSelectionModeEntryKeyDown),
+                PhysicalInputRouter.Route(::routeEmptyEditorDeleteKeyDown),
+                PhysicalInputRouter.Route(::routeResolvedSegmentDeleteKeyDown),
+                PhysicalInputRouter.Route(::routeIdleDeleteKeyDown),
+                PhysicalInputRouter.Route(::routeMappedKeyDown)
+            ),
+            // Selection-mode OK release must resolve its deferred short press before generic
+            // key-up pairing consumes the same physical key.
+            keyUpBeforePairingRoutes = listOf(
+                PhysicalInputRouter.Route(::routeSelectionModeKeyUp)
+            ),
+            keyUpAfterPairingRoutes = listOf(
+                PhysicalInputRouter.Route(::routeT9KeyUp),
+                PhysicalInputRouter.Route(::routeMappedKeyUp)
+            )
+        )
+    }
 
     private fun keyHeldPastPhysicalLongPressDelay(event: KeyEvent): Boolean =
         event.repeatCount > 0 &&
@@ -1803,14 +1821,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return numberModeController.commitOperator(operator)
     }
 
-    private fun handleNumberTransientPanelKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        val result = numberModeController.handleTransientPanelKeyDown(keyCode, event)
-        result.consumedKeyUp?.let {
-            t9ConsumedNavigationKeyUp = it
-        }
-        return result.handled
-    }
-
     private fun forwardKeyEvent(event: KeyEvent): Boolean {
         // reason to use a self increment index rather than timestamp:
         // KeyUp and KeyDown events actually can happen on the same time
@@ -1985,117 +1995,165 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         InputFeedbacks.soundEffect(effect)
     }
 
+    private fun routeNumberTransientPanelKeyDown(
+        input: PhysicalInputRouter.Input
+    ): PhysicalInputRouter.Result? {
+        val result = numberModeController.handleTransientPanelKeyDown(input.keyCode, input.event)
+        return PhysicalInputRouter.Result(result.handled, result.consumedKeyUp)
+            .takeIf { it.handled || it.consumeKeyUp != null }
+    }
+
+    private fun routeSelectionActionPanelKeyDown(
+        input: PhysicalInputRouter.Input
+    ): PhysicalInputRouter.Result? =
+        handledPhysicalRoute(
+            handlePhysicalSelectionActionPanelKeyDown(input.keyCode, input.event),
+            input.keyCode
+        )
+
+    private fun routePasswordHorizontalFocusKeyDown(
+        input: PhysicalInputRouter.Input
+    ): PhysicalInputRouter.Result? {
+        if (input.event.action != KeyEvent.ACTION_DOWN ||
+            !isTemporaryPasswordKeyboardVisible() ||
+            !PhysicalT9KeyPolicy.isHorizontalFocusKey(input.keyCode)
+        ) return null
+        handleArrowKey(input.keyCode)
+        return PhysicalInputRouter.Result(handled = true, consumeKeyUp = input.keyCode)
+    }
+
+    private fun routePasswordBackspaceKeyDown(
+        input: PhysicalInputRouter.Input
+    ): PhysicalInputRouter.Result? =
+        handledPhysicalRoute(
+            handlePhysicalPasswordBackspaceKey(input.keyCode, input.event),
+            input.keyCode
+        )
+
+    private fun routePasswordLiteralKeyDown(
+        input: PhysicalInputRouter.Input
+    ): PhysicalInputRouter.Result? =
+        handledPhysicalRoute(
+            commitPhysicalPasswordLiteralKey(input.keyCode, input.event),
+            input.keyCode
+        )
+
+    private fun routeActiveSelectionModeKeyDown(
+        input: PhysicalInputRouter.Input
+    ): PhysicalInputRouter.Result? {
+        if (!physicalSelectionMode) return null
+        return handledPhysicalRoute(
+            handlePhysicalSelectionModeKeyDown(input.keyCode, input.event),
+            input.keyCode
+        )
+    }
+
+    private fun routeT9KeyDown(input: PhysicalInputRouter.Input): PhysicalInputRouter.Result? {
+        val result = physicalT9KeyHandler.handleKeyDown(input.keyCode, input.event)
+        return PhysicalInputRouter.Result(result.handled, result.consumedKeyUp)
+            .takeIf { it.handled || it.consumeKeyUp != null }
+    }
+
+    private fun routeSelectionModeEntryKeyDown(
+        input: PhysicalInputRouter.Input
+    ): PhysicalInputRouter.Result? =
+        // Entry owns its release callback, so it must not be swallowed by generic pairing.
+        PhysicalInputRouter.Result(handled = true).takeIf {
+            handlePhysicalSelectionModeKeyDown(input.keyCode, input.event)
+        }
+
+    private fun routeEmptyEditorDeleteKeyDown(
+        input: PhysicalInputRouter.Input
+    ): PhysicalInputRouter.Result? {
+        if (input.mappedKeyCode != KeyEvent.KEYCODE_DEL ||
+            input.mappedEvent.action != KeyEvent.ACTION_DOWN ||
+            input.mappedEvent.repeatCount != 0 ||
+            !shouldHideImeForEmptyEditorDelete()
+        ) return null
+        requestHideSelf(0)
+        return PhysicalInputRouter.Result(handled = true, consumeKeyUp = input.keyCode)
+    }
+
+    private fun routeResolvedSegmentDeleteKeyDown(
+        input: PhysicalInputRouter.Input
+    ): PhysicalInputRouter.Result? {
+        if (input.mappedKeyCode != KeyEvent.KEYCODE_DEL ||
+            input.mappedEvent.action != KeyEvent.ACTION_DOWN ||
+            !shouldReopenLastResolvedSegment()
+        ) return null
+        postFcitxJob {
+            if (popLastResolvedSegment(this)) {
+                this@FcitxInputMethodService.lifecycleScope.launch {
+                    candidatesView?.refreshT9Ui()
+                }
+            }
+        }
+        return PhysicalInputRouter.Result(handled = true, consumeKeyUp = input.keyCode)
+    }
+
+    private fun routeIdleDeleteKeyDown(
+        input: PhysicalInputRouter.Input
+    ): PhysicalInputRouter.Result? {
+        if (input.mappedKeyCode != KeyEvent.KEYCODE_DEL ||
+            input.mappedEvent.action != KeyEvent.ACTION_DOWN ||
+            !shouldDirectDeleteForIdlePhysicalBackspace() ||
+            !deleteBeforeCursorDirectly()
+        ) return null
+        return PhysicalInputRouter.Result(handled = true, consumeKeyUp = input.keyCode)
+    }
+
+    private fun routeMappedKeyDown(
+        input: PhysicalInputRouter.Input
+    ): PhysicalInputRouter.Result {
+        markSelectionReplacementKeyIfNeeded(input.mappedKeyCode, input.mappedEvent)
+        if (inputDeviceMgr.evaluateOnKeyDown(input.mappedEvent, this)) {
+            postFcitxJob { focus(true) }
+            forceShowSelf()
+        }
+        return PhysicalInputRouter.Result(
+            handled = forwardKeyEvent(input.mappedEvent) ||
+                super.onKeyDown(input.mappedKeyCode, input.mappedEvent)
+        )
+    }
+
+    private fun routeSelectionModeKeyUp(
+        input: PhysicalInputRouter.Input
+    ): PhysicalInputRouter.Result? =
+        PhysicalInputRouter.Result(handled = true).takeIf {
+            handlePhysicalSelectionModeKeyUp(input.keyCode, input.event)
+        }
+
+    private fun routeT9KeyUp(input: PhysicalInputRouter.Input): PhysicalInputRouter.Result? {
+        val result = physicalT9KeyHandler.handleKeyUp(input.keyCode, input.event)
+        return PhysicalInputRouter.Result(result.handled, result.consumedKeyUp)
+            .takeIf { it.handled || it.consumeKeyUp != null }
+    }
+
+    private fun routeMappedKeyUp(input: PhysicalInputRouter.Input): PhysicalInputRouter.Result =
+        PhysicalInputRouter.Result(
+            handled = forwardKeyEvent(input.mappedEvent) ||
+                super.onKeyUp(input.mappedKeyCode, input.mappedEvent)
+        )
+
+    private fun handledPhysicalRoute(handled: Boolean, consumeKeyUp: Int): PhysicalInputRouter.Result? =
+        PhysicalInputRouter.Result(handled = true, consumeKeyUp = consumeKeyUp)
+            .takeIf { handled }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (inputDeviceMgr.shouldPassThroughHardwareKeys) {
+            physicalInputRouter.reset()
             return super.onKeyDown(keyCode, event)
         }
         playPhysicalKeySound(keyCode, event)
-        if (handleNumberTransientPanelKeyDown(keyCode, event)) {
-            return true
-        }
-        if (handlePhysicalSelectionActionPanelKeyDown(keyCode, event)) {
-            return true
-        }
-        if (event.action == KeyEvent.ACTION_DOWN &&
-            isTemporaryPasswordKeyboardVisible() &&
-            PhysicalT9KeyPolicy.isHorizontalFocusKey(keyCode)
-        ) {
-            handleArrowKey(keyCode)
-            t9ConsumedNavigationKeyUp = keyCode
-            return true
-        }
-        if (handlePhysicalPasswordBackspaceKey(keyCode, event)) {
-            return true
-        }
-        if (commitPhysicalPasswordLiteralKey(keyCode, event)) {
-            return true
-        }
-
-        // When selection mode is already active, let it consume selection controls
-        // or exit before T9 special keys commit replacement text.
-        if (physicalSelectionMode && handlePhysicalSelectionModeKeyDown(keyCode, event)) {
-            return true
-        }
-
-        val physicalT9Result = physicalT9KeyHandler.handleKeyDown(keyCode, event)
-        physicalT9Result.consumedKeyUp?.let {
-            t9ConsumedNavigationKeyUp = it
-        }
-        if (physicalT9Result.handled) {
-            return true
-        }
-
-        if (handlePhysicalSelectionModeKeyDown(keyCode, event)) {
-            return true
-        }
-
-        val (mappedKeyCode, mappedEvent) = mapKeyEvent(keyCode, event)
-        if (mappedKeyCode == KeyEvent.KEYCODE_DEL &&
-            mappedEvent.action == KeyEvent.ACTION_DOWN &&
-            mappedEvent.repeatCount == 0 &&
-            shouldHideImeForEmptyEditorDelete()
-        ) {
-            requestHideSelf(0)
-            t9ConsumedNavigationKeyUp = keyCode
-            return true
-        }
-        // Intercept physical DEL (including BACK remapped to DEL) when the only thing left to
-        // undo is a previously selected pinyin segment; reopen it as digits instead of letting
-        // Rime swallow another letter.
-        if (mappedKeyCode == KeyEvent.KEYCODE_DEL &&
-            mappedEvent.action == KeyEvent.ACTION_DOWN &&
-            shouldReopenLastResolvedSegment()
-        ) {
-            postFcitxJob {
-                if (popLastResolvedSegment(this)) {
-                    this@FcitxInputMethodService.lifecycleScope.launch {
-                        candidatesView?.refreshT9Ui()
-                    }
-                }
-            }
-            t9ConsumedNavigationKeyUp = keyCode
-            return true
-        }
-        if (mappedKeyCode == KeyEvent.KEYCODE_DEL &&
-            mappedEvent.action == KeyEvent.ACTION_DOWN &&
-            shouldDirectDeleteForIdlePhysicalBackspace() &&
-            deleteBeforeCursorDirectly()
-        ) {
-            t9ConsumedNavigationKeyUp = keyCode
-            return true
-        }
-        markSelectionReplacementKeyIfNeeded(mappedKeyCode, mappedEvent)
-        // request to show floating CandidatesView when pressing physical keyboard
-        if (inputDeviceMgr.evaluateOnKeyDown(mappedEvent, this)) {
-            postFcitxJob {
-                focus(true)
-            }
-            forceShowSelf()
-        }
-        return forwardKeyEvent(mappedEvent) || super.onKeyDown(mappedKeyCode, mappedEvent)
+        return physicalInputRouter.handleKeyDown(keyCode, event)
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         if (inputDeviceMgr.shouldPassThroughHardwareKeys) {
+            physicalInputRouter.reset()
             return super.onKeyUp(keyCode, event)
         }
-        if (handlePhysicalSelectionModeKeyUp(keyCode, event)) {
-            return true
-        }
-        if (t9ConsumedNavigationKeyUp == keyCode) {
-            t9ConsumedNavigationKeyUp = null
-            return true
-        }
-        val physicalT9Result = physicalT9KeyHandler.handleKeyUp(keyCode, event)
-        physicalT9Result.consumedKeyUp?.let {
-            t9ConsumedNavigationKeyUp = it
-        }
-        if (physicalT9Result.handled) {
-            return true
-        }
-
-        val (mappedKeyCode, mappedEvent) = mapKeyEvent(keyCode, event)
-        return forwardKeyEvent(mappedEvent) || super.onKeyUp(mappedKeyCode, mappedEvent)
+        return physicalInputRouter.handleKeyUp(keyCode, event)
     }
 
     // Added in API level 14, deprecated in 29

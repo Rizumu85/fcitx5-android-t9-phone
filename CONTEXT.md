@@ -56,6 +56,21 @@ The first migration slice should target Smart English physical-key behavior:
 long-press digit shortcuts. After each code slice, provide a concrete manual
 test checklist and wait for user confirmation before migrating the next slice.
 
+### Physical Input Router
+
+The ordered physical-key routing Module above Physical T9 Key Flow. It owns
+route priority and key-down/key-up pairing across number transient panels,
+selection actions, password input, active selection mode, Physical T9 Key Flow,
+mapped delete recovery, and ordinary forwarded keys.
+
+Each route uses the same handled/consume-key-up Interface. Mapping to Android
+input-mode keys is lazy so a password, selection, or T9 route that consumes the
+original key does not allocate a replacement `KeyEvent`. Selection-mode release
+runs before generic consumed-key pairing because its short-press action is
+deferred until key up. `FcitxInputMethodService` supplies route Adapters and
+platform effects, but it must not re-create the route order or maintain a
+parallel consumed-key-up field.
+
 ### Physical T9 Selection Mode
 
 The physical-key selection subflow inside Physical T9 Key Flow. It owns how
