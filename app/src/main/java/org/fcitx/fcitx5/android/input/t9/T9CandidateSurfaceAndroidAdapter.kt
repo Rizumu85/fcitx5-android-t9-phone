@@ -18,6 +18,7 @@ class T9CandidateSurfaceAndroidAdapter(
     private val candidatesUi: PagedCandidatesUi,
     private val shortcutCandidatesUi: T9ShortcutCandidatesUi,
     private val shortcutCandidateLayout: (FcitxEvent.PagedCandidateEvent.Data) -> T9ShortcutCandidateLayout,
+    private val onShortcutCandidateMeasured: (Int?) -> Unit,
     private val setPreferAboveCursorAnchor: (Boolean) -> Unit,
     private val showWhenPositioned: (contentReady: Boolean) -> Unit,
     private val hideSurfaceImmediately: () -> Unit
@@ -59,6 +60,7 @@ class T9CandidateSurfaceAndroidAdapter(
                 T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutUpdate") {
                     shortcutCandidatesUi.update(candidates, layout, shortcutStyle)
                 }
+                onShortcutCandidateMeasured(shortcutCandidatesUi.measuredToolbarWidthPx)
             }
             return
         }

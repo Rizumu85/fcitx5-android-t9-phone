@@ -21,8 +21,7 @@ class T9CandidateSurfaceGeometryTest {
     fun buildsSurfacePlanFromOneGeometryInput() {
         val plan = geometry.surfacePlan(
             surfaceInput(
-                candidates = listOf("好", "的"),
-                candidateVisualWidthPx = null
+                candidates = listOf("好", "的")
             )
         )
 
@@ -41,7 +40,6 @@ class T9CandidateSurfaceGeometryTest {
         val plan = geometry.pinyinSurfacePlan(
             input = surfaceInput(
                 candidates = emptyList(),
-                candidateVisualWidthPx = null,
                 fallbackViewportWidthPx = 140
             ),
             candidateRowWidthPx = null
@@ -57,8 +55,7 @@ class T9CandidateSurfaceGeometryTest {
     fun overrideCandidateWidthOnlyAffectsThePinyinSurfacePass() {
         val plan = geometry.pinyinSurfacePlan(
             input = surfaceInput(
-                candidates = listOf("嘿", "给"),
-                candidateVisualWidthPx = null
+                candidates = listOf("嘿", "给")
             ),
             candidateRowWidthPx = 212
         )
@@ -69,9 +66,19 @@ class T9CandidateSurfaceGeometryTest {
         assertEquals(212, pinyinSurface.pinyinBarWidthPx)
     }
 
+    @Test
+    fun observedToolbarWidthFeedsLaterSurfacePlans() {
+        geometry.observeCandidateVisualWidth(212)
+
+        val plan = geometry.surfacePlan(surfaceInput(candidates = listOf("嘿", "给")))
+
+        val pinyinSurface = requireNotNull(plan.pinyinSurface)
+        assertTrue(pinyinSurface.contentReady)
+        assertEquals(212, pinyinSurface.rowWidthPx)
+    }
+
     private fun surfaceInput(
         candidates: List<String>,
-        candidateVisualWidthPx: Int?,
         fallbackViewportWidthPx: Int? = null
     ): T9CandidateSurfaceGeometry.SurfaceInput =
         T9CandidateSurfaceGeometry.SurfaceInput(
@@ -100,7 +107,6 @@ class T9CandidateSurfaceGeometryTest {
                 pinyinFoldedEdgeSafetyPx = 2,
                 minVisiblePinyinChips = 4
             ),
-            candidateVisualWidthPx = candidateVisualWidthPx,
             pinyinState = T9PinyinRowWindow.VisibleState(
                 items = listOf("gei", "hei", "ge", "he", "g", "h", "i"),
                 highlightedIndex = 0,

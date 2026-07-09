@@ -32,12 +32,19 @@ class T9CandidateSurfaceGeometry(
     data class SurfaceInput(
         val candidates: FcitxEvent.PagedCandidateEvent.Data,
         val metrics: Metrics,
-        val candidateVisualWidthPx: Int?,
         val pinyinState: T9PinyinRowWindow.VisibleState?,
         val renderedPinyinItems: List<String>,
         val pinyinFallbackViewportWidthPx: Int?,
         val pinyinRowFocused: Boolean
     )
+
+    private var candidateVisualWidthPx: Int? = null
+
+    fun observeCandidateVisualWidth(widthPx: Int?) {
+        val measured = widthPx?.takeIf { it > 0 }
+        if (candidateVisualWidthPx == measured) return
+        candidateVisualWidthPx = measured
+    }
 
     fun widthBudget(metrics: Metrics): T9CandidateWidthBudget =
         T9CandidateWidthBudget(
@@ -100,7 +107,7 @@ class T9CandidateSurfaceGeometry(
                 trailingPaddingPx = input.metrics.trailingPaddingPx,
                 showPaginationArrows = input.metrics.showPaginationArrows,
                 paginationWidthPx = input.metrics.paginationWidthPx,
-                candidateVisualWidthPx = input.candidateVisualWidthPx,
+                candidateVisualWidthPx = candidateVisualWidthPx,
                 pinyinState = input.pinyinState,
                 pinyinWidths = pinyinWidths,
                 pinyinChipWidthsPx = pinyinChipWidthsPx,

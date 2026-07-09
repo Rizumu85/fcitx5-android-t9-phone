@@ -470,6 +470,7 @@ class CandidatesView(
         candidatesUi = candidatesUi,
         shortcutCandidatesUi = t9ShortcutCandidatesUi,
         shortcutCandidateLayout = ::t9ShortcutCandidateLayout,
+        onShortcutCandidateMeasured = t9CandidateSurfaceGeometry::observeCandidateVisualWidth,
         setPreferAboveCursorAnchor = floatingWindowController::setPreferAboveCursorAnchor,
         showWhenPositioned = floatingWindowController::showWhenPositioned,
         hideSurfaceImmediately = {
@@ -889,7 +890,6 @@ class CandidatesView(
         T9CandidateSurfaceGeometry.SurfaceInput(
             candidates = candidates,
             metrics = t9CandidateSurfaceGeometryMetrics(),
-            candidateVisualWidthPx = t9ShortcutCandidatesUi.measuredToolbarWidthPx,
             pinyinState = pinyinState,
             renderedPinyinItems = renderedPinyinItems,
             pinyinFallbackViewportWidthPx = pinyinRowViewportWidthPx(),

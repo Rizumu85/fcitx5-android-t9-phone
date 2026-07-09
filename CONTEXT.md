@@ -181,6 +181,13 @@ recombine pinyin widths, candidate widths, shortcut row tail policy, and focus
 state. This keeps the bubble-width design adjustable at one seam instead of
 spreading small ratio fixes through the floating window adapter.
 
+The geometry Module also owns the latest measured shortcut-toolbar width.
+`T9CandidateSurfaceAndroidAdapter` reports real Android measurement after a row
+render; later surface plans consume that observation without reading the view
+back from `CandidatesView`. The first plan still uses the previous stable
+observation, preserving the current real-measurement visual design rather than
+replacing it with text-width estimation.
+
 ### Floating Candidate Window Controller
 
 The floating window controller owns candidate-surface anchoring outside the
