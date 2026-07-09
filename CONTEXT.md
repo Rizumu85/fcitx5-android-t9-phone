@@ -108,6 +108,14 @@ text, refreshes views, and focuses Fcitx in or out, but it should ask the
 lifecycle whether a composition state transition occurred and which UI action
 that transition requires.
 
+`ChineseT9CompositionCoordinator` is the external Interface for this lifecycle.
+It hides the composition session, lifecycle policy, presentation source, and
+Rime bridge behind snapshot, presentation, pinyin-selection, candidate-reading,
+resolved-prefix, backspace, and replay operations. `FcitxInputMethodService`
+must not reconstruct the composition model or candidate-comment matching rules;
+it only executes editor, Rime, focus, and UI effects requested around those
+operations.
+
 ### Chinese T9 Presentation Source
 
 The Chinese T9 presentation source turns a stable Chinese presentation
