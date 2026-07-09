@@ -40,7 +40,8 @@ class T9CandidateSurfaceAndroidAdapter(
     override fun renderCandidates(
         candidates: FcitxEvent.PagedCandidateEvent.Data,
         orientation: FloatingCandidatesOrientation,
-        showShortcutLabels: Boolean
+        showShortcutLabels: Boolean,
+        shortcutStyle: T9ShortcutCandidateStyle
     ) {
         T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.visibility") {
             if (showShortcutLabels) {
@@ -56,7 +57,7 @@ class T9CandidateSurfaceAndroidAdapter(
                 shortcutCandidateLayout.invoke(candidates)
             }.let { layout ->
                 T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutUpdate") {
-                    shortcutCandidatesUi.update(candidates, layout)
+                    shortcutCandidatesUi.update(candidates, layout, shortcutStyle)
                 }
             }
             return

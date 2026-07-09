@@ -17,7 +17,8 @@ class T9CandidateUiRenderer(
         fun renderCandidates(
             candidates: FcitxEvent.PagedCandidateEvent.Data,
             orientation: FloatingCandidatesOrientation,
-            showShortcutLabels: Boolean
+            showShortcutLabels: Boolean,
+            shortcutStyle: T9ShortcutCandidateStyle
         )
         fun renderPinyin(pinyinOptions: List<String>, pinyinUseT9: Boolean): Boolean
         fun syncPinyinLayout(): Boolean
@@ -79,7 +80,8 @@ class T9CandidateUiRenderer(
                 delegate.renderCandidates(
                     candidates = next.candidates,
                     orientation = next.orientation,
-                    showShortcutLabels = next.showShortcutLabels
+                    showShortcutLabels = next.showShortcutLabels,
+                    shortcutStyle = next.shortcutStyle
                 )
             }
         }

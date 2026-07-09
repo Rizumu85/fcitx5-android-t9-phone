@@ -44,6 +44,13 @@ object T9CandidateRenderStatePlanner {
             candidates = input.candidates,
             orientation = input.orientation,
             showShortcutLabels = shouldShowShortcutLabels(input),
+            // Punctuation choices are visually equivalent controls, so the final symbol must
+            // not inherit the word candidate tail compaction rule.
+            shortcutStyle = if (input.usesPendingPunctuation) {
+                T9ShortcutCandidateStyle.UNIFORM_COMPACT
+            } else {
+                T9ShortcutCandidateStyle.ADAPTIVE_TAIL
+            },
             reservePreeditRow = !input.suppressEmptyCandidates &&
                 input.presentationState?.reserveTopReadingRow == true,
             pinyinOptions = pinyinOptions,

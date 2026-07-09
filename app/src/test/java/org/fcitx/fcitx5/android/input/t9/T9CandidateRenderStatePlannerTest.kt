@@ -77,6 +77,19 @@ class T9CandidateRenderStatePlannerTest {
     }
 
     @Test
+    fun punctuationKeepsUniformShortcutChipWidths() {
+        val punctuation = T9CandidateRenderStatePlanner.plan(
+            input(usesPendingPunctuation = true)
+        )
+        val words = T9CandidateRenderStatePlanner.plan(
+            input(usesPendingPunctuation = false)
+        )
+
+        assertEquals(T9ShortcutCandidateStyle.UNIFORM_COMPACT, punctuation.shortcutStyle)
+        assertEquals(T9ShortcutCandidateStyle.ADAPTIVE_TAIL, words.shortcutStyle)
+    }
+
+    @Test
     fun chineseAndEnglishUseStableBubblePlacement() {
         val planned = T9CandidateRenderStatePlanner.plan(input(chineseT9Active = true))
 

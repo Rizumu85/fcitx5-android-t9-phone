@@ -114,6 +114,7 @@ class T9CandidateRenderPassPlannerTest {
             candidates = candidates,
             orientation = FloatingCandidatesOrientation.Horizontal,
             showShortcutLabels = true,
+            shortcutStyle = T9ShortcutCandidateStyle.ADAPTIVE_TAIL,
             reservePreeditRow = false,
             pinyinOptions = pinyinOptions,
             pinyinUseT9 = pinyinUseT9,

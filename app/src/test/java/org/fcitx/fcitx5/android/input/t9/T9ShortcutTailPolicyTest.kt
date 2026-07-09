@@ -31,6 +31,13 @@ class T9ShortcutTailPolicyTest {
                 isLastVisibleItem = true
             )
         )
+        assertFalse(
+            T9ShortcutTailPolicy.edgeAlignsCandidateToBubbleTail(
+                isCandidate = true,
+                isLastVisibleItem = true,
+                preserveUniformMinimumWidth = true
+            )
+        )
     }
 
     @Test

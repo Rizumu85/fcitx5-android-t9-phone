@@ -11,8 +11,9 @@ import kotlin.math.max
 object T9ShortcutTailPolicy {
     fun edgeAlignsCandidateToBubbleTail(
         isCandidate: Boolean,
-        isLastVisibleItem: Boolean
-    ): Boolean = isCandidate && isLastVisibleItem
+        isLastVisibleItem: Boolean,
+        preserveUniformMinimumWidth: Boolean = false
+    ): Boolean = isCandidate && isLastVisibleItem && !preserveUniformMinimumWidth
 
     fun stabilizedToolbarWidthPx(
         naturalWidthPx: Int,

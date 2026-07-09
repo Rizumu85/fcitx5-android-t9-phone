@@ -19,6 +19,7 @@ import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
 import org.fcitx.fcitx5.android.input.t9.T9ShortcutCandidateLayout
+import org.fcitx.fcitx5.android.input.t9.T9ShortcutCandidateStyle
 import org.fcitx.fcitx5.android.input.t9.T9ShortcutTailPolicy
 import splitties.views.dsl.core.Ui
 
@@ -82,7 +83,8 @@ class T9ShortcutCandidatesUi(
 
     fun update(
         data: FcitxEvent.PagedCandidateEvent.Data,
-        layout: T9ShortcutCandidateLayout
+        layout: T9ShortcutCandidateLayout,
+        style: T9ShortcutCandidateStyle
     ) {
         this.data = data
         this.layout = layout
@@ -92,7 +94,7 @@ class T9ShortcutCandidatesUi(
         val rows = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutRows") {
             rowsFor(data)
         }
-        val nextStructure = renderStructureFor(rows, layout)
+        val nextStructure = renderStructureFor(rows, layout, style)
         if (nextStructure == renderStructure && root.childCount >= rows.size) {
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutSelection") {
                 renderSelection(rows)
@@ -101,7 +103,7 @@ class T9ShortcutCandidatesUi(
             return
         }
         T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutRender") {
-            render(rows, nextStructure)
+            render(rows, nextStructure, style)
         }
     }
 
@@ -109,13 +111,14 @@ class T9ShortcutCandidatesUi(
         if (highlightActive == active) return
         highlightActive = active
         val rows = rowsFor(data)
-        val nextStructure = renderStructureFor(rows, layout)
+        val style = renderStructure?.style ?: T9ShortcutCandidateStyle.ADAPTIVE_TAIL
+        val nextStructure = renderStructureFor(rows, layout, style)
         if (nextStructure == renderStructure && root.childCount >= rows.size) {
             renderSelection(rows)
             measureToolbarIfNeeded(rows, nextStructure)
             return
         }
-        render(rows, nextStructure)
+        render(rows, nextStructure, style)
     }
 
     private fun updateRootBounds(layout: T9ShortcutCandidateLayout) {
@@ -148,7 +151,8 @@ class T9ShortcutCandidatesUi(
 
     private fun render(
         rows: List<Row>,
-        structure: RenderStructure
+        structure: RenderStructure,
+        style: T9ShortcutCandidateStyle
     ) {
         T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutBind") {
             rows.forEachIndexed { index, row ->
@@ -158,7 +162,8 @@ class T9ShortcutCandidatesUi(
                         row = row,
                         edgeAlignedEnd = T9ShortcutTailPolicy.edgeAlignsCandidateToBubbleTail(
                             isCandidate = true,
-                            isLastVisibleItem = index == rows.lastIndex
+                            isLastVisibleItem = index == rows.lastIndex,
+                            preserveUniformMinimumWidth = style == T9ShortcutCandidateStyle.UNIFORM_COMPACT
                         )
                     )
                     is Row.Pagination -> paginationView(row)
@@ -343,6 +348,7 @@ class T9ShortcutCandidatesUi(
 
     private data class RenderStructure(
         val layout: T9ShortcutCandidateLayout,
+        val style: T9ShortcutCandidateStyle,
         val rows: List<RowStructure>
     )
 
@@ -363,10 +369,12 @@ class T9ShortcutCandidatesUi(
 
     private fun renderStructureFor(
         rows: List<Row>,
-        layout: T9ShortcutCandidateLayout
+        layout: T9ShortcutCandidateLayout,
+        style: T9ShortcutCandidateStyle
     ): RenderStructure =
         RenderStructure(
             layout = layout,
+            style = style,
             rows = rows.map { row ->
                 when (row) {
                     is Row.Candidate -> RowStructure.Candidate(

@@ -128,7 +128,8 @@ class T9CandidateUiRendererTest {
         override fun renderCandidates(
             candidates: FcitxEvent.PagedCandidateEvent.Data,
             orientation: FloatingCandidatesOrientation,
-            showShortcutLabels: Boolean
+            showShortcutLabels: Boolean,
+            shortcutStyle: T9ShortcutCandidateStyle
         ) = Unit
 
         override fun renderPinyin(pinyinOptions: List<String>, pinyinUseT9: Boolean): Boolean {
@@ -167,6 +168,7 @@ class T9CandidateUiRendererTest {
             candidates = candidates,
             orientation = FloatingCandidatesOrientation.Horizontal,
             showShortcutLabels = true,
+            shortcutStyle = T9ShortcutCandidateStyle.ADAPTIVE_TAIL,
             reservePreeditRow = false,
             pinyinOptions = pinyinOptions,
             pinyinUseT9 = pinyinUseT9,

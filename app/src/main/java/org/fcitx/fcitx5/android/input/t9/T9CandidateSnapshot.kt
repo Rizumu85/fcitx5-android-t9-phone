@@ -36,13 +36,15 @@ object T9CandidateSnapshots {
     fun renderCandidates(
         data: FcitxEvent.PagedCandidateEvent.Data,
         orientation: FloatingCandidatesOrientation,
-        showShortcutLabels: Boolean
+        showShortcutLabels: Boolean,
+        shortcutStyle: T9ShortcutCandidateStyle
     ): T9CandidatePageSnapshot =
         T9CandidatePageSnapshot(
             contentSignature = pagedContent(
                 data = data,
                 orientation = orientation,
-                showShortcutLabels = showShortcutLabels
+                showShortcutLabels = showShortcutLabels,
+                prefix = "${shortcutStyle.name}|"
             ),
             cursorSignature = data.cursorIndex.toString()
         )

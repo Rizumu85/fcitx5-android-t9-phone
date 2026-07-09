@@ -13,6 +13,7 @@ data class T9CandidateRenderState(
     val candidates: FcitxEvent.PagedCandidateEvent.Data,
     val orientation: FloatingCandidatesOrientation,
     val showShortcutLabels: Boolean,
+    val shortcutStyle: T9ShortcutCandidateStyle,
     val reservePreeditRow: Boolean,
     val pinyinOptions: List<String>,
     val pinyinUseT9: Boolean,
@@ -24,7 +25,7 @@ data class T9CandidateRenderState(
         T9CandidateSnapshots.preedit(panel, reservePreeditRow)
     }
     val candidateSnapshot: T9CandidatePageSnapshot by lazy(LazyThreadSafetyMode.NONE) {
-        T9CandidateSnapshots.renderCandidates(candidates, orientation, showShortcutLabels)
+        T9CandidateSnapshots.renderCandidates(candidates, orientation, showShortcutLabels, shortcutStyle)
     }
     val pinyinSnapshot: T9PinyinSnapshot by lazy(LazyThreadSafetyMode.NONE) {
         T9CandidateSnapshots.pinyin(pinyinOptions, pinyinUseT9)
@@ -32,6 +33,11 @@ data class T9CandidateRenderState(
     val visibilitySnapshot: T9VisibilitySnapshot by lazy(LazyThreadSafetyMode.NONE) {
         T9CandidateSnapshots.visibility(shouldShow, preferAboveCursorAnchor)
     }
+}
+
+enum class T9ShortcutCandidateStyle {
+    ADAPTIVE_TAIL,
+    UNIFORM_COMPACT
 }
 
 data class T9CandidateRenderPatch(

@@ -54,6 +54,17 @@ class T9CandidateRendererTest {
     }
 
     @Test
+    fun shortcutStyleChangeRebindsCandidateWidths() {
+        val previous = state(shortcutStyle = T9ShortcutCandidateStyle.ADAPTIVE_TAIL)
+        val next = state(shortcutStyle = T9ShortcutCandidateStyle.UNIFORM_COMPACT)
+
+        val patch = T9CandidateRenderer.diff(previous, next)
+
+        assertTrue(patch.candidates)
+        assertTrue(patch.candidateContent)
+    }
+
+    @Test
     fun pinyinContentChangeRefreshesFocusForNewChips() {
         val previous = state(pinyinOptions = listOf("a"))
         val next = state(pinyinOptions = listOf("ai"))
@@ -82,6 +93,7 @@ class T9CandidateRendererTest {
     private fun state(
         candidates: FcitxEvent.PagedCandidateEvent.Data = paged("a"),
         pinyinOptions: List<String> = listOf("a"),
+        shortcutStyle: T9ShortcutCandidateStyle = T9ShortcutCandidateStyle.ADAPTIVE_TAIL,
         reservePreeditRow: Boolean = false,
         shouldShow: Boolean = true
     ): T9CandidateRenderState =
@@ -90,6 +102,7 @@ class T9CandidateRendererTest {
             candidates = candidates,
             orientation = FloatingCandidatesOrientation.Horizontal,
             showShortcutLabels = true,
+            shortcutStyle = shortcutStyle,
             reservePreeditRow = reservePreeditRow,
             pinyinOptions = pinyinOptions,
             pinyinUseT9 = true,
