@@ -29,7 +29,6 @@ data class T9CandidateUiInputSnapshot(
 
 data class T9CandidateInteractionState(
     val shownSource: T9CandidateUiSnapshotPipeline.ShownSource,
-    val ownsPagingState: Boolean,
     val hasBottomCandidateRow: Boolean,
     val matchedPrefix: String?
 )
@@ -280,11 +279,12 @@ class T9CandidateUiStateBuilder(
                             T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH
                         shownState.usesBulkSelection ->
                             T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK
+                        chineseSurface && shownState.usesLocalBudget ->
+                            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_LOCAL
+                        chineseSurface ->
+                            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_ENGINE
                         else -> T9CandidateUiSnapshotPipeline.ShownSource.OTHER
                     },
-                    ownsPagingState = shownState.usesSmartEnglish ||
-                        shownState.usesPendingPunctuation ||
-                        shownState.usesBulkSelection,
                     hasBottomCandidateRow = effectivePaged.candidates.isNotEmpty(),
                     matchedPrefix = shownState.matchedPrefix
                 ),

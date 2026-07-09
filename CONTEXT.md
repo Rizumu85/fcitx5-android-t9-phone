@@ -198,24 +198,17 @@ or currently shown owned-row session. Keeping those sessions behind one
 internal Module prevents interaction fixes from spreading across the snapshot
 builder, Android view adapter, and per-source candidate implementations.
 
-The migration should be sliced by candidate source, but each completed slice
-must remove the replaced `CandidatesView` fallback. Start with Smart English
-and pending punctuation, then move Chinese local-budget and pinyin-row state,
-then bulk Chinese selection. This keeps each user-facing UI surface testable
-without leaving parallel render rules behind.
+`T9CandidateUiStateBuilder` and `T9CandidateSourceSessions` are internal
+Implementation details of the snapshot pipeline. Callers submit one stable
+`T9CandidateUiInputSnapshot`; the pipeline builds the render snapshot and
+retains the matching shown-source interaction state atomically. This prevents
+the Android view adapter from maintaining a second candidate page, original
+index mapping, or local-budget flag beside the rendered snapshot.
 
-The first implementation slice should fully move Smart English and pending
-punctuation page/cache/selection/page-offset state into the snapshot pipeline.
-`CandidatesView` should stop owning `T9SmartEnglishPageCache`, pending
-punctuation pager decisions, Smart English shown flags, pending punctuation
-shown flags, and original-index mapping for those two sources once the slice is
-complete.
-
-The second implementation slice should move Chinese local-budget candidate
-paging, Hanzi cursor state, and pinyin row window/highlight state into the
-snapshot pipeline. `CandidatesView` may still render pinyin chips and request
-Android scrolling, but it should not own the pinyin window model or Chinese
-local-budget pager state once the slice is complete.
+The source migration is complete: Smart English, pending punctuation, Chinese
+local-budget, bulk Chinese, and engine-backed Chinese rows all use the same
+shown-source session and interaction Interface. New candidate sources must join
+that Interface rather than adding view-owned fallback state.
 
 ### T9 Shortcut Tail Policy
 
@@ -279,11 +272,11 @@ candidate row when that row is owned by the T9 Candidate UI Snapshot Pipeline.
 It owns move, page, shortcut commit, and highlighted commit dispatch for Smart
 English, pending punctuation, and Chinese bulk-selection rows.
 
-`CandidatesView` may keep the legacy fallback for non-owned Rime candidate
-rows, but it should not duplicate source-specific side effects for rows already
-owned by the snapshot pipeline. `T9CandidateInteractionController` maps the
+All visible T9 bottom rows, including engine-backed Chinese rows, are owned by
+the snapshot pipeline. `CandidatesView` must not keep a parallel fallback page
+or original-index mapping. `T9CandidateInteractionController` maps the
 pipeline's interaction results to host side effects such as Smart English index
-selection, punctuation preview, page application, refresh, and bulk Hanzi
+selection, punctuation preview, engine page offset, refresh, and Hanzi
 selection.
 
 ### Chinese T9 Candidate Frame Gate

@@ -21,15 +21,13 @@ class T9CandidateUiSnapshotPipelineTest {
         val shown = pipeline.buildSmartEnglishPaged(paged("hello", "help", cursor = 1))
 
         pipeline.updateShownState(
+            source = T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH,
             paged = shown.data,
             originalIndices = shown.originalIndices,
-            usesSmartEnglish = true,
-            usesPendingPunctuation = false,
-            usesBulkSelection = false,
             matchedPrefix = null
         )
 
-        assertTrue(pipeline.ownsCurrentShownState)
+        assertTrue(pipeline.hasCurrentBottomCandidateRow)
         assertEquals(1, pipeline.smartEnglishShortcutOriginalIndex(1))
         assertNull(pipeline.pendingPunctuationShortcutOriginalIndex(1))
     }
@@ -45,11 +43,9 @@ class T9CandidateUiSnapshotPipelineTest {
             )
         )
         pipeline.updateShownState(
+            source = T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH,
             paged = shown.data,
             originalIndices = shown.originalIndices,
-            usesSmartEnglish = true,
-            usesPendingPunctuation = false,
-            usesBulkSelection = false,
             matchedPrefix = null
         )
 
@@ -66,11 +62,9 @@ class T9CandidateUiSnapshotPipelineTest {
         val pipeline = pipeline()
         val shown = pipeline.buildPendingPunctuationPaged(paged(",", ".", "?", cursor = 0))
         pipeline.updateShownState(
+            source = T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION,
             paged = shown.data,
             originalIndices = shown.originalIndices,
-            usesSmartEnglish = false,
-            usesPendingPunctuation = true,
-            usesBulkSelection = false,
             matchedPrefix = null
         )
 
@@ -78,8 +72,8 @@ class T9CandidateUiSnapshotPipelineTest {
 
         require(moved is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.PendingPunctuation)
         assertEquals(1, moved.previewOriginalIndex)
-        assertEquals(1, moved.shown.data.cursorIndex)
-        assertArrayEquals(intArrayOf(0, 1, 2), moved.shown.originalIndices)
+        assertEquals(1, pipeline.currentShownSnapshot?.paged?.cursorIndex)
+        assertArrayEquals(intArrayOf(0, 1, 2), pipeline.currentShownSnapshot?.originalIndices)
     }
 
     @Test
@@ -87,11 +81,9 @@ class T9CandidateUiSnapshotPipelineTest {
         val pipeline = pipeline()
         val shown = pipeline.buildPendingPunctuationPaged(paged(",", ".", "?", cursor = 2))
         pipeline.updateShownState(
+            source = T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION,
             paged = shown.data,
             originalIndices = shown.originalIndices,
-            usesSmartEnglish = false,
-            usesPendingPunctuation = true,
-            usesBulkSelection = false,
             matchedPrefix = null
         )
 
@@ -160,32 +152,31 @@ class T9CandidateUiSnapshotPipelineTest {
 
         require(state?.paged != null)
         pipeline.updateShownState(
+            source = T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK,
             paged = state.paged.data,
             originalIndices = state.paged.originalIndices,
-            usesSmartEnglish = false,
-            usesPendingPunctuation = false,
-            usesBulkSelection = true,
             matchedPrefix = state.matchedPrefix
         )
 
         val moved = pipeline.moveCurrentBottomCandidate(1)
-        require(moved is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.ChineseBulk)
-        assertEquals(1, moved.shown.data.cursorIndex)
+        require(moved is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.Refresh)
+        assertEquals(1, pipeline.currentShownSnapshot?.paged?.cursorIndex)
 
         val refreshed = pipeline.chineseBulkFilterState.paged
         require(refreshed != null)
         assertEquals(1, refreshed.data.cursorIndex)
 
         val shortcutCommit = pipeline.commitBottomCandidateAt(2)
-        require(shortcutCommit is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.ChineseBulk)
+        require(shortcutCommit is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.Chinese)
         assertEquals(2, shortcutCommit.originalIndex)
         assertEquals("逆", shortcutCommit.candidate.text)
         assertEquals("ni", shortcutCommit.matchedPrefix)
+        assertTrue(shortcutCommit.fromAllCandidates)
 
         val page = pipeline.offsetCurrentPage(1)
-        require(page is T9CandidateUiSnapshotPipeline.PageOffset.ChineseBulk)
-        assertEquals(listOf("年"), page.shown.data.candidates.map { it.text })
-        assertArrayEquals(intArrayOf(4), page.shown.originalIndices)
+        require(page is T9CandidateUiSnapshotPipeline.PageOffset.Refresh)
+        assertEquals(listOf("年"), pipeline.currentShownSnapshot?.paged?.candidates?.map { it.text })
+        assertArrayEquals(intArrayOf(4), pipeline.currentShownSnapshot?.originalIndices)
     }
 
     @Test

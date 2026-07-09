@@ -16,12 +16,13 @@ class T9CandidateInteractionController(
         fun commitSmartEnglishCandidate(originalIndex: Int): Boolean
         fun commitPendingPunctuationCandidate(originalIndex: Int): Boolean
         fun previewPendingPunctuationCandidate(originalIndex: Int): Boolean
-        fun applyShownPage(shown: T9PagedCandidates)
         fun refreshT9Ui()
-        fun selectBulkCandidate(
+        fun offsetEngineCandidatePage(delta: Int): Boolean
+        fun selectChineseCandidate(
             originalIndex: Int,
             selectedCandidate: FcitxEvent.Candidate,
-            matchedPrefix: String?
+            matchedPrefix: String?,
+            fromAllCandidates: Boolean
         ): Boolean
     }
 
@@ -40,16 +41,16 @@ class T9CandidateInteractionController(
             is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.SmartEnglish ->
                 host.setSmartEnglishCandidateIndex(result.nextOriginalIndex)
             is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.PendingPunctuation -> {
-                host.applyShownPage(result.shown)
                 host.previewPendingPunctuationCandidate(result.previewOriginalIndex)
                 host.refreshT9Ui()
                 true
             }
-            is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.ChineseBulk -> {
-                host.applyShownPage(result.shown)
+            T9CandidateUiSnapshotPipeline.MoveBottomCandidate.Refresh -> {
                 host.refreshT9Ui()
                 true
             }
+            is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.ChineseEngine ->
+                host.offsetEngineCandidatePage(result.delta)
             null -> null
         }
 
@@ -58,16 +59,16 @@ class T9CandidateInteractionController(
             is T9CandidateUiSnapshotPipeline.PageOffset.SmartEnglish ->
                 host.setSmartEnglishCandidateIndex(result.nextOriginalIndex)
             is T9CandidateUiSnapshotPipeline.PageOffset.PendingPunctuation -> {
-                host.applyShownPage(result.shown)
                 result.previewOriginalIndex?.let(host::previewPendingPunctuationCandidate)
                 host.refreshT9Ui()
                 true
             }
-            is T9CandidateUiSnapshotPipeline.PageOffset.ChineseBulk -> {
-                host.applyShownPage(result.shown)
+            T9CandidateUiSnapshotPipeline.PageOffset.Refresh -> {
                 host.refreshT9Ui()
                 true
             }
+            is T9CandidateUiSnapshotPipeline.PageOffset.ChineseEngine ->
+                host.offsetEngineCandidatePage(result.delta)
             null -> null
         }
 
@@ -84,8 +85,13 @@ class T9CandidateInteractionController(
                 host.commitSmartEnglishCandidate(result.originalIndex)
             is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.PendingPunctuation ->
                 host.commitPendingPunctuationCandidate(result.originalIndex)
-            is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.ChineseBulk ->
-                host.selectBulkCandidate(result.originalIndex, result.candidate, result.matchedPrefix)
+            is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.Chinese ->
+                host.selectChineseCandidate(
+                    result.originalIndex,
+                    result.candidate,
+                    result.matchedPrefix,
+                    result.fromAllCandidates
+                )
             null -> null
         }
     }

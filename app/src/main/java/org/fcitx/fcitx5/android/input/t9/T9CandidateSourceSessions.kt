@@ -26,8 +26,8 @@ class T9CandidateSourceSessions(
     val shownSource: T9CandidateUiSnapshotPipeline.ShownSource
         get() = currentShown?.source ?: T9CandidateUiSnapshotPipeline.ShownSource.OTHER
 
-    val ownsCurrentShownState: Boolean
-        get() = currentShown?.ownsPagingState == true
+    val currentShownSnapshot: T9CandidateUiSnapshotPipeline.ShownSnapshot?
+        get() = currentShown
 
     val hasCurrentBottomCandidateRow: Boolean
         get() = currentShown?.paged?.candidates?.isNotEmpty() == true
@@ -145,19 +145,11 @@ class T9CandidateSourceSessions(
     }
 
     fun updateShownState(
+        source: T9CandidateUiSnapshotPipeline.ShownSource,
         paged: FcitxEvent.PagedCandidateEvent.Data,
         originalIndices: IntArray,
-        usesSmartEnglish: Boolean,
-        usesPendingPunctuation: Boolean,
-        usesBulkSelection: Boolean,
         matchedPrefix: String?
     ): T9CandidateUiSnapshotPipeline.ShownSnapshot {
-        val source = when {
-            usesPendingPunctuation -> T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION
-            usesSmartEnglish -> T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH
-            usesBulkSelection -> T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK
-            else -> T9CandidateUiSnapshotPipeline.ShownSource.OTHER
-        }
         return T9CandidateUiSnapshotPipeline.ShownSnapshot(
             source = source,
             paged = paged,
@@ -184,7 +176,9 @@ class T9CandidateSourceSessions(
 
     fun moveCurrentBottomCandidate(delta: Int): T9CandidateUiSnapshotPipeline.MoveBottomCandidate? {
         val shown = currentShown ?: return null
-        if (!shown.ownsPagingState || shown.paged.candidates.isEmpty()) return null
+        if (shown.source == T9CandidateUiSnapshotPipeline.ShownSource.OTHER ||
+            shown.paged.candidates.isEmpty()
+        ) return null
         val next = shown.paged.cursorIndex + delta
         return when {
             next in shown.paged.candidates.indices -> moveWithinCurrentPage(shown, next)
@@ -219,7 +213,6 @@ class T9CandidateSourceSessions(
                     matchedPrefix = null
                 )
                 T9CandidateUiSnapshotPipeline.PageOffset.PendingPunctuation(
-                    shown = shown,
                     previewOriginalIndex = shown.originalIndices.firstOrNull()
                 )
             }
@@ -233,20 +226,36 @@ class T9CandidateSourceSessions(
                     originalIndices = nextShown.originalIndices,
                     matchedPrefix = state.matchedPrefix
                 )
-                T9CandidateUiSnapshotPipeline.PageOffset.ChineseBulk(nextShown)
+                T9CandidateUiSnapshotPipeline.PageOffset.Refresh
             }
-            else -> null
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_LOCAL -> {
+                val shown = currentShown ?: return null
+                if (offsetChineseLocalBudgetedPage(delta)) {
+                    T9CandidateUiSnapshotPipeline.PageOffset.Refresh
+                } else {
+                    val canOffsetEngine = if (delta > 0) shown.paged.hasNext else shown.paged.hasPrev
+                    if (canOffsetEngine) {
+                        T9CandidateUiSnapshotPipeline.PageOffset.ChineseEngine(delta)
+                    } else {
+                        null
+                    }
+                }
+            }
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_ENGINE -> {
+                val shown = currentShown ?: return null
+                val canOffset = if (delta > 0) shown.paged.hasNext else shown.paged.hasPrev
+                T9CandidateUiSnapshotPipeline.PageOffset.ChineseEngine(delta).takeIf { canOffset }
+            }
+            T9CandidateUiSnapshotPipeline.ShownSource.OTHER, null -> null
         }
 
     fun commitCurrentBottomCandidate(): T9CandidateUiSnapshotPipeline.CommitBottomCandidate? {
         val shown = currentShown ?: return null
-        if (!shown.ownsPagingState) return null
         return commitBottomCandidateAt(shown, shown.paged.cursorIndex)
     }
 
     fun commitBottomCandidateAt(shownIndex: Int): T9CandidateUiSnapshotPipeline.CommitBottomCandidate? {
         val shown = currentShown ?: return null
-        if (!shown.ownsPagingState) return null
         return commitBottomCandidateAt(shown, shownIndex)
     }
 
@@ -261,12 +270,16 @@ class T9CandidateSourceSessions(
                 T9CandidateUiSnapshotPipeline.CommitBottomCandidate.SmartEnglish(originalIndex)
             T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION ->
                 T9CandidateUiSnapshotPipeline.CommitBottomCandidate.PendingPunctuation(originalIndex)
-            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK -> {
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK,
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_LOCAL,
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_ENGINE -> {
                 val candidate = shown.paged.candidates.getOrNull(shownIndex) ?: return null
-                T9CandidateUiSnapshotPipeline.CommitBottomCandidate.ChineseBulk(
+                T9CandidateUiSnapshotPipeline.CommitBottomCandidate.Chinese(
                     originalIndex = originalIndex,
                     candidate = candidate,
-                    matchedPrefix = shown.matchedPrefix
+                    matchedPrefix = shown.matchedPrefix,
+                    fromAllCandidates = shown.source ==
+                        T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK
                 )
             }
             T9CandidateUiSnapshotPipeline.ShownSource.OTHER -> null
@@ -285,7 +298,6 @@ class T9CandidateSourceSessions(
                 val nextPaged = shown.paged.copy(cursorIndex = next)
                 currentShown = shown.copy(paged = nextPaged)
                 T9CandidateUiSnapshotPipeline.MoveBottomCandidate.PendingPunctuation(
-                    shown = T9PagedCandidates(nextPaged, shown.originalIndices),
                     previewOriginalIndex = originalIndex
                 )
             }
@@ -296,7 +308,13 @@ class T9CandidateSourceSessions(
                     paged = nextShown.data,
                     originalIndices = nextShown.originalIndices
                 )
-                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.ChineseBulk(nextShown)
+                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.Refresh
+            }
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_LOCAL,
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_ENGINE -> {
+                val nextPaged = moveChineseHanziCursor(shown.paged, next) ?: return null
+                currentShown = shown.copy(paged = nextPaged)
+                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.Refresh
             }
             T9CandidateUiSnapshotPipeline.ShownSource.OTHER -> null
         }
@@ -309,10 +327,11 @@ class T9CandidateSourceSessions(
                 T9CandidateUiSnapshotPipeline.MoveBottomCandidate.SmartEnglish(nextOriginalIndex)
             is T9CandidateUiSnapshotPipeline.PageOffset.PendingPunctuation ->
                 T9CandidateUiSnapshotPipeline.MoveBottomCandidate.PendingPunctuation(
-                    shown = shown,
                     previewOriginalIndex = previewOriginalIndex ?: -1
                 )
-            is T9CandidateUiSnapshotPipeline.PageOffset.ChineseBulk ->
-                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.ChineseBulk(shown)
+            T9CandidateUiSnapshotPipeline.PageOffset.Refresh ->
+                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.Refresh
+            is T9CandidateUiSnapshotPipeline.PageOffset.ChineseEngine ->
+                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.ChineseEngine(delta)
         }
 }

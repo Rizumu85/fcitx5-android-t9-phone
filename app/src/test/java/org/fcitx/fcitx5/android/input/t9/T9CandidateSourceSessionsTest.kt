@@ -19,15 +19,13 @@ class T9CandidateSourceSessionsTest {
         val shown = sessions.buildPendingPunctuationPaged(paged(cursor = 0, ",", ".", "?"))
 
         sessions.updateShownState(
+            source = T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION,
             paged = shown.data,
             originalIndices = shown.originalIndices,
-            usesSmartEnglish = false,
-            usesPendingPunctuation = true,
-            usesBulkSelection = false,
             matchedPrefix = null
         )
 
-        assertTrue(sessions.ownsCurrentShownState)
+        assertTrue(sessions.hasCurrentBottomCandidateRow)
         assertEquals(1, sessions.pendingPunctuationShortcutOriginalIndex(1))
         assertNull(sessions.smartEnglishShortcutOriginalIndex(1))
     }
@@ -37,11 +35,9 @@ class T9CandidateSourceSessionsTest {
         val sessions = sessions()
         val shown = sessions.buildPendingPunctuationPaged(paged(cursor = 0, ",", ".", "?"))
         sessions.updateShownState(
+            source = T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION,
             paged = shown.data,
             originalIndices = shown.originalIndices,
-            usesSmartEnglish = false,
-            usesPendingPunctuation = true,
-            usesBulkSelection = false,
             matchedPrefix = null
         )
 
@@ -49,7 +45,7 @@ class T9CandidateSourceSessionsTest {
 
         require(moved is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.PendingPunctuation)
         assertEquals(2, moved.previewOriginalIndex)
-        assertEquals(2, moved.shown.data.cursorIndex)
+        assertEquals(2, sessions.currentShownSnapshot?.paged?.cursorIndex)
         assertEquals(
             T9CandidateUiSnapshotPipeline.CommitBottomCandidate.PendingPunctuation(2),
             sessions.commitCurrentBottomCandidate()

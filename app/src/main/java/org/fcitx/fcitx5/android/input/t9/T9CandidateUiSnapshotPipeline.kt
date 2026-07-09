@@ -10,12 +10,19 @@ import org.fcitx.fcitx5.android.core.FcitxEvent
 class T9CandidateUiSnapshotPipeline(
     characterBudget: () -> Int,
     widthBudget: () -> T9CandidateWidthBudget?,
-    candidateMatchesPrefix: (candidate: FcitxEvent.Candidate, prefix: String) -> Boolean = { _, _ -> false }
+    candidateMatchesPrefix: (candidate: FcitxEvent.Candidate, prefix: String) -> Boolean = { _, _ -> false },
+    private val requestBulkCandidates: (chineseT9Active: Boolean, prefixes: List<String>) -> Unit = { _, _ -> },
+    private val getPresentationState: (ChineseT9PresentationSnapshotKey) -> T9PresentationState = {
+        T9PresentationState(topReading = null, pinyinOptions = emptyList())
+    },
+    private val clearHiddenComposition: () -> Unit = {}
 ) {
     enum class ShownSource {
         SMART_ENGLISH,
         PENDING_PUNCTUATION,
         CHINESE_BULK,
+        CHINESE_LOCAL,
+        CHINESE_ENGINE,
         OTHER
     }
 
@@ -25,11 +32,6 @@ class T9CandidateUiSnapshotPipeline(
         val originalIndices: IntArray,
         val matchedPrefix: String?
     ) {
-        val ownsPagingState: Boolean
-            get() = source == ShownSource.SMART_ENGLISH ||
-                source == ShownSource.PENDING_PUNCTUATION ||
-                source == ShownSource.CHINESE_BULK
-
         fun originalIndexAt(shownIndex: Int): Int? =
             originalIndices.getOrNull(shownIndex)
 
@@ -53,29 +55,26 @@ class T9CandidateUiSnapshotPipeline(
 
     sealed class PageOffset {
         data class SmartEnglish(val nextOriginalIndex: Int) : PageOffset()
-        data class PendingPunctuation(
-            val shown: T9PagedCandidates,
-            val previewOriginalIndex: Int?
-        ) : PageOffset()
-        data class ChineseBulk(val shown: T9PagedCandidates) : PageOffset()
+        data class PendingPunctuation(val previewOriginalIndex: Int?) : PageOffset()
+        object Refresh : PageOffset()
+        data class ChineseEngine(val delta: Int) : PageOffset()
     }
 
     sealed class MoveBottomCandidate {
         data class SmartEnglish(val nextOriginalIndex: Int) : MoveBottomCandidate()
-        data class PendingPunctuation(
-            val shown: T9PagedCandidates,
-            val previewOriginalIndex: Int
-        ) : MoveBottomCandidate()
-        data class ChineseBulk(val shown: T9PagedCandidates) : MoveBottomCandidate()
+        data class PendingPunctuation(val previewOriginalIndex: Int) : MoveBottomCandidate()
+        object Refresh : MoveBottomCandidate()
+        data class ChineseEngine(val delta: Int) : MoveBottomCandidate()
     }
 
     sealed class CommitBottomCandidate {
         data class SmartEnglish(val originalIndex: Int) : CommitBottomCandidate()
         data class PendingPunctuation(val originalIndex: Int) : CommitBottomCandidate()
-        data class ChineseBulk(
+        data class Chinese(
             val originalIndex: Int,
             val candidate: FcitxEvent.Candidate,
-            val matchedPrefix: String?
+            val matchedPrefix: String?,
+            val fromAllCandidates: Boolean
         ) : CommitBottomCandidate()
     }
 
@@ -85,12 +84,66 @@ class T9CandidateUiSnapshotPipeline(
         candidateMatchesPrefix = candidateMatchesPrefix
     )
     private val pinyinRowWindow = T9PinyinRowWindow()
+    private val stateBuilder = T9CandidateUiStateBuilder(object : T9CandidateUiStateBuilder.Pipeline {
+        override fun buildSmartEnglishPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates =
+            sourceSessions.buildSmartEnglishPaged(data)
+
+        override fun buildT9PendingPunctuationPaged(
+            data: FcitxEvent.PagedCandidateEvent.Data
+        ): T9PagedCandidates = sourceSessions.buildPendingPunctuationPaged(data)
+
+        override fun resetT9BulkFilterState() {
+            sourceSessions.resetChineseBulkFilterState()
+        }
+
+        override fun requestT9BulkFilteredCandidatesIfNeeded(
+            chineseT9Active: Boolean,
+            prefixes: List<String>
+        ) {
+            requestBulkCandidates(chineseT9Active, prefixes)
+        }
+
+        override fun getT9BulkFilterState(): ChineseT9CandidatePipeline.BulkFilterState =
+            sourceSessions.chineseBulkFilterState
+
+        override fun filterPagedByT9PinyinPrefixes(
+            data: FcitxEvent.PagedCandidateEvent.Data,
+            prefixes: List<String>
+        ): Pair<T9PagedCandidates, String?> =
+            sourceSessions.filterChinesePagedByPinyinPrefixes(data, prefixes)
+
+        override fun buildLocalBudgetedPagedFromCurrentPage(
+            data: FcitxEvent.PagedCandidateEvent.Data
+        ): T9PagedCandidates? = sourceSessions.buildChineseLocalBudgetedPagedFromCurrentPage(data)
+
+        override fun resetT9LocalBudgetState() {
+            sourceSessions.resetChineseLocalBudgetState()
+        }
+
+        override fun buildT9CursorContextSignature(
+            preedit: CharSequence,
+            prefixes: List<String>
+        ): String = sourceSessions.buildChineseCursorContextSignature(preedit, prefixes)
+
+        override fun applyT9HanziCursor(
+            data: FcitxEvent.PagedCandidateEvent.Data,
+            cursorContextSignature: String
+        ): FcitxEvent.PagedCandidateEvent.Data =
+            sourceSessions.applyChineseHanziCursor(data, cursorContextSignature)
+
+        override fun getT9PresentationState(key: ChineseT9PresentationSnapshotKey): T9PresentationState =
+            getPresentationState.invoke(key)
+
+        override fun clearHiddenChineseT9CompositionIfCandidateUiSuppressed() {
+            clearHiddenComposition.invoke()
+        }
+    })
 
     val shownSource: ShownSource
         get() = sourceSessions.shownSource
 
-    val ownsCurrentShownState: Boolean
-        get() = sourceSessions.ownsCurrentShownState
+    val currentShownSnapshot: ShownSnapshot?
+        get() = sourceSessions.currentShownSnapshot
 
     val hasCurrentBottomCandidateRow: Boolean
         get() = sourceSessions.hasCurrentBottomCandidateRow
@@ -106,6 +159,16 @@ class T9CandidateUiSnapshotPipeline(
 
     val chineseBulkFilterState: ChineseT9CandidatePipeline.BulkFilterState
         get() = sourceSessions.chineseBulkFilterState
+
+    fun build(input: T9CandidateUiInputSnapshot): T9CandidateUiSnapshot? =
+        stateBuilder.build(input)?.also { snapshot ->
+            sourceSessions.updateShownState(
+                source = snapshot.interactionState.shownSource,
+                paged = snapshot.shownState.paged,
+                originalIndices = snapshot.shownState.originalIndices,
+                matchedPrefix = snapshot.shownState.matchedPrefix
+            )
+        }
 
     fun reset() {
         sourceSessions.reset()
@@ -211,19 +274,15 @@ class T9CandidateUiSnapshotPipeline(
         sourceSessions.buildPendingPunctuationPaged(data)
 
     fun updateShownState(
+        source: ShownSource,
         paged: FcitxEvent.PagedCandidateEvent.Data,
         originalIndices: IntArray,
-        usesSmartEnglish: Boolean,
-        usesPendingPunctuation: Boolean,
-        usesBulkSelection: Boolean,
         matchedPrefix: String?
     ): ShownSnapshot {
         return sourceSessions.updateShownState(
+            source = source,
             paged = paged,
             originalIndices = originalIndices,
-            usesSmartEnglish = usesSmartEnglish,
-            usesPendingPunctuation = usesPendingPunctuation,
-            usesBulkSelection = usesBulkSelection,
             matchedPrefix = matchedPrefix
         )
     }

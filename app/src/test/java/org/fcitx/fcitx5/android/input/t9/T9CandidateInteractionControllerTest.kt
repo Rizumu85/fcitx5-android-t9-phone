@@ -41,7 +41,6 @@ class T9CandidateInteractionControllerTest {
 
         assertEquals(true, handled)
         assertEquals(listOf(21), host.punctuationPreviews)
-        assertEquals(1, host.appliedPages.size)
         assertEquals(1, host.refreshCount)
     }
 
@@ -58,7 +57,7 @@ class T9CandidateInteractionControllerTest {
         val handled = T9CandidateInteractionController(pipeline, host).commitBottomCandidate()
 
         assertEquals(true, handled)
-        assertEquals(listOf(FakeHost.BulkSelection(30, "给", "ge")), host.bulkSelections)
+        assertEquals(listOf(FakeHost.ChineseSelection(30, "给", "ge", true)), host.chineseSelections)
     }
 
     @Test
@@ -86,11 +85,9 @@ class T9CandidateInteractionControllerTest {
             widthBudget = { null }
         ).also {
             it.updateShownState(
+                source = source,
                 paged = paged,
                 originalIndices = originalIndices,
-                usesSmartEnglish = source == T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH,
-                usesPendingPunctuation = source == T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION,
-                usesBulkSelection = source == T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK,
                 matchedPrefix = matchedPrefix
             )
         }
@@ -110,18 +107,19 @@ class T9CandidateInteractionControllerTest {
         )
 
     private class FakeHost : T9CandidateInteractionController.Host {
-        data class BulkSelection(
+        data class ChineseSelection(
             val originalIndex: Int,
             val text: String,
-            val matchedPrefix: String?
+            val matchedPrefix: String?,
+            val fromAllCandidates: Boolean
         )
 
         val smartEnglishSelections = mutableListOf<Int>()
         val smartEnglishCommits = mutableListOf<Int>()
         val punctuationCommits = mutableListOf<Int>()
         val punctuationPreviews = mutableListOf<Int>()
-        val appliedPages = mutableListOf<T9PagedCandidates>()
-        val bulkSelections = mutableListOf<BulkSelection>()
+        val chineseSelections = mutableListOf<ChineseSelection>()
+        val enginePageOffsets = mutableListOf<Int>()
         var refreshCount = 0
 
         override fun setSmartEnglishCandidateIndex(originalIndex: Int): Boolean {
@@ -144,20 +142,27 @@ class T9CandidateInteractionControllerTest {
             return true
         }
 
-        override fun applyShownPage(shown: T9PagedCandidates) {
-            appliedPages += shown
-        }
-
         override fun refreshT9Ui() {
             refreshCount += 1
         }
 
-        override fun selectBulkCandidate(
+        override fun offsetEngineCandidatePage(delta: Int): Boolean {
+            enginePageOffsets += delta
+            return true
+        }
+
+        override fun selectChineseCandidate(
             originalIndex: Int,
             selectedCandidate: FcitxEvent.Candidate,
-            matchedPrefix: String?
+            matchedPrefix: String?,
+            fromAllCandidates: Boolean
         ): Boolean {
-            bulkSelections += BulkSelection(originalIndex, selectedCandidate.text, matchedPrefix)
+            chineseSelections += ChineseSelection(
+                originalIndex,
+                selectedCandidate.text,
+                matchedPrefix,
+                fromAllCandidates
+            )
             return true
         }
     }
