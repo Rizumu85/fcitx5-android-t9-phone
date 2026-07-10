@@ -111,6 +111,11 @@ class DataDescriptorPlugin : Plugin<Project> {
         private fun deserialize(): Map<String, String> =
             json.decodeFromString<DataDescriptor>(file.readText()).files
 
+        private fun isExcluded(path: String): Boolean =
+            excludes.get().any { excluded ->
+                path == excluded || path.startsWith("$excluded/")
+            }
+
         companion object {
             fun sha256(file: File): String =
                 ByteSource.wrap(file.readBytes()).hash(Hashing.sha256()).toString()
@@ -141,7 +146,7 @@ class DataDescriptorPlugin : Plugin<Project> {
                 logger.log(LogLevel.DEBUG, "${change.changeType}: ${change.normalizedPath}")
                 val relativeFile = change.file.relativeTo(file.parentFile)
                 val key = relativeFile.path.replace(File.separatorChar, '/')
-                if (change.changeType == ChangeType.REMOVED || key in excludes.get()) {
+                if (change.changeType == ChangeType.REMOVED || isExcluded(key)) {
                     map.remove(key)
                 } else {
                     map[key] = sha256(change.file)
@@ -149,8 +154,12 @@ class DataDescriptorPlugin : Plugin<Project> {
             }
             // calculate dirs
             inputDir.asFileTree.forEach {
-                it.relativeTo(file.parentFile).allParents().forEach { p ->
-                    map[p.path] = ""
+                val key = it.relativeTo(file.parentFile).path.replace(File.separatorChar, '/')
+                if (!isExcluded(key)) {
+                    it.relativeTo(file.parentFile).allParents().forEach { p ->
+                        val parent = p.path.replace(File.separatorChar, '/')
+                        if (!isExcluded(parent)) map[parent] = ""
+                    }
                 }
             }
             serialize(map.toSortedMap(), symlinks.get())

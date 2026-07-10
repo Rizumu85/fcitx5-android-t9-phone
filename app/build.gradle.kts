@@ -72,6 +72,11 @@ fcitxComponent {
     installPrebuiltAssets = true
 }
 
+generateDataDescriptor {
+    // English T9 reads directly from APK assets; native data installation must not copy it.
+    excludes.add("t9")
+}
+
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }

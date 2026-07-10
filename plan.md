@@ -390,7 +390,7 @@ otherwise.
   gate Chinese engine operations by readiness and composition generation.
 - [x] Lazily materialize keyboard layouts and picker catalogs, and move sound
   decoding after the first visible input-surface frame.
-- [ ] Add an interrupted-install-safe DataManager fingerprint fast path and
+- [x] Add an interrupted-install-safe DataManager fingerprint fast path and
   exclude Android-only T9 assets from native installation.
 - [ ] Produce local selection frames and atomic punctuation-source transitions
   instead of broad candidate UI resets.

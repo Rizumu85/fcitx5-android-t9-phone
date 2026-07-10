@@ -736,3 +736,16 @@ layout, picker windows and their large catalogs materialize only when opened,
 and SoundPool decoding is scheduled after the first visible input frame. A key
 pressed before a sound sample is ready intentionally has no sound rather than
 paying decoder initialization on the input path.
+
+The Data Installation Module now persists a completed fingerprint only after
+the merged descriptor has been written atomically. The fingerprint combines
+the app data descriptor, the merged descriptor, and canonical installed-plugin
+package identities, and also carries the loaded plugin metadata needed by
+native startup. An unchanged process start therefore avoids plugin XML and
+asset descriptor parsing, hierarchy construction, file diffing, copies, and
+descriptor rewrites. A missing/corrupt marker, interrupted write, app data
+change, or plugin install/update/removal takes the full path. Failed plugin
+outcomes intentionally do not authorize the fast path so transient failures
+are retried rather than made sticky. English T9 dictionaries remain APK assets
+for `AssetManager` lookup but are excluded as a directory from the native data
+descriptor, removing a redundant multi-megabyte install copy.

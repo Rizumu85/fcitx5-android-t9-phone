@@ -9,6 +9,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.AssetManager
 import android.os.Build
+import android.os.SystemClock
+import android.util.AtomicFile
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.fcitx.fcitx5.android.BuildConfig
@@ -16,9 +18,11 @@ import org.fcitx.fcitx5.android.core.data.DataManager.dataDir
 import org.fcitx.fcitx5.android.utils.FileUtil
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.isJavaIdentifier
+import org.fcitx.fcitx5.android.utils.versionCodeCompat
 import org.xmlpull.v1.XmlPullParser
 import timber.log.Timber
 import java.io.File
+import java.io.FileNotFoundException
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -52,6 +56,14 @@ object DataManager {
         return json.encodeToString(descriptor)
     }
 
+    private fun deserializeInstallationState(raw: String): DataInstallationState {
+        return json.decodeFromString<DataInstallationState>(raw)
+    }
+
+    private fun serializeInstallationState(state: DataInstallationState): String {
+        return json.encodeToString(state)
+    }
+
     // If Android version supports direct boot, we put the hierarchy in device encrypted storage
     // instead of credential encrypted storage so that data can be accessed before user unlock
     val dataDir: File = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -66,6 +78,21 @@ object DataManager {
             .bufferedReader()
             .use { it.readText() }
             .let { deserializeDataDescriptor(it) }
+    }
+
+    private fun File.readAtomicText(): String =
+        AtomicFile(this).openRead().bufferedReader().use { it.readText() }
+
+    private fun File.writeAtomicText(value: String) {
+        val atomicFile = AtomicFile(this)
+        val stream = atomicFile.startWrite()
+        try {
+            stream.write(value.toByteArray())
+            atomicFile.finishWrite(stream)
+        } catch (error: Throwable) {
+            atomicFile.failWrite(stream)
+            throw error
+        }
     }
 
     private val loadedPlugins = mutableSetOf<PluginDescriptor>()
@@ -84,34 +111,57 @@ object DataManager {
     fun addOnNextSyncedCallback(block: () -> Unit) =
         callbacks.add(block)
 
-    fun detectPlugins(): PluginSet {
-        val toLoad = mutableSetOf<PluginDescriptor>()
-        val preloadFailed = mutableMapOf<String, PluginLoadFailed>()
-
+    private fun pluginPackageNames(): List<String> {
         val pm = appContext.packageManager
-
-        val pluginPackages = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             pm.queryIntentActivities(
                 Intent(PLUGIN_INTENT),
                 PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong())
             )
         } else {
             pm.queryIntentActivities(Intent(PLUGIN_INTENT), PackageManager.MATCH_ALL)
-        }.map {
-            it.activityInfo.packageName
-        }
+        }.map { it.activityInfo.packageName }.distinct().sorted()
+    }
 
-        Timber.d("Detected plugin packages: ${pluginPackages.joinToString()}")
+    private fun discoverPluginPackages(): List<PluginPackageIdentity> {
+        val pm = appContext.packageManager
+        return pluginPackageNames().mapNotNull { packageName ->
+            runCatching {
+                val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0L))
+                } else {
+                    pm.getPackageInfo(packageName, 0)
+                }
+                PluginPackageIdentity(
+                    packageName = packageName,
+                    versionCode = info.versionCodeCompat,
+                    lastUpdateTime = info.lastUpdateTime
+                )
+            }.onFailure {
+                Timber.w(it, "Plugin package disappeared while discovering $packageName")
+            }.getOrNull()
+        }.canonicalOrder()
+    }
+
+    fun detectPlugins(): PluginSet = detectPlugins(discoverPluginPackages())
+
+    private fun detectPlugins(pluginPackages: List<PluginPackageIdentity>): PluginSet {
+        val toLoad = mutableSetOf<PluginDescriptor>()
+        val preloadFailed = mutableMapOf<String, PluginLoadFailed>()
+
+        val pm = appContext.packageManager
+
+        Timber.d("Detected plugin packages: ${pluginPackages.joinToString { it.packageName }}")
 
         // Parse plugin.xml
-        for (packageName in pluginPackages) {
+        for ((packageName) in pluginPackages) {
             val res = pm.getResourcesForApplication(packageName)
 
             @SuppressLint("DiscouragedApi")
             val resId = res.getIdentifier("plugin", "xml", packageName)
             if (resId == 0) {
                 Timber.w("Failed to get the plugin descriptor of $packageName")
-                failedPlugins[packageName] = PluginLoadFailed.MissingPluginDescriptor
+                preloadFailed[packageName] = PluginLoadFailed.MissingPluginDescriptor
                 continue
             }
             val parser = res.getXml(resId)
@@ -178,22 +228,63 @@ object DataManager {
         return PluginSet(toLoad, preloadFailed)
     }
 
+    private fun completeSync() {
+        callbacks.forEach { it() }
+        callbacks.clear()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            // Device-protected storage is authoritative; stale credential data must not win later.
+            val oldDataDir = appContext.dataDir
+            val oldDataDescriptor = oldDataDir.resolve(BuildConfig.DATA_DESCRIPTOR_NAME)
+            if (oldDataDescriptor.exists()) {
+                oldDataDescriptor.delete()
+                oldDataDir.resolve("README.md").delete()
+                oldDataDir.resolve("usr").deleteRecursively()
+            }
+        }
+        synced = true
+    }
+
     fun sync() = lock.withLock {
+        val startedAtNanos = SystemClock.elapsedRealtimeNanos()
         synced = false
         loadedPlugins.clear()
         failedPlugins.clear()
 
         val destDescriptorFile = File(dataDir, BuildConfig.DATA_DESCRIPTOR_NAME)
-
-        // load last run's data descriptor
-        val oldDescriptor = destDescriptorFile
-            .runCatching { deserializeDataDescriptor(bufferedReader().use { it.readText() }) }
-            .getOrElse { DataDescriptor("", emptyMap(), emptyMap()) }
+        val installationStateFile = File(dataDir, "${BuildConfig.DATA_DESCRIPTOR_NAME}.installed")
 
         // load app's data descriptor
         val mainDescriptor = appContext.assets.getDataDescriptor()
+        val pluginPackages = discoverPluginPackages()
 
-        val (parsedDescriptors, failed) = detectPlugins()
+        // load last run's data descriptor
+        val oldDescriptor = destDescriptorFile
+            .runCatching { deserializeDataDescriptor(readAtomicText()) }
+            .getOrNull()
+
+        val completedState = installationStateFile
+            .runCatching { deserializeInstallationState(readAtomicText()) }
+            .getOrNull()
+
+        if (oldDescriptor != null && completedState?.canReuse(
+                mainDescriptorSha256 = mainDescriptor.sha256,
+                mergedDescriptorSha256 = oldDescriptor.sha256,
+                pluginPackages = pluginPackages
+            ) == true
+        ) {
+            loadedPlugins.addAll(completedState.restoredPlugins())
+            completeSync()
+            Timber.i(
+                "Data installation fast path completed in %.2f ms",
+                (SystemClock.elapsedRealtimeNanos() - startedAtNanos) / 1_000_000.0
+            )
+            return@withLock
+        }
+
+        // Only a fully completed install may authorize the next cold-start fast path.
+        AtomicFile(installationStateFile).delete()
+
+        val (parsedDescriptors, failed) = detectPlugins(pluginPackages)
         failedPlugins.putAll(failed)
 
         Timber.d("Plugins to load: $parsedDescriptors")
@@ -209,9 +300,14 @@ object DataManager {
         for (plugin in parsedDescriptors) {
             val pluginContext = appContext.createPackageContext(plugin.packageName, 0)
             val assets = pluginContext.assets
-            val descriptor = runCatching { assets.getDataDescriptor() }.onFailure {
+            val descriptor = runCatching { assets.getDataDescriptor() }.onFailure { error ->
                 Timber.w("Failed to get or decode data descriptor of '${plugin.name}'")
-                Timber.w(it)
+                Timber.w(error)
+                failedPlugins[plugin.packageName] = if (error is FileNotFoundException) {
+                    PluginLoadFailed.MissingDataDescriptor(plugin)
+                } else {
+                    PluginLoadFailed.DataDescriptorParseError(plugin)
+                }
             }.getOrNull() ?: continue
             try {
                 newHierarchy.install(descriptor, FileSource.Plugin(plugin))
@@ -235,7 +331,10 @@ object DataManager {
 
         // Compute the difference of the created one and the old one
         // Run actions to migrate to the new hierarchy
-        DataHierarchy.diff(oldDescriptor, newHierarchy).sortedByDescending { it.ordinal }.forEach {
+        DataHierarchy.diff(
+            oldDescriptor ?: DataDescriptor("", emptyMap(), emptyMap()),
+            newHierarchy
+        ).sortedByDescending { it.ordinal }.forEach {
             Timber.d("Action: $it")
             when (it) {
                 is FileAction.CreateFile -> {
@@ -262,24 +361,25 @@ object DataManager {
                 }
             }
         }
-        // save the new hierarchy as the data descriptor to be used in the next run
-        destDescriptorFile.bufferedWriter().use {
-            it.write(serializeDataDescriptor(newHierarchy.downToDataDescriptor()))
+        val mergedDescriptor = newHierarchy.downToDataDescriptor()
+        destDescriptorFile.writeAtomicText(serializeDataDescriptor(mergedDescriptor))
+        if (failedPlugins.isEmpty()) {
+            installationStateFile.writeAtomicText(
+                serializeInstallationState(
+                    DataInstallationState.completed(
+                        mainDescriptorSha256 = mainDescriptor.sha256,
+                        mergedDescriptorSha256 = mergedDescriptor.sha256,
+                        pluginPackages = pluginPackages,
+                        loadedPlugins = loadedPlugins
+                    )
+                )
+            )
         }
-        callbacks.forEach { it() }
-        callbacks.clear()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            // remove old assets from credential encrypted storage
-            val oldDataDir = appContext.dataDir
-            val oldDataDescriptor = oldDataDir.resolve(BuildConfig.DATA_DESCRIPTOR_NAME)
-            if (oldDataDescriptor.exists()) {
-                oldDataDescriptor.delete()
-                oldDataDir.resolve("README.md").delete()
-                oldDataDir.resolve("usr").deleteRecursively()
-            }
-        }
-        synced = true
-        Timber.d("Synced")
+        completeSync()
+        Timber.i(
+            "Full data installation completed in %.2f ms",
+            (SystemClock.elapsedRealtimeNanos() - startedAtNanos) / 1_000_000.0
+        )
     }
 
     private fun removePath(path: String) =
@@ -299,7 +399,8 @@ object DataManager {
 
     fun deleteAndSync() {
         lock.withLock {
-            dataDir.resolve(BuildConfig.DATA_DESCRIPTOR_NAME).delete()
+            AtomicFile(dataDir.resolve(BuildConfig.DATA_DESCRIPTOR_NAME)).delete()
+            AtomicFile(dataDir.resolve("${BuildConfig.DATA_DESCRIPTOR_NAME}.installed")).delete()
             dataDir.resolve("README.md").delete()
             dataDir.resolve("usr").deleteRecursively()
         }

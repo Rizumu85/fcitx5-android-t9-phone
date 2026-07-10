@@ -505,6 +505,14 @@ missing completion marker, or interrupted install uses the existing complete
 diff-and-copy implementation. Android-only T9 dictionary assets do not enter
 the native installation plan.
 
+The completion record and merged descriptor use atomic replacement. The record
+contains the canonical plugin package version/update identities and the loaded
+plugin metadata required to start native Fcitx, so the fast path does not need
+to reopen plugin resources. It is created only when every discovered plugin
+has a successful installation outcome. The data-descriptor build Module treats
+an excluded directory as a subtree, allowing `t9/` to stay in the APK while
+remaining absent from the native filesystem hierarchy.
+
 Local candidate selection produces a render-ready selection frame from the T9
 Candidate UI Snapshot Pipeline. Content and geometry remain untouched when
 only the cursor changes. T9 Punctuation Lifecycle replaces one candidate
