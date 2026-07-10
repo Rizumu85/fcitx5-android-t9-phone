@@ -243,8 +243,8 @@ otherwise.
   configured-scheme cycle, and Pinyin idle `1` literal input.
 - [x] Migrate the replacement key contract through semantic flow commands and
   delete the old idle-short-`#` cycle branch.
-- [x] Add `T9ZhuyinResolver`, automatic syllable segmentation, shared reading
-  options, and a ticketed non-interactive no-match state.
+- [x] Add `T9ZhuyinResolver`, bounded legal-sequence validation, and a ticketed
+  non-interactive no-match state.
 - [x] Add `T9StrokeCodec` and a reproducible curated Stroke dictionary generator
   that rejects non-Han components before Rime compilation.
 - [x] Add system fallback for unsupported custom-font glyph runs and make text
@@ -263,3 +263,14 @@ otherwise.
   portable BMP candidates fill early pages.
 - [x] Add source-mapping and generator regression tests, remove diagnostic
   logging, rebuild/deploy, and repeat the device sweep.
+
+## Zhuyin Candidate Presentation Follow-up
+
+- [x] Sweep all 100 two-key codes on-device and compare local validity with
+  settled Rime candidate availability.
+- [x] Remove speculative local reading paths and the parallel Zhuyin filter row;
+  make the focused Rime candidate own the top preview.
+- [x] Normalize apostrophe-separated candidate comments and fix the Rime schema
+  transforms that left Latin fragments in phrase readings.
+- [x] Add focused resolver, presentation, snapshot, and source-planner tests.
+- [x] Run the full unit suite, rebuild/install debug, and repeat final device QA.

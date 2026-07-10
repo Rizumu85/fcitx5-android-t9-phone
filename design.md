@@ -177,10 +177,10 @@ snapshot. It emits the existing forwarding and candidate commands according to
 the scheme contract. The reducer remains O(1): it does not query Rime, read a
 dictionary, build candidates, or measure views.
 
-Pinyin publishes its top reading and reading-filter row. Zhuyin publishes the
-same generic reading-row contract from a local legal-syllable resolver rather
-than fabricating Pinyin state or waiting for a candidate comment. Stroke
-publishes only its deterministic code preview. Their Hanzi candidates, numeric
+Pinyin publishes its top reading and reading-filter row. Zhuyin publishes a
+candidate-driven top preview without a reading-filter row; its grouped digits
+do not identify one honest local transcription before Rime ranks the Hanzi
+candidates. Stroke publishes only its deterministic code preview. Their Hanzi candidates, numeric
 shortcut labels, paging, focus, width budgeting, and punctuation follow-up
 reuse the T9 Candidate UI Snapshot Pipeline unchanged.
 
@@ -195,9 +195,9 @@ The Rime data Adapter provides two schemas:
   translator path. Wildcard combinations are never compiled into the prism.
 - `t9_zhuyin` converts `rime_ice` Pinyin spellings to Zhuyin, then collapses
   symbols into the agreed `0..9` phone groups. Candidate comments are formatted
-  back to Zhuyin. A local `T9ZhuyinResolver` owns immediate legal reading paths
-  and automatic syllable boundaries; comments only rerank or validate those
-  paths and never serve as the first-frame parser.
+  back to Zhuyin and preserve Rime's apostrophe syllable separators. A local
+  `T9ZhuyinResolver` validates whether at least one legal segmentation exists;
+  the focused candidate comment remains the sole reading presentation source.
 
 Both schemas use the existing Rime candidate engine and user dictionary. There
 is no Android-side dictionary scan or parallel candidate renderer. The existing
@@ -209,8 +209,9 @@ Candidate readiness is also scheme-owned. Pinyin validates Latin candidate
 readings, Stroke validates the rendered stroke preedit, and Zhuyin validates
 Bopomofo comments against the phone groups. This keeps stale frames out without
 forcing non-Pinyin candidates through Pinyin inference. Only Pinyin uses the
-bulk prefix-filter session; Stroke and Zhuyin use the shared local page budget
-directly, avoiding an unnecessary asynchronous fetch before their first frame.
+bulk prefix-filter session. Stroke uses the shared local page budget directly;
+valid Zhuyin waits for its ticket-matched engine frame, then uses that same
+local paging path without a second cross-page reading filter.
 
 The local pager and Pinyin bulk loader have independent reset semantics. A bulk
 reset must not erase a raw scheme's local page/cache; the complete candidate
@@ -279,19 +280,25 @@ validation. It does not load Hanzi candidates. The generated Rime table is
 validated before packaging, so runtime candidate code does not retain a second
 non-Han filtering path.
 
-`T9ZhuyinResolver` builds a compact immutable index from legal toneless
-syllables. Lookup accepts partial final syllables, automatically segments prior
-complete syllables, bounds the number of retained paths, and returns a stable
-snapshot keyed only by raw digits. Candidate comments may move a matching path
-to the front without changing the underlying path set. Resolver work is
-independent of the Hanzi dictionary size and remains synchronous on key input.
+`T9ZhuyinResolver` builds compact immutable complete-code and prefix-code sets
+from legal toneless syllables. Lookup accepts a partial final syllable and uses
+bounded dynamic programming to answer only whether at least one legal
+segmentation exists. It never materializes or ranks reading paths. Results are
+cached by raw digits, remain independent of Hanzi dictionary size, and are safe
+for synchronous key validation.
 
 A resolver result has exactly three presentation states:
 
-- valid: selected Bopomofo reading, reading options, and a candidate ticket;
-- pending engine data: the valid local reading remains visible without a
-  no-match label;
+- valid: no speculative preview; wait for the matching candidate ticket;
+- pending engine data: preserve the prior atomic frame rather than publishing
+  a guessed reading or no-match label;
 - invalid: honest raw digits plus a localized, non-focusable no-match row.
+
+Once a valid Rime frame arrives, its focused candidate owns the top preview.
+Zhuyin comments are normalized across apostrophe or whitespace syllable
+boundaries; a candidate with no comment may preview its visible text, such as
+an emoji. Focus movement and preview therefore consume one candidate snapshot
+instead of reconciling an independent local reading selection.
 
 Late Rime events must match the composition ticket before replacing a valid or
 invalid state. An invalid state never exposes OK, numeric shortcut, or paging

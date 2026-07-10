@@ -378,28 +378,34 @@ font fallback remains independently necessary for legitimate rare Han
 ideographs and must be shared by text measurement and rendering.
 
 Zhuyin has the opposite shape: each digit represents several symbols, while
-the set of legal toneless Mandarin syllables is small. The current UI waits for
-an asynchronous Rime candidate comment and otherwise expands every key into a
-whole symbol group, producing a long ambiguous preview and sometimes no Hanzi
-row. A local `T9ZhuyinResolver` should synchronously map the digit sequence to
-bounded legal reading paths, infer syllable boundaries, and publish the
-selected reading plus reading-filter options. Rime remains responsible for
-Hanzi words, frequency, learning, and commit.
+the set of legal toneless Mandarin syllables is small. A local resolver is
+still useful for rejecting impossible digit sequences immediately, but it must
+not guess which legal reading the user intended. The first resolver version
+enumerated and alphabetically selected reading paths. Device evidence showed
+that this produced a parallel and misleading UI: code `38` briefly displayed
+`ㄍㄞ` while Rime's focused candidate was `好 / ㄏㄠ`, and `2038` displayed
+`ㄉㄧ ㄍㄞ` while the focused phrase was `你好 / ㄋㄧ'ㄏㄠ`.
 
-The referenced TT9 Bopomofo build does not contain such a resolver. It enables
-upstream TT9's hidden mode, whose dedicated phrase dictionary stores each word
-with a concatenated Latin transcription and frequency. Phrase lookup therefore
-infers boundaries only when the full sequence exists in that dictionary; when
-continuation disappears TT9 may accept the previous suggestion. This project
-must not copy that eager-commit behavior. Missing Rime words leave composition
-editable until explicit confirmation.
+An exhaustive device sweep of all 100 two-key codes found no disagreement
+between local legal-sequence validation and settled Rime candidate
+availability. The defect was therefore presentation ownership, not the phone
+key map. Normal predictive Zhuyin now waits for the ticket-matched Rime frame,
+uses the focused candidate comment as the top preview, and exposes no permanent
+reading-filter row. The local resolver only answers valid or invalid in O(n)
+with bounded syllable lookahead. Invalid input retains its digits and shows a
+non-interactive no-match state; valid input never flashes a speculative local
+reading.
 
-When the local resolver proves that a sequence has no legal Zhuyin path, the
-new digit remains in raw composition, the top row shows the honest digit
-sequence, and a non-interactive localized no-match state replaces the Hanzi
-row. It is distinct from dictionary loading and can never appear while a valid
-candidate generation is merely pending. Backspace restores the prior valid
-reading immediately; `#` does not commit an invalid internal digit code.
+The TT9 Bopomofo branch supports this ownership boundary: normal predictive
+mode presents ideogram candidates, while transcription filtering is a separate
+interaction rather than an always-visible row. This project keeps explicit
+confirmation and does not copy TT9's eager continuation acceptance.
+
+The device sweep also found a separate Rime formatting defect. Phrase comments
+use apostrophes between syllables, but `t9_zhuyin` treated only spaces as regex
+boundaries. That left Latin `y` and `w` fragments in 232 observed comments.
+Every comment transform now recognizes both separators, and the repeated
+100-code sweep produced 10,704 candidate comments with zero Latin fragments.
 
 ### Device-dependent Stroke glyph coverage
 
