@@ -36,6 +36,24 @@ synchronized measurements in the hot path distort low-end-device results. A
 complete trace is published only when the same generation reaches the frame
 callback; stale callbacks cannot complete a newer input.
 
+Performance work proceeds through six deep Modules rather than scattered local
+micro-optimizations:
+
+1. Input latency trace owns generation identity and stage aggregation.
+2. Smart English persistence owns immutable in-memory snapshots and serialized
+   asynchronous writes; lookup and commit paths perform no filesystem work.
+3. Physical T9 state capture owns mode-specific snapshots and reads only fields
+   required by the active mode plus shared selection state.
+4. Candidate refresh generation owns source acceptance, snapshot publication,
+   render completion, and stale callback rejection.
+5. Candidate surface geometry owns measured observations and publishes one
+   frame geometry decision per generation.
+6. Chinese engine operations own serialized Fcitx submission, composition
+   tickets, result acceptance, and the resulting UI action.
+
+These Modules keep the existing visual and key contracts. Their purpose is
+locality and predictable hot-path cost, not another candidate UI design.
+
 English case uses one short-press cycle (`abc`, `Abc`, `ABC`) so long `1`
 remains the first candidate shortcut. Text-mode `*` owns a complete ordered
 interaction: commit the pending word or Chinese candidate without adding a

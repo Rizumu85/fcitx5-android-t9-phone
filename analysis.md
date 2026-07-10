@@ -516,6 +516,32 @@ mode. The normal responsiveness setting should use the lower-overhead
 transaction trace so the measurement mechanism does not materially create the
 latency it is intended to observe.
 
+The follow-up performance rollout has six bounded slices. After the baseline,
+Smart English persistence must stop reading file metadata or writing complete
+files from the synchronous input lifecycle. Physical key state collection must
+read only the active mode's state instead of materializing Chinese, English,
+and candidate snapshots for every key. Candidate refresh generations must own
+their complete source-to-frame lifecycle so delayed callbacks cannot publish or
+complete a newer frame. Geometry measurement and frame publication must have a
+single owner rather than independent view callbacks. Finally, Chinese engine
+operations must expose one serialized operation interface instead of spreading
+ticket checks, Fcitx jobs, and UI refresh decisions through the service.
+
+Each slice replaces its old path. The rollout must not retain a synchronous
+persistence fallback, a broad all-mode state snapshot, a parallel refresh
+scheduler, duplicate geometry observations, or direct service-side Chinese
+operation sequencing after the replacement Module is verified.
+
+Target-phone Zhuyin baseline, using ADB keyboard events against an editable
+candidate surface, produced 20 completed generations with no replacements. At
+600 ms key spacing the pre-refactor sample was average 91.86 ms, p50 88.76 ms,
+p95 133.54 ms, maximum 187.55 ms. A 200 ms warm burst measured average 70.78
+ms and p95 85.52 ms. After the six architecture slices, the 600 ms smoke run
+measured average 93.07 ms, p50 81.20 ms, and p95 117.31 ms, with one 294.91 ms
+cold/outlier frame. The architectural work therefore reduced typical tail
+latency without claiming an improvement from the isolated maximum; future
+optimization should target snapshot and render stages, which still dominate.
+
 ### Device-dependent Stroke glyph coverage
 
 The curated dictionary removed non-Han components, but a two-key device sweep

@@ -337,3 +337,19 @@ otherwise.
   rejection, percentile summaries, and disabled tracing.
 - [x] Run focused tests, build/install debug, and leave the partial-window report
   ready for a real physical-key baseline before setting performance budgets.
+
+## Performance-First Architecture Rollout
+
+- [x] Make ADB-paced input produce repeatable end-to-end trace samples and
+  record normal/burst baseline results.
+- [x] Move Smart English learned-word and pair persistence off the synchronous
+  input path behind one serialized persistence Module.
+- [x] Replace broad Physical T9 state collection with active-mode snapshots.
+- [x] Make one candidate refresh generation own source acceptance through frame
+  completion and delete replaced parallel refresh ownership.
+- [x] Centralize measured candidate geometry and frame lifecycle without
+  changing the accepted bubble design.
+- [x] Move Chinese Fcitx submission, ticket acceptance, and UI outcomes behind
+  one serialized engine-operation Module.
+- [x] Run focused and full unit tests, build/install debug, capture device
+  performance, then commit and push coherent slices.

@@ -121,6 +121,22 @@ candidate came from active digits or from prediction context. Android-specific
 work remains outside the lifecycle: the controller warms dictionaries and the
 IME service commits text and refreshes candidate UI through adapter callbacks.
 
+### Smart English Persistence
+
+The persistence Module shared by runtime prediction and dictionary-management
+screens. Learned words and learned word pairs become visible through immutable
+in-memory snapshots immediately, while one serialized background writer
+coalesces newer generations and atomically replaces the persisted file. Input
+and candidate lookup Interfaces must not read file metadata or perform writes.
+
+### Physical T9 State Capture
+
+The mode-aware snapshot Module between the platform Adapter and Physical T9 Key
+Flow. It captures the active mode once, reads only that mode's state plus shared
+selection/punctuation state, and supplies one internally consistent flow
+snapshot. Number and simple-English input must not query Chinese candidate
+presentation; Chinese input must not query Smart English sessions.
+
 ### T9 Punctuation Lifecycle
 
 The T9 punctuation lifecycle covers pending punctuation state, Chinese versus
@@ -252,6 +268,22 @@ individual source pagers, shortcut original-index mapping, bulk-filter state,
 or currently shown owned-row session. Keeping those sessions behind one
 internal Module prevents interaction fixes from spreading across the snapshot
 builder, Android view adapter, and per-source candidate implementations.
+
+### T9 Candidate Refresh Generation
+
+One candidate refresh request from scheduling through snapshot/render/frame
+completion. It owns a monotonic generation ID and the matching responsiveness
+trace ID. Cancelled or replaced callbacks cannot consume a newer request, and
+render code must not look up a different active input generation midway through
+the frame.
+
+### Chinese T9 Engine Operation
+
+The serialized operation Module for Chinese Fcitx work. It submits physical
+key forwarding, pinyin mirroring, candidate selection, bulk candidate reads,
+and composition replay through the same queue. Ticket-sensitive operations are
+accepted on the owner thread before execution and revalidated before their UI
+effects are published.
 
 `T9CandidateUiStateBuilder` and `T9CandidateSourceSessions` are internal
 Implementation details of the snapshot pipeline. Callers submit one stable
