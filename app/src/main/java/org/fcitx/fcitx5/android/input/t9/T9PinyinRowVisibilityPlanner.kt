@@ -21,8 +21,7 @@ object T9PinyinRowVisibilityPlanner {
     enum class SetVisibleAction {
         NOOP_READY,
         HIDE_NOW,
-        SYNC_VISIBLE_LAYOUT,
-        WAIT_FOR_LAYOUT,
+        SHOW_NOW,
         WAIT_FOR_WIDTH
     }
 
@@ -48,9 +47,9 @@ object T9PinyinRowVisibilityPlanner {
             return SetVisibleAction.HIDE_NOW
         }
         if (!widthReady) return SetVisibleAction.WAIT_FOR_WIDTH
-        // Product decision: a freshly appearing pinyin row must not draw until its chip views have
-        // received one layout pass. Width readiness alone still allowed a one-frame clipped row.
-        return SetVisibleAction.WAIT_FOR_LAYOUT
+        // The Canvas strip owns complete item geometry before this decision. Once the shared row
+        // width is ready, delaying another layout turn only postpones the atomic surface reveal.
+        return SetVisibleAction.SHOW_NOW
     }
 
     enum class DeferredWidthAction {
@@ -68,15 +67,5 @@ object T9PinyinRowVisibilityPlanner {
             widthReady -> DeferredWidthAction.SHOW_NOW
             else -> DeferredWidthAction.KEEP_WAITING
         }
-
-    fun isRenderedContentReady(
-        expectedDisplayedItemCount: Int,
-        adapterItemCount: Int,
-        laidOutContentWidthPx: Int?
-    ): Boolean =
-        expectedDisplayedItemCount > 0 &&
-            adapterItemCount == expectedDisplayedItemCount &&
-            laidOutContentWidthPx != null &&
-            laidOutContentWidthPx > 0
 
 }

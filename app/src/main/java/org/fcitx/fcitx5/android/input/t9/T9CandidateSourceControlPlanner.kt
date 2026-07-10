@@ -74,7 +74,7 @@ object T9CandidateSourceControlPlanner {
         val chineseActive = input.surface == Surface.CHINESE
         val hasReadingFilter = input.chineseScheme?.supportsReadingFilter == true
         val needsBulkCandidates = when (input.chineseScheme) {
-            ChineseT9Scheme.PINYIN -> true
+            ChineseT9Scheme.PINYIN,
             ChineseT9Scheme.ZHUYIN -> !input.filterPrefixesEmpty
             ChineseT9Scheme.STROKE,
             null -> false

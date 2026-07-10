@@ -8,7 +8,6 @@ package org.fcitx.fcitx5.android.input.t9
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewTreeObserver.OnPreDrawListener
 import android.widget.FrameLayout
 import android.widget.TextView
 
@@ -45,10 +44,8 @@ class T9PinyinRowAndroidAdapter(
     }
 
     private var targetVisible = false
-    private var revealPending = false
-    private var revealPreDrawListener: OnPreDrawListener? = null
+    private var deferredReveal: Runnable? = null
     private var renderedWindowStart = 0
-    private var renderedChipCount = 0
 
     var renderedItems: List<String> = emptyList()
         private set
@@ -90,7 +87,7 @@ class T9PinyinRowAndroidAdapter(
         val widthReady = syncWidthToCandidates()
         setRowHeight(delegate.rowHeightPx)
         if (widthReady && rowWrapper.visibility == View.INVISIBLE) {
-            scheduleReveal()
+            showNow()
         }
         return widthReady
     }
@@ -123,14 +120,9 @@ class T9PinyinRowAndroidAdapter(
         setVisible(false)
     }
 
-    fun removeRevealListener() {
-        revealPreDrawListener?.let { listener ->
-            if (rowWrapper.viewTreeObserver.isAlive) {
-                rowWrapper.viewTreeObserver.removeOnPreDrawListener(listener)
-            }
-        }
-        revealPreDrawListener = null
-        revealPending = false
+    fun cancelPendingReveal() {
+        deferredReveal?.let(rowWrapper::removeCallbacks)
+        deferredReveal = null
     }
 
     fun currentWindowStateForLayout(): T9PinyinRowWindow.VisibleState? =
@@ -151,7 +143,6 @@ class T9PinyinRowAndroidAdapter(
         window.clear()
         renderedWindowStart = 0
         renderedItems = emptyList()
-        renderedChipCount = 0
         usesWindowedDisplay = false
         updateOverflowHint(false)
     }
@@ -177,7 +168,8 @@ class T9PinyinRowAndroidAdapter(
             candidateRowWidthPx = candidateRowWidthPx
         ) ?: run {
             if (updateVisibility) {
-                waitForLayout()
+                waitForWidth()
+                scheduleDeferredReveal()
             }
             return false
         }
@@ -191,10 +183,12 @@ class T9PinyinRowAndroidAdapter(
         val changed = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.submit") {
             chipAdapter.submitList(surfacePlan.displayedItems, surfacePlan.displayedHighlight)
         }
-        renderedChipCount = surfacePlan.displayedItems.size
         val ready = if (updateVisibility) {
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.visibility") {
-                setVisible(true)
+                setVisible(
+                    visible = true,
+                    widthReady = surfacePlan.contentReady && surfacePlan.rowWidthPx != null
+                )
             }
         } else {
             true
@@ -221,6 +215,7 @@ class T9PinyinRowAndroidAdapter(
     }
 
     private fun showNow() {
+        cancelPendingReveal()
         setRowHeight(delegate.rowHeightPx)
         barView.visibility = View.VISIBLE
         rowWrapper.visibility = View.VISIBLE
@@ -229,93 +224,46 @@ class T9PinyinRowAndroidAdapter(
         }
     }
 
-    private fun scheduleReveal() {
-        if (revealPending) return
-        revealPending = true
-        val listener = object : OnPreDrawListener {
-            override fun onPreDraw(): Boolean {
-                if (!targetVisible) {
-                    removeRevealListener()
-                    return true
-                }
-                setRowHeight(delegate.rowHeightPx)
-                if (!isReadyForReveal()) {
-                    delegate.requestCandidateSurfacePositionUpdate()
-                    return true
-                }
-                removeRevealListener()
-                showNow()
-                return true
-            }
-        }
-        revealPreDrawListener = listener
-        rowWrapper.viewTreeObserver.addOnPreDrawListener(listener)
-        rowWrapper.requestLayout()
-        rowWrapper.invalidate()
-    }
-
-    private fun isReadyForReveal(): Boolean {
-        if (!syncWidthToCandidates()) return false
-        if (barView.width <= 0 && barView.measuredWidth <= 0) return false
-        if (rowWrapper.width <= 0 && rowWrapper.measuredWidth <= 0) return false
-        // A focused folded row intentionally renders only the chips that fit its viewport. Reveal
-        // readiness must follow that render plan, not the larger logical option window.
-        return T9PinyinRowVisibilityPlanner.isRenderedContentReady(
-            expectedDisplayedItemCount = renderedChipCount,
-            adapterItemCount = chipAdapter.itemCount,
-            laidOutContentWidthPx = chipAdapter.laidOutContentWidthPx()
-        )
-    }
-
-    private fun waitForLayout() {
+    private fun waitForWidth() {
         targetVisible = true
         resetTransform()
         setRowHeight(delegate.rowHeightPx)
-        // Product requirement: the first pinyin-filter frame must be complete. Keep the row in
-        // layout but invisible until both the Hanzi row width and chip placement are known.
+        // A missing shared width is the only reason to defer the Canvas row. Publishing an
+        // estimated viewport would make the complete candidate surface resize on the next frame.
         barView.visibility = View.INVISIBLE
         rowWrapper.visibility = View.INVISIBLE
     }
 
-    private fun setVisible(visible: Boolean): Boolean {
+    private fun setVisible(visible: Boolean, widthReady: Boolean = false): Boolean {
         val snapshot = visibilitySnapshot()
         val rowAlreadyVisible =
             snapshot.wrapperVisibility == T9PinyinRowVisibilityPlanner.Visibility.VISIBLE &&
                 snapshot.barVisibility == T9PinyinRowVisibilityPlanner.Visibility.VISIBLE
-        val widthReady = visible && !rowAlreadyVisible && syncWidthToCandidates()
+        val resolvedWidthReady = visible && !rowAlreadyVisible &&
+            (widthReady || syncWidthToCandidates())
         val action = T9PinyinRowVisibilityPlanner.planSetVisible(
             requestedVisible = visible,
             snapshot = snapshot,
-            widthReady = widthReady
+            widthReady = resolvedWidthReady
         )
         if (action == T9PinyinRowVisibilityPlanner.SetVisibleAction.NOOP_READY) return true
         targetVisible = visible
 
         return when (action) {
             T9PinyinRowVisibilityPlanner.SetVisibleAction.NOOP_READY -> true
-            T9PinyinRowVisibilityPlanner.SetVisibleAction.SYNC_VISIBLE_LAYOUT ->
-                syncVisibleLayout()
-            T9PinyinRowVisibilityPlanner.SetVisibleAction.WAIT_FOR_LAYOUT,
+            T9PinyinRowVisibilityPlanner.SetVisibleAction.SHOW_NOW -> {
+                targetVisible = true
+                resetTransform()
+                showNow()
+                true
+            }
             T9PinyinRowVisibilityPlanner.SetVisibleAction.WAIT_FOR_WIDTH -> {
-                waitForLayout()
-                rowWrapper.post {
-                    when (T9PinyinRowVisibilityPlanner.planDeferredWidth(
-                        targetVisible = targetVisible,
-                        widthReady = targetVisible && syncWidthToCandidates()
-                    )) {
-                        T9PinyinRowVisibilityPlanner.DeferredWidthAction.SHOW_NOW -> {
-                            setRowHeight(delegate.rowHeightPx)
-                            scheduleReveal()
-                        }
-                        T9PinyinRowVisibilityPlanner.DeferredWidthAction.KEEP_WAITING ->
-                            setRowHeight(delegate.rowHeightPx)
-                        T9PinyinRowVisibilityPlanner.DeferredWidthAction.IGNORE -> Unit
-                    }
-                }
+                waitForWidth()
+                scheduleDeferredReveal()
                 false
             }
             T9PinyinRowVisibilityPlanner.SetVisibleAction.HIDE_NOW -> {
-                removeRevealListener()
+                cancelPendingReveal()
                 chipAdapter.clear()
                 chipAdapter.scrollToStart()
                 renderedItems = emptyList()
@@ -327,6 +275,26 @@ class T9PinyinRowAndroidAdapter(
                 true
             }
         }
+    }
+
+    private fun scheduleDeferredReveal() {
+        if (deferredReveal != null) return
+        val task = Runnable {
+            deferredReveal = null
+            when (T9PinyinRowVisibilityPlanner.planDeferredWidth(
+                targetVisible = targetVisible,
+                widthReady = targetVisible && syncWidthToCandidates()
+            )) {
+                T9PinyinRowVisibilityPlanner.DeferredWidthAction.SHOW_NOW -> showNow()
+                T9PinyinRowVisibilityPlanner.DeferredWidthAction.KEEP_WAITING -> {
+                    setRowHeight(delegate.rowHeightPx)
+                    delegate.requestCandidateSurfacePositionUpdate()
+                }
+                T9PinyinRowVisibilityPlanner.DeferredWidthAction.IGNORE -> Unit
+            }
+        }
+        deferredReveal = task
+        rowWrapper.post(task)
     }
 
     private fun resetTransform() {

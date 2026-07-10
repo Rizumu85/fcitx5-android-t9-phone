@@ -54,14 +54,14 @@ class T9PinyinRowVisibilityPlannerTest {
     }
 
     @Test
-    fun freshShowRequestWaitsForOneLayoutEvenWhenWidthIsReady() {
+    fun freshCanvasRowShowsImmediatelyWhenSharedWidthIsReady() {
         val action = T9PinyinRowVisibilityPlanner.planSetVisible(
             requestedVisible = true,
             snapshot = snapshot(targetVisible = false),
             widthReady = true
         )
 
-        assertEquals(SetVisibleAction.WAIT_FOR_LAYOUT, action)
+        assertEquals(SetVisibleAction.SHOW_NOW, action)
     }
 
     @Test
@@ -71,26 +71,6 @@ class T9PinyinRowVisibilityPlannerTest {
             T9PinyinRowVisibilityPlanner.planDeferredWidth(
                 targetVisible = false,
                 widthReady = true
-            )
-        )
-    }
-
-    @Test
-    fun foldedRowRevealUsesDisplayedChipCountInsteadOfLogicalOptionCount() {
-        assertEquals(
-            true,
-            T9PinyinRowVisibilityPlanner.isRenderedContentReady(
-                expectedDisplayedItemCount = 4,
-                adapterItemCount = 4,
-                laidOutContentWidthPx = 220
-            )
-        )
-        assertEquals(
-            false,
-            T9PinyinRowVisibilityPlanner.isRenderedContentReady(
-                expectedDisplayedItemCount = 4,
-                adapterItemCount = 12,
-                laidOutContentWidthPx = 220
             )
         )
     }

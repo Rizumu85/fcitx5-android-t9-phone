@@ -78,16 +78,33 @@ class T9CandidateSourceControlPlannerTest {
     }
 
     @Test
-    fun activeChineseCompositionRequestsBulkAndAllowsLocalBudgetWithoutBulkPage() {
+    fun ordinaryPinyinUsesAcceptedEnginePageWithoutUnfilteredBulkReload() {
         val plan = T9CandidateSourceControlPlanner.plan(
             input(compositionKeyCount = 1)
         )
 
-        assertEquals(T9CandidateSourceControlPlanner.BulkAction.REQUEST, plan.bulkAction)
+        assertEquals(T9CandidateSourceControlPlanner.BulkAction.RESET, plan.bulkAction)
         assertEquals(T9CandidateSourceControlPlanner.FilterAction.CHINESE_READING_FILTER, plan.filterAction)
         assertTrue(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false, bulkFilterPending = false))
         assertFalse(plan.shouldBuildLocalBudget(hasBulkFilteredPage = true, bulkFilterPending = false))
         assertFalse(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false, bulkFilterPending = true))
+    }
+
+    @Test
+    fun resolvedPinyinPrefixRequestsCrossPageBulkFilter() {
+        val plan = T9CandidateSourceControlPlanner.plan(
+            input(
+                compositionKeyCount = 2,
+                filterPrefixesEmpty = false
+            )
+        )
+
+        assertEquals(T9CandidateSourceControlPlanner.BulkAction.REQUEST, plan.bulkAction)
+        assertEquals(
+            T9CandidateSourceControlPlanner.FilterAction.CHINESE_READING_FILTER,
+            plan.filterAction
+        )
+        assertFalse(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false, bulkFilterPending = false))
     }
 
     @Test

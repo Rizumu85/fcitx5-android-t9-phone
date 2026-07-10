@@ -58,4 +58,21 @@ class T9CandidateRefreshGenerationTest {
 
         assertEquals(listOf(replacement), refreshed)
     }
+
+    @Test
+    fun readySourcePublishesPendingGenerationAndStalesItsPostedCallback() {
+        val posted = mutableListOf<() -> Unit>()
+        val refreshed = mutableListOf<T9CandidateRefreshGeneration.Generation>()
+        val coordinator = T9CandidateRefreshGeneration(posted::add, refreshed::add)
+
+        val pending = coordinator.requestRefresh(traceInputId = 7L)
+        val published = coordinator.publishReady(traceInputId = 7L)
+
+        assertEquals(pending, published)
+        assertEquals(listOf(pending), refreshed)
+
+        posted.single().invoke()
+
+        assertEquals(listOf(pending), refreshed)
+    }
 }

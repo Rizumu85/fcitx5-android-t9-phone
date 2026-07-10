@@ -293,11 +293,11 @@ class T9ShortcutCandidatesUi(
         }
         if (stableWidth != naturalWidth) {
             root.minimumWidth = stableWidth
-            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutMeasureStable") {
-                measureRoot()
-            }
         }
-        measuredToolbarWidthPx = root.measuredWidth.takeIf { it > 0 }
+        // The natural measure already produced exact child geometry. Android's upcoming layout
+        // pass applies this minimum; publishing the same width now avoids measuring every child a
+        // second time only to inform the sibling reading row.
+        measuredToolbarWidthPx = maxOf(naturalWidth, stableWidth).takeIf { it > 0 }
     }
 
     private fun measureRoot() {

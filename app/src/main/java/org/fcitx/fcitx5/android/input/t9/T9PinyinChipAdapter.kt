@@ -92,12 +92,6 @@ class T9PinyinChipAdapter(
 
     fun getHighlightedPinyin(): String? = pinyins.getOrNull(highlightedIndex)
 
-    val itemCount: Int
-        get() = pinyins.size
-
-    fun laidOutContentWidthPx(): Int? =
-        stripView.contentWidthPx.takeIf { it > 0 }
-
     fun setHighlightActive(active: Boolean) {
         if (highlightActive == active) return
         highlightActive = active

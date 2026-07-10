@@ -29,12 +29,13 @@ class ChineseT9CandidateLoadingStateTest {
             rawCandidatesEmpty = false
         ))
 
-        state.onEngineCandidates(
+        val sourceReady = state.onEngineCandidates(
             data = paged("你", comment = "ni"),
             ticket = ticket(ChineseT9Scheme.PINYIN, "64"),
             enginePreedit = "ni"
         )
 
+        assertTrue(sourceReady)
         assertFalse(state.shouldWaitForCandidates(
             chineseT9Active = true,
             compositionKeyCount = 1,
@@ -89,12 +90,13 @@ class ChineseT9CandidateLoadingStateTest {
             chineseT9Active = true,
             ticket = ticket(ChineseT9Scheme.PINYIN, "435")
         )
-        state.onEngineCandidates(
+        val staleSourceReady = state.onEngineCandidates(
             data = paged("个", comment = "ge"),
             ticket = ticket(ChineseT9Scheme.PINYIN, "435"),
             enginePreedit = "ge"
         )
 
+        assertFalse(staleSourceReady)
         assertTrue(state.shouldWaitForCandidates(
             chineseT9Active = true,
             compositionKeyCount = 3,
@@ -230,12 +232,13 @@ class ChineseT9CandidateLoadingStateTest {
         )
         assertTrue(waiting(state, compositionKeyCount = 2))
 
-        state.onEngineInputPanel(
+        val sourceReady = state.onEngineInputPanel(
             data = candidates,
             ticket = ticket,
             enginePreedit = "一丨"
         )
 
+        assertTrue(sourceReady)
         assertFalse(waiting(state, compositionKeyCount = 2))
     }
 

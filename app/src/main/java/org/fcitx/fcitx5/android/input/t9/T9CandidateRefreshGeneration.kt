@@ -19,7 +19,7 @@ class T9CandidateRefreshGeneration(
 
     fun requestRefresh(traceInputId: Long?): Generation {
         pending?.takeIf { it.traceInputId == traceInputId }?.let { return it }
-        val generation = Generation(nextId++, traceInputId)
+        val generation = newGeneration(traceInputId)
         pending = generation
         postRefresh {
             if (pending?.id != generation.id) return@postRefresh
@@ -29,7 +29,21 @@ class T9CandidateRefreshGeneration(
         return generation
     }
 
+    fun publishReady(traceInputId: Long?): Generation {
+        val generation = pending
+            ?.takeIf { it.traceInputId == traceInputId }
+            ?: newGeneration(traceInputId)
+        // A gate-accepted source pair is already complete on the main thread. Consuming the
+        // generation here makes its queued callback stale instead of paying another queue turn.
+        pending = null
+        refreshNow(generation)
+        return generation
+    }
+
     fun cancel() {
         pending = null
     }
+
+    private fun newGeneration(traceInputId: Long?): Generation =
+        Generation(nextId++, traceInputId)
 }

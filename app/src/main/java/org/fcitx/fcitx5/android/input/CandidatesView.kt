@@ -262,7 +262,9 @@ class CandidatesView(
         }
     )
     private val t9RefreshGeneration = T9CandidateRefreshGeneration(
-        postRefresh = { block -> postOnAnimation(block) },
+        // The frame gate already rejects incomplete engine pairs. A normal main-queue turn keeps
+        // event coalescing without adding an animation-frame wait before snapshot publication.
+        postRefresh = { block -> post(block) },
         refreshNow = ::updateUi
     )
     private val t9PinyinMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
@@ -506,7 +508,7 @@ class CandidatesView(
         hideSurfaceImmediately = {
             // RecyclerView won't update its items when ancestor view is GONE.
             floatingWindowController.onSurfaceHidden()
-            t9PinyinRowAdapter.removeRevealListener()
+            t9PinyinRowAdapter.cancelPendingReveal()
             setCandidateWindowVisibilityImmediately(INVISIBLE)
         }
     )
@@ -591,30 +593,32 @@ class CandidatesView(
     override fun handleFcitxEvent(it: FcitxEvent<*>) {
         when (it) {
             is FcitxEvent.InputPanelEvent -> {
-                T9ResponsivenessTrace.markSourceEvent()
                 inputPanel = it.data
-                if (service.isChineseT9InputModeActive()) {
+                val sourceReady = if (service.isChineseT9InputModeActive()) {
                     val ticket = service.getChineseT9InputSnapshot(inputPanel).compositionTicket()
                     chineseT9CandidateLoadingState.onEngineInputPanel(
                         data = paged,
                         ticket = ticket,
                         enginePreedit = inputPanel.preedit.toString()
                     )
+                } else {
+                    false
                 }
-                refreshT9Ui()
+                refreshAfterSourceEvent(sourceReady)
             }
             is FcitxEvent.PagedCandidateEvent -> {
-                T9ResponsivenessTrace.markSourceEvent()
                 paged = it.data
-                if (service.isChineseT9InputModeActive()) {
+                val sourceReady = if (service.isChineseT9InputModeActive()) {
                     val ticket = service.getChineseT9InputSnapshot(inputPanel).compositionTicket()
                     chineseT9CandidateLoadingState.onEngineCandidates(
                         data = it.data,
                         ticket = ticket,
                         enginePreedit = inputPanel.preedit.toString()
                     )
+                } else {
+                    false
                 }
-                refreshT9Ui()
+                refreshAfterSourceEvent(sourceReady)
             }
             else -> {}
         }
@@ -624,7 +628,7 @@ class CandidatesView(
         T9ResponsivenessTrace.cancelActiveInput()
         t9RefreshGeneration.cancel()
         floatingWindowController.onSurfaceHidden()
-        t9CandidateSurfaceAdapter.removePinyinRevealListener()
+        t9CandidateSurfaceAdapter.cancelPendingPinyinReveal()
         inputPanel = FcitxEvent.InputPanelEvent.Data()
         paged = FcitxEvent.PagedCandidateEvent.Data.Empty
         resetT9BulkFilterState()
@@ -657,6 +661,16 @@ class CandidatesView(
         t9RefreshGeneration.requestRefresh(T9ResponsivenessTrace.activeInputId())
     }
 
+    private fun refreshAfterSourceEvent(sourceReady: Boolean) {
+        val traceId = T9ResponsivenessTrace.activeInputId()
+        if (sourceReady) {
+            T9ResponsivenessTrace.markSourceEvent()
+            t9RefreshGeneration.publishReady(traceId)
+        } else {
+            t9RefreshGeneration.requestRefresh(traceId)
+        }
+    }
+
     fun waitForT9EngineCandidatesThenRefresh() {
         val ticket = service.getChineseT9InputSnapshot(inputPanel).compositionTicket()
         val waiting = chineseT9CandidateLoadingState.startIfNeeded(
@@ -671,7 +685,7 @@ class CandidatesView(
         val traceId = T9ResponsivenessTrace.activeInputId()
         t9RefreshGeneration.cancel()
         floatingWindowController.onSurfaceHidden()
-        t9CandidateSurfaceAdapter.removePinyinRevealListener()
+        t9CandidateSurfaceAdapter.cancelPendingPinyinReveal()
         // A hidden row must stop owning physical OK and numeric shortcuts immediately, even if
         // Android keeps the last complete render tree around for the next atomic frame.
         t9CandidateUiSnapshotPipeline.invalidateShownInteraction()
@@ -1117,13 +1131,13 @@ class CandidatesView(
     override fun setVisibility(visibility: Int) {
         if (visibility != VISIBLE) {
             floatingWindowController.onSurfaceHidden()
-            t9CandidateSurfaceAdapter.removePinyinRevealListener()
+            t9CandidateSurfaceAdapter.cancelPendingPinyinReveal()
         }
         super.setVisibility(visibility)
     }
 
     override fun onDetachedFromWindow() {
-        t9CandidateSurfaceAdapter.removePinyinRevealListener()
+        t9CandidateSurfaceAdapter.cancelPendingPinyinReveal()
         viewTreeObserver.removeOnPreDrawListener(preDrawListener)
         viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
         floatingWindowController.onDetached()

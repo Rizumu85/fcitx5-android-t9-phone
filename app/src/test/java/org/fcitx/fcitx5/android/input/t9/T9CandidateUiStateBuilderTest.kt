@@ -248,7 +248,8 @@ class T9CandidateUiStateBuilderTest {
                 currentSegment = "435",
                 fullComposition = "435",
                 model = T9CompositionModel(unresolvedDigits = "435", rawPreedit = "435"),
-                keyCount = 3
+                keyCount = 3,
+                filterPrefixes = listOf("gel")
             )
         ))
 

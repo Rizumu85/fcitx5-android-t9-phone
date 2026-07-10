@@ -133,8 +133,8 @@ class T9CandidateSurfaceAndroidAdapter(
         candidateStatusView.visibility = View.GONE
     }
 
-    fun removePinyinRevealListener() {
-        pinyinRowAdapter.removeRevealListener()
+    fun cancelPendingPinyinReveal() {
+        pinyinRowAdapter.cancelPendingReveal()
     }
 
 }

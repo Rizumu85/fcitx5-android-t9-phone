@@ -51,40 +51,45 @@ class ChineseT9CandidateLoadingState {
         data: FcitxEvent.PagedCandidateEvent.Data,
         ticket: ChineseT9CompositionTicket,
         enginePreedit: String
-    ) {
+    ): Boolean {
         if (ticket.digitSequence.isEmpty()) {
             reset()
-            return
+            return true
         }
-        if (ticket != expectedTicket) return
+        if (ticket != expectedTicket) return false
         candidateEventTicket = ticket
-        releaseIfFresh(data, ticket, enginePreedit)
+        return releaseIfFresh(data, ticket, enginePreedit)
     }
 
     fun onEngineInputPanel(
         data: FcitxEvent.PagedCandidateEvent.Data,
         ticket: ChineseT9CompositionTicket,
         enginePreedit: String
-    ) {
-        if (ticket != expectedTicket || candidateEventTicket != ticket) return
-        releaseIfFresh(data, ticket, enginePreedit)
+    ): Boolean {
+        if (ticket.digitSequence.isEmpty()) {
+            reset()
+            return true
+        }
+        if (ticket != expectedTicket || candidateEventTicket != ticket) return false
+        return releaseIfFresh(data, ticket, enginePreedit)
     }
 
     private fun releaseIfFresh(
         data: FcitxEvent.PagedCandidateEvent.Data,
         ticket: ChineseT9CompositionTicket,
         enginePreedit: String
-    ) {
-        if (ChineseT9CandidateFreshness.matches(
+    ): Boolean {
+        val accepted = ChineseT9CandidateFreshness.matches(
                 data = data,
                 scheme = ticket.scheme,
                 digitSequence = ticket.digitSequence,
                 enginePreedit = enginePreedit
             )
-        ) {
+        if (accepted) {
             state = State.IDLE
             engineResultObserved = true
         }
+        return accepted
     }
 
     fun shouldWaitForCandidates(
