@@ -80,6 +80,33 @@ class T9CandidateUiStateBuilder(
     private var previousChinesePresentationKey: ChineseT9PresentationSnapshotKey? = null
     private var previousChinesePresentationState: T9PresentationState? = null
 
+    fun presentationForSelection(
+        input: T9CandidateUiInputSnapshot,
+        source: T9CandidateUiSnapshotPipeline.ShownSource,
+        paged: FcitxEvent.PagedCandidateEvent.Data,
+        smartEnglishPresentation: T9PresentationState?
+    ): T9PresentationState? = when (source) {
+        T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION ->
+            paged.candidates.getOrNull(paged.cursorIndex)
+                ?.text
+                ?.let(::pendingPunctuationPresentationState)
+        T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH ->
+            smartEnglishPresentation ?: input.smartEnglishPresentation
+        T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK,
+        T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_LOCAL,
+        T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_ENGINE ->
+            input.chineseSnapshot?.let { snapshot ->
+                getChinesePresentationState(
+                    snapshot.presentationKey(
+                        pendingPunctuationText = null,
+                        inputPanel = input.inputPanel,
+                        paged = paged
+                    )
+                )
+            }
+        T9CandidateUiSnapshotPipeline.ShownSource.OTHER -> null
+    }
+
     fun build(input: T9CandidateUiInputSnapshot): T9CandidateUiSnapshot? =
         T9ResponsivenessTrace.measure("CandidatesView.updateUi.buildState") {
             val surface = T9CandidateSourceControlPlanner.surface(

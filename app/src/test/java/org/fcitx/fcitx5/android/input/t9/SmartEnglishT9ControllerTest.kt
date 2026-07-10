@@ -77,6 +77,19 @@ class SmartEnglishT9ControllerTest {
     }
 
     @Test
+    fun localSelectionMutationDoesNotPublishACompleteUiRefresh() {
+        val host = FakeHost()
+        val controller = host.controller()
+        listOf(4, 3, 5).forEach(controller::appendDigit)
+        val refreshCount = host.refreshCount
+
+        assertTrue(controller.moveSelectionTo(1))
+
+        assertEquals(1, controller.paged()?.cursorIndex)
+        assertEquals(refreshCount, host.refreshCount)
+    }
+
+    @Test
     fun loadingDictionarySuppressesEmptyFallbackUi() {
         val host = FakeHost(dictionaryReady = false)
         val controller = host.controller()

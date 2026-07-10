@@ -26,6 +26,8 @@ class T9CandidateInteractionControllerTest {
 
         assertEquals(true, handled)
         assertEquals(listOf(11), host.smartEnglishSelections)
+        assertEquals(1, host.localSelectionPublishCount)
+        assertEquals(0, host.refreshCount)
     }
 
     @Test
@@ -41,7 +43,8 @@ class T9CandidateInteractionControllerTest {
 
         assertEquals(true, handled)
         assertEquals(listOf(21), host.punctuationPreviews)
-        assertEquals(1, host.refreshCount)
+        assertEquals(1, host.localSelectionPublishCount)
+        assertEquals(0, host.refreshCount)
     }
 
     @Test
@@ -58,6 +61,33 @@ class T9CandidateInteractionControllerTest {
 
         assertEquals(true, handled)
         assertEquals(listOf(FakeHost.ChineseSelection(30, "给", "ge", true)), host.chineseSelections)
+    }
+
+    @Test
+    fun pageMoveMutatesSourceThenPublishesCompleteRefresh() {
+        val pipeline = pipelineWithShown(
+            source = T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH,
+            originalIndices = intArrayOf(0),
+            paged = paged(cursor = 0, "a").copy(hasNext = true)
+        )
+        pipeline.buildSmartEnglishPaged(
+            FcitxEvent.PagedCandidateEvent.Data(
+                candidates = (0..10).map {
+                    FcitxEvent.Candidate(label = "", text = "word$it", comment = "")
+                }.toTypedArray(),
+                cursorIndex = 0,
+                layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
+                hasPrev = false,
+                hasNext = false
+            )
+        )
+        val host = FakeHost()
+
+        val handled = T9CandidateInteractionController(pipeline, host).offsetBottomCandidatePage(1)
+
+        assertEquals(true, handled)
+        assertEquals(1, host.refreshCount)
+        assertEquals(0, host.localSelectionPublishCount)
     }
 
     @Test
@@ -139,8 +169,9 @@ class T9CandidateInteractionControllerTest {
         val chineseSelections = mutableListOf<ChineseSelection>()
         val enginePageOffsets = mutableListOf<Int>()
         var refreshCount = 0
+        var localSelectionPublishCount = 0
 
-        override fun setSmartEnglishCandidateIndex(originalIndex: Int): Boolean {
+        override fun moveSmartEnglishSelection(originalIndex: Int): Boolean {
             smartEnglishSelections += originalIndex
             return true
         }
@@ -155,9 +186,13 @@ class T9CandidateInteractionControllerTest {
             return true
         }
 
-        override fun previewPendingPunctuationCandidate(originalIndex: Int): Boolean {
+        override fun movePendingPunctuationSelection(originalIndex: Int): Boolean {
             punctuationPreviews += originalIndex
             return true
+        }
+
+        override fun publishLocalSelection() {
+            localSelectionPublishCount += 1
         }
 
         override fun refreshT9Ui() {

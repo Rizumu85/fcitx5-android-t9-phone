@@ -749,3 +749,19 @@ outcomes intentionally do not authorize the fast path so transient failures
 are retried rather than made sticky. English T9 dictionaries remain APK assets
 for `AssetManager` lookup but are excluded as a directory from the native data
 descriptor, removing a redundant multi-megabyte install copy.
+
+Candidate navigation no longer republishes the complete candidate pipeline for
+an in-page cursor move. T9 Candidate Source Sessions update the owned cursor,
+the Snapshot Pipeline derives a selection frame from the last accepted source
+snapshot, and the Android adapter updates only the affected shortcut chips and
+top preview. Candidate content, paging, and reading-row geometry are validated
+as unchanged before this path is accepted; otherwise the normal complete frame
+is requested. The existing final-chip scale reservation remains the one bounded
+measurement exception so local navigation preserves the accepted focus visual.
+
+T9 Punctuation Lifecycle now publishes its replacement candidate source without
+first clearing the whole input surface. This removes the blank hide/show frame
+between a committed word or Hanzi and the punctuation row. In-page punctuation
+preview moves use the same local selection frame. A broad transient clear is an
+explicit lifecycle request reserved for a genuinely incompatible composition,
+not the default punctuation-entry behavior.

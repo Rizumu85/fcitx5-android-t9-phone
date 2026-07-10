@@ -10,7 +10,7 @@ import org.fcitx.fcitx5.android.core.FcitxEvent
 class T9PunctuationCoordinator(
     session: T9PunctuationSession = T9PunctuationSession(),
     private val clearTransientInputUiState: () -> Unit,
-    private val refreshUi: () -> Unit,
+    private val publishCandidateSource: () -> Unit,
     private val cancelTimeout: () -> Unit,
     private val commitText: (String) -> Unit
 ) {
@@ -22,12 +22,12 @@ class T9PunctuationCoordinator(
     val pendingText: String?
         get() = lifecycle.pendingText
 
-    fun showChineseCandidates() {
-        apply(lifecycle.showChineseCandidates())
+    fun showChineseCandidates(discardIncompatibleComposition: Boolean = false) {
+        apply(lifecycle.showChineseCandidates(discardIncompatibleComposition))
     }
 
-    fun showEnglishCandidates() {
-        apply(lifecycle.showEnglishCandidates())
+    fun showEnglishCandidates(discardIncompatibleComposition: Boolean = false) {
+        apply(lifecycle.showEnglishCandidates(discardIncompatibleComposition))
     }
 
     fun paged(): FcitxEvent.PagedCandidateEvent.Data? =
@@ -37,8 +37,8 @@ class T9PunctuationCoordinator(
         return apply(lifecycle.selectAndCommitCandidate(index))
     }
 
-    fun previewCandidate(index: Int): Boolean {
-        return apply(lifecycle.previewCandidate(index))
+    fun moveSelection(index: Int): Boolean {
+        return apply(lifecycle.moveSelection(index))
     }
 
     fun toggleSet(): Boolean {
@@ -58,8 +58,8 @@ class T9PunctuationCoordinator(
             when (effect) {
                 T9PunctuationLifecycle.Effect.ClearTransientInputUiState ->
                     clearTransientInputUiState()
-                T9PunctuationLifecycle.Effect.RefreshUi ->
-                    refreshUi()
+                T9PunctuationLifecycle.Effect.PublishCandidateSource ->
+                    publishCandidateSource()
                 T9PunctuationLifecycle.Effect.CancelTimeout ->
                     cancelTimeout()
                 is T9PunctuationLifecycle.Effect.CommitText ->

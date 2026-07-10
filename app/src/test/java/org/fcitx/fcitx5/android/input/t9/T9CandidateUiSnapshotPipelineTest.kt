@@ -110,8 +110,9 @@ class T9CandidateUiSnapshotPipelineTest {
 
         val moved = pipeline.moveCurrentBottomCandidate(1)
 
-        require(moved is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.PendingPunctuation)
-        assertEquals(1, moved.previewOriginalIndex)
+        require(moved is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.LocalSelection)
+        assertEquals(T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION, moved.source)
+        assertEquals(1, moved.originalIndex)
         assertEquals(1, pipeline.currentShownSnapshot?.paged?.cursorIndex)
         assertArrayEquals(intArrayOf(0, 1, 2), pipeline.currentShownSnapshot?.originalIndices)
     }
@@ -200,7 +201,8 @@ class T9CandidateUiSnapshotPipelineTest {
         )
 
         val moved = pipeline.moveCurrentBottomCandidate(1)
-        require(moved is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.Refresh)
+        require(moved is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.LocalSelection)
+        assertEquals(T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK, moved.source)
         assertEquals(1, pipeline.currentShownSnapshot?.paged?.cursorIndex)
 
         val refreshed = pipeline.chineseBulkFilterState.paged

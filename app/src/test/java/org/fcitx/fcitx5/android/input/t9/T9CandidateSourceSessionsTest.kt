@@ -43,8 +43,9 @@ class T9CandidateSourceSessionsTest {
 
         val moved = sessions.moveCurrentBottomCandidate(2)
 
-        require(moved is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.PendingPunctuation)
-        assertEquals(2, moved.previewOriginalIndex)
+        require(moved is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.LocalSelection)
+        assertEquals(T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION, moved.source)
+        assertEquals(2, moved.originalIndex)
         assertEquals(2, sessions.currentShownSnapshot?.paged?.cursorIndex)
         assertEquals(
             T9CandidateUiSnapshotPipeline.CommitBottomCandidate.PendingPunctuation(2),

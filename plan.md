@@ -392,7 +392,7 @@ otherwise.
   decoding after the first visible input-surface frame.
 - [x] Add an interrupted-install-safe DataManager fingerprint fast path and
   exclude Android-only T9 assets from native installation.
-- [ ] Produce local selection frames and atomic punctuation-source transitions
+- [x] Produce local selection frames and atomic punctuation-source transitions
   instead of broad candidate UI resets.
 - [ ] Publish one Smart English snapshot per revision and remove duplicate
   lookup/ranking/list construction from candidate frames.

@@ -114,8 +114,8 @@ class SmartEnglishT9Coordinator(
     fun moveCandidate(delta: Int): Boolean =
         controller.moveCandidate(delta)
 
-    fun setCandidateIndex(index: Int): Boolean =
-        controller.setCandidateIndex(index)
+    fun moveSelectionTo(index: Int): Boolean =
+        controller.moveSelectionTo(index)
 
     fun commitCandidate(
         index: Int? = null,

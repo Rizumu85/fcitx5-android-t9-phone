@@ -107,6 +107,19 @@ class T9ShortcutCandidatesUi(
         }
     }
 
+    fun updateSelection(data: FcitxEvent.PagedCandidateEvent.Data): Boolean {
+        val rows = rowsFor(data)
+        val style = renderStructure?.style ?: return false
+        val structure = renderStructureFor(rows, layout, style)
+        if (structure != renderStructure || root.childCount < rows.size) return false
+        this.data = data
+        renderSelection(rows)
+        // The accepted tail policy reserves the focused final chip from its real scale. Keep that
+        // one bounded measurement while bypassing candidate layout and source reconstruction.
+        measureToolbarIfNeeded(rows, structure)
+        return true
+    }
+
     fun setHighlightActive(active: Boolean) {
         if (highlightActive == active) return
         highlightActive = active

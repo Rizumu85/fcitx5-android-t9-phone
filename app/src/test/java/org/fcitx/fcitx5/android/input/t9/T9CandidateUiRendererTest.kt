@@ -124,6 +124,32 @@ class T9CandidateUiRendererTest {
         assertEquals(listOf(T9CandidateStatus.NO_MATCH), delegate.candidateStatuses)
     }
 
+    @Test
+    fun localSelectionUpdatesOnlyCandidateSelectionAndPreedit() {
+        val delegate = FakeDelegate()
+        val renderer = T9CandidateUiRenderer(delegate)
+        val initial = state(candidates = paged("a"))
+        renderer.render(initial)
+        delegate.events.clear()
+
+        val rendered = renderer.renderSelection(
+            T9CandidateSelectionFrame(
+                initial.copy(
+                    panel = FcitxEvent.InputPanelEvent.Data(
+                        initial.panel.preedit,
+                        initial.panel.auxUp,
+                        initial.panel.auxDown
+                    ),
+                    candidates = initial.candidates.copy(cursorIndex = 1)
+                )
+            )
+        )
+
+        assertEquals(true, rendered)
+        assertEquals(1, delegate.selectionRenderCount)
+        assertEquals(emptyList<String>(), delegate.events)
+    }
+
     private class FakeDelegate : T9CandidateUiRenderer.Delegate {
         constructor()
         constructor(pinyinReady: Boolean) {
@@ -137,6 +163,7 @@ class T9CandidateUiRendererTest {
         var hideCount = 0
         val events = mutableListOf<String>()
         val candidateStatuses = mutableListOf<T9CandidateStatus?>()
+        var selectionRenderCount = 0
 
         override fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean) = Unit
 
@@ -150,6 +177,13 @@ class T9CandidateUiRendererTest {
             candidateStatus: T9CandidateStatus?
         ) {
             candidateStatuses += candidateStatus
+        }
+
+        override fun renderCandidateSelection(
+            candidates: FcitxEvent.PagedCandidateEvent.Data
+        ): Boolean {
+            selectionRenderCount += 1
+            return true
         }
 
         override fun renderPinyin(readingOptions: List<String>, pinyinUseT9: Boolean): Boolean {

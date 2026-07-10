@@ -12,10 +12,11 @@ class T9CandidateInteractionController(
     private val host: Host
 ) {
     interface Host {
-        fun setSmartEnglishCandidateIndex(originalIndex: Int): Boolean
+        fun moveSmartEnglishSelection(originalIndex: Int): Boolean
         fun commitSmartEnglishCandidate(originalIndex: Int): Boolean
         fun commitPendingPunctuationCandidate(originalIndex: Int): Boolean
-        fun previewPendingPunctuationCandidate(originalIndex: Int): Boolean
+        fun movePendingPunctuationSelection(originalIndex: Int): Boolean
+        fun publishLocalSelection()
         fun refreshT9Ui()
         fun offsetEngineCandidatePage(delta: Int): Boolean
         fun selectChineseCandidate(
@@ -39,28 +40,39 @@ class T9CandidateInteractionController(
 
     fun moveBottomCandidate(delta: Int): Boolean? =
         when (val result = pipeline.moveCurrentBottomCandidate(delta)) {
-            is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.SmartEnglish ->
-                host.setSmartEnglishCandidateIndex(result.nextOriginalIndex)
-            is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.PendingPunctuation -> {
-                host.previewPendingPunctuationCandidate(result.previewOriginalIndex)
-                host.refreshT9Ui()
+            is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.LocalSelection -> {
+                val updated = when (result.source) {
+                    T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH ->
+                        host.moveSmartEnglishSelection(result.originalIndex)
+                    T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION ->
+                        host.movePendingPunctuationSelection(result.originalIndex)
+                    T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK,
+                    T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_LOCAL,
+                    T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_ENGINE -> true
+                    T9CandidateUiSnapshotPipeline.ShownSource.OTHER -> false
+                }
+                if (!updated) return false
+                host.publishLocalSelection()
                 true
             }
-            T9CandidateUiSnapshotPipeline.MoveBottomCandidate.Refresh -> {
-                host.refreshT9Ui()
-                true
-            }
-            is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.ChineseEngine ->
-                host.offsetEngineCandidatePage(result.delta)
+            is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.PageTransition ->
+                applyPageOffset(result.offset)
             null -> null
         }
 
     fun offsetBottomCandidatePage(delta: Int): Boolean? =
-        when (val result = pipeline.offsetCurrentPage(delta)) {
-            is T9CandidateUiSnapshotPipeline.PageOffset.SmartEnglish ->
-                host.setSmartEnglishCandidateIndex(result.nextOriginalIndex)
+        pipeline.offsetCurrentPage(delta)?.let(::applyPageOffset)
+
+    private fun applyPageOffset(result: T9CandidateUiSnapshotPipeline.PageOffset): Boolean =
+        when (result) {
+            is T9CandidateUiSnapshotPipeline.PageOffset.SmartEnglish -> {
+                if (!host.moveSmartEnglishSelection(result.nextOriginalIndex)) return false
+                host.refreshT9Ui()
+                true
+            }
             is T9CandidateUiSnapshotPipeline.PageOffset.PendingPunctuation -> {
-                result.previewOriginalIndex?.let(host::previewPendingPunctuationCandidate)
+                val preview = result.previewOriginalIndex
+                if (preview != null && !host.movePendingPunctuationSelection(preview)) return false
                 host.refreshT9Ui()
                 true
             }
@@ -70,7 +82,6 @@ class T9CandidateInteractionController(
             }
             is T9CandidateUiSnapshotPipeline.PageOffset.ChineseEngine ->
                 host.offsetEngineCandidatePage(result.delta)
-            null -> null
         }
 
     fun commitBottomCandidate(shownIndex: Int? = null): Boolean? {

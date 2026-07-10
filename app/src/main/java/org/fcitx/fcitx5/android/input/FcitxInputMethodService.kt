@@ -1714,7 +1714,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
     private val t9PunctuationCoordinator: T9PunctuationCoordinator = T9PunctuationCoordinator(
         clearTransientInputUiState = ::clearTransientInputUiState,
-        refreshUi = { candidatesView?.refreshT9Ui() },
+        publishCandidateSource = { candidatesView?.refreshT9Ui() },
         cancelTimeout = {},
         commitText = ::commitText
     )
@@ -1905,8 +1905,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun commitPendingT9PunctuationCandidate(index: Int): Boolean =
         t9PunctuationCoordinator.selectAndCommitCandidate(index)
 
-    fun previewPendingT9PunctuationCandidate(index: Int): Boolean =
-        t9PunctuationCoordinator.previewCandidate(index)
+    fun movePendingT9PunctuationSelection(index: Int): Boolean =
+        t9PunctuationCoordinator.moveSelection(index)
 
     private fun isSmartEnglishT9Active(): Boolean =
         t9InputModeEnabled && currentT9Mode == T9InputMode.ENGLISH && smartEnglishModeController.enabled
@@ -1925,8 +1925,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun getSmartEnglishT9Presentation(): T9PresentationState? =
         smartEnglishCoordinator.presentation(::formattedT9Text)
 
-    fun setSmartEnglishCandidateIndex(index: Int): Boolean =
-        smartEnglishCoordinator.setCandidateIndex(index)
+    fun moveSmartEnglishSelectionTo(index: Int): Boolean =
+        smartEnglishCoordinator.moveSelectionTo(index)
 
     fun commitSmartEnglishCandidate(
         index: Int? = null,

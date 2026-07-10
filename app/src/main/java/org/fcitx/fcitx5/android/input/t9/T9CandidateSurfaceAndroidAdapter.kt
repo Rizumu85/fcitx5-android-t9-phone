@@ -93,6 +93,20 @@ class T9CandidateSurfaceAndroidAdapter(
         }
     }
 
+    override fun renderCandidateSelection(
+        candidates: FcitxEvent.PagedCandidateEvent.Data
+    ): Boolean {
+        if (shortcutCandidatesUi.root.visibility != View.VISIBLE) return false
+        val rendered = shortcutCandidatesUi.updateSelection(candidates)
+        if (rendered) {
+            onShortcutCandidateMeasured(
+                activeGenerationId,
+                shortcutCandidatesUi.measuredToolbarWidthPx
+            )
+        }
+        return rendered
+    }
+
     override fun renderPinyin(readingOptions: List<String>, pinyinUseT9: Boolean): Boolean =
         pinyinRowAdapter.render(readingOptions, pinyinUseT9)
 

@@ -12,7 +12,7 @@ class T9PunctuationLifecycle(
 ) {
     sealed class Effect {
         data object ClearTransientInputUiState : Effect()
-        data object RefreshUi : Effect()
+        data object PublishCandidateSource : Effect()
         data object CancelTimeout : Effect()
         data class CommitText(val text: String) : Effect()
     }
@@ -28,14 +28,14 @@ class T9PunctuationLifecycle(
     val pendingText: String?
         get() = session.pendingText
 
-    fun showChineseCandidates(): Result {
+    fun showChineseCandidates(discardIncompatibleComposition: Boolean = false): Result {
         session.showChineseCandidates()
-        return showPending()
+        return showPending(discardIncompatibleComposition)
     }
 
-    fun showEnglishCandidates(): Result {
+    fun showEnglishCandidates(discardIncompatibleComposition: Boolean = false): Result {
         session.showEnglishCandidates()
-        return showPending()
+        return showPending(discardIncompatibleComposition)
     }
 
     fun paged(): FcitxEvent.PagedCandidateEvent.Data? =
@@ -46,12 +46,9 @@ class T9PunctuationLifecycle(
         return commit()
     }
 
-    fun previewCandidate(index: Int): Result {
+    fun moveSelection(index: Int): Result {
         session.selectCandidate(index) ?: return Result(handled = false)
-        return Result(
-            handled = true,
-            effects = listOf(Effect.RefreshUi)
-        )
+        return Result(handled = true)
     }
 
     fun toggleSet(): Result {
@@ -72,7 +69,7 @@ class T9PunctuationLifecycle(
                 effects = listOf(
                     Effect.CancelTimeout,
                     Effect.CommitText(punctuation),
-                    Effect.RefreshUi
+                    Effect.PublishCandidateSource
                 )
             )
         }
@@ -90,19 +87,19 @@ class T9PunctuationLifecycle(
                 handled = true,
                 effects = listOf(
                     Effect.CancelTimeout,
-                    Effect.RefreshUi
+                    Effect.PublishCandidateSource
                 )
             )
         }
     }
 
-    private fun showPending(prefix: List<Effect> = emptyList()): Result =
+    private fun showPending(discardIncompatibleComposition: Boolean = false): Result =
         Result(
             handled = true,
-            effects = prefix + listOf(
-                Effect.ClearTransientInputUiState,
-                Effect.RefreshUi,
-                Effect.CancelTimeout
-            )
+            effects = buildList {
+                if (discardIncompatibleComposition) add(Effect.ClearTransientInputUiState)
+                add(Effect.PublishCandidateSource)
+                add(Effect.CancelTimeout)
+            }
         )
 }

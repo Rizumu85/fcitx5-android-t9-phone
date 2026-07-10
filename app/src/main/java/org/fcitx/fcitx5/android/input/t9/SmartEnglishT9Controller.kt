@@ -108,8 +108,8 @@ class SmartEnglishT9Controller private constructor(
     fun moveCandidate(delta: Int): Boolean =
         lifecycle.moveCandidate(delta)
 
-    fun setCandidateIndex(index: Int): Boolean =
-        lifecycle.setCandidateIndex(index)
+    fun moveSelectionTo(index: Int): Boolean =
+        lifecycle.moveSelectionTo(index)
 
     fun commitCandidate(
         index: Int? = null,

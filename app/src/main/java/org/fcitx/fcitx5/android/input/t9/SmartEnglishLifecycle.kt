@@ -136,7 +136,7 @@ internal class SmartEnglishLifecycle(
         return true
     }
 
-    fun setCandidateIndex(index: Int): Boolean {
+    fun moveSelectionTo(index: Int): Boolean {
         if (!isActive()) return false
         val moved = if (session.hasDigits) {
             session.setCandidateIndex(index)
@@ -144,7 +144,6 @@ internal class SmartEnglishLifecycle(
             predictionSession.setCandidateIndex(index)
         }
         if (!moved) return false
-        refreshUi()
         return true
     }
 

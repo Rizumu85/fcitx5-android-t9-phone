@@ -519,6 +519,13 @@ only the cursor changes. T9 Punctuation Lifecycle replaces one candidate
 source atomically; it requests a global transient clear only when incompatible
 composition must actually be discarded.
 
+The local frame is accepted only when candidate content, visibility, focus, and
+the reading-row snapshot still match the last complete frame. It may update the
+candidate cursor and top preview directly through the pooled shortcut toolbar.
+The established final-chip focus scale may perform its bounded tail measurement
+without rebuilding source pages or candidate geometry. Page transitions and
+any failed invariant continue through one complete snapshot publication.
+
 Smart English Lifecycle publishes one immutable snapshot keyed by input
 revision, dictionary generation, page, and case state. Ranked candidates,
 cursor validity, paging data, and presentation derive from that publication.

@@ -319,13 +319,19 @@ class T9CandidateSourceSessions(
     ): T9CandidateUiSnapshotPipeline.MoveBottomCandidate? {
         val originalIndex = shown.originalIndexAt(next) ?: next
         return when (shown.source) {
-            T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH ->
-                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.SmartEnglish(originalIndex)
+            T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH -> {
+                currentShown = shown.copy(paged = shown.paged.copy(cursorIndex = next))
+                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.LocalSelection(
+                    source = shown.source,
+                    originalIndex = originalIndex
+                )
+            }
             T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION -> {
                 val nextPaged = shown.paged.copy(cursorIndex = next)
                 currentShown = shown.copy(paged = nextPaged)
-                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.PendingPunctuation(
-                    previewOriginalIndex = originalIndex
+                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.LocalSelection(
+                    source = shown.source,
+                    originalIndex = originalIndex
                 )
             }
             T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK -> {
@@ -335,13 +341,19 @@ class T9CandidateSourceSessions(
                     paged = nextShown.data,
                     originalIndices = nextShown.originalIndices
                 )
-                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.Refresh
+                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.LocalSelection(
+                    source = shown.source,
+                    originalIndex = originalIndex
+                )
             }
             T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_LOCAL,
             T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_ENGINE -> {
                 val nextPaged = moveChineseHanziCursor(shown.paged, next) ?: return null
                 currentShown = shown.copy(paged = nextPaged)
-                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.Refresh
+                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.LocalSelection(
+                    source = shown.source,
+                    originalIndex = originalIndex
+                )
             }
             T9CandidateUiSnapshotPipeline.ShownSource.OTHER -> null
         }
@@ -349,16 +361,5 @@ class T9CandidateSourceSessions(
 
     private fun T9CandidateUiSnapshotPipeline.PageOffset.toMoveResult():
         T9CandidateUiSnapshotPipeline.MoveBottomCandidate =
-        when (this) {
-            is T9CandidateUiSnapshotPipeline.PageOffset.SmartEnglish ->
-                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.SmartEnglish(nextOriginalIndex)
-            is T9CandidateUiSnapshotPipeline.PageOffset.PendingPunctuation ->
-                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.PendingPunctuation(
-                    previewOriginalIndex = previewOriginalIndex ?: -1
-                )
-            T9CandidateUiSnapshotPipeline.PageOffset.Refresh ->
-                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.Refresh
-            is T9CandidateUiSnapshotPipeline.PageOffset.ChineseEngine ->
-                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.ChineseEngine(delta)
-        }
+        T9CandidateUiSnapshotPipeline.MoveBottomCandidate.PageTransition(this)
 }

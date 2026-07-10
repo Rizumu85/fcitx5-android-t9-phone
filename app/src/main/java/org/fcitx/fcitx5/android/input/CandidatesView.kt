@@ -225,8 +225,8 @@ class CandidatesView(
     private val t9CandidateInteractionController = T9CandidateInteractionController(
         pipeline = t9CandidateUiSnapshotPipeline,
         host = object : T9CandidateInteractionController.Host {
-            override fun setSmartEnglishCandidateIndex(originalIndex: Int): Boolean =
-                service.setSmartEnglishCandidateIndex(originalIndex)
+            override fun moveSmartEnglishSelection(originalIndex: Int): Boolean =
+                service.moveSmartEnglishSelectionTo(originalIndex)
 
             override fun commitSmartEnglishCandidate(originalIndex: Int): Boolean =
                 service.commitSmartEnglishCandidate(originalIndex)
@@ -234,8 +234,12 @@ class CandidatesView(
             override fun commitPendingPunctuationCandidate(originalIndex: Int): Boolean =
                 service.commitPendingT9PunctuationCandidate(originalIndex)
 
-            override fun previewPendingPunctuationCandidate(originalIndex: Int): Boolean =
-                service.previewPendingT9PunctuationCandidate(originalIndex)
+            override fun movePendingPunctuationSelection(originalIndex: Int): Boolean =
+                service.movePendingT9PunctuationSelection(originalIndex)
+
+            override fun publishLocalSelection() {
+                this@CandidatesView.publishLocalSelection()
+            }
 
             override fun refreshT9Ui() {
                 this@CandidatesView.refreshT9Ui()
@@ -657,6 +661,34 @@ class CandidatesView(
         T9ResponsivenessTrace.markSnapshotReady(traceId)
         T9ResponsivenessTrace.markRenderComplete(traceId)
         postOnAnimation { T9ResponsivenessTrace.completeFrame(traceId) }
+    }
+
+    private fun publishLocalSelection() {
+        val smartEnglishPresentation = if (
+            t9CandidateUiSnapshotPipeline.shownSource ==
+            T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH
+        ) {
+            service.getSmartEnglishT9Presentation()
+        } else {
+            null
+        }
+        val frame = t9CandidateUiSnapshotPipeline.buildLocalSelectionFrame(
+            smartEnglishPresentation = smartEnglishPresentation
+        )
+        if (frame == null) {
+            refreshT9Ui()
+            return
+        }
+        val traceId = T9ResponsivenessTrace.activeInputId()
+        T9ResponsivenessTrace.markSnapshotReady(traceId)
+        if (!t9CandidateUiRenderer.renderSelection(frame)) {
+            refreshT9Ui()
+            return
+        }
+        T9ResponsivenessTrace.markRenderComplete(traceId)
+        if (traceId != null) {
+            postOnAnimation { T9ResponsivenessTrace.completeFrame(traceId) }
+        }
     }
 
     /**

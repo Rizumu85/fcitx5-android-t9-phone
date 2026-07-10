@@ -25,14 +25,14 @@ class T9PunctuationCoordinatorTest {
                 englishPunctuation = listOf("!", "?")
             ),
             clearTransientInputUiState = { clearCount++ },
-            refreshUi = { refreshCount++ },
+            publishCandidateSource = { refreshCount++ },
             cancelTimeout = { cancelTimeoutCount++ },
             commitText = { commits += it }
         )
     }
 
     @Test
-    fun showEnglishCandidatesClearsRefreshesAndCancelsTimeout() {
+    fun showEnglishCandidatesAtomicallyPublishesAndCancelsTimeout() {
         val host = Host()
         val coordinator = host.coordinator()
 
@@ -40,24 +40,24 @@ class T9PunctuationCoordinatorTest {
 
         assertTrue(coordinator.isPending)
         assertEquals("!", coordinator.pendingText)
-        assertEquals(1, host.clearCount)
+        assertEquals(0, host.clearCount)
         assertEquals(1, host.refreshCount)
         assertEquals(1, host.cancelTimeoutCount)
         assertTrue(host.commits.isEmpty())
     }
 
     @Test
-    fun previewCandidateOnlyMovesSelectionAndRefreshes() {
+    fun moveSelectionDefersPublicationToLocalSelectionFrame() {
         val host = Host()
         val coordinator = host.coordinator()
         coordinator.showEnglishCandidates()
 
-        assertTrue(coordinator.previewCandidate(1))
+        assertTrue(coordinator.moveSelection(1))
 
         assertTrue(coordinator.isPending)
         assertEquals("?", coordinator.pendingText)
-        assertEquals(1, host.clearCount)
-        assertEquals(2, host.refreshCount)
+        assertEquals(0, host.clearCount)
+        assertEquals(1, host.refreshCount)
         assertEquals(1, host.cancelTimeoutCount)
         assertTrue(host.commits.isEmpty())
     }
@@ -73,7 +73,7 @@ class T9PunctuationCoordinatorTest {
         assertFalse(coordinator.isPending)
         assertNull(coordinator.pendingText)
         assertEquals(listOf("?"), host.commits)
-        assertEquals(1, host.clearCount)
+        assertEquals(0, host.clearCount)
         assertEquals(2, host.refreshCount)
         assertEquals(2, host.cancelTimeoutCount)
     }
@@ -87,7 +87,7 @@ class T9PunctuationCoordinatorTest {
 
         assertTrue(coordinator.isPending)
         assertEquals("，", coordinator.pendingText)
-        assertEquals(1, host.clearCount)
+        assertEquals(0, host.clearCount)
         assertEquals(1, host.refreshCount)
         assertEquals(1, host.cancelTimeoutCount)
         assertTrue(host.commits.isEmpty())
@@ -103,7 +103,7 @@ class T9PunctuationCoordinatorTest {
 
         assertFalse(coordinator.isPending)
         assertNull(coordinator.pendingText)
-        assertEquals(1, host.clearCount)
+        assertEquals(0, host.clearCount)
         assertEquals(2, host.refreshCount)
         assertEquals(2, host.cancelTimeoutCount)
         assertTrue(host.commits.isEmpty())

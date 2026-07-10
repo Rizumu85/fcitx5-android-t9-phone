@@ -69,10 +69,11 @@ class T9CandidateUiSnapshotPipeline(
     }
 
     sealed class MoveBottomCandidate {
-        data class SmartEnglish(val nextOriginalIndex: Int) : MoveBottomCandidate()
-        data class PendingPunctuation(val previewOriginalIndex: Int) : MoveBottomCandidate()
-        object Refresh : MoveBottomCandidate()
-        data class ChineseEngine(val delta: Int) : MoveBottomCandidate()
+        data class LocalSelection(
+            val source: ShownSource,
+            val originalIndex: Int
+        ) : MoveBottomCandidate()
+        data class PageTransition(val offset: PageOffset) : MoveBottomCandidate()
     }
 
     sealed class CommitBottomCandidate {
@@ -93,6 +94,8 @@ class T9CandidateUiSnapshotPipeline(
     )
     private val strokeCandidateFilter = T9StrokeCandidateFilter(candidateIsRenderable)
     private val pinyinRowWindow = T9PinyinRowWindow()
+    private var lastInput: T9CandidateUiInputSnapshot? = null
+    private var currentUiSnapshot: T9CandidateUiSnapshot? = null
     private val stateBuilder = T9CandidateUiStateBuilder(object : T9CandidateUiStateBuilder.Pipeline {
         override fun buildSmartEnglishPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates =
             sourceSessions.buildSmartEnglishPaged(data)
@@ -179,20 +182,51 @@ class T9CandidateUiSnapshotPipeline(
     val chineseBulkFilterState: ChineseT9CandidatePipeline.BulkFilterState
         get() = sourceSessions.chineseBulkFilterState
 
-    fun build(input: T9CandidateUiInputSnapshot): T9CandidateUiSnapshot? =
-        stateBuilder.build(input)?.also { snapshot ->
-            sourceSessions.updateShownState(
-                source = snapshot.interactionState.shownSource,
-                paged = snapshot.shownState.paged,
-                originalIndices = snapshot.shownState.originalIndices,
-                matchedPrefix = snapshot.shownState.matchedPrefix
-            )
-        }
+    fun build(input: T9CandidateUiInputSnapshot): T9CandidateUiSnapshot? {
+        val snapshot = stateBuilder.build(input) ?: return null
+        sourceSessions.updateShownState(
+            source = snapshot.interactionState.shownSource,
+            paged = snapshot.shownState.paged,
+            originalIndices = snapshot.shownState.originalIndices,
+            matchedPrefix = snapshot.shownState.matchedPrefix
+        )
+        lastInput = input
+        currentUiSnapshot = snapshot
+        return snapshot
+    }
+
+    fun buildLocalSelectionFrame(
+        smartEnglishPresentation: T9PresentationState? = null
+    ): T9CandidateSelectionFrame? {
+        val input = lastInput ?: return null
+        val previous = currentUiSnapshot ?: return null
+        val shown = sourceSessions.currentShownSnapshot ?: return null
+        if (shown.source != previous.interactionState.shownSource) return null
+        val presentation = stateBuilder.presentationForSelection(
+            input = input,
+            source = shown.source,
+            paged = shown.paged,
+            smartEnglishPresentation = smartEnglishPresentation
+        )
+        val frame = T9CandidateSelectionFramePlanner.plan(
+            previous = previous.renderState,
+            sourcePanel = input.inputPanel,
+            candidates = shown.paged,
+            presentation = presentation
+        ) ?: return null
+        currentUiSnapshot = previous.copy(
+            renderState = frame.renderState,
+            shownState = previous.shownState.copy(paged = shown.paged)
+        )
+        return frame
+    }
 
     fun reset() {
         sourceSessions.reset()
         strokeCandidateFilter.clearSource()
         pinyinRowWindow.clear()
+        lastInput = null
+        currentUiSnapshot = null
     }
 
     fun invalidateShownInteraction() {

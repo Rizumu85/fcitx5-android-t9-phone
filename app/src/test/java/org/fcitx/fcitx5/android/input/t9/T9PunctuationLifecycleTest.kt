@@ -23,8 +23,7 @@ class T9PunctuationLifecycleTest {
         assertEquals("!", lifecycle.pendingText)
         assertEquals(
             listOf(
-                T9PunctuationLifecycle.Effect.ClearTransientInputUiState,
-                T9PunctuationLifecycle.Effect.RefreshUi,
+                T9PunctuationLifecycle.Effect.PublishCandidateSource,
                 T9PunctuationLifecycle.Effect.CancelTimeout
             ),
             result.effects
@@ -42,8 +41,7 @@ class T9PunctuationLifecycleTest {
         assertEquals("，", lifecycle.pendingText)
         assertEquals(
             listOf(
-                T9PunctuationLifecycle.Effect.ClearTransientInputUiState,
-                T9PunctuationLifecycle.Effect.RefreshUi,
+                T9PunctuationLifecycle.Effect.PublishCandidateSource,
                 T9PunctuationLifecycle.Effect.CancelTimeout
             ),
             result.effects
@@ -51,18 +49,15 @@ class T9PunctuationLifecycleTest {
     }
 
     @Test
-    fun candidatePreviewRefreshesWithoutCommit() {
+    fun candidateSelectionMovesWithoutPublishingACompleteSourceFrame() {
         val lifecycle = lifecycle()
         lifecycle.showEnglishCandidates()
 
-        val result = lifecycle.previewCandidate(1)
+        val result = lifecycle.moveSelection(1)
 
         assertTrue(result.handled)
         assertEquals("?", lifecycle.pendingText)
-        assertEquals(
-            listOf(T9PunctuationLifecycle.Effect.RefreshUi),
-            result.effects
-        )
+        assertEquals(emptyList<T9PunctuationLifecycle.Effect>(), result.effects)
     }
 
     @Test
@@ -78,7 +73,23 @@ class T9PunctuationLifecycleTest {
             listOf(
                 T9PunctuationLifecycle.Effect.CancelTimeout,
                 T9PunctuationLifecycle.Effect.CommitText("?"),
-                T9PunctuationLifecycle.Effect.RefreshUi
+                T9PunctuationLifecycle.Effect.PublishCandidateSource
+            ),
+            result.effects
+        )
+    }
+
+    @Test
+    fun incompatibleCompositionRequestsClearBeforePublishingPunctuation() {
+        val lifecycle = lifecycle()
+
+        val result = lifecycle.showChineseCandidates(discardIncompatibleComposition = true)
+
+        assertEquals(
+            listOf(
+                T9PunctuationLifecycle.Effect.ClearTransientInputUiState,
+                T9PunctuationLifecycle.Effect.PublishCandidateSource,
+                T9PunctuationLifecycle.Effect.CancelTimeout
             ),
             result.effects
         )

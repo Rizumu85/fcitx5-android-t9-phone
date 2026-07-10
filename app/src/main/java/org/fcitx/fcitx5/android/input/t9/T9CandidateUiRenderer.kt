@@ -21,6 +21,7 @@ class T9CandidateUiRenderer(
             shortcutStyle: T9ShortcutCandidateStyle,
             candidateStatus: T9CandidateStatus?
         )
+        fun renderCandidateSelection(candidates: FcitxEvent.PagedCandidateEvent.Data): Boolean
         fun renderPinyin(readingOptions: List<String>, pinyinUseT9: Boolean): Boolean
         fun syncPinyinLayout(): Boolean
         fun renderFocus(focus: T9CandidateFocus)
@@ -127,5 +128,27 @@ class T9CandidateUiRenderer(
         }
         previousVisibilityRequest = nextVisibilityRequest
         previousState = next
+    }
+
+    fun renderSelection(frame: T9CandidateSelectionFrame): Boolean {
+        val previous = previousState ?: return false
+        val next = frame.renderState
+        val patch = T9CandidateRenderer.diff(previous, next)
+        if (!patch.candidates || patch.candidateContent || patch.pinyin || patch.focus || patch.visibility) {
+            return false
+        }
+        val rendered = T9ResponsivenessTrace.measure(
+            "CandidatesView.updateUi.renderCandidateSelection"
+        ) {
+            delegate.renderCandidateSelection(next.candidates)
+        }
+        if (!rendered) return false
+        if (patch.preedit) {
+            T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderSelectionPreedit") {
+                delegate.renderPreedit(next.panel, next.reservePreeditRow)
+            }
+        }
+        previousState = next
+        return true
     }
 }
