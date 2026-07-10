@@ -23,6 +23,19 @@ Baidu installation guide; version-specific additions and fixes live only in
 by Git, while version metadata, notes, and staging readmes are committed and
 tagged.
 
+The performance-first release begins with a deep input-latency tracing Module.
+Its Interface follows one latest T9 input generation through decision complete,
+optional source event, render-ready snapshot, Android render, and the following
+frame callback. The Module owns generation replacement, stage ordering,
+aggregation, percentile calculation, and summary logging. Callers only announce
+stage transitions; they do not build metric names or aggregate samples.
+
+The normal trace mode does not activate the existing nested section timers.
+Detailed section timing is an explicit diagnostic option because dozens of
+synchronized measurements in the hot path distort low-end-device results. A
+complete trace is published only when the same generation reaches the frame
+callback; stale callbacks cannot complete a newer input.
+
 English case uses one short-press cycle (`abc`, `Abc`, `ABC`) so long `1`
 remains the first candidate shortcut. Text-mode `*` owns a complete ordered
 interaction: commit the pending word or Chinese candidate without adding a

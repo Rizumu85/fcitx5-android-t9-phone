@@ -23,15 +23,10 @@ behavior:
 adb shell input keyboard keyevent 11
 ```
 
-Some Android builds also accept the option-style spelling:
-
-```bash
-adb shell input keyevent --source keyboard 11
-```
-
-Use whichever spelling the connected device accepts, but keep the source
-explicit. `11` is `KEYCODE_4`; named key codes are usually clearer when the
-command supports them:
+Do not move `keyboard` after `keyevent`. On Android's `input` command the source
+is a positional argument before the command; an option-style spelling may be
+silently interpreted as generic text injection and reach the IME as
+`KEYCODE_UNKNOWN`. `11` is `KEYCODE_4`; named key codes are usually clearer:
 
 ```bash
 adb shell input keyboard keyevent KEYCODE_4
@@ -72,9 +67,12 @@ Useful trace names to compare:
 - `T9EnglishDictionary.candidatesFor`
 - `SmartEnglishPredictionDictionary.predictionsAfter`
 
-The trace is aggregated, so test with a short, repeatable sequence first. For
-example, use one first-letter Chinese T9 case, one folded pinyin-row case, and
-one Smart English word such as `43556` for `hello`.
+The primary report measures physical-key decision, engine-source wait,
+snapshot construction, render work, and the following frame callback as one
+generation-owned transaction. The developer report exposes a partial window
+immediately; logcat emits aggregate summaries every 20 completed inputs. Test
+with a short, repeatable sequence first, such as one first-letter Chinese T9
+case, one folded pinyin-row case, and `43556` for Smart English `hello`.
 
 ## Screen Recording and Frame Analysis
 

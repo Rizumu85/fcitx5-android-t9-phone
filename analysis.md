@@ -493,6 +493,29 @@ code, long `#` changes top-level mode, and idle long `*` cycles enabled Chinese
 schemes. Release artifacts must be signed with the existing `key0` key and
 verified before publication.
 
+## Performance-First Release Baseline
+
+The next release must optimize measured input responsiveness rather than file
+size or Module count. Existing `T9ResponsivenessTrace` spans are local,
+string-keyed stopwatches. They cannot correlate physical input with Fcitx/Rime
+wait time, candidate snapshot publication, Android rendering, and the first
+complete displayed frame. Enabling them also measures dozens of nested blocks,
+updates one synchronized map per block, and may log on the input thread.
+
+The first architecture slice is therefore observability, not an optimization.
+One accepted T9 command generation should be followed from command execution to
+the first complete candidate frame. A newer input invalidates the older trace,
+just as a newer composition invalidates stale candidates. Chinese paths include
+the engine event wait; Smart English and local interactions can proceed directly
+to snapshot creation. Results are grouped by input path and report p50, p95,
+maximum, and average stage costs. No fixed latency budget should be invented
+before the target phone supplies a trustworthy baseline.
+
+Detailed nested section timing remains available only as an explicit diagnostic
+mode. The normal responsiveness setting should use the lower-overhead
+transaction trace so the measurement mechanism does not materially create the
+latency it is intended to observe.
+
 ### Device-dependent Stroke glyph coverage
 
 The curated dictionary removed non-Han components, but a two-key device sweep

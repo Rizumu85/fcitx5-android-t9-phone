@@ -324,3 +324,16 @@ otherwise.
 - [x] Verify signatures and stage exactly four APKs plus two Baidu readmes.
 - [x] Commit/push release metadata, tag `v4.2.0`, and publish the GitHub Release
   with only the verified signed APKs.
+
+## Performance Baseline
+
+- [x] Deepen `T9ResponsivenessTrace` with generation-owned end-to-end input
+  transactions and low-overhead percentile aggregation.
+- [x] Start traces only for command-producing T9 decisions and mark optional
+  Fcitx source events, snapshot completion, render completion, and frame display.
+- [x] Keep nested section timing opt-in so normal tracing does not perturb the
+  measured input path.
+- [x] Add Interface-level tests for stage durations, replacement, stale frame
+  rejection, percentile summaries, and disabled tracing.
+- [x] Run focused tests, build/install debug, and leave the partial-window report
+  ready for a real physical-key baseline before setting performance budgets.
