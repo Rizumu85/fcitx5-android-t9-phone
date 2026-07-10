@@ -10,6 +10,12 @@ appends the separator during Pinyin composition and emits a literal apostrophe
 while idle; long `1` retains shortcut/literal-digit behavior. Number mode
 remains numeric and keeps its current `*` operator behavior.
 
+Transient mode feedback is hosted by a dedicated root overlay attached after
+both `InputView` and `CandidatesView`. The overlay owns its badge animation and
+is non-interactive, so candidate and keyboard touch handling remain unchanged.
+Mode, scheme, selection, and English case feedback all use this one topmost
+surface instead of embedding duplicate badges in feature-specific views.
+
 English case uses one short-press cycle (`abc`, `Abc`, `ABC`) so long `1`
 remains the first candidate shortcut. Text-mode `*` owns a complete ordered
 interaction: commit the pending word or Chinese candidate without adding a

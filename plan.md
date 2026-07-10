@@ -304,3 +304,12 @@ otherwise.
 - [x] Preserve composing separator insertion and long-press shortcut/digit rules.
 - [x] Update the key contract and focused flow tests.
 - [x] Build/install debug for physical-phone verification.
+
+## Topmost Transient Mode Indicator
+
+- [x] Extract the transient badge from `InputView` into one root-overlay owner.
+- [x] Attach the overlay after the candidate surface and route all indicator
+  calls through the service-owned seam.
+- [x] Preserve badge appearance, animation timing, and non-interactive behavior.
+- [x] Build/install debug and verify English case feedback over Smart English
+  candidates on the physical phone.

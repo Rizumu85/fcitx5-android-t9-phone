@@ -461,6 +461,22 @@ emit an apostrophe when idle and append the same separator to a live Pinyin
 composition. Long `1` remains candidate shortcut 1 while composing and literal
 digit `1` while idle.
 
+## Transient Mode Indicator Layering
+
+The English case badge is owned by `InputView`, while `CandidatesView` is added
+later as a full-screen sibling under the IME content root. Android therefore
+draws the candidate surface above the badge regardless of the badge's elevation
+inside `InputView`. When Smart English places its candidate bubble over the
+center region, the `Abc`/`ABC` feedback can be partially or fully covered.
+
+This is a hierarchy defect rather than a Smart English state or timing defect:
+the case coordinator emits the expected label and the badge animation runs, but
+no child elevation can cross the sibling boundary. The transient indicator must
+be a final, non-interactive child of the IME content root, above both the input
+and candidate surfaces. Existing visual behavior and timeout remain unchanged.
+There is no useful JVM seam for Android sibling draw order; physical-device
+capture is the regression signal.
+
 ### Device-dependent Stroke glyph coverage
 
 The curated dictionary removed non-Han components, but a two-key device sweep
