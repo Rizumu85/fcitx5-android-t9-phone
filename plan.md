@@ -398,5 +398,5 @@ otherwise.
   lookup/ranking/list construction from candidate frames.
 - [x] Capture physical-delete editor state once and make number expression
   evaluation ticketed after immediate operator commit.
-- [ ] Run focused regression tests after every slice, then build/install debug
+- [x] Run focused regression tests after every slice, then build/install debug
   and compare warm key and cold-start traces on the target phone.

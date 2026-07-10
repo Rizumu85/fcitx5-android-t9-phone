@@ -812,3 +812,32 @@ generation ticket. A newer number-mode key, text effect, panel dismissal, mode
 change, or input-session transition cancels the job and rejects any late
 result. The deferred reader accepts either the post-commit text (and removes
 the committed `=`/`≈` suffix) or a still-stale pre-commit editor snapshot.
+
+Target-device verification covered all seven slices with the debug IME and its
+matching debug Rime plugin. Twenty-sample Smart English input and delete windows
+measured p50 20.25 ms and 22.39 ms respectively. Local Smart English candidate
+navigation measured p50 10.10 ms and performed no snapshot or full-render work,
+confirming that cursor-only frames stay on the local path. A twenty-sample
+Chinese Zhuyin input window measured p50 47.92 ms and p95 63.23 ms, with one
+201.29 ms outlier; its remaining cost was distributed across the Rime source,
+snapshot, render, and frame stages rather than the O(1) key decision.
+
+The number-mode device scenario `1+2=` committed the equals sign immediately,
+then published `=3` through the deferred result panel. Backspace first dismissed
+that transient result and only the next Backspace edited the expression, which
+also validates stale-panel ownership in the physical-delete path.
+
+One process-cold probe after `am kill` reached `onStartInputView` in about 4.00
+seconds versus the earlier 4.86-second diagnostic sample. The unchanged data
+installation fast path completed in 314.79 ms rather than the earlier roughly
+375 ms full check, but startup still skipped 136 frames before the input view
+and another 51 around Rime readiness. This is a measurable improvement, not a
+claim that cold start is solved: process creation, Android view inflation,
+Rime deployment, font work, and JIT remain the next evidence boundaries.
+
+The Rime callback contract makes the main and Rime plugin APKs a coordinated
+release unit. A matching plugin was rebuilt and installed for device testing.
+The fail-closed guard keeps an older plugin from terminating the IME, but Chinese
+input intentionally remains unavailable until the updated plugin is installed;
+future releases that include this main-app change must therefore publish the
+corresponding Rime plugin update.
