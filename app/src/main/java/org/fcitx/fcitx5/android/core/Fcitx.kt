@@ -17,6 +17,7 @@ import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.FcitxApplication
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.data.DataManager
+import org.fcitx.fcitx5.android.core.performance.StartupPerformanceTrace
 import org.fcitx.fcitx5.android.data.clipboard.ClipboardManager
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.utils.ImmutableGraph
@@ -465,7 +466,9 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
 
     private val dispatcher = FcitxDispatcher(object : FcitxDispatcher.FcitxController {
         override fun nativeStartup() {
-            DataManager.sync()
+            StartupPerformanceTrace.measure(StartupPerformanceTrace.Stage.DATA_INSTALLATION) {
+                DataManager.sync()
+            }
             val locale = Locales.fcitxLocale
             val dataDir = DataManager.dataDir.absolutePath
             val plugins = DataManager.getLoadedPlugins()
@@ -489,15 +492,17 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
                extDomains=${extDomains.joinToString()}
             """.trimIndent()
             )
-            with(FcitxApplication.getInstance().directBootAwareContext) {
-                startupFcitx(
-                    locale,
-                    dataDir,
-                    nativeLibDir.toString(),
-                    (getExternalFilesDir(null) ?: filesDir).absolutePath,
-                    (externalCacheDir ?: cacheDir).absolutePath,
-                    extDomains.toTypedArray()
-                )
+            StartupPerformanceTrace.measure(StartupPerformanceTrace.Stage.FCITX_NATIVE_STARTUP) {
+                with(FcitxApplication.getInstance().directBootAwareContext) {
+                    startupFcitx(
+                        locale,
+                        dataDir,
+                        nativeLibDir.toString(),
+                        (getExternalFilesDir(null) ?: filesDir).absolutePath,
+                        (externalCacheDir ?: cacheDir).absolutePath,
+                        extDomains.toTypedArray()
+                    )
+                }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 lifecycle.launchWhenReady {
@@ -554,7 +559,10 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
 
     private fun handleFcitxEvent(event: FcitxEvent<*>) {
         when (event) {
-            is FcitxEvent.ReadyEvent -> lifecycleRegistry.postEvent(FcitxLifecycle.Event.ON_READY)
+            is FcitxEvent.ReadyEvent -> {
+                StartupPerformanceTrace.mark(StartupPerformanceTrace.Milestone.FCITX_READY)
+                lifecycleRegistry.postEvent(FcitxLifecycle.Event.ON_READY)
+            }
             is FcitxEvent.IMChangeEvent -> updateCachedState {
                 it.copy(inputMethodEntry = event.data)
             }
@@ -576,8 +584,13 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
             is FcitxEvent.InputPanelEvent -> updateCachedState {
                 it.copy(inputPanel = event.data)
             }
-            is FcitxEvent.RimeAvailabilityEvent -> updateCachedState {
-                it.copy(rimeAvailability = event.data)
+            is FcitxEvent.RimeAvailabilityEvent -> {
+                if (event.data.state == FcitxEvent.RimeAvailabilityEvent.State.Ready) {
+                    StartupPerformanceTrace.mark(StartupPerformanceTrace.Milestone.RIME_READY)
+                }
+                updateCachedState {
+                    it.copy(rimeAvailability = event.data)
+                }
             }
             else -> {}
         }
@@ -604,6 +617,7 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
             FcitxPluginServices.connectAll()
         }
         setupLogStream(AppPrefs.getInstance().internal.verboseLog.getValue())
+        StartupPerformanceTrace.mark(StartupPerformanceTrace.Milestone.FCITX_START_REQUESTED)
         dispatcher.start()
     }
 

@@ -63,6 +63,7 @@ import org.fcitx.fcitx5.android.core.TextFormatFlag
 import org.fcitx.fcitx5.android.core.KeySym
 import org.fcitx.fcitx5.android.core.ScancodeMapping
 import org.fcitx.fcitx5.android.core.SubtypeManager
+import org.fcitx.fcitx5.android.core.performance.StartupPerformanceTrace
 import org.fcitx.fcitx5.android.daemon.FcitxConnection
 import org.fcitx.fcitx5.android.daemon.FcitxDaemon
 import org.fcitx.fcitx5.android.data.InputFeedbacks
@@ -562,6 +563,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private val t9ResponsivenessTraceChangeListener =
         ManagedPreference.OnChangeListener<Boolean> { _, value ->
             T9ResponsivenessTrace.configure(enabled = value)
+            StartupPerformanceTrace.configure(enabled = value)
         }
     private val chineseT9OutputScriptPrefs = ChineseT9Scheme.entries
         .map(prefs.chineseT9::outputScriptPreference)
@@ -696,6 +698,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
         pkgNameCache = PackageNameCache(this)
         T9ResponsivenessTrace.configure(enabled = prefs.internal.t9ResponsivenessTrace.getValue())
+        StartupPerformanceTrace.configure(enabled = prefs.internal.t9ResponsivenessTrace.getValue())
         recreateInputViewPrefs.forEach {
             it.registerOnChangeListener(recreateInputViewListener)
         }
@@ -1511,12 +1514,19 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
         InputFeedbacks.syncSystemPrefs()
         decorView.postOnAnimation {
+            StartupPerformanceTrace.mark(
+                StartupPerformanceTrace.Milestone.FIRST_INPUT_SURFACE_FRAME
+            )
             decorView.post(InputFeedbacks::preloadAppSoundsIfEnabled)
         }
     }
 
     override fun onCreateInputView(): View? {
-        replaceInputViews(ThemeManager.activeTheme)
+        StartupPerformanceTrace.mark(StartupPerformanceTrace.Milestone.INPUT_VIEW_REQUESTED)
+        StartupPerformanceTrace.measure(StartupPerformanceTrace.Stage.INPUT_VIEW_CONSTRUCTION) {
+            replaceInputViews(ThemeManager.activeTheme)
+        }
+        StartupPerformanceTrace.mark(StartupPerformanceTrace.Milestone.INPUT_VIEW_CREATED)
         // We will call `setInputView` by ourselves. This is fine.
         return null
     }

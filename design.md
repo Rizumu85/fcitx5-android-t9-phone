@@ -594,3 +594,24 @@ effect until the user enters the scheme again. No output-script work runs
 during a physical-key decision or candidate frame. The complete Chinese T9
 preference category participates in the existing device-protected preference
 sync, preserving the same scheme subset and script defaults during Direct Boot.
+
+## Startup Performance Transaction
+
+`StartupPerformanceTrace` is the Cold-start Transaction Module. Its Interface
+accepts only named startup stages and lifecycle milestones, exposes one stable
+snapshot, and owns process generation, first-occurrence rules, paired stage
+duration, partial/complete publication, and Android Perfetto sections. Callers
+do not pass arbitrary timer names or calculate elapsed time.
+
+`FcitxApplication`, the Data Installation Module, native Fcitx startup,
+`Fcitx`, and the input-window lifecycle are Adapters at this seam. They report
+their own semantic transition and do not know how stages are combined. The
+Implementation uses the elapsed-realtime clock shared with Android's process
+start timestamp, so all offsets use one time base across threads.
+
+The first input-surface frame and Rime-ready milestone are independent. If the
+surface appears first, the Module publishes one partial snapshot and later one
+complete snapshot; if Rime is already ready, it publishes only the complete
+snapshot. Repeated lifecycle calls are ignored for the process generation.
+The existing responsiveness preference gates publication, not capture, because
+the preference itself is unavailable during the earliest Application stage.

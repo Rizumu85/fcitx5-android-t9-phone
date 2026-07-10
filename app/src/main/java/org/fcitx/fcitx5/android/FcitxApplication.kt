@@ -18,6 +18,7 @@ import androidx.preference.PreferenceManager
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.plus
+import org.fcitx.fcitx5.android.core.performance.StartupPerformanceTrace
 import org.fcitx.fcitx5.android.daemon.FcitxDaemon
 import org.fcitx.fcitx5.android.data.clipboard.ClipboardManager
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
@@ -82,6 +83,10 @@ class FcitxApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        StartupPerformanceTrace.startProcess()
+        val applicationCreateStage = StartupPerformanceTrace.beginStage(
+            StartupPerformanceTrace.Stage.APPLICATION_CREATE
+        )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !userManager.isUserUnlocked) {
             isDirectBootMode = true
             registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_UNLOCKED))
@@ -126,6 +131,9 @@ class FcitxApplication : Application() {
         Timber.d("isDirectBootMode=$isDirectBootMode")
 
         AppPrefs.init(sharedPrefs)
+        StartupPerformanceTrace.configure(
+            AppPrefs.getInstance().internal.t9ResponsivenessTrace.getValue()
+        )
         // record last pid for crash logs
         AppPrefs.getInstance().internal.pid.apply {
             val currentPid = Process.myPid()
@@ -149,6 +157,8 @@ class FcitxApplication : Application() {
             null,
             ContextCompat.RECEIVER_EXPORTED
         )
+        StartupPerformanceTrace.endStage(applicationCreateStage)
+        StartupPerformanceTrace.mark(StartupPerformanceTrace.Milestone.APPLICATION_CREATED)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

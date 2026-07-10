@@ -414,3 +414,16 @@ otherwise.
 - [x] Add focused naming, option-polarity, and stale-request tests.
 - [x] Build both maintained repositories, install their debug artifacts, and
   verify all three schemes and their configured scripts on the target phone.
+
+## Evidence-driven Cold-start Optimization
+
+- [x] Add a process-generation Startup Performance Transaction with semantic
+  stage tokens, lifecycle milestones, partial/complete snapshots, and focused
+  unit tests.
+- [x] Instrument Application create, data installation, native Fcitx startup,
+  Fcitx/Rime readiness, input-view construction, and first visible frame.
+- [x] Include the startup snapshot in the existing responsiveness report and
+  emit bounded structured logs only when tracing is enabled.
+- [x] Build and install debug, capture a process-cold target-device report, and
+  use its largest measured stage to choose the next optimization.
+- [x] Commit and push the instrumentation before changing startup behavior.

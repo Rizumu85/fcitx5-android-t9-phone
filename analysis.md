@@ -876,3 +876,35 @@ lifecycle events and adds no preference, action, or Rime read to the physical-ke
 or candidate-frame path. The Chinese T9 preference category is also copied to
 device-protected storage so enabled schemes and output defaults remain the same
 when the IME starts before the first device unlock.
+
+## Cold-start Phase Attribution
+
+The remaining process-cold delay cannot be optimized safely from the current
+single total. The existing trace starts at a physical key, while startup spans
+Application initialization, data installation, native Fcitx startup, Rime
+readiness, input-view construction, and the first visible input-surface frame.
+Those stages run on different threads and may overlap, so isolated ad-hoc
+timers would not provide one internally consistent startup history.
+
+The next slice therefore records one process startup generation from Android's
+process-start elapsed time. Synchronous stages use paired semantic tokens;
+asynchronous lifecycle points use first-occurrence milestones. Duplicate view
+creation, Fcitx restart, theme recreation, or later Rime events must not rewrite
+the cold-start sample. The trace retains data even before the preference is
+read, but publishes logs and the developer report only when T9 responsiveness
+tracing is enabled.
+
+Success requires a report containing Application create, data installation,
+native Fcitx startup, input-view construction, Fcitx ready, Rime ready, and
+first input-surface frame offsets. It must remain correct when the first frame
+precedes Rime readiness, produce at most one partial and one complete log, add
+no work to the physical-key path, and preserve the existing IME UI behavior.
+
+The first target-device process-cold capture attributed the visible delay
+instead of treating startup as one number. The first input-surface frame arrived
+at 4570.77 ms and Rime became ready at 6680.26 ms. Synchronous stage costs were
+392.78 ms for Application create, 226.33 ms for unchanged data installation,
+643.21 ms for native Fcitx startup, and 2597.24 ms for input-view construction.
+Input-view construction is therefore the next optimization target. The data
+fingerprint fast path is measurable but is not the largest visible-stage cost,
+so optimizing it first would not address the dominant first-frame delay.

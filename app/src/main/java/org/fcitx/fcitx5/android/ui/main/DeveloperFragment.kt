@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.data.DataManager
+import org.fcitx.fcitx5.android.core.performance.StartupPerformanceTrace
 import org.fcitx.fcitx5.android.daemon.FcitxDaemon
 import org.fcitx.fcitx5.android.data.clipboard.ClipboardManager
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
@@ -90,7 +91,9 @@ class DeveloperFragment : PaddingPreferenceFragment() {
                 isIconSpaceReserved = false
                 isSingleLineTitle = false
                 setOnPreferenceChangeListener { _, newValue ->
-                    T9ResponsivenessTrace.configure(enabled = (newValue as? Boolean) == true)
+                    val enabled = (newValue as? Boolean) == true
+                    T9ResponsivenessTrace.configure(enabled = enabled)
+                    StartupPerformanceTrace.configure(enabled = enabled)
                     true
                 }
             })
@@ -159,11 +162,12 @@ class DeveloperFragment : PaddingPreferenceFragment() {
     }
 
     private fun formatT9ResponsivenessReport(): String {
+        val startupSnapshot = StartupPerformanceTrace.latestSnapshot()
         val inputSummaries = T9ResponsivenessTrace.latestInputSummaries()
             .sortedByDescending { it.p95Nanos }
         val sectionSummaries = T9ResponsivenessTrace.latestSummaries()
             .sortedByDescending { it.averageNanos }
-        if (inputSummaries.isEmpty() && sectionSummaries.isEmpty()) {
+        if (startupSnapshot == null && inputSummaries.isEmpty() && sectionSummaries.isEmpty()) {
             return getString(R.string.t9_responsiveness_trace_report_empty)
         }
         val inputReport = inputSummaries.joinToString(separator = "\n\n") { summary ->
@@ -197,7 +201,33 @@ class DeveloperFragment : PaddingPreferenceFragment() {
                 summary.count
             )
         }
-        return listOf(inputReport, sectionReport)
+        val startupReport = startupSnapshot?.let { snapshot ->
+            val stages = snapshot.stages.joinToString(separator = ", ") {
+                String.format(
+                    Locale.US,
+                    "%s %.2f ms",
+                    it.stage.traceName,
+                    it.durationNanos / 1_000_000.0
+                )
+            }
+            val milestones = snapshot.milestones.joinToString(separator = ", ") {
+                String.format(
+                    Locale.US,
+                    "%s %.2f ms",
+                    it.milestone.traceName,
+                    it.offsetNanos / 1_000_000.0
+                )
+            }
+            String.format(
+                Locale.US,
+                "Startup (%s): elapsed %.2f ms\nstages: %s\nmilestones: %s",
+                if (snapshot.complete) "complete" else "partial",
+                snapshot.capturedOffsetNanos / 1_000_000.0,
+                stages,
+                milestones
+            )
+        }.orEmpty()
+        return listOf(startupReport, inputReport, sectionReport)
             .filter(String::isNotEmpty)
             .joinToString(separator = "\n\n")
     }
