@@ -96,9 +96,9 @@
     <string name="verbose_log">详细记录日志</string>
     <string name="verbose_log_summary">需要重启</string>
     <string name="t9_responsiveness_trace">跟踪 T9 响应速度</string>
-    <string name="t9_responsiveness_trace_summary">输出聚合后的 T9 耗时摘要，方便调试卡顿</string>
+    <string name="t9_responsiveness_trace_summary">测量物理按键到完整候选帧的端到端延迟</string>
     <string name="t9_responsiveness_trace_report">T9 响应速度报告</string>
-    <string name="t9_responsiveness_trace_report_empty">还没有聚合后的 T9 耗时摘要。请先打开跟踪，输入一段时间后再查看。</string>
+    <string name="t9_responsiveness_trace_report_empty">还没有完整的 T9 输入帧记录。请先打开跟踪，用物理键盘输入后再查看。</string>
     <string name="removed_x">已移除 %1$s</string>
     <string name="added_x">已添加 %1$s</string>
     <string name="edited_x">已编辑 %1$s</string>

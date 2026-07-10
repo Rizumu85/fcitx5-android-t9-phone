@@ -137,12 +137,42 @@ class PhysicalT9KeyHandler(private val host: Host) {
     }
 
     private fun handleCommandKeyFlow(input: KeyInput): KeyResult {
-        val decision = keyFlow.handle(input, physicalKeyFlowState(input)) ?: return KeyResult(handled = false)
-        commandExecutor.execute(decision.commands, input)
+        val state = physicalKeyFlowState(input)
+        val decision = keyFlow.handle(input, state) ?: return KeyResult(handled = false)
+        // A deferred key-down has no user-visible work yet. Starting only when commands exist
+        // prevents long-press hold time from being misreported as input-processing latency.
+        val traceId = decision.commands.takeIf {
+            it.isNotEmpty() && (state.mode == Mode.CHINESE || state.isSmartEnglishActive)
+        }
+            ?.let {
+                T9ResponsivenessTrace.beginInput(
+                    path = state.tracePath(),
+                    requiresSourceEvent = decision.commands.any { it.waitsForFcitxSourceEvent() }
+                )
+            }
+        try {
+            commandExecutor.execute(decision.commands, input)
+        } finally {
+            T9ResponsivenessTrace.markDecisionComplete(traceId)
+        }
         return KeyResult(
             handled = decision.handled,
             consumedKeyUp = decision.consumedKeyUp
         )
+    }
+
+    private fun PhysicalT9KeyFlow.State.tracePath(): String = when (mode) {
+        Mode.CHINESE -> "CHINESE/${chineseScheme.name}"
+        Mode.ENGLISH -> if (isSmartEnglishActive) "SMART_ENGLISH" else "ENGLISH"
+        Mode.NUMBER -> "NUMBER"
+    }
+
+    private fun PhysicalT9KeyFlow.Command.waitsForFcitxSourceEvent(): Boolean = when (this) {
+        is PhysicalT9KeyFlow.Command.ForwardChineseT9KeyShortPress,
+        PhysicalT9KeyFlow.Command.ForwardChineseT9SeparatorShortPress -> true
+        // Local focus, paging, punctuation, and immediate-hide commands own their next UI frame;
+        // waiting for an unrelated Rime event would strand those transactions.
+        else -> false
     }
 
     private fun physicalKeyFlowState(input: KeyInput): PhysicalT9KeyFlow.State =

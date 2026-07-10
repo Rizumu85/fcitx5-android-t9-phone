@@ -589,6 +589,7 @@ class CandidatesView(
     override fun handleFcitxEvent(it: FcitxEvent<*>) {
         when (it) {
             is FcitxEvent.InputPanelEvent -> {
+                T9ResponsivenessTrace.markSourceEvent()
                 inputPanel = it.data
                 if (service.isChineseT9InputModeActive()) {
                     val ticket = service.getChineseT9InputSnapshot(inputPanel).compositionTicket()
@@ -601,6 +602,7 @@ class CandidatesView(
                 refreshT9Ui()
             }
             is FcitxEvent.PagedCandidateEvent -> {
+                T9ResponsivenessTrace.markSourceEvent()
                 paged = it.data
                 if (service.isChineseT9InputModeActive()) {
                     val ticket = service.getChineseT9InputSnapshot(inputPanel).compositionTicket()
@@ -617,6 +619,7 @@ class CandidatesView(
     }
 
     fun clearTransientState() {
+        T9ResponsivenessTrace.cancelActiveInput()
         t9RefreshScheduler.cancel()
         floatingWindowController.onSurfaceHidden()
         t9CandidateSurfaceAdapter.removePinyinRevealListener()
@@ -663,13 +666,19 @@ class CandidatesView(
     }
 
     fun hideT9CandidateUiImmediately() {
+        val traceId = T9ResponsivenessTrace.activeInputId()
         t9RefreshScheduler.cancel()
         floatingWindowController.onSurfaceHidden()
         t9CandidateSurfaceAdapter.removePinyinRevealListener()
         // A hidden row must stop owning physical OK and numeric shortcuts immediately, even if
         // Android keeps the last complete render tree around for the next atomic frame.
         t9CandidateUiSnapshotPipeline.invalidateShownInteraction()
+        T9ResponsivenessTrace.markSnapshotReady(traceId)
         t9CandidateUiRenderer.hideImmediately()
+        T9ResponsivenessTrace.markRenderComplete(traceId)
+        if (traceId != null) {
+            postOnAnimation { T9ResponsivenessTrace.completeFrame(traceId) }
+        }
     }
 
     fun getHighlightedT9Reading(): String? = t9PinyinRowAdapter.highlightedPinyin()
@@ -735,9 +744,14 @@ class CandidatesView(
     }
 
     private fun updateUi() = T9ResponsivenessTrace.measure("CandidatesView.updateUi") {
-        buildT9CandidateUiState()?.let { snapshot ->
-            applyT9CandidateUiSnapshot(snapshot)
-            t9CandidateUiRenderer.render(snapshot.renderState)
+        val traceId = T9ResponsivenessTrace.activeInputId()
+        val snapshot = buildT9CandidateUiState() ?: return@measure
+        T9ResponsivenessTrace.markSnapshotReady(traceId)
+        applyT9CandidateUiSnapshot(snapshot)
+        t9CandidateUiRenderer.render(snapshot.renderState)
+        T9ResponsivenessTrace.markRenderComplete(traceId)
+        if (traceId != null) {
+            postOnAnimation { T9ResponsivenessTrace.completeFrame(traceId) }
         }
     }
 

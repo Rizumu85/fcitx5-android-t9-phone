@@ -159,12 +159,33 @@ class DeveloperFragment : PaddingPreferenceFragment() {
     }
 
     private fun formatT9ResponsivenessReport(): String {
-        val summaries = T9ResponsivenessTrace.latestSummaries()
+        val inputSummaries = T9ResponsivenessTrace.latestInputSummaries()
+            .sortedByDescending { it.p95Nanos }
+        val sectionSummaries = T9ResponsivenessTrace.latestSummaries()
             .sortedByDescending { it.averageNanos }
-        if (summaries.isEmpty()) {
+        if (inputSummaries.isEmpty() && sectionSummaries.isEmpty()) {
             return getString(R.string.t9_responsiveness_trace_report_empty)
         }
-        return summaries.joinToString(separator = "\n") { summary ->
+        val inputReport = inputSummaries.joinToString(separator = "\n\n") { summary ->
+            String.format(
+                Locale.US,
+                "%s: avg %.2f ms, p50 %.2f ms, p95 %.2f ms, max %.2f ms, replaced %d/%d\n" +
+                    "stages avg: decision %.2f, source %.2f, snapshot %.2f, render %.2f, frame %.2f ms",
+                summary.path,
+                summary.averageNanos / 1_000_000.0,
+                summary.p50Nanos / 1_000_000.0,
+                summary.p95Nanos / 1_000_000.0,
+                summary.maxNanos / 1_000_000.0,
+                summary.replacedCount,
+                summary.replacedCount + summary.count,
+                summary.averageDecisionNanos / 1_000_000.0,
+                summary.averageSourceWaitNanos / 1_000_000.0,
+                summary.averageSnapshotNanos / 1_000_000.0,
+                summary.averageRenderNanos / 1_000_000.0,
+                summary.averageFrameWaitNanos / 1_000_000.0
+            )
+        }
+        val sectionReport = sectionSummaries.joinToString(separator = "\n") { summary ->
             String.format(
                 Locale.US,
                 "%s: avg %.2f ms, max %.2f ms, slow %d/%d",
@@ -175,6 +196,9 @@ class DeveloperFragment : PaddingPreferenceFragment() {
                 summary.count
             )
         }
+        return listOf(inputReport, sectionReport)
+            .filter(String::isNotEmpty)
+            .joinToString(separator = "\n\n")
     }
 
 }

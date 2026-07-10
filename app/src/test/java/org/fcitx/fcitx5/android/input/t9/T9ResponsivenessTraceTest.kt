@@ -82,4 +82,272 @@ class T9ResponsivenessTraceTest {
 
         assertTrue(T9ResponsivenessTrace.latestSummaries().isEmpty())
     }
+
+    @Test
+    fun inputTransactionReportsEndToEndStagesAndPercentiles() {
+        var now = 0L
+        T9ResponsivenessTrace.configure(
+            enabled = true,
+            aggregationWindow = 1,
+            nanoTime = { now }
+        )
+
+        val inputId = T9ResponsivenessTrace.beginInput(
+            path = "CHINESE/PINYIN",
+            requiresSourceEvent = true
+        )
+        now = 1_000_000L
+        T9ResponsivenessTrace.markDecisionComplete(inputId)
+        now = 4_000_000L
+        T9ResponsivenessTrace.markSourceEvent()
+        now = 7_000_000L
+        T9ResponsivenessTrace.markSnapshotReady(inputId)
+        now = 9_000_000L
+        T9ResponsivenessTrace.markRenderComplete(inputId)
+        now = 12_000_000L
+
+        val summary = T9ResponsivenessTrace.completeFrame(inputId)!!
+
+        assertEquals("CHINESE/PINYIN", summary.path)
+        assertEquals(1, summary.count)
+        assertEquals(12_000_000L, summary.averageNanos)
+        assertEquals(12_000_000L, summary.p50Nanos)
+        assertEquals(12_000_000L, summary.p95Nanos)
+        assertEquals(1_000_000L, summary.averageDecisionNanos)
+        assertEquals(3_000_000L, summary.averageSourceWaitNanos)
+        assertEquals(3_000_000L, summary.averageSnapshotNanos)
+        assertEquals(2_000_000L, summary.averageRenderNanos)
+        assertEquals(3_000_000L, summary.averageFrameWaitNanos)
+    }
+
+    @Test
+    fun newerInputRejectsStaleFrameAndCountsReplacement() {
+        var now = 0L
+        T9ResponsivenessTrace.configure(
+            enabled = true,
+            aggregationWindow = 1,
+            nanoTime = { now }
+        )
+
+        val staleId = T9ResponsivenessTrace.beginInput("SMART_ENGLISH")
+        now = 1_000_000L
+        val currentId = T9ResponsivenessTrace.beginInput("SMART_ENGLISH")
+        now = 2_000_000L
+        T9ResponsivenessTrace.markDecisionComplete(currentId)
+        now = 3_000_000L
+        T9ResponsivenessTrace.markSnapshotReady(currentId)
+        now = 4_000_000L
+        T9ResponsivenessTrace.markRenderComplete(currentId)
+        now = 5_000_000L
+
+        assertNull(T9ResponsivenessTrace.completeFrame(staleId))
+        val summary = T9ResponsivenessTrace.completeFrame(currentId)!!
+
+        assertEquals(1, summary.replacedCount)
+        assertEquals(4_000_000L, summary.averageNanos)
+        assertEquals(summary, T9ResponsivenessTrace.latestInputSummaries().single())
+    }
+
+    @Test
+    fun engineInputRejectsUnrelatedUiPassBeforeSourceEvent() {
+        var now = 0L
+        T9ResponsivenessTrace.configure(
+            enabled = true,
+            aggregationWindow = 1,
+            nanoTime = { now }
+        )
+
+        val inputId = T9ResponsivenessTrace.beginInput(
+            path = "CHINESE/ZHUYIN",
+            requiresSourceEvent = true
+        )
+        now = 1L
+        T9ResponsivenessTrace.markSnapshotReady(inputId)
+        now = 2L
+        T9ResponsivenessTrace.markRenderComplete(inputId)
+        now = 3L
+        assertNull(T9ResponsivenessTrace.completeFrame(inputId))
+
+        now = 4L
+        T9ResponsivenessTrace.markSourceEvent()
+        now = 5L
+        T9ResponsivenessTrace.markSnapshotReady(inputId)
+        now = 6L
+        T9ResponsivenessTrace.markRenderComplete(inputId)
+        now = 7L
+
+        val summary = T9ResponsivenessTrace.completeFrame(inputId)!!
+        assertEquals(7L, summary.averageNanos)
+        assertEquals(1L, summary.averageSnapshotNanos)
+        assertEquals(1L, summary.averageRenderNanos)
+        assertEquals(1L, summary.averageFrameWaitNanos)
+    }
+
+    @Test
+    fun synchronousEngineEventProducesNonOverlappingStageDurations() {
+        var now = 0L
+        T9ResponsivenessTrace.configure(
+            enabled = true,
+            aggregationWindow = 1,
+            nanoTime = { now }
+        )
+
+        val inputId = T9ResponsivenessTrace.beginInput(
+            path = "CHINESE/PINYIN",
+            requiresSourceEvent = true
+        )
+        now = 2L
+        T9ResponsivenessTrace.markSourceEvent()
+        now = 4L
+        T9ResponsivenessTrace.markDecisionComplete(inputId)
+        now = 5L
+        T9ResponsivenessTrace.markSnapshotReady(inputId)
+        now = 6L
+        T9ResponsivenessTrace.markRenderComplete(inputId)
+        now = 7L
+
+        val summary = T9ResponsivenessTrace.completeFrame(inputId)!!
+        val stageTotal = summary.averageDecisionNanos +
+            summary.averageSourceWaitNanos +
+            summary.averageSnapshotNanos +
+            summary.averageRenderNanos +
+            summary.averageFrameWaitNanos
+
+        assertEquals(summary.averageNanos, stageTotal)
+        assertEquals(2L, summary.averageDecisionNanos)
+        assertEquals(0L, summary.averageSourceWaitNanos)
+    }
+
+    @Test
+    fun localInputWithoutSourceEventUsesDecisionAsSnapshotBaseline() {
+        var now = 10L
+        T9ResponsivenessTrace.configure(
+            enabled = true,
+            aggregationWindow = 1,
+            nanoTime = { now }
+        )
+
+        val inputId = T9ResponsivenessTrace.beginInput("SMART_ENGLISH")
+        now = 20L
+        T9ResponsivenessTrace.markDecisionComplete(inputId)
+        now = 50L
+        T9ResponsivenessTrace.markSnapshotReady(inputId)
+        now = 60L
+        T9ResponsivenessTrace.markRenderComplete(inputId)
+        now = 80L
+
+        val summary = T9ResponsivenessTrace.completeFrame(inputId)!!
+
+        assertEquals(0L, summary.averageSourceWaitNanos)
+        assertEquals(30L, summary.averageSnapshotNanos)
+        assertEquals(10L, summary.averageRenderNanos)
+        assertEquals(20L, summary.averageFrameWaitNanos)
+    }
+
+    @Test
+    fun localInputIgnoresUnrelatedEngineSourceEvent() {
+        var now = 0L
+        T9ResponsivenessTrace.configure(
+            enabled = true,
+            aggregationWindow = 1,
+            nanoTime = { now }
+        )
+
+        val inputId = T9ResponsivenessTrace.beginInput("SMART_ENGLISH")
+        now = 1L
+        T9ResponsivenessTrace.markDecisionComplete(inputId)
+        now = 2L
+        T9ResponsivenessTrace.markSourceEvent()
+        now = 3L
+        T9ResponsivenessTrace.markSnapshotReady(inputId)
+        now = 4L
+        T9ResponsivenessTrace.markRenderComplete(inputId)
+        now = 5L
+
+        val summary = T9ResponsivenessTrace.completeFrame(inputId)!!
+
+        assertEquals(0L, summary.averageSourceWaitNanos)
+        assertEquals(2L, summary.averageSnapshotNanos)
+    }
+
+    @Test
+    fun inputSummaryUsesNearestRankPercentiles() {
+        var now = 0L
+        T9ResponsivenessTrace.configure(
+            enabled = true,
+            aggregationWindow = 4,
+            nanoTime = { now }
+        )
+        var summary: T9ResponsivenessTrace.InputLatencySummary? = null
+
+        listOf(1L, 2L, 3L, 100L).forEach { duration ->
+            val inputId = T9ResponsivenessTrace.beginInput("SMART_ENGLISH")
+            T9ResponsivenessTrace.markDecisionComplete(inputId)
+            T9ResponsivenessTrace.markSnapshotReady(inputId)
+            T9ResponsivenessTrace.markRenderComplete(inputId)
+            now += duration
+            summary = T9ResponsivenessTrace.completeFrame(inputId) ?: summary
+        }
+
+        val completed = requireNotNull(summary)
+        assertEquals(2L, completed.p50Nanos)
+        assertEquals(100L, completed.p95Nanos)
+        assertEquals(100L, completed.maxNanos)
+    }
+
+    @Test
+    fun developerReportExposesPartialInputWindowWithoutFlushingLogs() {
+        var now = 0L
+        T9ResponsivenessTrace.configure(
+            enabled = true,
+            aggregationWindow = 20,
+            nanoTime = { now }
+        )
+
+        val inputId = T9ResponsivenessTrace.beginInput("SMART_ENGLISH")
+        T9ResponsivenessTrace.markDecisionComplete(inputId)
+        T9ResponsivenessTrace.markSnapshotReady(inputId)
+        T9ResponsivenessTrace.markRenderComplete(inputId)
+        now = 5_000_000L
+
+        assertNull(T9ResponsivenessTrace.completeFrame(inputId))
+        val summary = T9ResponsivenessTrace.latestInputSummaries().single()
+
+        assertEquals("SMART_ENGLISH", summary.path)
+        assertEquals(1, summary.count)
+        assertEquals(5_000_000L, summary.p95Nanos)
+    }
+
+    @Test
+    fun disabledTraceDoesNotStartInputTransaction() {
+        T9ResponsivenessTrace.configure(enabled = false)
+
+        assertNull(T9ResponsivenessTrace.beginInput("NUMBER"))
+        assertTrue(T9ResponsivenessTrace.latestInputSummaries().isEmpty())
+    }
+
+    @Test
+    fun nestedSectionTimingIsExplicitlyOptIn() {
+        var now = 0L
+        T9ResponsivenessTrace.configure(
+            enabled = true,
+            aggregationWindow = 1,
+            detailedSections = false,
+            nanoTime = { now++ }
+        )
+
+        T9ResponsivenessTrace.measure("section") { Unit }
+
+        assertTrue(T9ResponsivenessTrace.latestSummaries().isEmpty())
+
+        T9ResponsivenessTrace.configure(
+            enabled = true,
+            aggregationWindow = 1,
+            detailedSections = true,
+            nanoTime = { now++ }
+        )
+        T9ResponsivenessTrace.measure("section") { Unit }
+
+        assertEquals("section", T9ResponsivenessTrace.latestSummaries().single().section)
+    }
 }
