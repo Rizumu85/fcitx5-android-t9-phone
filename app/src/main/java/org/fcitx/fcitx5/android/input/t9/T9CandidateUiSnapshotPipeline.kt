@@ -119,11 +119,11 @@ class T9CandidateUiSnapshotPipeline(
         override fun getT9BulkFilterState(): ChineseT9CandidatePipeline.BulkFilterState =
             sourceSessions.chineseBulkFilterState
 
-        override fun filterPagedByT9PinyinPrefixes(
+        override fun filterPagedByT9ReadingPrefixes(
             data: FcitxEvent.PagedCandidateEvent.Data,
             prefixes: List<String>
         ): Pair<T9PagedCandidates, String?> =
-            sourceSessions.filterChinesePagedByPinyinPrefixes(data, prefixes)
+            sourceSessions.filterChinesePagedByReadingPrefixes(data, prefixes)
 
         override fun buildLocalBudgetedPagedFromCurrentPage(
             source: T9PagedCandidates
@@ -243,11 +243,11 @@ class T9CandidateUiSnapshotPipeline(
     fun moveChineseBulkFilteredCursor(index: Int): T9PagedCandidates? =
         sourceSessions.moveChineseBulkFilteredCursor(index)
 
-    fun filterChinesePagedByPinyinPrefixes(
+    fun filterChinesePagedByReadingPrefixes(
         data: FcitxEvent.PagedCandidateEvent.Data,
         prefixes: List<String>
     ): Pair<T9PagedCandidates, String?> =
-        sourceSessions.filterChinesePagedByPinyinPrefixes(data, prefixes)
+        sourceSessions.filterChinesePagedByReadingPrefixes(data, prefixes)
 
     fun buildChineseLocalBudgetedPagedFromCurrentPage(
         source: T9PagedCandidates

@@ -60,8 +60,8 @@ class ChineseT9CodePresentationSource(
             is T9ZhuyinResolver.Result.Valid -> T9PresentationState(
                 // Predictive Zhuyin follows the focused Hanzi candidate, matching TT9's default
                 // interaction instead of exposing all possible transcriptions at once.
-                topReading = zhuyinCandidatePreview(key)?.let(formatText),
-                readingOptions = emptyList()
+                topReading = (zhuyinCandidatePreview(key) ?: key.selectedReading)?.let(formatText),
+                readingOptions = key.explicitReadingOptions
             )
             is T9ZhuyinResolver.Result.Invalid -> T9PresentationState(
                 topReading = formatText(result.rawDigits),

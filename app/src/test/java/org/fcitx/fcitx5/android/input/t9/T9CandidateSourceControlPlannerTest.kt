@@ -84,7 +84,7 @@ class T9CandidateSourceControlPlannerTest {
         )
 
         assertEquals(T9CandidateSourceControlPlanner.BulkAction.REQUEST, plan.bulkAction)
-        assertEquals(T9CandidateSourceControlPlanner.FilterAction.CHINESE_PREFIX_FILTER, plan.filterAction)
+        assertEquals(T9CandidateSourceControlPlanner.FilterAction.CHINESE_READING_FILTER, plan.filterAction)
         assertTrue(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false, bulkFilterPending = false))
         assertFalse(plan.shouldBuildLocalBudget(hasBulkFilteredPage = true, bulkFilterPending = false))
         assertFalse(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false, bulkFilterPending = true))
@@ -102,7 +102,7 @@ class T9CandidateSourceControlPlannerTest {
         assertFalse(plan.waitForChineseCandidates)
         assertFalse(plan.suppressEmptyCandidates)
         assertEquals(T9CandidateSourceControlPlanner.BulkAction.RESET, plan.bulkAction)
-        assertEquals(T9CandidateSourceControlPlanner.FilterAction.CHINESE_PREFIX_FILTER, plan.filterAction)
+        assertEquals(T9CandidateSourceControlPlanner.FilterAction.CHINESE_READING_FILTER, plan.filterAction)
         assertFalse(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false, bulkFilterPending = false))
     }
 
@@ -161,6 +161,24 @@ class T9CandidateSourceControlPlannerTest {
         assertEquals(T9CandidateSourceControlPlanner.BulkAction.RESET, plan.bulkAction)
         assertEquals(T9CandidateSourceControlPlanner.FilterAction.PASSTHROUGH, plan.filterAction)
         assertTrue(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false, bulkFilterPending = false))
+    }
+
+    @Test
+    fun selectedZhuyinReadingUsesTheSharedCrossPageFilter() {
+        val plan = T9CandidateSourceControlPlanner.plan(
+            input(
+                compositionKeyCount = 2,
+                filterPrefixesEmpty = false,
+                chineseScheme = ChineseT9Scheme.ZHUYIN
+            )
+        )
+
+        assertEquals(T9CandidateSourceControlPlanner.BulkAction.REQUEST, plan.bulkAction)
+        assertEquals(
+            T9CandidateSourceControlPlanner.FilterAction.CHINESE_READING_FILTER,
+            plan.filterAction
+        )
+        assertFalse(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false, bulkFilterPending = false))
     }
 
     @Test

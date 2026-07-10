@@ -69,4 +69,14 @@ object T9PinyinRowVisibilityPlanner {
             else -> DeferredWidthAction.KEEP_WAITING
         }
 
+    fun isRenderedContentReady(
+        expectedDisplayedItemCount: Int,
+        adapterItemCount: Int,
+        laidOutContentWidthPx: Int?
+    ): Boolean =
+        expectedDisplayedItemCount > 0 &&
+            adapterItemCount == expectedDisplayedItemCount &&
+            laidOutContentWidthPx != null &&
+            laidOutContentWidthPx > 0
+
 }

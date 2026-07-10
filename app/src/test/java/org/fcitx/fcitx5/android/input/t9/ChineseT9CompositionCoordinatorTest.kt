@@ -147,6 +147,65 @@ class ChineseT9CompositionCoordinatorTest {
     }
 
     @Test
+    fun zhuyinFilterOpensOnDemandAndSelectionFiltersCandidateComments() {
+        val coordinator = coordinator()
+        coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_8)
+
+        assertTrue(coordinator.canOpenZhuyinReadingFilter())
+        assertTrue(coordinator.openZhuyinReadingFilter("ㄏㄠ"))
+        val expanded = coordinator.snapshot("")
+        val expandedPresentation = coordinator.presentation(
+            expanded.presentationKey(
+                pendingPunctuationText = null,
+                inputPreedit = "38",
+                candidateComment = "ㄏㄠ",
+                candidateCursorIndex = 0,
+                candidateText = "好"
+            )
+        )
+
+        assertEquals("ㄏㄠ", expandedPresentation.readingOptions.first())
+        assertTrue(expanded.filterPrefixes.isEmpty())
+        assertTrue(coordinator.selectZhuyinReading("ㄏㄠ"))
+
+        val selected = coordinator.snapshot("")
+        assertEquals(listOf("ㄏㄠ"), selected.filterPrefixes)
+        assertTrue(selected.explicitReadingOptions.isEmpty())
+        assertTrue(
+            coordinator.candidateMatchesResolvedPrefix(
+                FcitxEvent.Candidate(label = "", text = "好", comment = "ㄏㄠ"),
+                "ㄏㄠ"
+            )
+        )
+        assertFalse(
+            coordinator.candidateMatchesResolvedPrefix(
+                FcitxEvent.Candidate(label = "", text = "该", comment = "ㄍㄞ"),
+                "ㄏㄠ"
+            )
+        )
+    }
+
+    @Test
+    fun zhuyinFilterDismissalAndRawCodeMutationClearVisibleOptions() {
+        val coordinator = coordinator()
+        coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_8)
+        coordinator.openZhuyinReadingFilter("ㄏㄠ")
+
+        assertTrue(coordinator.closeZhuyinReadingFilter())
+        assertTrue(coordinator.snapshot("").explicitReadingOptions.isEmpty())
+
+        coordinator.openZhuyinReadingFilter("ㄏㄠ")
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_DEL)
+        val changed = coordinator.snapshot("")
+        assertTrue(changed.explicitReadingOptions.isEmpty())
+        assertTrue(changed.filterPrefixes.isEmpty())
+    }
+
+    @Test
     fun zhuyinCandidateWithoutReadingUsesItsVisibleTextForPreview() {
         val coordinator = coordinator()
         coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)

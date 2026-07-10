@@ -9,25 +9,25 @@ enum class ChineseT9Scheme(
     val compactLabel: String,
     private val rimeSubModeNames: Set<String>,
     val compositionDigits: IntRange,
-    val hasReadingFilterRow: Boolean
+    val supportsReadingFilter: Boolean
 ) {
     PINYIN(
         compactLabel = "拼音",
         rimeSubModeNames = setOf("拼音九键", "拼音九鍵", "中文九键", "中文九鍵"),
         compositionDigits = 2..9,
-        hasReadingFilterRow = true
+        supportsReadingFilter = true
     ),
     STROKE(
         compactLabel = "五笔画",
         rimeSubModeNames = setOf("五笔画九键", "五筆畫九鍵", "五筆畫"),
         compositionDigits = 1..6,
-        hasReadingFilterRow = false
+        supportsReadingFilter = false
     ),
     ZHUYIN(
         compactLabel = "注音",
         rimeSubModeNames = setOf("注音九键", "注音九鍵", "注音"),
         compositionDigits = 0..9,
-        hasReadingFilterRow = false
+        supportsReadingFilter = true
     );
 
     fun acceptsCompositionDigit(digit: Int): Boolean = digit in compositionDigits

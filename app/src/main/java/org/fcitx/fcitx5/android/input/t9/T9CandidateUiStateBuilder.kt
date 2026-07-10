@@ -60,7 +60,7 @@ class T9CandidateUiStateBuilder(
         fun resetT9BulkFilterState()
         fun requestT9BulkFilteredCandidatesIfNeeded(chineseT9Active: Boolean, prefixes: List<String>)
         fun getT9BulkFilterState(): ChineseT9CandidatePipeline.BulkFilterState
-        fun filterPagedByT9PinyinPrefixes(
+        fun filterPagedByT9ReadingPrefixes(
             data: FcitxEvent.PagedCandidateEvent.Data,
             prefixes: List<String>
         ): Pair<T9PagedCandidates, String?>
@@ -164,8 +164,8 @@ class T9CandidateUiStateBuilder(
                 when (sourcePlan.filterAction) {
                     T9CandidateSourceControlPlanner.FilterAction.EMPTY ->
                         T9PagedCandidates.Empty to null
-                    T9CandidateSourceControlPlanner.FilterAction.CHINESE_PREFIX_FILTER ->
-                        pipeline.filterPagedByT9PinyinPrefixes(input.rawPaged, t9FilterPrefixes)
+                    T9CandidateSourceControlPlanner.FilterAction.CHINESE_READING_FILTER ->
+                        pipeline.filterPagedByT9ReadingPrefixes(input.rawPaged, t9FilterPrefixes)
                     T9CandidateSourceControlPlanner.FilterAction.PASSTHROUGH ->
                         chineseSourcePaged to null
                 }

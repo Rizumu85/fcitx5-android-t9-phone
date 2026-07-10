@@ -19,7 +19,7 @@ object T9CandidateSourceControlPlanner {
 
     enum class FilterAction {
         EMPTY,
-        CHINESE_PREFIX_FILTER,
+        CHINESE_READING_FILTER,
         PASSTHROUGH
     }
 
@@ -72,10 +72,10 @@ object T9CandidateSourceControlPlanner {
 
     fun plan(input: Input): Plan {
         val chineseActive = input.surface == Surface.CHINESE
-        val hasReadingFilter = input.chineseScheme?.hasReadingFilterRow == true
+        val hasReadingFilter = input.chineseScheme?.supportsReadingFilter == true
         val needsBulkCandidates = when (input.chineseScheme) {
             ChineseT9Scheme.PINYIN -> true
-            ChineseT9Scheme.ZHUYIN,
+            ChineseT9Scheme.ZHUYIN -> !input.filterPrefixesEmpty
             ChineseT9Scheme.STROKE,
             null -> false
         }
@@ -112,8 +112,10 @@ object T9CandidateSourceControlPlanner {
             suppressEmptyCandidates || input.pendingPinyinSelection || waitForChineseCandidates ||
                 input.invalidReading ->
                 FilterAction.EMPTY
-            chineseActive && hasReadingFilter ->
-                FilterAction.CHINESE_PREFIX_FILTER
+            chineseActive && hasReadingFilter && (
+                input.chineseScheme == ChineseT9Scheme.PINYIN || !input.filterPrefixesEmpty
+            ) ->
+                FilterAction.CHINESE_READING_FILTER
             else -> FilterAction.PASSTHROUGH
         }
         return Plan(

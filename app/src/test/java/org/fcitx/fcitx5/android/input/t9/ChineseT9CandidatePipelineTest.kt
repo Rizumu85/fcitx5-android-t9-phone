@@ -120,7 +120,7 @@ class ChineseT9CandidatePipelineTest {
             candidate("呢", comment = "ne"),
             candidate("泥", comment = "ni")
         )
-        val (shown, matchedPrefix) = pipeline.filterPagedByPinyinPrefixes(raw, listOf("ni"))
+        val (shown, matchedPrefix) = pipeline.filterPagedByReadingPrefixes(raw, listOf("ni"))
 
         assertEquals("ni", matchedPrefix)
         assertEquals(listOf("你", "泥"), shown.data.candidates.map { it.text })
@@ -166,7 +166,7 @@ class ChineseT9CandidatePipelineTest {
             candidate("五", comment = "na")
         )
 
-        val (filtered, matchedPrefix) = pipeline.filterPagedByPinyinPrefixes(raw, listOf("zh", "n"))
+        val (filtered, matchedPrefix) = pipeline.filterPagedByReadingPrefixes(raw, listOf("zh", "n"))
 
         assertEquals("n", matchedPrefix)
         assertEquals(listOf("一", "二", "三", "四"), filtered.data.candidates.map { it.text })
@@ -207,6 +207,36 @@ class ChineseT9CandidatePipelineTest {
         val second = pipeline.bulkFilterState.paged
         assertEquals(listOf("年"), second?.data?.candidates?.map { it.text })
         assertArrayEquals(intArrayOf(4), second?.originalIndices)
+    }
+
+    @Test
+    fun zhuyinReadingFilterMatchesNormalizedPhraseCommentsAcrossPages() {
+        val resolver = T9ZhuyinResolver()
+        val pipeline = pipeline(
+            matchesPrefix = { candidate, prefix ->
+                resolver.candidateMatchesReadingOption(candidate.comment, prefix)
+            }
+        )
+        val signature = pipeline.bulkFilterRequestSignature(
+            prefixes = listOf("ㄋㄧ ㄏㄠ"),
+            preedit = "2038",
+            candidates = emptyArray()
+        )
+        pipeline.startBulkFilterRequest(listOf("ㄋㄧ ㄏㄠ"), signature)
+
+        val state = pipeline.finishBulkFilterRequest(
+            signature = signature,
+            rawCandidates = listOf(
+                "你好 ㄋㄧ'ㄏㄠ",
+                "拟好 ㄋㄧ'ㄏㄠ",
+                "你高 ㄋㄧ'ㄍㄠ"
+            ),
+            prefixes = listOf("ㄋㄧ ㄏㄠ"),
+            layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal
+        )
+
+        assertEquals(listOf("你好", "拟好"), state?.paged?.data?.candidates?.map { it.text })
+        assertEquals("ㄋㄧ ㄏㄠ", state?.matchedPrefix)
     }
 
     private fun pipeline(

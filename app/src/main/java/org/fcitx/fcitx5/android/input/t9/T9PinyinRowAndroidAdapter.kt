@@ -48,6 +48,7 @@ class T9PinyinRowAndroidAdapter(
     private var revealPending = false
     private var revealPreDrawListener: OnPreDrawListener? = null
     private var renderedWindowStart = 0
+    private var renderedChipCount = 0
 
     var renderedItems: List<String> = emptyList()
         private set
@@ -150,6 +151,7 @@ class T9PinyinRowAndroidAdapter(
         window.clear()
         renderedWindowStart = 0
         renderedItems = emptyList()
+        renderedChipCount = 0
         usesWindowedDisplay = false
         updateOverflowHint(false)
     }
@@ -189,6 +191,7 @@ class T9PinyinRowAndroidAdapter(
         val changed = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.submit") {
             chipAdapter.submitList(surfacePlan.displayedItems, surfacePlan.displayedHighlight)
         }
+        renderedChipCount = surfacePlan.displayedItems.size
         val ready = if (updateVisibility) {
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin.visibility") {
                 setVisible(true)
@@ -255,8 +258,13 @@ class T9PinyinRowAndroidAdapter(
         if (!syncWidthToCandidates()) return false
         if (barView.width <= 0 && barView.measuredWidth <= 0) return false
         if (rowWrapper.width <= 0 && rowWrapper.measuredWidth <= 0) return false
-        if (chipAdapter.itemCount != renderedItems.size) return false
-        return chipAdapter.laidOutContentWidthPx()?.let { it > 0 } == true
+        // A focused folded row intentionally renders only the chips that fit its viewport. Reveal
+        // readiness must follow that render plan, not the larger logical option window.
+        return T9PinyinRowVisibilityPlanner.isRenderedContentReady(
+            expectedDisplayedItemCount = renderedChipCount,
+            adapterItemCount = chipAdapter.itemCount,
+            laidOutContentWidthPx = chipAdapter.laidOutContentWidthPx()
+        )
     }
 
     private fun waitForLayout() {

@@ -14,8 +14,19 @@ class T9ZhuyinResolver(
         data class Valid(val rawDigits: String) : Result
     }
 
+    private data class Segment(val reading: String, val complete: Boolean)
+
+    private data class Path(val segments: List<Segment>) {
+        val display: String = segments.joinToString(" ") { it.reading }
+        val completeSegmentCount: Int = segments.count(Segment::complete)
+    }
+
     private val completeDigitCodes: Set<String>
     private val prefixDigitCodes: Set<String>
+    private val completeReadings: Set<String>
+    private val prefixReadings: Set<String>
+    private val completeByDigits: Map<String, List<Segment>>
+    private val prefixByDigits: Map<String, List<Segment>>
     private val validityCache = object : LinkedHashMap<String, Boolean>(
         MaxCacheEntries,
         0.75f,
@@ -24,22 +35,46 @@ class T9ZhuyinResolver(
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Boolean>?): Boolean =
             size > MaxCacheEntries
     }
+    private val optionCache = object : LinkedHashMap<String, List<String>>(
+        MaxOptionCacheEntries,
+        0.75f,
+        true
+    ) {
+        override fun removeEldestEntry(
+            eldest: MutableMap.MutableEntry<String, List<String>>?
+        ): Boolean = size > MaxOptionCacheEntries
+    }
 
     init {
         val readings = pinyinSyllables
             .mapNotNull(T9ZhuyinSyllableCodec::fromPinyin)
             .distinct()
+        completeReadings = readings.toSet()
         completeDigitCodes = readings
             .map(::digitsForReading)
             .filter(String::isNotEmpty)
             .toSet()
-        prefixDigitCodes = readings
+        completeByDigits = readings
+            .map { Segment(it, complete = true) }
+            .groupBy { digitsForReading(it.reading) }
+            .filterKeys(String::isNotEmpty)
+        val prefixes = readings
             .asSequence()
             .flatMap { reading ->
-                (1..reading.length).asSequence().map { length -> digitsForReading(reading.take(length)) }
+                (1..reading.length).asSequence().map { length ->
+                    Segment(
+                        reading = reading.take(length),
+                        complete = length == reading.length
+                    )
+                }
             }
-            .filter(String::isNotEmpty)
-            .toSet()
+            .distinctBy(Segment::reading)
+            .toList()
+        prefixByDigits = prefixes
+            .groupBy { digitsForReading(it.reading) }
+            .filterKeys(String::isNotEmpty)
+        prefixDigitCodes = prefixByDigits.keys
+        prefixReadings = prefixes.map(Segment::reading).toSet()
     }
 
     fun resolve(rawDigits: String): Result {
@@ -49,6 +84,43 @@ class T9ZhuyinResolver(
             validityCache[rawDigits] = it
         }
         return if (valid) Result.Valid(rawDigits) else Result.Invalid(rawDigits)
+    }
+
+    fun readingOptions(rawDigits: String, preferredReading: String? = null): List<String> {
+        if (resolve(rawDigits) !is Result.Valid) return emptyList()
+        val options = optionCache[rawDigits] ?: buildReadingOptions(rawDigits).also {
+            optionCache[rawDigits] = it
+        }
+        val preferred = preferredReading?.let { readingPrefixForDigits(rawDigits, it) }
+        if (preferred == null || !isLegalReadingOption(rawDigits, preferred) ||
+            options.firstOrNull() == preferred
+        ) {
+            return options
+        }
+        return listOf(preferred) + options.filterNot { it == preferred }.take(MaxReadingOptions - 1)
+    }
+
+    fun candidateMatchesReadingOption(candidateReading: String, selectedReading: String): Boolean {
+        val candidateSegments = normalizeCandidateReading(candidateReading)
+            .split(' ')
+            .filter(String::isNotEmpty)
+        val selectedSegments = normalizeCandidateReading(selectedReading)
+            .split(' ')
+            .filter(String::isNotEmpty)
+        if (candidateSegments.size != selectedSegments.size || selectedSegments.isEmpty()) return false
+        if (selectedSegments.dropLast(1).indices.any { index ->
+                selectedSegments[index] != candidateSegments[index]
+            }
+        ) {
+            return false
+        }
+        val selectedFinal = selectedSegments.last()
+        val candidateFinal = candidateSegments.last()
+        return if (selectedFinal in completeReadings) {
+            candidateFinal == selectedFinal
+        } else {
+            candidateFinal.startsWith(selectedFinal)
+        }
     }
 
     private fun isValidSequence(rawDigits: String): Boolean {
@@ -71,9 +143,55 @@ class T9ZhuyinResolver(
         return isValidFrom(0)
     }
 
+    private fun buildReadingOptions(rawDigits: String): List<String> {
+        // Enumeration is intentionally separate from resolve(): ordinary typing pays only the
+        // validity check, while the bounded path set is built after the user opens the filter.
+        val memo = HashMap<Int, List<Path>>()
+        fun pathsFrom(start: Int): List<Path> {
+            memo[start]?.let { return it }
+            val paths = ArrayList<Path>()
+            val maxEnd = minOf(rawDigits.length, start + MaxDigitsPerSyllable)
+            for (end in (start + 1)..maxEnd) {
+                val code = rawDigits.substring(start, end)
+                if (end == rawDigits.length) {
+                    prefixByDigits[code].orEmpty().forEach { segment ->
+                        paths += Path(listOf(segment))
+                    }
+                } else {
+                    completeByDigits[code].orEmpty().forEach { segment ->
+                        pathsFrom(end).forEach { suffix ->
+                            paths += Path(listOf(segment) + suffix.segments)
+                        }
+                    }
+                }
+                if (paths.size >= MaxReadingOptions * PathSearchMultiplier) break
+            }
+            return paths
+                .distinctBy(Path::display)
+                .sortedWith(
+                    compareBy<Path> { it.segments.size }
+                        .thenByDescending(Path::completeSegmentCount)
+                        .thenBy(Path::display)
+                )
+                .take(MaxReadingOptions)
+                .also { memo[start] = it }
+        }
+        return pathsFrom(0).map(Path::display)
+    }
+
+    private fun isLegalReadingOption(rawDigits: String, reading: String): Boolean {
+        val segments = reading.split(' ').filter(String::isNotEmpty)
+        if (segments.isEmpty() || digitsForReading(reading) != rawDigits) return false
+        return segments.dropLast(1).all { it in completeReadings } &&
+            segments.last() in prefixReadings
+    }
+
     companion object {
         private const val MaxDigitsPerSyllable = 3
         private const val MaxCacheEntries = 128
+        private const val MaxOptionCacheEntries = 64
+        private const val MaxReadingOptions = 32
+        private const val PathSearchMultiplier = 4
 
         fun isZhuyinSymbol(char: Char): Boolean =
             char in '\u3105'..'\u312F' || char in '\u31A0'..'\u31BF'
@@ -93,6 +211,25 @@ class T9ZhuyinResolver(
         fun candidateReadingMatches(rawDigits: String, reading: String): Boolean {
             val normalized = normalizeCandidateReading(reading)
             return normalized.isNotEmpty() && digitsForReading(normalized).startsWith(rawDigits)
+        }
+
+        fun readingPrefixForDigits(rawDigits: String, reading: String): String? {
+            if (rawDigits.isEmpty()) return null
+            val segments = normalizeCandidateReading(reading)
+                .split(' ')
+                .filter(String::isNotEmpty)
+            if (segments.isEmpty() || !digitsForReading(segments.joinToString(" ")).startsWith(rawDigits)) {
+                return null
+            }
+            var remaining = rawDigits.length
+            return buildList {
+                segments.forEach { segment ->
+                    if (remaining <= 0) return@forEach
+                    val selected = segment.take(remaining)
+                    if (selected.isNotEmpty()) add(selected)
+                    remaining -= selected.length
+                }
+            }.takeIf { remaining == 0 }?.joinToString(" ")
         }
 
         fun digitForSymbol(char: Char): Char? = when (char) {

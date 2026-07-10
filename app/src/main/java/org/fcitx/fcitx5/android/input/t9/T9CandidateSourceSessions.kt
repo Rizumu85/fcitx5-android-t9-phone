@@ -122,11 +122,11 @@ class T9CandidateSourceSessions(
     fun moveChineseBulkFilteredCursor(index: Int): T9PagedCandidates? =
         chineseCandidatePipeline.moveBulkFilteredCursor(index)
 
-    fun filterChinesePagedByPinyinPrefixes(
+    fun filterChinesePagedByReadingPrefixes(
         data: FcitxEvent.PagedCandidateEvent.Data,
         prefixes: List<String>
     ): Pair<T9PagedCandidates, String?> =
-        chineseCandidatePipeline.filterPagedByPinyinPrefixes(data, prefixes)
+        chineseCandidatePipeline.filterPagedByReadingPrefixes(data, prefixes)
 
     fun buildChineseLocalBudgetedPagedFromCurrentPage(
         source: T9PagedCandidates

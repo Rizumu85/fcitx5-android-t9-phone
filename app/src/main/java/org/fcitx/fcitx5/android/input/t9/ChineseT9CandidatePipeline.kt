@@ -153,7 +153,7 @@ class ChineseT9CandidatePipeline(
         return localBudgetPager.offset(delta) != null
     }
 
-    fun filterPagedByPinyinPrefixes(
+    fun filterPagedByReadingPrefixes(
         data: FcitxEvent.PagedCandidateEvent.Data,
         prefixes: List<String>
     ): Pair<T9PagedCandidates, String?> {

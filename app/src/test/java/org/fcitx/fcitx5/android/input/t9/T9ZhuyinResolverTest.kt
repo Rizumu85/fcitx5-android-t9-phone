@@ -66,4 +66,32 @@ class T9ZhuyinResolverTest {
         assertTrue(T9ZhuyinResolver.candidateReadingMatches("3", "ㄏㄠ"))
         assertFalse(T9ZhuyinResolver.candidateReadingMatches("38", "ㄋㄧ"))
     }
+
+    @Test
+    fun readingOptionsAreBuiltOnlyAsLegalWholeSequenceCombinations() {
+        val single = resolver.readingOptions("38", preferredReading = "ㄏㄠ")
+        val phrase = resolver.readingOptions("2038", preferredReading = "ㄋㄧ'ㄏㄠ")
+
+        assertEquals("ㄏㄠ", single.first())
+        assertTrue("ㄍㄞ" in single)
+        assertFalse("ㄍ" in single)
+        assertEquals("ㄋㄧ ㄏㄠ", phrase.first())
+        assertTrue(phrase.all { T9ZhuyinResolver.digitsForReading(it) == "2038" })
+    }
+
+    @Test
+    fun focusedCandidateCompletionProjectsToTheEnteredReadingPrefix() {
+        assertEquals("ㄏ", T9ZhuyinResolver.readingPrefixForDigits("3", "ㄏㄠ"))
+        assertEquals("ㄋㄧ ㄏ", T9ZhuyinResolver.readingPrefixForDigits("203", "ㄋㄧ'ㄏㄠ"))
+        assertEquals(null, T9ZhuyinResolver.readingPrefixForDigits("38", "ㄋㄧ"))
+    }
+
+    @Test
+    fun candidateFilteringDistinguishesCompleteReadingsFromPartialFinals() {
+        assertTrue(resolver.candidateMatchesReadingOption("ㄏㄠ", "ㄏ"))
+        assertTrue(resolver.candidateMatchesReadingOption("ㄋㄧ'ㄏㄠ", "ㄋㄧ ㄏ"))
+        assertTrue(resolver.candidateMatchesReadingOption("ㄋㄧ", "ㄋㄧ"))
+        assertFalse(resolver.candidateMatchesReadingOption("ㄋㄧㄠ", "ㄋㄧ"))
+        assertFalse(resolver.candidateMatchesReadingOption("ㄋㄧ'ㄍㄠ", "ㄋㄧ ㄏ"))
+    }
 }

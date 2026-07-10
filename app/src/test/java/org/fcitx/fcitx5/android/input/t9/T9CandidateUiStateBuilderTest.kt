@@ -295,7 +295,7 @@ class T9CandidateUiStateBuilderTest {
         override fun getT9BulkFilterState(): ChineseT9CandidatePipeline.BulkFilterState =
             bulkFilterState
 
-        override fun filterPagedByT9PinyinPrefixes(
+        override fun filterPagedByT9ReadingPrefixes(
             data: FcitxEvent.PagedCandidateEvent.Data,
             prefixes: List<String>
         ): Pair<T9PagedCandidates, String?> {

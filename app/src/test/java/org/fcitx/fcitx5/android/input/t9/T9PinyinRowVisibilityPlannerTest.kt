@@ -75,6 +75,26 @@ class T9PinyinRowVisibilityPlannerTest {
         )
     }
 
+    @Test
+    fun foldedRowRevealUsesDisplayedChipCountInsteadOfLogicalOptionCount() {
+        assertEquals(
+            true,
+            T9PinyinRowVisibilityPlanner.isRenderedContentReady(
+                expectedDisplayedItemCount = 4,
+                adapterItemCount = 4,
+                laidOutContentWidthPx = 220
+            )
+        )
+        assertEquals(
+            false,
+            T9PinyinRowVisibilityPlanner.isRenderedContentReady(
+                expectedDisplayedItemCount = 4,
+                adapterItemCount = 12,
+                laidOutContentWidthPx = 220
+            )
+        )
+    }
+
     private fun snapshot(
         targetVisible: Boolean,
         wrapper: Visibility = Visibility.GONE,

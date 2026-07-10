@@ -686,7 +686,7 @@ class CandidatesView(
         return t9CandidateInteractionController.commitPendingPunctuationShortcut(index)
     }
 
-    fun getChineseT9CodeCommitText(): String? {
+    fun getChineseT9ReadingPreview(): String? {
         if (!service.isChineseT9InputModeActive()) return null
         if (service.getT9CompositionKeyCount() <= 0) return null
         val shown = t9CandidateUiSnapshotPipeline.currentShownSnapshot?.paged ?: paged
@@ -696,12 +696,14 @@ class CandidatesView(
             inputPanel = inputPanel,
             paged = shown
         )
-        val preview = service.getT9PresentationState(key)
+        return service.getT9PresentationState(key)
             .topReading
             ?.toString()
-            .orEmpty()
-        return service.normalizeChineseT9CodePreview(preview)
+            ?.takeIf(String::isNotEmpty)
     }
+
+    fun getChineseT9CodeCommitText(): String? =
+        getChineseT9ReadingPreview()?.let(service::normalizeChineseT9CodePreview)
 
     fun moveHighlightedT9Reading(delta: Int): Boolean {
         return t9PinyinRowAdapter.moveHighlighted(delta)
