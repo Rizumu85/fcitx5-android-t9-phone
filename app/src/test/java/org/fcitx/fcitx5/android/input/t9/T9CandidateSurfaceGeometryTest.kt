@@ -94,6 +94,51 @@ class T9CandidateSurfaceGeometryTest {
         assertEquals(144, requireNotNull(cleared.pinyinSurface).rowWidthPx)
     }
 
+    @Test
+    fun reusesReadingMeasurementsAndInvalidatesAggregateGeometry() {
+        var measurementCount = 0
+        val cachedGeometry = T9CandidateSurfaceGeometry(
+            measurePinyinTextWidthPx = {
+                measurementCount += 1
+                it.length * 10
+            },
+            measureCandidateTextWidthPx = { it.length * 20 }
+        )
+        val input = surfaceInput(candidates = listOf("好", "的"))
+        val state = requireNotNull(input.pinyinState)
+
+        val first = cachedGeometry.surfacePlan(input)
+        val firstMeasurementCount = measurementCount
+        cachedGeometry.surfacePlan(input)
+        cachedGeometry.pinyinSurfacePlan(input, candidateRowWidthPx = 212)
+
+        assertEquals(state.items.distinct().size, firstMeasurementCount)
+        assertEquals(firstMeasurementCount, measurementCount)
+
+        val metricsChanged = input.copy(
+            metrics = input.metrics.copy(
+                pinyinChipSpacingPx = input.metrics.pinyinChipSpacingPx + 4
+            )
+        )
+        val changedMetricsPlan = cachedGeometry.surfacePlan(metricsChanged)
+
+        assertTrue(
+            requireNotNull(changedMetricsPlan.pinyinSurface).pinyinBarWidthPx >
+                requireNotNull(first.pinyinSurface).pinyinBarWidthPx
+        )
+        assertEquals(firstMeasurementCount, measurementCount)
+
+        val changedItems = state.items + "jia"
+        cachedGeometry.surfacePlan(
+            input.copy(
+                pinyinState = state.copy(items = changedItems),
+                renderedPinyinItems = changedItems
+            )
+        )
+
+        assertEquals(firstMeasurementCount + 1, measurementCount)
+    }
+
     private fun surfaceInput(
         candidates: List<String>,
         fallbackViewportWidthPx: Int? = null

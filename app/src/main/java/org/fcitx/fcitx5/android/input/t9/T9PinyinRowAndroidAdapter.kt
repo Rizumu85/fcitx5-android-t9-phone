@@ -105,11 +105,17 @@ class T9PinyinRowAndroidAdapter(
 
     fun renderFocus(focus: T9CandidateFocus, previousFocus: T9CandidateFocus) {
         val topFocused = focus == T9CandidateFocus.TOP
+        if (focus == previousFocus) {
+            // Initial bottom-focused frames already planned this Canvas row in render(). Only a
+            // real focus transition changes folded/full viewport geometry.
+            chipAdapter.setHighlightActive(topFocused)
+            return
+        }
         if (topFocused && previousFocus != T9CandidateFocus.TOP) {
             updateOverflowHint(false)
             window.resetHighlight()?.let(::renderWindow)
             chipAdapter.scrollToStart()
-        } else if (!topFocused) {
+        } else {
             window.currentState()?.let(::renderWindow)
         }
         chipAdapter.setHighlightActive(topFocused)

@@ -5,13 +5,27 @@
 
 package org.fcitx.fcitx5.android.input.t9
 
-import kotlin.math.ceil
 import org.fcitx.fcitx5.android.core.FcitxEvent
 
 class T9CandidateSurfaceGeometry(
     private val measurePinyinTextWidthPx: (String) -> Int,
     private val measureCandidateTextWidthPx: (String) -> Int
 ) {
+    private data class PinyinRowWidthsCacheKey(
+        val items: List<String>,
+        val minVisibleChips: Int,
+        val chipHorizontalPaddingPx: Int,
+        val chipSpacingPx: Int,
+        val overflowHintTextWidthPx: Int,
+        val overflowHintSpacingPx: Int,
+        val foldedEdgeSafetyPx: Int
+    )
+
+    private data class PinyinChipWidthsCacheKey(
+        val items: List<String>,
+        val chipHorizontalPaddingPx: Int
+    )
+
     data class Metrics(
         val maxRowWidthPx: Int,
         val candidateSpacingPx: Int,
@@ -40,6 +54,11 @@ class T9CandidateSurfaceGeometry(
 
     private var activeGenerationId = 0L
     private var candidateVisualWidthPx: Int? = null
+    private val pinyinTextWidthCache = linkedMapOf<String, Int>()
+    private var pinyinRowWidthsCacheKey: PinyinRowWidthsCacheKey? = null
+    private var pinyinRowWidthsCacheValue: T9PinyinRowWidthCalculator.Widths? = null
+    private var pinyinChipWidthsCacheKey: PinyinChipWidthsCacheKey? = null
+    private var pinyinChipWidthsCacheValue: List<Int> = emptyList()
 
     fun beginFrame(generationId: Long) {
         activeGenerationId = generationId
@@ -130,6 +149,16 @@ class T9CandidateSurfaceGeometry(
         metrics: Metrics
     ): T9PinyinRowWidthCalculator.Widths? {
         visiblePinyin.takeIf { it.isNotEmpty() } ?: return null
+        val key = PinyinRowWidthsCacheKey(
+            items = visiblePinyin,
+            minVisibleChips = metrics.minVisiblePinyinChips,
+            chipHorizontalPaddingPx = metrics.pinyinChipHorizontalPaddingPx,
+            chipSpacingPx = metrics.pinyinChipSpacingPx,
+            overflowHintTextWidthPx = metrics.pinyinOverflowHintTextWidthPx,
+            overflowHintSpacingPx = metrics.pinyinOverflowHintSpacingPx,
+            foldedEdgeSafetyPx = metrics.pinyinFoldedEdgeSafetyPx
+        )
+        if (key == pinyinRowWidthsCacheKey) return pinyinRowWidthsCacheValue
         return T9PinyinRowWidthCalculator.calculate(
             T9PinyinRowWidthCalculator.Input(
                 items = visiblePinyin,
@@ -139,17 +168,44 @@ class T9CandidateSurfaceGeometry(
                 overflowHintTextWidthPx = metrics.pinyinOverflowHintTextWidthPx,
                 overflowHintSpacingPx = metrics.pinyinOverflowHintSpacingPx,
                 foldedEdgeSafetyPx = metrics.pinyinFoldedEdgeSafetyPx,
-                measureTextWidthPx = measurePinyinTextWidthPx
+                measureTextWidthPx = ::cachedPinyinTextWidthPx
             )
-        )
+        )?.also { widths ->
+            // Snapshot lists are immutable, but keep a private copy so cache correctness does not
+            // depend on an Android caller preserving that implementation detail.
+            pinyinRowWidthsCacheKey = key.copy(items = key.items.toList())
+            pinyinRowWidthsCacheValue = widths
+        }
     }
 
     private fun pinyinChipWidthsPx(
         items: List<String>,
         metrics: Metrics
-    ): List<Int> =
-        items.map { pinyin ->
-            ceil(measurePinyinTextWidthPx(pinyin).toDouble()).toInt() +
-                metrics.pinyinChipHorizontalPaddingPx * 2
+    ): List<Int> {
+        val key = PinyinChipWidthsCacheKey(
+            items = items,
+            chipHorizontalPaddingPx = metrics.pinyinChipHorizontalPaddingPx
+        )
+        if (key == pinyinChipWidthsCacheKey) return pinyinChipWidthsCacheValue
+        return items.map { pinyin ->
+            cachedPinyinTextWidthPx(pinyin) + metrics.pinyinChipHorizontalPaddingPx * 2
+        }.also { widths ->
+            pinyinChipWidthsCacheKey = key.copy(items = key.items.toList())
+            pinyinChipWidthsCacheValue = widths
         }
+    }
+
+    private fun cachedPinyinTextWidthPx(text: String): Int {
+        pinyinTextWidthCache[text]?.let { return it }
+        if (pinyinTextWidthCache.size >= MAX_PINYIN_TEXT_WIDTH_CACHE_SIZE) {
+            pinyinTextWidthCache.keys.firstOrNull()?.let(pinyinTextWidthCache::remove)
+        }
+        return measurePinyinTextWidthPx(text).also { width ->
+            pinyinTextWidthCache[text] = width
+        }
+    }
+
+    companion object {
+        private const val MAX_PINYIN_TEXT_WIDTH_CACHE_SIZE = 256
+    }
 }
