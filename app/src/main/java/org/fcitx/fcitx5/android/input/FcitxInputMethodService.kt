@@ -1837,8 +1837,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             clearTransientInputUiState()
         }
         if (currentT9Mode == T9InputMode.CHINESE) {
-            onT9ModeChanged?.invoke(next.compactLabel)
-            showModeIndicatorBadge(next.compactLabel)
+            val label = getString(next.compactLabelRes)
+            onT9ModeChanged?.invoke(label)
+            showModeIndicatorBadge(label)
         }
     }
 
@@ -2006,7 +2007,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     var onT9ModeChanged: ((String) -> Unit)? = null
 
     fun getCurrentT9ModeLabel(): String = if (currentT9Mode == T9InputMode.CHINESE) {
-        activeChineseT9Scheme.compactLabel
+        getString(activeChineseT9Scheme.compactLabelRes)
     } else {
         t9ModeCoordinator.currentLabel
     }

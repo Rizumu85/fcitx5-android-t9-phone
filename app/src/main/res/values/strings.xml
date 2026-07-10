@@ -39,6 +39,9 @@
     <string name="chinese_t9_pinyin">Pinyin T9</string>
     <string name="chinese_t9_stroke">Stroke T9</string>
     <string name="chinese_t9_zhuyin">Zhuyin T9</string>
+    <string name="chinese_t9_pinyin_compact">拼音</string>
+    <string name="chinese_t9_stroke_compact">笔画</string>
+    <string name="chinese_t9_zhuyin_compact">注音</string>
     <string name="chinese_t9_at_least_one">Keep at least one Chinese input scheme</string>
     <string name="chinese_t9_pinyin_output_script">Default Pinyin output</string>
     <string name="chinese_t9_stroke_output_script">Default Stroke output</string>
