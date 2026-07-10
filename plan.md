@@ -371,3 +371,12 @@ otherwise.
 - [x] Mark Chinese trace source readiness at the accepted engine-frame pair.
 - [x] Run focused tests, build/install debug, repeat the same Pinyin benchmark,
   inspect extracted first-appearance frames, then commit and push.
+
+## Reading Row Focus Performance
+
+- [x] Skip row replanning when the requested reading-row focus is unchanged.
+- [x] Cache bounded pinyin text measurements and identical row/chip geometry
+  snapshots inside `T9CandidateSurfaceGeometry`.
+- [x] Add geometry-cache regression coverage for cache hits and invalidation.
+- [x] Run focused tests, install debug, verify Pinyin and folded Zhuyin focus
+  navigation on the target phone, then commit and push coherent slices.

@@ -617,6 +617,42 @@ screen-recording frames still show the preview, complete `g h i` reading row,
 and Hanzi row appearing together, and selecting a reading still triggers the
 cross-page bulk-filter path without a stale or empty frame.
 
+## Reading Row Focus Rendering
+
+The next render cost is local to the reading row rather than Rime. On the first
+bottom-focused candidate frame, `renderPinyin()` already submits and plans the
+complete Canvas row. The same frame then calls `renderFocus(BOTTOM, BOTTOM)`,
+which enters `renderWindow()` a second time even though no focus transition
+occurred. That repeats surface planning, chip-list submission checks, and every
+pinyin text measurement. The repeat is unnecessary on the initial bottom
+state; a row replan is required only for an actual `BOTTOM -> TOP` or
+`TOP -> BOTTOM` transition because those transitions change folded/full
+viewport behavior.
+
+`T9CandidateSurfaceGeometry` also measures identical reading strings whenever
+the row is replanned. The geometry instance has one stable font measurement
+function for its lifetime because changing the input UI font recreates the
+input views. It can therefore retain a bounded text-width cache and last-value
+row/chip geometry snapshots keyed by the reading items and relevant metrics.
+Focus navigation can then reuse exact measurements without replacing the
+real-measurement layout algorithm or changing the accepted bubble geometry.
+
+Success requires identical row width, folding, ellipsis, focus scale, and
+whole-chip scrolling. Repeated planning for the same input must perform no new
+text measurements, while changed text or metrics must produce a fresh geometry
+snapshot.
+
+Target-device verification preserved the Pinyin bottom/top/bottom transition
+and the folded Zhuyin `68` row while navigating through its later readings.
+The first post-install 20-sample Pinyin window measured p50 56.21 ms with a
+230.72 ms cold outlier; its average render stage still fell from the previous
+15.18 ms to 12.52 ms. A second warm window measured average 51.65 ms, p50 49.31
+ms, p95 60.73 ms, and maximum 63.68 ms. Its snapshot and render stages averaged
+10.07 ms and 7.83 ms respectively. The warm result is not used to erase the
+cold outlier, but it confirms that eliminating the duplicate focus pass and
+reusing geometry materially reduce the local UI work once the input view is
+ready.
+
 ### Device-dependent Stroke glyph coverage
 
 The curated dictionary removed non-Han components, but a two-key device sweep

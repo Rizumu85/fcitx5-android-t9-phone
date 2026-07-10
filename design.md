@@ -449,3 +449,20 @@ snapshot carries at least one selected/resolved reading prefix. With no prefix,
 the accepted Rime page flows directly into the local width/character pager.
 This keeps ordinary first-key publication on one engine event while retaining
 `selectFromAll` and bulk original-index mapping for actual cross-page filters.
+
+## Reading Row Geometry Cache
+
+The Pinyin Row Android Adapter treats focus as a transition, not a general
+request to rebuild row content. A same-focus render only synchronizes highlight
+state. Entering the reading row replans its focused viewport; leaving it
+replans the folded bottom-focused viewport. This preserves the existing visual
+contract while preventing the initial bottom-focused frame from rendering the
+same row twice.
+
+`T9CandidateSurfaceGeometry` owns reusable reading measurements. Its cache is
+private to one geometry instance and therefore one stable input-view font
+configuration. A bounded per-string width cache avoids repeated `TextPaint`
+work across nearby reading windows, while last-value row-width and chip-width
+snapshots avoid rebuilding identical measurement aggregates. Keys include the
+reading text and every metric that affects the result; candidate content,
+focus-window planning, and Android rendering remain outside the cache.
