@@ -30,7 +30,8 @@ object T9CandidateSourceControlPlanner {
         val pendingPunctuationActive: Boolean,
         val compositionKeyCount: Int,
         val pendingPinyinSelection: Boolean,
-        val filterPrefixesEmpty: Boolean
+        val filterPrefixesEmpty: Boolean,
+        val usesPinyinCandidatePipeline: Boolean
     )
 
     data class Plan(
@@ -81,12 +82,16 @@ object T9CandidateSourceControlPlanner {
         val deferRender = chineseActive &&
             waitForChineseCandidates &&
             !input.pendingPunctuationActive
+        // The bulk pass exists to atomically filter Pinyin readings across pages. Stroke and
+        // Zhuyin already receive a complete native page, so routing them through that pass only
+        // delays their first visible frame and risks applying Pinyin-only freshness rules.
         val bulkAction = if (
             !chineseActive ||
             suppressEmptyCandidates ||
             input.pendingPinyinSelection ||
             waitForChineseCandidates ||
-            input.pendingPunctuationActive
+            input.pendingPunctuationActive ||
+            !input.usesPinyinCandidatePipeline
         ) {
             BulkAction.RESET
         } else {
@@ -95,7 +100,8 @@ object T9CandidateSourceControlPlanner {
         val filterAction = when {
             suppressEmptyCandidates || input.pendingPinyinSelection || waitForChineseCandidates ->
                 FilterAction.EMPTY
-            chineseActive -> FilterAction.CHINESE_PREFIX_FILTER
+            chineseActive && input.usesPinyinCandidatePipeline ->
+                FilterAction.CHINESE_PREFIX_FILTER
             else -> FilterAction.PASSTHROUGH
         }
         return Plan(

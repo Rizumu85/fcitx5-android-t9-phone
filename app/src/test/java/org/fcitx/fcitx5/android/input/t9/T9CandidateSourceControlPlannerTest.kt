@@ -39,7 +39,15 @@ class T9CandidateSourceControlPlannerTest {
     @Test
     fun waitingChineseCandidatesDefersRenderAndClearsShownCandidates() {
         val loadingState = ChineseT9CandidateLoadingState().apply {
-            startIfNeeded(chineseT9Active = true, digitSequence = "2")
+            startIfNeeded(
+                chineseT9Active = true,
+                ticket = ChineseT9CompositionTicket(
+                    scheme = ChineseT9Scheme.PINYIN,
+                    rawSequence = "2",
+                    digitSequence = "2",
+                    sessionRevision = 1
+                )
+            )
         }
 
         val plan = T9CandidateSourceControlPlanner.plan(
@@ -99,6 +107,20 @@ class T9CandidateSourceControlPlannerTest {
     }
 
     @Test
+    fun rawCodeSchemeBypassesPinyinBulkFilteringAndUsesCurrentPageBudget() {
+        val plan = T9CandidateSourceControlPlanner.plan(
+            input(
+                compositionKeyCount = 2,
+                usesPinyinCandidatePipeline = false
+            )
+        )
+
+        assertEquals(T9CandidateSourceControlPlanner.BulkAction.RESET, plan.bulkAction)
+        assertEquals(T9CandidateSourceControlPlanner.FilterAction.PASSTHROUGH, plan.filterAction)
+        assertTrue(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false, bulkFilterPending = false))
+    }
+
+    @Test
     fun smartEnglishUsesPassthroughCandidatesAndNoLocalBudget() {
         val plan = T9CandidateSourceControlPlanner.plan(
             input(surface = T9CandidateSourceControlPlanner.Surface.SMART_ENGLISH)
@@ -116,7 +138,8 @@ class T9CandidateSourceControlPlannerTest {
         pendingPunctuationActive: Boolean = false,
         compositionKeyCount: Int = 1,
         pendingPinyinSelection: Boolean = false,
-        filterPrefixesEmpty: Boolean = true
+        filterPrefixesEmpty: Boolean = true,
+        usesPinyinCandidatePipeline: Boolean = true
     ): T9CandidateSourceControlPlanner.Input =
         T9CandidateSourceControlPlanner.Input(
             surface = surface,
@@ -125,6 +148,7 @@ class T9CandidateSourceControlPlannerTest {
             pendingPunctuationActive = pendingPunctuationActive,
             compositionKeyCount = compositionKeyCount,
             pendingPinyinSelection = pendingPinyinSelection,
-            filterPrefixesEmpty = filterPrefixesEmpty
+            filterPrefixesEmpty = filterPrefixesEmpty,
+            usesPinyinCandidatePipeline = usesPinyinCandidatePipeline
         )
 }

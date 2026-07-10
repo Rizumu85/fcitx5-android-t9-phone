@@ -35,6 +35,29 @@ class T9CandidateSourceSessions(
     val currentShownMatchedPrefix: String?
         get() = currentShown?.matchedPrefix
 
+    fun currentChineseSelectionTicket(
+        originalIndex: Int,
+        selectedCandidate: FcitxEvent.Candidate
+    ): T9CandidateUiSnapshotPipeline.ChineseSelectionTicket? {
+        val shown = currentShown ?: return null
+        when (shown.source) {
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK,
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_LOCAL,
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_ENGINE -> Unit
+            else -> return null
+        }
+        val shownIndex = shown.originalIndices.indexOfFirst { index -> index == originalIndex }
+        if (shownIndex < 0) return null
+        val candidate = shown.paged.candidates.getOrNull(shownIndex) ?: return null
+        if (candidate != selectedCandidate) return null
+        return T9CandidateUiSnapshotPipeline.ChineseSelectionTicket(
+            source = shown.source,
+            shownIndex = shownIndex,
+            originalIndex = originalIndex,
+            candidate = candidate
+        )
+    }
+
     val hasChineseLocalBudgetCandidates: Boolean
         get() = chineseCandidatePipeline.hasLocalBudgetCandidates
 
@@ -48,6 +71,10 @@ class T9CandidateSourceSessions(
         smartEnglishPageCache.reset()
         pendingPunctuationPager.reset()
         chineseCandidatePipeline.reset()
+        currentShown = null
+    }
+
+    fun invalidateShownInteraction() {
         currentShown = null
     }
 

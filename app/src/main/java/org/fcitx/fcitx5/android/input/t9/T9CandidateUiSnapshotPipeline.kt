@@ -53,6 +53,13 @@ class T9CandidateUiSnapshotPipeline(
         }
     }
 
+    data class ChineseSelectionTicket(
+        val source: ShownSource,
+        val shownIndex: Int,
+        val originalIndex: Int,
+        val candidate: FcitxEvent.Candidate
+    )
+
     sealed class PageOffset {
         data class SmartEnglish(val nextOriginalIndex: Int) : PageOffset()
         data class PendingPunctuation(val previewOriginalIndex: Int?) : PageOffset()
@@ -151,6 +158,12 @@ class T9CandidateUiSnapshotPipeline(
     val currentShownMatchedPrefix: String?
         get() = sourceSessions.currentShownMatchedPrefix
 
+    fun currentChineseSelectionTicket(
+        originalIndex: Int,
+        candidate: FcitxEvent.Candidate
+    ): ChineseSelectionTicket? =
+        sourceSessions.currentChineseSelectionTicket(originalIndex, candidate)
+
     val hasChineseLocalBudgetCandidates: Boolean
         get() = sourceSessions.hasChineseLocalBudgetCandidates
 
@@ -173,6 +186,10 @@ class T9CandidateUiSnapshotPipeline(
     fun reset() {
         sourceSessions.reset()
         pinyinRowWindow.clear()
+    }
+
+    fun invalidateShownInteraction() {
+        sourceSessions.invalidateShownInteraction()
     }
 
     fun resetChineseLocalBudgetState() {

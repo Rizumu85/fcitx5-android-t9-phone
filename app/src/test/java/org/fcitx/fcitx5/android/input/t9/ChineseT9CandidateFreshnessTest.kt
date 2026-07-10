@@ -14,9 +14,11 @@ class ChineseT9CandidateFreshnessTest {
     @Test
     fun staleShorterPinyinCommentDoesNotMatchLongerDigitSequence() {
         assertFalse(
-            ChineseT9CandidateFreshness.matchesDigitSequence(
+            ChineseT9CandidateFreshness.matches(
                 data = paged(candidate("个", comment = "ge")),
-                digitSequence = "435"
+                scheme = ChineseT9Scheme.PINYIN,
+                digitSequence = "435",
+                enginePreedit = "ge"
             )
         )
     }
@@ -24,15 +26,19 @@ class ChineseT9CandidateFreshnessTest {
     @Test
     fun latinCandidateTextCanMatchCurrentDigitSequence() {
         assertTrue(
-            ChineseT9CandidateFreshness.matchesDigitSequence(
+            ChineseT9CandidateFreshness.matches(
                 data = paged(candidate("gel")),
-                digitSequence = "435"
+                scheme = ChineseT9Scheme.PINYIN,
+                digitSequence = "435",
+                enginePreedit = "gel"
             )
         )
         assertTrue(
-            ChineseT9CandidateFreshness.matchesDigitSequence(
+            ChineseT9CandidateFreshness.matches(
                 data = paged(candidate("HelloFresh")),
-                digitSequence = "435"
+                scheme = ChineseT9Scheme.PINYIN,
+                digitSequence = "435",
+                enginePreedit = "hello"
             )
         )
     }
@@ -40,9 +46,99 @@ class ChineseT9CandidateFreshnessTest {
     @Test
     fun fullPinyinCommentCanMatchCurrentDigitSequence() {
         assertTrue(
-            ChineseT9CandidateFreshness.matchesDigitSequence(
+            ChineseT9CandidateFreshness.matches(
                 data = paged(candidate("你好", comment = "ni hao")),
-                digitSequence = "64426"
+                scheme = ChineseT9Scheme.PINYIN,
+                digitSequence = "64426",
+                enginePreedit = "nihao"
+            )
+        )
+    }
+
+    @Test
+    fun strokeUsesEnginePreeditBecauseCompletionCommentsOnlyContainSuffixes() {
+        assertFalse(
+            ChineseT9CandidateFreshness.matches(
+                data = paged(candidate("一", comment = "~h")),
+                scheme = ChineseT9Scheme.STROKE,
+                digitSequence = "12",
+                enginePreedit = "一"
+            )
+        )
+        assertTrue(
+            ChineseT9CandidateFreshness.matches(
+                data = paged(candidate("下", comment = "~h")),
+                scheme = ChineseT9Scheme.STROKE,
+                digitSequence = "12",
+                enginePreedit = "一丨"
+            )
+        )
+    }
+
+    @Test
+    fun strokeWildcardMatchesOnlyItsRequestedPositions() {
+        assertTrue(
+            ChineseT9CandidateFreshness.matches(
+                data = paged(candidate("不")),
+                scheme = ChineseT9Scheme.STROKE,
+                digitSequence = "16",
+                enginePreedit = "一一"
+            )
+        )
+        assertFalse(
+            ChineseT9CandidateFreshness.matches(
+                data = paged(candidate("旧")),
+                scheme = ChineseT9Scheme.STROKE,
+                digitSequence = "16",
+                enginePreedit = "丨一"
+            )
+        )
+    }
+
+    @Test
+    fun zhuyinCandidateCommentMatchesPhoneKeyGroups() {
+        assertTrue(
+            ChineseT9CandidateFreshness.matches(
+                data = paged(candidate("好", comment = "ㄏㄠ")),
+                scheme = ChineseT9Scheme.ZHUYIN,
+                digitSequence = "38",
+                enginePreedit = "38"
+            )
+        )
+        assertFalse(
+            ChineseT9CandidateFreshness.matches(
+                data = paged(candidate("个", comment = "ㄍㄜ")),
+                scheme = ChineseT9Scheme.ZHUYIN,
+                digitSequence = "38",
+                enginePreedit = "38"
+            )
+        )
+    }
+
+    @Test
+    fun rawSchemesCanFinishWithAnEmptyCandidatePageButPinyinStillWaits() {
+        assertTrue(
+            ChineseT9CandidateFreshness.matches(
+                data = paged(),
+                scheme = ChineseT9Scheme.STROKE,
+                digitSequence = "12",
+                enginePreedit = "一丨"
+            )
+        )
+        assertTrue(
+            ChineseT9CandidateFreshness.matches(
+                data = paged(),
+                scheme = ChineseT9Scheme.ZHUYIN,
+                digitSequence = "38",
+                enginePreedit = "38"
+            )
+        )
+        assertFalse(
+            ChineseT9CandidateFreshness.matches(
+                data = paged(),
+                scheme = ChineseT9Scheme.PINYIN,
+                digitSequence = "64",
+                enginePreedit = "ni"
             )
         )
     }

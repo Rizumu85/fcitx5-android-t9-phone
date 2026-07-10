@@ -56,6 +56,8 @@ class PhysicalT9KeyHandler(private val host: Host) {
     interface Host {
         val isInInputMode: Boolean
         val mode: Mode
+        val chineseScheme: ChineseT9Scheme
+            get() = ChineseT9Scheme.PINYIN
         val isSmartEnglishActive: Boolean
         val chineseComposing: Boolean
         val compositionKeyCount: Int
@@ -154,7 +156,8 @@ class PhysicalT9KeyHandler(private val host: Host) {
             hasTopPinyinCandidates = host.hasTopPinyinCandidates,
             hasBottomCandidateRow = host.hasBottomCandidateRow,
             candidateFocus = host.candidateFocus,
-            heldPastLongPressDelay = host.keyHeldPastLongPressDelay(input)
+            heldPastLongPressDelay = host.keyHeldPastLongPressDelay(input),
+            chineseScheme = host.chineseScheme
         )
 
 }

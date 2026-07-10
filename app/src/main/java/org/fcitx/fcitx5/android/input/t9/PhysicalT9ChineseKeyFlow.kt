@@ -118,7 +118,11 @@ internal class PhysicalT9ChineseKeyFlow(
             } else {
                 Decision(
                     handled = true,
-                    commands = listOf(Command.ForwardChineseComposingPoundShortPress)
+                    commands = if (state.chineseScheme == ChineseT9Scheme.STROKE) {
+                        emptyList()
+                    } else {
+                        listOf(Command.ForwardChineseComposingPoundShortPress)
+                    }
                 )
             }
         }
@@ -168,15 +172,31 @@ internal class PhysicalT9ChineseKeyFlow(
         input: PhysicalT9KeyHandler.KeyInput,
         state: State,
         digit: Int
-    ): Decision? = when (input.keyCode) {
-        KeyEvent.KEYCODE_0 -> handleChineseZero(input, state)
-        KeyEvent.KEYCODE_1 -> handleChineseOne(input, state)
-        else -> if (digit in 2..9) handleChinesePredictiveDigit(input, state, digit) else null
+    ): Decision? = when (state.chineseScheme) {
+        ChineseT9Scheme.PINYIN -> when (digit) {
+            0 -> handleChineseZero(input, state, supportsTopReading = true)
+            1 -> handleChineseOne(input, state)
+            in 2..9 -> handleChineseCompositionDigit(input, state, digit)
+            else -> null
+        }
+        ChineseT9Scheme.STROKE -> when (digit) {
+            0 -> handleChineseZero(input, state, supportsTopReading = false)
+            in 1..6 -> handleChineseCompositionDigit(input, state, digit)
+            in 7..9 -> handleStrokeUnusedDigit(input, state, digit)
+            else -> null
+        }
+        ChineseT9Scheme.ZHUYIN ->
+            if (state.chineseScheme.acceptsCompositionDigit(digit)) {
+                handleChineseCompositionDigit(input, state, digit)
+            } else {
+                null
+            }
     }
 
     private fun handleChineseZero(
         input: PhysicalT9KeyHandler.KeyInput,
-        state: State
+        state: State,
+        supportsTopReading: Boolean
     ): Decision? = when (input.action) {
         KeyEvent.ACTION_DOWN -> handleChineseShortcutDigitDown(
             input = input,
@@ -193,10 +213,11 @@ internal class PhysicalT9ChineseKeyFlow(
                 commands = when {
                     wasLongPress -> emptyList()
                     state.compositionKeyCount > 0 -> listOf(
-                        when (state.candidateFocus) {
-                            PhysicalT9KeyHandler.CandidateFocus.TOP -> Command.CommitHighlightedPinyin
-                            PhysicalT9KeyHandler.CandidateFocus.BOTTOM ->
-                                Command.CommitBottomCandidate(BottomCandidateFallback.NONE)
+                        when {
+                            supportsTopReading &&
+                                state.candidateFocus == PhysicalT9KeyHandler.CandidateFocus.TOP ->
+                                Command.CommitHighlightedPinyin
+                            else -> Command.CommitBottomCandidate(BottomCandidateFallback.NONE)
                         }
                     )
                     state.chineseComposing -> emptyList()
@@ -234,7 +255,7 @@ internal class PhysicalT9ChineseKeyFlow(
         else -> null
     }
 
-    private fun handleChinesePredictiveDigit(
+    private fun handleChineseCompositionDigit(
         input: PhysicalT9KeyHandler.KeyInput,
         state: State,
         digit: Int
@@ -255,6 +276,30 @@ internal class PhysicalT9ChineseKeyFlow(
                     handled = true,
                     commands = listOf(Command.ForwardChineseT9KeyShortPress(input.keyCode))
                 )
+                else -> null
+            }
+        }
+        else -> null
+    }
+
+    private fun handleStrokeUnusedDigit(
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State,
+        digit: Int
+    ): Decision? = when (input.action) {
+        KeyEvent.ACTION_DOWN -> handleChineseShortcutDigitDown(
+            input = input,
+            state = state,
+            longPressWhenComposing = listOf(Command.CommitHanziShortcut(input.keyCode)),
+            longPressWhenIdle = listOf(Command.CommitText(digit.toString())),
+            shortPressIdleFallsThrough = true
+        )
+        KeyEvent.ACTION_UP -> {
+            val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
+            setDigitLongPressFlag(input.keyCode, false)
+            when {
+                wasLongPress -> Decision(handled = true)
+                state.compositionKeyCount > 0 -> Decision(handled = true)
                 else -> null
             }
         }

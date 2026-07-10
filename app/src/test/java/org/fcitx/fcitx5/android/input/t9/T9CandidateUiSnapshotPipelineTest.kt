@@ -33,6 +33,46 @@ class T9CandidateUiSnapshotPipelineTest {
     }
 
     @Test
+    fun invalidatedShownInteractionCannotCommitRetainedCandidate() {
+        val pipeline = pipeline()
+        pipeline.updateShownState(
+            source = T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_LOCAL,
+            paged = paged("你", cursor = 0),
+            originalIndices = intArrayOf(0),
+            matchedPrefix = null
+        )
+
+        pipeline.invalidateShownInteraction()
+
+        assertFalse(pipeline.hasCurrentBottomCandidateRow)
+        assertNull(pipeline.commitCurrentBottomCandidate())
+    }
+
+    @Test
+    fun chineseSelectionTicketIsBoundToShownSourceAndOriginalIndex() {
+        val pipeline = pipeline()
+        val shown = paged("你", "好", cursor = 0)
+        pipeline.updateShownState(
+            source = T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_LOCAL,
+            paged = shown,
+            originalIndices = intArrayOf(3, 7),
+            matchedPrefix = null
+        )
+
+        val ticket = pipeline.currentChineseSelectionTicket(7, shown.candidates[1])
+        pipeline.updateShownState(
+            source = T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_ENGINE,
+            paged = shown,
+            originalIndices = intArrayOf(3, 7),
+            matchedPrefix = null
+        )
+
+        assertEquals(1, ticket?.shownIndex)
+        assertEquals(7, ticket?.originalIndex)
+        assertFalse(pipeline.currentChineseSelectionTicket(7, shown.candidates[1]) == ticket)
+    }
+
+    @Test
     fun smartEnglishPageOffsetReturnsNextOriginalIndex() {
         val pipeline = pipeline(characterBudget = 30)
         val shown = pipeline.buildSmartEnglishPaged(

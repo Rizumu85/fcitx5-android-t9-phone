@@ -21,6 +21,8 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.annotation.Size
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.daemon.FcitxConnection
@@ -33,7 +35,9 @@ import org.fcitx.fcitx5.android.input.candidates.floating.PagedCandidatesUi
 import org.fcitx.fcitx5.android.input.candidates.floating.T9ShortcutCandidatesUi
 import org.fcitx.fcitx5.android.input.preedit.PreeditUi
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidateLoadingState
+import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionTicket
 import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
+import org.fcitx.fcitx5.android.input.t9.ChineseT9Scheme
 import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateInteractionController
@@ -564,14 +568,26 @@ class CandidatesView(
         when (it) {
             is FcitxEvent.InputPanelEvent -> {
                 inputPanel = it.data
+                if (service.isChineseT9InputModeActive()) {
+                    val ticket = service.getChineseT9InputSnapshot(inputPanel).compositionTicket()
+                    chineseT9CandidateLoadingState.onEngineInputPanel(
+                        data = paged,
+                        ticket = ticket,
+                        enginePreedit = inputPanel.preedit.toString()
+                    )
+                }
                 refreshT9Ui()
             }
             is FcitxEvent.PagedCandidateEvent -> {
                 paged = it.data
-                chineseT9CandidateLoadingState.onEngineCandidates(
-                    data = it.data,
-                    digitSequence = service.getT9CompositionDigitSequence()
-                )
+                if (service.isChineseT9InputModeActive()) {
+                    val ticket = service.getChineseT9InputSnapshot(inputPanel).compositionTicket()
+                    chineseT9CandidateLoadingState.onEngineCandidates(
+                        data = it.data,
+                        ticket = ticket,
+                        enginePreedit = inputPanel.preedit.toString()
+                    )
+                }
                 refreshT9Ui()
             }
             else -> {}
@@ -597,6 +613,7 @@ class CandidatesView(
     fun prepareForT9CompositionReplay() {
         paged = FcitxEvent.PagedCandidateEvent.Data.Empty
         resetT9BulkFilterState()
+        t9CandidateUiSnapshotPipeline.resetChineseLocalBudgetState()
         service.moveT9CandidateFocus(T9CandidateFocus.TOP)
         refreshT9Ui()
     }
@@ -614,10 +631,12 @@ class CandidatesView(
     }
 
     fun waitForT9EngineCandidatesThenRefresh() {
-        chineseT9CandidateLoadingState.startIfNeeded(
+        val ticket = service.getChineseT9InputSnapshot(inputPanel).compositionTicket()
+        val waiting = chineseT9CandidateLoadingState.startIfNeeded(
             chineseT9Active = service.isChineseT9InputModeActive(),
-            digitSequence = service.getT9CompositionDigitSequence()
+            ticket = ticket
         )
+        if (waiting) t9CandidateUiSnapshotPipeline.invalidateShownInteraction()
         refreshT9Ui()
     }
 
@@ -625,6 +644,9 @@ class CandidatesView(
         t9RefreshScheduler.cancel()
         floatingWindowController.onSurfaceHidden()
         t9CandidateSurfaceAdapter.removePinyinRevealListener()
+        // A hidden row must stop owning physical OK and numeric shortcuts immediately, even if
+        // Android keeps the last complete render tree around for the next atomic frame.
+        t9CandidateUiSnapshotPipeline.invalidateShownInteraction()
         t9CandidateUiRenderer.hideImmediately()
     }
 
@@ -644,6 +666,9 @@ class CandidatesView(
 
     fun getT9PreviewCommitText(): String? {
         if (!service.isChineseT9InputModeActive()) return null
+        // Return may commit a literal Pinyin preview, but Stroke and Zhuyin previews are input
+        // codes/readings whose Hanzi must still be chosen through the shared candidate surface.
+        if (service.getChineseT9Scheme() != ChineseT9Scheme.PINYIN) return null
         if (service.getT9CompositionKeyCount() <= 0) return null
         val shown = t9CandidateUiSnapshotPipeline.currentShownSnapshot?.paged ?: paged
         val snapshot = service.getChineseT9InputSnapshot(inputPanel)
@@ -754,21 +779,39 @@ class CandidatesView(
         fromAllCandidates: Boolean,
         onSelected: (() -> Unit)? = null
     ): Boolean {
+        val compositionTicket = service.getChineseT9CompositionTicket()
+        val sourceTicket = t9CandidateUiSnapshotPipeline.currentChineseSelectionTicket(
+            originalIndex = originalIndex,
+            candidate = selectedCandidate
+        ) ?: return false
         val prefixToConsume = matchedPrefix?.takeIf {
             service.shouldConsumeT9ResolvedPinyinPrefixAfterHanziSelection(it, selectedCandidate)
         }
-        fcitx.launchOnReady {
+        // Candidate indices are meaningful only for the engine frame that produced them. Run the
+        // select in the same serialized queue as physical input and validate both tickets first.
+        service.postFcitxJob {
+            val requestIsCurrent = withContext(Dispatchers.Main.immediate) {
+                service.isCurrentChineseT9Composition(compositionTicket) &&
+                    t9CandidateUiSnapshotPipeline.currentChineseSelectionTicket(
+                        originalIndex = originalIndex,
+                        candidate = selectedCandidate
+                    ) == sourceTicket
+            }
+            if (!requestIsCurrent) return@postFcitxJob
             val selected = if (fromAllCandidates) {
-                it.selectFromAll(originalIndex)
+                selectFromAll(originalIndex)
             } else {
-                it.select(originalIndex)
+                select(originalIndex)
             }
             if (selected) {
-                post {
+                withContext(Dispatchers.Main.immediate) {
+                    if (!service.canFinishChineseT9CandidateSelection(compositionTicket)) {
+                        return@withContext
+                    }
                     if (prefixToConsume != null) {
                         service.consumeT9ResolvedPinyinPrefix(prefixToConsume)
                     } else if (service.isChineseT9InputModeActive()) {
-                        service.consumeT9PinyinFromSelectedCandidate(selectedCandidate)
+                        service.consumeT9ReadingFromSelectedCandidate(selectedCandidate)
                     }
                     // Punctuation must appear only after Rime accepts the selected Hanzi;
                     // otherwise the asynchronous select can overwrite the new punctuation row.

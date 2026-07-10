@@ -26,7 +26,8 @@ class PhysicalT9KeyHostAdapter(
         val hasTopPinyinCandidates: () -> Boolean,
         val hasBottomCandidateRow: () -> Boolean,
         val candidateFocus: () -> T9CandidateFocus,
-        val keyHeldPastLongPressDelay: (PhysicalT9KeyHandler.KeyInput) -> Boolean
+        val keyHeldPastLongPressDelay: (PhysicalT9KeyHandler.KeyInput) -> Boolean,
+        val chineseScheme: () -> ChineseT9Scheme = { ChineseT9Scheme.PINYIN }
     )
 
     data class PunctuationActions(
@@ -87,6 +88,9 @@ class PhysicalT9KeyHostAdapter(
 
     override val isSmartEnglishActive: Boolean
         get() = state.isSmartEnglishActive()
+
+    override val chineseScheme: ChineseT9Scheme
+        get() = state.chineseScheme()
 
     override val chineseComposing: Boolean
         get() = state.chineseComposing()

@@ -72,6 +72,24 @@ class ChineseT9CandidatePipelineTest {
     }
 
     @Test
+    fun resettingPinyinBulkStateDoesNotEraseLocalPage() {
+        val pipeline = pipeline(characterBudget = 4)
+        val raw = paged(
+            candidate("一二三"),
+            candidate("四五"),
+            candidate("六")
+        )
+        pipeline.buildLocalBudgetedPagedFromCurrentPage(raw)
+        assertTrue(pipeline.offsetLocalBudgetedPage(1))
+
+        pipeline.resetBulkFilter()
+        val repeated = pipeline.buildLocalBudgetedPagedFromCurrentPage(raw)
+
+        assertNotNull(repeated)
+        assertEquals(listOf("四五", "六"), repeated!!.data.candidates.map { it.text })
+    }
+
+    @Test
     fun pinyinPrefixFilteringCarriesOriginalIndices() {
         val pipeline = pipeline()
         val raw = paged(

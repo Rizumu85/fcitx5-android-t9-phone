@@ -75,9 +75,11 @@ import org.fcitx.fcitx5.android.input.cursor.CursorRange
 import org.fcitx.fcitx5.android.input.cursor.CursorTracker
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionCoordinator
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionLifecycle
+import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionTicket
 import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSnapshotKey
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSource
+import org.fcitx.fcitx5.android.input.t9.ChineseT9Scheme
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHandler
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHostAdapter
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
@@ -173,7 +175,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             keyHeldPastLongPressDelay = { input ->
                 input.repeatCount > 0 &&
                     input.eventTime - input.downTime >= physicalLongPressDelay.toLong()
-            }
+            },
+            chineseScheme = { activeChineseT9Scheme }
         ),
         punctuation = PhysicalT9KeyHostAdapter.PunctuationActions(
             commitShortcut = t9CandidateShortcutCommitter::commitPendingPunctuationKey,
@@ -366,6 +369,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     fun isChineseT9InputModeActive(): Boolean =
         t9InputModeEnabled && currentT9Mode == T9InputMode.CHINESE
+
+    fun getChineseT9Scheme(): ChineseT9Scheme = activeChineseT9Scheme
 
     private suspend fun refreshT9UiOnMain() {
         withContext(Dispatchers.Main.immediate) {
@@ -620,6 +625,16 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 handleFcitxEvent(it)
             }
         }
+        postFcitxJob {
+            val initialSubMode = inputMethodEntryCached.subMode.name
+            withContext(Dispatchers.Main.immediate) {
+                // A service can attach after Fcitx emitted its original IMChange. Initialize from
+                // the cached entry once; a newer event wins by setting the identity first.
+                if (activeChineseT9SubModeIdentity == null) {
+                    activateChineseT9Scheme(initialSubMode)
+                }
+            }
+        }
         pkgNameCache = PackageNameCache(this)
         T9ResponsivenessTrace.configure(enabled = prefs.internal.t9ResponsivenessTrace.getValue())
         recreateInputViewPrefs.forEach {
@@ -734,6 +749,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 handleDeleteSurrounding(before, after)
             }
             is FcitxEvent.IMChangeEvent -> {
+                activateChineseT9Scheme(event.data.subMode.name)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     val im = event.data.uniqueName
                     val subtype = SubtypeManager.subtypeOf(im) ?: return
@@ -1661,14 +1677,36 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         formatText = ::formattedT9Text,
         buildRawPreeditDisplay = ::buildT9PreeditDisplay
     )
+    private var activeChineseT9Scheme = ChineseT9Scheme.PINYIN
+    private var activeChineseT9SubModeIdentity: String? = null
+
+    private fun activateChineseT9Scheme(subModeName: String) {
+        val identity = subModeName.trim()
+        val previousIdentity = activeChineseT9SubModeIdentity
+        if (previousIdentity == identity) return
+        val next = ChineseT9Scheme.fromRimeSubMode(identity)
+        // IMChange is the source of truth so physical keys and UI snapshots never block on an
+        // fcitx-thread round trip merely to classify the already-active Chinese scheme.
+        activeChineseT9SubModeIdentity = identity
+        activeChineseT9Scheme = next
+        chineseT9Composition.activateScheme(
+            next = next,
+            forceReset = previousIdentity != null
+        )
+        if (previousIdentity != null) {
+            t9PunctuationCoordinator.cancel()
+            clearTransientInputUiState()
+        }
+    }
 
     private fun resetSmartEnglishPendingDigit() {
         physicalT9KeyHandler.resetSmartEnglishPendingDigit()
     }
 
 
-    private fun getT9InputState(): ChineseT9CompositionLifecycle.InputState =
-        chineseT9Composition.inputState(composing.isNotEmpty())
+    private fun getT9InputState(): ChineseT9CompositionLifecycle.InputState {
+        return chineseT9Composition.inputState(composing.isNotEmpty())
+    }
 
     private fun clearChineseT9CompositionFromEditorTap() {
         if (!chineseT9Composition.shouldClearFromEditorTap(
@@ -1854,26 +1892,40 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     // ==================== T9 Pinyin selection bar ====================
 
     /** Current T9 segment (digits 2-9 after last apostrophe) for pinyin candidates. */
-    fun getCurrentT9Segment(): String =
-        chineseT9Composition.currentSegment()
+    fun getCurrentT9Segment(): String = chineseT9Composition.currentSegment()
 
     fun getChineseT9InputSnapshot(data: FcitxEvent.InputPanelEvent.Data): ChineseT9InputSnapshot {
         return chineseT9Composition.snapshot(data.preedit.toString())
     }
 
-    /** Total number of digit keys (2-9) in current composition, for truncating first-row pinyin. */
-    fun getT9CompositionKeyCount(): Int =
-        chineseT9Composition.keyCount()
+    /** Total scheme-owned code keys in the current Chinese T9 composition. */
+    fun getT9CompositionKeyCount(): Int = chineseT9Composition.keyCount()
 
-    fun getT9CompositionDigitSequence(): String =
-        chineseT9Composition.digitSequence()
+    fun getT9CompositionDigitSequence(): String = chineseT9Composition.digitSequence()
+
+    fun getChineseT9CompositionTicket(): ChineseT9CompositionTicket =
+        chineseT9Composition.compositionTicket()
+
+    fun isCurrentChineseT9Composition(ticket: ChineseT9CompositionTicket): Boolean =
+        isChineseT9InputModeActive() &&
+            activeChineseT9Scheme == ticket.scheme &&
+            chineseT9Composition.compositionTicket() == ticket
+
+    fun canFinishChineseT9CandidateSelection(ticket: ChineseT9CompositionTicket): Boolean {
+        if (!isChineseT9InputModeActive() || activeChineseT9Scheme != ticket.scheme) return false
+        val current = chineseT9Composition.compositionTicket()
+        // Rime may synchronously commit and clear the selected composition before this callback;
+        // a different non-empty ticket means the user has already started newer input.
+        return current == ticket || current.rawSequence.isEmpty()
+    }
 
     /** Candidate pinyin list for current T9 segment; empty if segment empty or not T9. */
     fun getT9PinyinCandidates(): List<String> =
-        if (t9InputModeEnabled && currentT9Mode == T9InputMode.CHINESE)
+        if (t9InputModeEnabled && currentT9Mode == T9InputMode.CHINESE) {
             chineseT9Composition.pinyinCandidates()
-        else
+        } else {
             emptyList()
+        }
 
     private fun formattedT9Text(text: String): FormattedText? {
         if (text.isEmpty()) return null
@@ -1972,7 +2024,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return true
     }
 
-    fun consumeT9PinyinFromSelectedCandidate(candidate: FcitxEvent.Candidate): Boolean {
+    fun consumeT9ReadingFromSelectedCandidate(candidate: FcitxEvent.Candidate): Boolean {
         if (!t9InputModeEnabled || currentT9Mode != T9InputMode.CHINESE) return false
         if (!chineseT9Composition.consumeSelectedCandidateReading(candidate)) return false
         candidatesView?.refreshT9Ui()

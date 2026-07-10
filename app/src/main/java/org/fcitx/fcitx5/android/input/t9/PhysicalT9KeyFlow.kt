@@ -19,7 +19,8 @@ class PhysicalT9KeyFlow {
         val hasTopPinyinCandidates: Boolean,
         val hasBottomCandidateRow: Boolean,
         val candidateFocus: PhysicalT9KeyHandler.CandidateFocus,
-        val heldPastLongPressDelay: Boolean
+        val heldPastLongPressDelay: Boolean,
+        val chineseScheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN
     )
 
     data class Decision(

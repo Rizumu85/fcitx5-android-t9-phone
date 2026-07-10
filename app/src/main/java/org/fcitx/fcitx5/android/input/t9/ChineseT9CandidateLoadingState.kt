@@ -15,26 +15,75 @@ class ChineseT9CandidateLoadingState {
 
     var state: State = State.IDLE
         private set
+    private var engineResultObserved = false
+    private var expectedTicket: ChineseT9CompositionTicket? = null
+    private var candidateEventTicket: ChineseT9CompositionTicket? = null
 
     fun reset() {
         state = State.IDLE
+        engineResultObserved = false
+        expectedTicket = null
+        candidateEventTicket = null
     }
 
-    fun startIfNeeded(chineseT9Active: Boolean, digitSequence: String) {
-        state = if (chineseT9Active && digitSequence.any { it in '2'..'9' }) {
+    fun startIfNeeded(
+        chineseT9Active: Boolean,
+        ticket: ChineseT9CompositionTicket
+    ): Boolean {
+        val hasCompositionCode = ticket.digitSequence.any { token ->
+            token.isDigit() && ticket.scheme.acceptsCompositionDigit(token.digitToInt())
+        }
+        state = if (chineseT9Active && hasCompositionCode) {
+            engineResultObserved = false
+            expectedTicket = ticket
+            candidateEventTicket = null
             State.WAITING_FOR_ENGINE
         } else {
+            engineResultObserved = false
+            expectedTicket = null
+            candidateEventTicket = null
             State.IDLE
         }
+        return state == State.WAITING_FOR_ENGINE
     }
 
     fun onEngineCandidates(
         data: FcitxEvent.PagedCandidateEvent.Data,
-        digitSequence: String
+        ticket: ChineseT9CompositionTicket,
+        enginePreedit: String
     ) {
-        val hasComposition = digitSequence.any { it in '2'..'9' }
-        if (!hasComposition || ChineseT9CandidateFreshness.matchesDigitSequence(data, digitSequence)) {
+        if (ticket.digitSequence.isEmpty()) {
+            reset()
+            return
+        }
+        if (ticket != expectedTicket) return
+        candidateEventTicket = ticket
+        releaseIfFresh(data, ticket, enginePreedit)
+    }
+
+    fun onEngineInputPanel(
+        data: FcitxEvent.PagedCandidateEvent.Data,
+        ticket: ChineseT9CompositionTicket,
+        enginePreedit: String
+    ) {
+        if (ticket != expectedTicket || candidateEventTicket != ticket) return
+        releaseIfFresh(data, ticket, enginePreedit)
+    }
+
+    private fun releaseIfFresh(
+        data: FcitxEvent.PagedCandidateEvent.Data,
+        ticket: ChineseT9CompositionTicket,
+        enginePreedit: String
+    ) {
+        if (ChineseT9CandidateFreshness.matches(
+                data = data,
+                scheme = ticket.scheme,
+                digitSequence = ticket.digitSequence,
+                enginePreedit = enginePreedit
+            )
+        ) {
             state = State.IDLE
+            engineResultObserved = true
         }
     }
 
@@ -49,5 +98,6 @@ class ChineseT9CandidateLoadingState {
             compositionKeyCount > 0 &&
             !hasPendingPunctuation &&
             !pendingPinyinSelection &&
-            (state == State.WAITING_FOR_ENGINE || rawCandidatesEmpty)
+            (state == State.WAITING_FOR_ENGINE ||
+                (rawCandidatesEmpty && !engineResultObserved))
 }

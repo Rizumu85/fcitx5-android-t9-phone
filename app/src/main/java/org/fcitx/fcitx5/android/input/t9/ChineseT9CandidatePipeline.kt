@@ -59,7 +59,6 @@ class ChineseT9CandidatePipeline(
         bulkFilteredPaged = null
         bulkFilteredMatchedPrefix = null
         bulkCandidateLoader.reset()
-        resetLocalBudget()
     }
 
     fun resetLocalBudget() {

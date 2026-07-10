@@ -633,6 +633,33 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
+    fun strokeZeroAndOkFallBackToBottomWhenTopFocusIsStale() {
+        val zeroFlow = PhysicalT9KeyFlow()
+        val strokeState = state(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            compositionKeyCount = 2,
+            hasBottomCandidateRow = true,
+            candidateFocus = PhysicalT9KeyHandler.CandidateFocus.TOP,
+            chineseScheme = ChineseT9Scheme.STROKE
+        )
+        zeroFlow.handle(input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN), strokeState)
+        val zeroUp = zeroFlow.handle(input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_UP), strokeState)
+
+        val ok = PhysicalT9KeyFlow().handle(
+            input(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.ACTION_DOWN),
+            strokeState
+        )
+
+        val expected = listOf(
+            PhysicalT9KeyFlow.Command.CommitBottomCandidate(
+                PhysicalT9KeyFlow.BottomCandidateFallback.NONE
+            )
+        )
+        assertEquals(expected, zeroUp?.commands)
+        assertEquals(expected, ok?.commands)
+    }
+
+    @Test
     fun chineseZeroLongPressUsesTenthHanziShortcutAndSuppressesKeyUp() {
         val flow = PhysicalT9KeyFlow()
         flow.handle(
@@ -872,6 +899,106 @@ class PhysicalT9KeyFlowTest {
         assertEquals(true, down?.handled)
         assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), down?.commands)
         assertEquals(listOf(PhysicalT9KeyFlow.Command.ForwardChineseComposingPoundShortPress), up?.commands)
+    }
+
+    @Test
+    fun strokeOneAndSixAreCompositionKeysWhileSevenIsConsumedDuringComposition() {
+        val firstKeyFlow = PhysicalT9KeyFlow()
+        val firstDown = firstKeyFlow.handle(
+            input(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                chineseScheme = ChineseT9Scheme.STROKE
+            )
+        )
+
+        val composingFlow = PhysicalT9KeyFlow()
+        composingFlow.handle(
+            input(KeyEvent.KEYCODE_6, KeyEvent.ACTION_DOWN),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                compositionKeyCount = 1,
+                chineseScheme = ChineseT9Scheme.STROKE
+            )
+        )
+        val sixUp = composingFlow.handle(
+            input(KeyEvent.KEYCODE_6, KeyEvent.ACTION_UP),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                compositionKeyCount = 1,
+                chineseScheme = ChineseT9Scheme.STROKE
+            )
+        )
+        composingFlow.handle(
+            input(KeyEvent.KEYCODE_7, KeyEvent.ACTION_DOWN),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                compositionKeyCount = 2,
+                chineseScheme = ChineseT9Scheme.STROKE
+            )
+        )
+        val sevenUp = composingFlow.handle(
+            input(KeyEvent.KEYCODE_7, KeyEvent.ACTION_UP),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                compositionKeyCount = 2,
+                chineseScheme = ChineseT9Scheme.STROKE
+            )
+        )
+
+        assertEquals(false, firstDown?.handled)
+        assertEquals(KeyEvent.KEYCODE_1, firstDown?.consumedKeyUp)
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.ForwardChineseT9KeyShortPress(KeyEvent.KEYCODE_6)),
+            sixUp?.commands
+        )
+        assertEquals(true, sevenUp?.handled)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), sevenUp?.commands)
+    }
+
+    @Test
+    fun zhuyinZeroComposesAndStrokePoundDoesNotOpenReadingSelection() {
+        val zhuyinFlow = PhysicalT9KeyFlow()
+        zhuyinFlow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                compositionKeyCount = 1,
+                chineseScheme = ChineseT9Scheme.ZHUYIN
+            )
+        )
+        val zeroUp = zhuyinFlow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_UP),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                compositionKeyCount = 1,
+                chineseScheme = ChineseT9Scheme.ZHUYIN
+            )
+        )
+
+        val strokeFlow = PhysicalT9KeyFlow()
+        strokeFlow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                compositionKeyCount = 1,
+                chineseScheme = ChineseT9Scheme.STROKE
+            )
+        )
+        val poundUp = strokeFlow.handle(
+            input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                compositionKeyCount = 1,
+                chineseScheme = ChineseT9Scheme.STROKE
+            )
+        )
+
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.ForwardChineseT9KeyShortPress(KeyEvent.KEYCODE_0)),
+            zeroUp?.commands
+        )
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), poundUp?.commands)
     }
 
     @Test
@@ -1295,7 +1422,8 @@ class PhysicalT9KeyFlowTest {
         hasBottomCandidateRow: Boolean = false,
         candidateFocus: PhysicalT9KeyHandler.CandidateFocus =
             PhysicalT9KeyHandler.CandidateFocus.BOTTOM,
-        heldPastLongPressDelay: Boolean = false
+        heldPastLongPressDelay: Boolean = false,
+        chineseScheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN
     ): PhysicalT9KeyFlow.State =
         PhysicalT9KeyFlow.State(
             mode = mode,
@@ -1309,6 +1437,7 @@ class PhysicalT9KeyFlowTest {
             hasTopPinyinCandidates = hasTopPinyinCandidates,
             hasBottomCandidateRow = hasBottomCandidateRow,
             candidateFocus = candidateFocus,
-            heldPastLongPressDelay = heldPastLongPressDelay
+            heldPastLongPressDelay = heldPastLongPressDelay,
+            chineseScheme = chineseScheme
         )
 }

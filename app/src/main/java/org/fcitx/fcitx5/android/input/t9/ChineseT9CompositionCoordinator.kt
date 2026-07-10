@@ -5,6 +5,7 @@
 
 package org.fcitx.fcitx5.android.input.t9
 
+import android.view.KeyEvent
 import org.fcitx.fcitx5.android.core.FcitxAPI
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.core.FormattedText
@@ -14,26 +15,54 @@ class ChineseT9CompositionCoordinator(
     buildRawPreeditDisplay: (String) -> FormattedText?
 ) {
     private val session = ChineseT9CompositionSession()
+    private val rawCodeSession = ChineseT9RawCodeSession()
     private val lifecycle = ChineseT9CompositionLifecycle(session)
     private val presentationSource = ChineseT9PresentationSource(
         formatText = formatText,
         buildPreeditDisplay = buildRawPreeditDisplay
     )
+    private val codePresentationSource = ChineseT9CodePresentationSource(formatText)
+    private val codePresentationCache = ChineseT9PresentationSnapshotCache()
+    private var scheme = ChineseT9Scheme.PINYIN
 
-    fun clear() = lifecycle.clearCompositionState()
+    fun activateScheme(next: ChineseT9Scheme, forceReset: Boolean = false) {
+        if (scheme == next && !forceReset) return
+        clear()
+        scheme = next
+    }
 
-    fun hasState(): Boolean = lifecycle.hasCompositionState()
+    fun clear() {
+        lifecycle.clearCompositionState()
+        rawCodeSession.clear()
+        codePresentationCache.reset()
+    }
+
+    fun hasState(): Boolean = when (scheme) {
+        ChineseT9Scheme.PINYIN -> lifecycle.hasCompositionState()
+        ChineseT9Scheme.STROKE,
+        ChineseT9Scheme.ZHUYIN -> !rawCodeSession.isEmpty()
+    }
 
     fun inputState(hasComposingText: Boolean): ChineseT9CompositionLifecycle.InputState =
-        lifecycle.inputState(hasComposingText)
+        when (scheme) {
+            ChineseT9Scheme.PINYIN -> lifecycle.inputState(hasComposingText)
+            ChineseT9Scheme.STROKE,
+            ChineseT9Scheme.ZHUYIN -> if (hasComposingText || !rawCodeSession.isEmpty()) {
+                ChineseT9CompositionLifecycle.InputState.COMPOSING
+            } else {
+                ChineseT9CompositionLifecycle.InputState.IDLE
+            }
+        }
 
     fun shouldClearFromEditorTap(
         isActive: Boolean,
         state: ChineseT9CompositionLifecycle.InputState
-    ): Boolean = lifecycle.shouldClearFromEditorTap(isActive, state)
+    ): Boolean = isActive && (
+        state == ChineseT9CompositionLifecycle.InputState.COMPOSING || hasState()
+    )
 
     fun shouldClearHiddenComposition(isActive: Boolean, hasPendingPunctuation: Boolean): Boolean =
-        lifecycle.shouldClearHiddenComposition(isActive, hasPendingPunctuation)
+        isActive && !hasPendingPunctuation && keyCount() <= 0
 
     fun shouldResetEngineForLiteralStar(
         isChineseMode: Boolean,
@@ -41,16 +70,27 @@ class ChineseT9CompositionCoordinator(
     ): Boolean = lifecycle.shouldResetEngineForLiteralStar(isChineseMode, state)
 
     fun shouldReopenLastResolvedSegment(isActive: Boolean): Boolean =
-        lifecycle.shouldReopenLastResolvedSegment(isActive)
+        scheme == ChineseT9Scheme.PINYIN && lifecycle.shouldReopenLastResolvedSegment(isActive)
 
-    fun appendSeparator() = lifecycle.appendSeparatorForShortcut()
+    fun appendSeparator() {
+        if (scheme == ChineseT9Scheme.PINYIN) lifecycle.appendSeparatorForShortcut()
+    }
 
-    fun backspaceFromVirtualKey() = lifecycle.backspaceFromVirtualKey()
+    fun backspaceFromVirtualKey() = when (scheme) {
+        ChineseT9Scheme.PINYIN -> lifecycle.backspaceFromVirtualKey()
+        ChineseT9Scheme.STROKE,
+        ChineseT9Scheme.ZHUYIN -> rawCodeSession.backspace()
+    }
 
     fun handleForwardedKeyDown(keyCode: Int): ChineseT9CompositionLifecycle.ForwardedKeyAction =
-        lifecycle.handleForwardedKeyDown(keyCode)
+        if (scheme == ChineseT9Scheme.PINYIN) {
+            lifecycle.handleForwardedKeyDown(keyCode)
+        } else {
+            handleRawCodeKeyDown(keyCode)
+        }
 
     suspend fun popLastResolvedSegment(api: FcitxAPI, candidatePagingMode: Int): Boolean {
+        if (scheme != ChineseT9Scheme.PINYIN) return false
         val popped = session.popLastResolvedSegment() ?: return false
         if (popped.segment.engineBacked) {
             ChineseT9RimeBridge.from(session, api).restoreResolvedSegment(
@@ -64,6 +104,7 @@ class ChineseT9CompositionCoordinator(
     }
 
     fun snapshot(inputPreedit: String): ChineseT9InputSnapshot {
+        if (scheme != ChineseT9Scheme.PINYIN) return rawCodeSnapshot()
         session.syncFromPreedit(inputPreedit)
         val rawSequence = session.rawSequence()
         return ChineseT9InputSnapshot(
@@ -75,35 +116,77 @@ class ChineseT9CompositionCoordinator(
             keyCount = rawSequence.count { it in '2'..'9' },
             filterPrefixes = resolvedPinyinFilterPrefixes(session.model),
             hasPendingPinyinSelection = session.pendingSelection != null,
-            sessionRevision = session.revision
+            sessionRevision = session.revision,
+            scheme = scheme
         )
     }
 
-    fun keyCount(): Int = session.keyCount()
+    fun compositionTicket(): ChineseT9CompositionTicket = when (scheme) {
+        ChineseT9Scheme.PINYIN -> ChineseT9CompositionTicket(
+            scheme = scheme,
+            rawSequence = session.rawSequence(),
+            digitSequence = session.digitSequence(),
+            sessionRevision = session.revision
+        )
+        ChineseT9Scheme.STROKE,
+        ChineseT9Scheme.ZHUYIN -> ChineseT9CompositionTicket(
+            scheme = scheme,
+            rawSequence = rawCodeSession.rawCode,
+            digitSequence = rawCodeSession.digitSequence,
+            sessionRevision = rawCodeSession.revision
+        )
+    }
 
-    fun digitSequence(): String = session.digitSequence()
+    fun keyCount(): Int = when (scheme) {
+        ChineseT9Scheme.PINYIN -> session.keyCount()
+        ChineseT9Scheme.STROKE,
+        ChineseT9Scheme.ZHUYIN -> rawCodeSession.keyCount
+    }
 
-    fun currentSegment(): String = session.currentSegment(::firstUnresolvedRawSegment)
+    fun digitSequence(): String = when (scheme) {
+        ChineseT9Scheme.PINYIN -> session.digitSequence()
+        ChineseT9Scheme.STROKE,
+        ChineseT9Scheme.ZHUYIN -> rawCodeSession.digitSequence
+    }
+
+    fun currentSegment(): String = when (scheme) {
+        ChineseT9Scheme.PINYIN -> session.currentSegment(::firstUnresolvedRawSegment)
+        ChineseT9Scheme.STROKE,
+        ChineseT9Scheme.ZHUYIN -> rawCodeSession.currentSegment
+    }
 
     fun pinyinCandidates(): List<String> =
-        T9PinyinUtils.t9KeyToPinyin(currentSegment())
+        if (scheme.hasReadingFilterRow) T9PinyinUtils.t9KeyToPinyin(currentSegment()) else emptyList()
 
-    fun preeditDisplay(rawComposition: String? = null): FormattedText? =
-        presentationSource.preeditDisplay(
+    fun preeditDisplay(rawComposition: String? = null): FormattedText? = when (scheme) {
+        ChineseT9Scheme.PINYIN -> presentationSource.preeditDisplay(
             model = session.model,
             fullComposition = session.fullComposition(),
             rawComposition = rawComposition
         )
+        ChineseT9Scheme.STROKE,
+        ChineseT9Scheme.ZHUYIN -> codePresentationSource.formattedRawDisplay(
+            scheme,
+            rawComposition ?: rawCodeSession.rawCode
+        )
+    }
 
     fun presentation(key: ChineseT9PresentationSnapshotKey): T9PresentationState =
-        lifecycle.getOrBuildPresentation(key) {
-            presentationSource.build(key)
+        if (key.scheme == ChineseT9Scheme.PINYIN) {
+            lifecycle.getOrBuildPresentation(key) {
+                presentationSource.build(key)
+            }
+        } else {
+            codePresentationCache.getOrBuild(key) {
+                codePresentationSource.build(key)
+            }
         }
 
     fun candidateMatchesResolvedPrefix(
         candidate: FcitxEvent.Candidate,
         expected: String
     ): Boolean {
+        if (scheme != ChineseT9Scheme.PINYIN) return false
         val normalized = ChineseT9PresentationSource.normalizeCandidateComment(candidate.comment)
         val expectedSegments = resolvedSegmentsForFilterPrefix(expected)
         if (!expectedSegments.isNullOrEmpty()) {
@@ -129,6 +212,7 @@ class ChineseT9CompositionCoordinator(
         prefix: String,
         candidate: FcitxEvent.Candidate
     ): Boolean {
+        if (scheme != ChineseT9Scheme.PINYIN) return false
         val fullPrefix = resolvedPinyinPrefix() ?: return false
         if (prefix.isNotEmpty() && prefix != fullPrefix) return true
         if (prefix != fullPrefix || session.unresolvedDigits.isEmpty()) return false
@@ -136,16 +220,18 @@ class ChineseT9CompositionCoordinator(
     }
 
     fun consumeResolvedPrefix(prefix: String): String? =
-        session.consumeResolvedPrefix(
+        if (scheme != ChineseT9Scheme.PINYIN) null else session.consumeResolvedPrefix(
             prefix = prefix,
             removeResolvedPrefixFromRawSource = ::removeResolvedPrefixFromRawSource,
             firstUnresolvedRawSegment = ::firstUnresolvedRawSegment
         )
 
-    fun prepareReplay(rawPreedit: String) = session.prepareReplay(rawPreedit)
+    fun prepareReplay(rawPreedit: String) {
+        if (scheme == ChineseT9Scheme.PINYIN) session.prepareReplay(rawPreedit)
+    }
 
     fun selectPinyin(pinyin: String): ChineseT9CompositionSession.PinyinSelectionRequest? =
-        session.selectPinyin(pinyin)
+        if (scheme == ChineseT9Scheme.PINYIN) session.selectPinyin(pinyin) else null
 
     suspend fun mirrorPinyinSelection(
         api: FcitxAPI,
@@ -153,10 +239,64 @@ class ChineseT9CompositionCoordinator(
     ): Boolean = ChineseT9RimeBridge.from(session, api).mirrorPinyinSelection(request)
 
     fun consumeSelectedCandidateReading(candidate: FcitxEvent.Candidate): Boolean {
+        if (scheme != ChineseT9Scheme.PINYIN) {
+            val hadCode = !rawCodeSession.isEmpty()
+            rawCodeSession.clear()
+            codePresentationCache.reset()
+            return hadCode
+        }
         val commentSegments = ChineseT9PresentationSource.normalizeCandidateComment(candidate.comment)
             .split(' ')
             .filter { it.isNotEmpty() }
         return session.consumeSelectedCandidateReading(commentSegments)
+    }
+
+    private fun handleRawCodeKeyDown(
+        keyCode: Int
+    ): ChineseT9CompositionLifecycle.ForwardedKeyAction {
+        val hadComposition = !rawCodeSession.isEmpty()
+        if (keyCode == KeyEvent.KEYCODE_DEL) {
+            rawCodeSession.backspace()
+            return when {
+                !hadComposition -> ChineseT9CompositionLifecycle.ForwardedKeyAction.NONE
+                rawCodeSession.isEmpty() ->
+                    ChineseT9CompositionLifecycle.ForwardedKeyAction.HIDE_CANDIDATE_UI_IMMEDIATELY
+                else ->
+                    ChineseT9CompositionLifecycle.ForwardedKeyAction.REFRESH_AFTER_ENGINE_CANDIDATES
+            }
+        }
+        if (scheme == ChineseT9Scheme.ZHUYIN && keyCode == KeyEvent.KEYCODE_POUND) {
+            return if (rawCodeSession.appendBoundary()) {
+                ChineseT9CompositionLifecycle.ForwardedKeyAction.REFRESH_AFTER_ENGINE_CANDIDATES
+            } else {
+                ChineseT9CompositionLifecycle.ForwardedKeyAction.NONE
+            }
+        }
+        val digit = PhysicalT9KeyPolicy.t9Digit(keyCode)
+            ?.takeIf(scheme::acceptsCompositionDigit)
+            ?: return ChineseT9CompositionLifecycle.ForwardedKeyAction.NONE
+        rawCodeSession.append(digit)
+        return ChineseT9CompositionLifecycle.ForwardedKeyAction.REFRESH_AFTER_ENGINE_CANDIDATES
+    }
+
+    private fun rawCodeSnapshot(): ChineseT9InputSnapshot {
+        val rawCode = rawCodeSession.rawCode
+        val digitSequence = rawCodeSession.digitSequence
+        return ChineseT9InputSnapshot(
+            rawSequence = rawCode,
+            digitSequence = digitSequence,
+            currentSegment = rawCodeSession.currentSegment,
+            fullComposition = rawCode,
+            model = T9CompositionModel(
+                unresolvedDigits = digitSequence,
+                rawPreedit = rawCode
+            ),
+            keyCount = rawCodeSession.keyCount,
+            filterPrefixes = emptyList(),
+            hasPendingPinyinSelection = false,
+            sessionRevision = rawCodeSession.revision,
+            scheme = scheme
+        )
     }
 
     private fun resolvedPinyinPrefix(): String? =

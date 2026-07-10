@@ -45,6 +45,28 @@ class T9CandidateUiStateBuilderTest {
     }
 
     @Test
+    fun rawChineseSchemeDoesNotRunPinyinCandidateWork() {
+        val pipeline = FakePipeline()
+        val result = T9CandidateUiStateBuilder(pipeline).build(input(
+            rawPaged = paged("一"),
+            chineseActive = true,
+            chineseSnapshot = defaultChineseSnapshot().copy(
+                rawSequence = "1",
+                digitSequence = "1",
+                currentSegment = "1",
+                fullComposition = "1",
+                model = T9CompositionModel(unresolvedDigits = "1", rawPreedit = "1"),
+                scheme = ChineseT9Scheme.STROKE
+            )
+        ))
+
+        assertNotNull(result)
+        assertEquals(0, pipeline.filterPagedByPrefixesCount)
+        assertEquals(0, pipeline.requestBulkFilteredCount)
+        assertEquals(1, pipeline.getT9PresentationCount)
+    }
+
+    @Test
     fun smartEnglishPredictionCanReserveTopReadingRowWithoutText() {
         val result = T9CandidateUiStateBuilder(FakePipeline()).build(input(
             chineseActive = false,
@@ -91,7 +113,10 @@ class T9CandidateUiStateBuilderTest {
     @Test
     fun visibleChineseLoadingStateDefersRenderUntilEngineCandidatesArrive() {
         val loadingState = ChineseT9CandidateLoadingState().apply {
-            startIfNeeded(chineseT9Active = true, digitSequence = "2")
+            startIfNeeded(
+                chineseT9Active = true,
+                ticket = defaultChineseSnapshot().compositionTicket()
+            )
         }
         val pipeline = FakePipeline(
             chinesePresentation = T9PresentationState(
@@ -116,7 +141,10 @@ class T9CandidateUiStateBuilderTest {
     @Test
     fun firstChineseLoadingStateDefersLocalPinyinRowBeforeWindowIsVisible() {
         val loadingState = ChineseT9CandidateLoadingState().apply {
-            startIfNeeded(chineseT9Active = true, digitSequence = "2")
+            startIfNeeded(
+                chineseT9Active = true,
+                ticket = defaultChineseSnapshot().compositionTicket()
+            )
         }
         val pipeline = FakePipeline(
             chinesePresentation = T9PresentationState(

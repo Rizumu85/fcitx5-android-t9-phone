@@ -126,7 +126,9 @@ class T9CandidateUiStateBuilder(
                     pendingPunctuationActive = pendingPunctuationPaged != null,
                     compositionKeyCount = compositionKeyCount,
                     pendingPinyinSelection = pendingT9PinyinSelection,
-                    filterPrefixesEmpty = t9FilterPrefixes.isEmpty()
+                    filterPrefixesEmpty = t9FilterPrefixes.isEmpty(),
+                    usesPinyinCandidatePipeline =
+                        chineseSnapshot?.scheme?.hasReadingFilterRow == true
                 )
             )
             if (sourcePlan.deferRender) {

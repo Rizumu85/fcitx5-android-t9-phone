@@ -43,6 +43,106 @@ class ChineseT9CompositionCoordinatorTest {
         assertFalse(coordinator.hasState())
     }
 
+    @Test
+    fun strokeUsesRawCodeSessionWithoutCreatingPinyinFilters() {
+        val coordinator = coordinator()
+        coordinator.activateScheme(ChineseT9Scheme.STROKE)
+
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_1)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_6)
+        val stateBeforeEnginePreedit = coordinator.inputState(hasComposingText = false)
+        val snapshot = coordinator.snapshot("一？")
+        val presentation = coordinator.presentation(
+            snapshot.presentationKey(
+                pendingPunctuationText = null,
+                inputPreedit = "一？",
+                candidateComment = "",
+                candidateCursorIndex = 0
+            )
+        )
+
+        assertEquals("16", snapshot.rawSequence)
+        assertEquals(2, snapshot.keyCount)
+        assertEquals(
+            ChineseT9CompositionLifecycle.InputState.COMPOSING,
+            stateBeforeEnginePreedit
+        )
+        assertEquals(emptyList<String>(), snapshot.filterPrefixes)
+        assertEquals(emptyList<String>(), presentation.pinyinOptions)
+        assertEquals("一？", presentation.topReading?.toString())
+    }
+
+    @Test
+    fun zhuyinUsesCandidateReadingAndSchemeSwitchClearsOldCode() {
+        val coordinator = coordinator()
+        coordinator.activateScheme(ChineseT9Scheme.STROKE)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_1)
+
+        coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_8)
+        val snapshot = coordinator.snapshot("38")
+        val presentation = coordinator.presentation(
+            snapshot.presentationKey(
+                pendingPunctuationText = null,
+                inputPreedit = "38",
+                candidateComment = "ㄏㄠ",
+                candidateCursorIndex = 0
+            )
+        )
+
+        assertEquals("38", snapshot.rawSequence)
+        assertEquals(ChineseT9Scheme.ZHUYIN, snapshot.scheme)
+        assertEquals("ㄏㄠ", presentation.topReading?.toString())
+    }
+
+    @Test
+    fun selectingRawSchemeCandidateClearsItsCompositionCode() {
+        val coordinator = coordinator()
+        coordinator.activateScheme(ChineseT9Scheme.STROKE)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_1)
+
+        val consumed = coordinator.consumeSelectedCandidateReading(
+            FcitxEvent.Candidate(label = "", text = "一", comment = "")
+        )
+
+        assertTrue(consumed)
+        assertEquals(0, coordinator.keyCount())
+        assertFalse(coordinator.hasState())
+    }
+
+    @Test
+    fun zhuyinBoundaryIsRemovedBeforeItsPreviousDigit() {
+        val coordinator = coordinator()
+        coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_8)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_POUND)
+
+        val withBoundary = coordinator.snapshot("38'")
+        coordinator.backspaceFromVirtualKey()
+        val withoutBoundary = coordinator.snapshot("38")
+        coordinator.backspaceFromVirtualKey()
+        val withoutLastDigit = coordinator.snapshot("3")
+
+        assertEquals("38'", withBoundary.rawSequence)
+        assertEquals("38", withBoundary.digitSequence)
+        assertEquals(2, withBoundary.keyCount)
+        assertEquals("38", withoutBoundary.rawSequence)
+        assertEquals("3", withoutLastDigit.rawSequence)
+    }
+
+    @Test
+    fun realSubModeTransitionCanResetTwoSchemasWithSameSchemeKind() {
+        val coordinator = coordinator()
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_4)
+
+        coordinator.activateScheme(ChineseT9Scheme.PINYIN, forceReset = true)
+
+        assertFalse(coordinator.hasState())
+        assertEquals(0, coordinator.keyCount())
+    }
+
     private fun coordinator() = ChineseT9CompositionCoordinator(
         formatText = ::formatted,
         buildRawPreeditDisplay = ::formatted
