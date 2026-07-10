@@ -328,19 +328,74 @@ an unresolved fallback containing whole Zhuyin key groups is never committed.
 Users also need a fast path when they deliberately use several Chinese input
 schemes. The full Rime Dictionary Switch remains the escape hatch for every
 installed schema. A new top-level settings page chooses the smaller ordered set
-used by the physical shortcut. While Chinese composition is idle, short `#`
-cycles that set; during composition it commits the code; long `#` continues to
-cycle Chinese, English, and number modes. With only one configured Chinese
-scheme, idle short `#` retains its existing Return behavior.
+used by the physical shortcut. Device feedback rejected idle short `#` as that
+shortcut because it removes Return. Idle short `#` must always perform Return;
+during composition it commits the code; long `#` continues to cycle Chinese,
+English, and number modes. Idle long `*` cycles the enabled Chinese schemes. If
+only one is enabled, long `*` retains literal-star input instead of becoming a
+dead gesture. Composing or punctuation-session long `*` also retains the
+literal-star behavior, while short `*` remains the punctuation entry/toggle.
 
 The quick-cycle path should activate the existing cached Rime schema action
 rather than add another schema state store or call Rime synchronously from the
-key reducer. The physical flow emits one semantic command, and the service
-resolves the next configured scheme only on that deliberate key release.
-Normal digit input therefore gains no preference reads, action scans, or
-engine round trips.
+key reducer. The physical flow emits one semantic command only after a verified
+long press, and the service resolves the next configured scheme at that
+boundary. Normal digit input therefore gains no preference reads, action
+scans, or engine round trips. Pinyin idle short or long `1` commits one literal
+`1`; composing `1` remains its syllable separator.
 
 Finally, `中文九键` is too broad now that Chinese mode contains three schemes.
 The Pinyin schema is renamed `拼音九键`; classification keeps the old name as a
 deployment-compatibility alias so an old compiled schema cannot temporarily
 fall back to the wrong physical-key contract.
+
+## Stroke Candidate And Zhuyin Resolver Follow-up
+
+Device reproduction proved that the apparent blank Stroke candidates are not
+empty strings. With raw code `1`, the third candidate committed U+18800 TANGUT
+COMPONENT-001. The official `rime-stroke` dictionary intentionally includes
+that component with code `h`. MiSans cannot draw it, and the current external
+custom Typeface has no system fallback, so it renders as an empty slot and is
+measured like a tiny final candidate. The system font renders a missing-glyph
+box for the same value. UI blank filtering would therefore hide the symptom
+while retaining invalid paging and selection data.
+
+Stroke must use a project-owned generated Rime table derived from a pinned
+`rime-stroke` revision. Generation keeps complete CJK unified ideographs,
+normalizes compatibility ideographs, retains independently encoded radical
+forms such as `亻`, `氵`, and `扌` at lower priority, and rejects dedicated
+stroke symbols, component blocks, Tangut, and Latin entries. Common-character
+weights are attached during generation. Validation fails the generation when
+an unsupported code point leaks into the table. Runtime UI filtering is not a
+fallback for generated data.
+
+Android does not need a second large Stroke candidate resolver. A small
+`T9StrokeCodec` owns the deterministic digit-to-stroke map, unknown token,
+preview, and literal commit validation. Rime's compiled table keeps candidate
+lookup, user frequency, simplification, and paging off the Kotlin heap. Custom
+font fallback remains independently necessary for legitimate rare Han
+ideographs and must be shared by text measurement and rendering.
+
+Zhuyin has the opposite shape: each digit represents several symbols, while
+the set of legal toneless Mandarin syllables is small. The current UI waits for
+an asynchronous Rime candidate comment and otherwise expands every key into a
+whole symbol group, producing a long ambiguous preview and sometimes no Hanzi
+row. A local `T9ZhuyinResolver` should synchronously map the digit sequence to
+bounded legal reading paths, infer syllable boundaries, and publish the
+selected reading plus reading-filter options. Rime remains responsible for
+Hanzi words, frequency, learning, and commit.
+
+The referenced TT9 Bopomofo build does not contain such a resolver. It enables
+upstream TT9's hidden mode, whose dedicated phrase dictionary stores each word
+with a concatenated Latin transcription and frequency. Phrase lookup therefore
+infers boundaries only when the full sequence exists in that dictionary; when
+continuation disappears TT9 may accept the previous suggestion. This project
+must not copy that eager-commit behavior. Missing Rime words leave composition
+editable until explicit confirmation.
+
+When the local resolver proves that a sequence has no legal Zhuyin path, the
+new digit remains in raw composition, the top row shows the honest digit
+sequence, and a non-interactive localized no-match state replaces the Hanzi
+row. It is distinct from dictionary loading and can never appear while a valid
+candidate generation is merely pending. Backspace restores the prior valid
+reading immediately; `#` does not commit an invalid internal digit code.

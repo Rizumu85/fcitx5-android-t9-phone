@@ -81,12 +81,13 @@ frame analysis, see `docs/t9-debugging.md`.
 
 ### 中文/数字模式的 `1` 和 `*` 行为
 
-- In idle Pinyin mode, short `1` should not open punctuation. During Pinyin
-  composition it should keep acting as the syllable separator.
+- In idle Pinyin mode, short or long `1` should commit one literal `1`. During
+  Pinyin composition, short `1` should keep acting as the syllable separator.
 - In Chinese mode, short `*` should open Chinese punctuation. With an active
   composition it should first commit the highlighted Hanzi candidate.
-- In Chinese mode, long `*` should replace/clear the current composition and
-  insert a literal `*`.
+- During Chinese composition, long `*` should replace/clear the current
+  composition and insert a literal `*`. While idle, it should cycle enabled
+  Chinese schemes, or insert `*` when only one scheme is enabled.
 - 数字模式下，`*` 也应直接输入普通 `*`。
 
 ## 4. 分发包内容

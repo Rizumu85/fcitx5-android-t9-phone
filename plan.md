@@ -234,3 +234,21 @@ otherwise.
 - [x] Build/install debug and run physical-device Pinyin, Stroke, and Zhuyin QA
   with exact code commit, candidate selection, deletion, punctuation, and
   scheme switching.
+
+## Chinese Scheme Follow-up And Candidate Quality
+
+- [x] Diagnose Stroke blank slots on-device and identify the committed U+18800
+  Tangut component plus the missing custom-font fallback.
+- [x] Record the replacement key contract: idle short `#` Return, idle long `*`
+  configured-scheme cycle, and Pinyin idle `1` literal input.
+- [x] Migrate the replacement key contract through semantic flow commands and
+  delete the old idle-short-`#` cycle branch.
+- [x] Add `T9ZhuyinResolver`, automatic syllable segmentation, shared reading
+  options, and a ticketed non-interactive no-match state.
+- [x] Add `T9StrokeCodec` and a reproducible curated Stroke dictionary generator
+  that rejects non-Han components before Rime compilation.
+- [x] Add system fallback for unsupported custom-font glyph runs and make text
+  measurement use the same fallback plan.
+- [x] Give Chinese T9 Schemes a dedicated dial-pad settings icon.
+- [x] Run focused tests and a debug build, install the APK and Rime data, then
+  device-test all confirmed key, Stroke, Zhuyin, focus, and no-match cases.

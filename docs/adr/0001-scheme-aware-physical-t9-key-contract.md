@@ -66,11 +66,12 @@ presses on `1..9,0`; moving English case to short `1` must not remove shortcut
   prediction.
 - Number: digits stay literal and short `#` performs return.
 
-Short `#` while Chinese composition is idle cycles the configured Chinese
-schemes. If only one scheme is configured and already active, it keeps the
-existing Return behavior. Long `#` clears incompatible composition and
-switches to the next top-level mode. This avoids carrying hidden Pinyin,
-Stroke, or Zhuyin state into the next mode.
+Short `#` while Chinese composition is idle always performs Return. Long `#`
+clears incompatible composition and switches to the next top-level mode. Idle
+long `*` cycles the configured Chinese schemes; if only one scheme is enabled,
+it commits a literal star. Short `*` remains punctuation entry and punctuation
+set toggle. This avoids carrying hidden Pinyin, Stroke, or Zhuyin state into
+the next mode without sacrificing Return.
 
 ### 3. Use the following Chinese code maps
 
@@ -123,10 +124,11 @@ in that fast cycle.
 
 The top-level **Chinese T9 Schemes** settings page owns the enabled subset.
 Pinyin is the sole default and at least one scheme must remain enabled. Idle
-short `#` cycles enabled schemes in the stable Pinyin -> Stroke -> Zhuyin order;
-the session remembers an in-flight target so rapid presses do not repeatedly
-resolve from a stale Rime status event. The existing Rime Dictionary Switch
-remains the full schema menu and focuses the active scheme.
+long `*` cycles enabled schemes in the stable Pinyin -> Stroke -> Zhuyin order;
+the session remembers an in-flight target so rapid holds do not repeatedly
+resolve from a stale Rime status event. Idle short `#` performs Return. The
+existing Rime Dictionary Switch remains the full schema menu and focuses the
+active scheme.
 
 The active scheme is shown in the T9 mode label. The Pinyin schema is named
 `拼音九键` rather than the now-ambiguous `中文九键`; the old name remains only
@@ -143,7 +145,7 @@ snapshot to semantic commands such as:
 - `ShowEnglishPunctuationCandidates`
 - `CommitChineseCandidateAndShowPunctuation`
 - `CommitChineseCodePreview`
-- `CycleChineseSchemeOrReturn`
+- `CycleChineseSchemeOrCommitLiteralStar`
 - `CommitLiteralStar`
 
 Command names must not encode the old key that happened to trigger them.

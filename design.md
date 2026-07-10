@@ -177,21 +177,27 @@ snapshot. It emits the existing forwarding and candidate commands according to
 the scheme contract. The reducer remains O(1): it does not query Rime, read a
 dictionary, build candidates, or measure views.
 
-Pinyin continues to publish its top reading and pinyin-filter row. Stroke and
-Zhuyin publish a top reading from their raw code and current candidate comment,
-but no fabricated Pinyin filter row. Their Hanzi candidates, numeric shortcut
-labels, paging, focus, width budgeting, and punctuation follow-up reuse the T9
-Candidate UI Snapshot Pipeline unchanged.
+Pinyin publishes its top reading and reading-filter row. Zhuyin publishes the
+same generic reading-row contract from a local legal-syllable resolver rather
+than fabricating Pinyin state or waiting for a candidate comment. Stroke
+publishes only its deterministic code preview. Their Hanzi candidates, numeric
+shortcut labels, paging, focus, width budgeting, and punctuation follow-up
+reuse the T9 Candidate UI Snapshot Pipeline unchanged.
 
 The Rime data Adapter provides two schemas:
 
-- `t9_stroke` maps `1..5` to one exact official `hspnz` stroke prism. A bounded
-  Lua query Adapter expands up to two `6` tokens at runtime, merges a small
+- `t9_stroke` maps `1..5` to one exact project-curated `hspnz` stroke prism. The
+  generated table is derived from a pinned official `rime-stroke` revision,
+  contains complete Han ideographs instead of Unicode strokes/components, and
+  carries project ranking weights. A bounded Lua query Adapter expands up to
+  two `6` tokens at runtime, merges a small
   result pool by candidate quality, and leaves exact input on the native table
   translator path. Wildcard combinations are never compiled into the prism.
 - `t9_zhuyin` converts `rime_ice` Pinyin spellings to Zhuyin, then collapses
   symbols into the agreed `0..9` phone groups. Candidate comments are formatted
-  back to Zhuyin for the top reading.
+  back to Zhuyin. A local `T9ZhuyinResolver` owns immediate legal reading paths
+  and automatic syllable boundaries; comments only rerank or validate those
+  paths and never serve as the first-frame parser.
 
 Both schemas use the existing Rime candidate engine and user dictionary. There
 is no Android-side dictionary scan or parallel candidate renderer. The existing
@@ -246,9 +252,13 @@ the compatibility-preserving default.
 Physical `#` has a state-shaped contract:
 
 - composing Chinese: commit the active scheme's literal code preview;
-- idle Chinese with multiple configured schemes: activate the next scheme;
-- idle Chinese with one configured scheme: perform Return as before;
+- idle Chinese: perform Return;
 - long press: clear composition and switch the top-level T9 mode.
+
+Physical `*` keeps punctuation on short press. Idle long `*` activates the next
+configured Chinese scheme; with only one configured scheme it commits a literal
+star. Composing and punctuation-session long `*` retain literal-star input so
+the shortcut never silently destroys an active composition or candidate row.
 
 The key flow emits semantic commands only. A scheme-cycle Module chooses the
 next configured scheme, then the Fcitx adapter activates the matching action
@@ -260,3 +270,38 @@ or another transient overlay.
 
 The Pinyin Rime schema is named `拼音九键`. `中文九键` remains only as a
 classification alias for already-compiled user data during deployment.
+
+## Stroke And Zhuyin Local Modules
+
+`T9StrokeCodec` is a pure O(1) Module. It is the only Android source for the
+`1..6` token map, display symbols, unknown-stroke semantics, and literal-code
+validation. It does not load Hanzi candidates. The generated Rime table is
+validated before packaging, so runtime candidate code does not retain a second
+non-Han filtering path.
+
+`T9ZhuyinResolver` builds a compact immutable index from legal toneless
+syllables. Lookup accepts partial final syllables, automatically segments prior
+complete syllables, bounds the number of retained paths, and returns a stable
+snapshot keyed only by raw digits. Candidate comments may move a matching path
+to the front without changing the underlying path set. Resolver work is
+independent of the Hanzi dictionary size and remains synchronous on key input.
+
+A resolver result has exactly three presentation states:
+
+- valid: selected Bopomofo reading, reading options, and a candidate ticket;
+- pending engine data: the valid local reading remains visible without a
+  no-match label;
+- invalid: honest raw digits plus a localized, non-focusable no-match row.
+
+Late Rime events must match the composition ticket before replacing a valid or
+invalid state. An invalid state never exposes OK, numeric shortcut, or paging
+actions, and short `#` cannot commit its internal digit sequence.
+
+External custom fonts use the chosen font for supported glyph runs and the
+system family for unsupported runs. The same fallback plan feeds Android text
+measurement and TextView rendering so a legitimate rare Han character cannot
+collapse the final candidate focus geometry.
+
+The settings home uses a dedicated dial-pad icon for Chinese T9 Schemes rather
+than repeating the generic language icon used by the complete input-method
+list.
