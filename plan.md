@@ -388,7 +388,7 @@ otherwise.
   paths without broadening the O(1) key reducer.
 - [x] Publish explicit Rime deployment/readiness and active-schema state, then
   gate Chinese engine operations by readiness and composition generation.
-- [ ] Lazily materialize keyboard layouts and picker catalogs, and move sound
+- [x] Lazily materialize keyboard layouts and picker catalogs, and move sound
   decoding after the first visible input-surface frame.
 - [ ] Add an interrupted-install-safe DataManager fingerprint fast path and
   exclude Android-only T9 assets from native installation.

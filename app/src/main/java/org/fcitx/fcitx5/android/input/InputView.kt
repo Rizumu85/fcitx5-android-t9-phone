@@ -53,6 +53,7 @@ import org.fcitx.fcitx5.android.input.keyboard.T9Keyboard
 import org.fcitx.fcitx5.android.input.keyboard.TemporaryFullKeyboard
 import org.fcitx.fcitx5.android.input.picker.emojiPicker
 import org.fcitx.fcitx5.android.input.picker.emoticonPicker
+import org.fcitx.fcitx5.android.input.picker.PickerWindow
 import org.fcitx.fcitx5.android.input.picker.symbolPicker
 import org.fcitx.fcitx5.android.input.popup.PopupComponent
 import org.fcitx.fcitx5.android.input.preedit.PreeditComponent
@@ -175,9 +176,6 @@ class InputView(
     private val kawaiiBar = KawaiiBarComponent()
     private val horizontalCandidate = HorizontalCandidateComponent()
     private val keyboardWindow = KeyboardWindow()
-    private val symbolPicker = symbolPicker()
-    private val emojiPicker = emojiPicker()
-    private val emoticonPicker = emoticonPicker()
 
     private fun setupScope() {
         scope += this@InputView.wrapToUniqueComponent()
@@ -300,9 +298,9 @@ class InputView(
 
         // make sure KeyboardWindow's view has been created before it receives any broadcast
         windowManager.addEssentialWindow(keyboardWindow, createView = true)
-        windowManager.addEssentialWindow(symbolPicker)
-        windowManager.addEssentialWindow(emojiPicker)
-        windowManager.addEssentialWindow(emoticonPicker)
+        windowManager.addLazyEssentialWindow(PickerWindow.Key.Symbol, ::symbolPicker)
+        windowManager.addLazyEssentialWindow(PickerWindow.Key.Emoji, ::emojiPicker)
+        windowManager.addLazyEssentialWindow(PickerWindow.Key.Emoticon, ::emoticonPicker)
 
         // 1. Initialize T9 state and set callbacks before attachWindow so onAttached → onLayoutChanged is ready
         isT9KeyboardActive = useT9KeyboardLayout
@@ -335,7 +333,7 @@ class InputView(
         // 2. attach window (triggers onAttached → onLayoutChanged)
         windowManager.attachWindow(KeyboardWindow)
 
-        broadcaster.onImeUpdate(fcitx.runImmediately { inputMethodEntryCached })
+        broadcaster.onImeUpdate(fcitx.cachedState.inputMethodEntry)
 
         customBackground.imageDrawable = theme.backgroundDrawable(keyBorder)
 
@@ -506,9 +504,10 @@ class InputView(
     }
 
     override fun onStartHandleFcitxEvent() {
-        val inputPanelData = fcitx.runImmediately { inputPanelCached }
-        val inputMethodEntry = fcitx.runImmediately { inputMethodEntryCached }
-        val statusAreaActions = fcitx.runImmediately { statusAreaActionsCached }
+        val cached = fcitx.cachedState
+        val inputPanelData = cached.inputPanel
+        val inputMethodEntry = cached.inputMethodEntry
+        val statusAreaActions = cached.statusAreaActions
         arrayOf(
             FcitxEvent.InputPanelEvent(inputPanelData),
             FcitxEvent.IMChangeEvent(inputMethodEntry),

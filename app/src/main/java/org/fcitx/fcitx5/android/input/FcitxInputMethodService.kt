@@ -650,7 +650,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             jobs.consumeEach { it.join() }
         }
         lifecycleScope.launch {
-            fcitx.runImmediately { eventFlow }.collect {
+            fcitx.eventFlow.collect {
                 handleFcitxEvent(it)
             }
         }
@@ -1494,6 +1494,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             Timber.w("Device does not support android.R.attr.colorAccent which it should have.")
         }
         InputFeedbacks.syncSystemPrefs()
+        decorView.postOnAnimation {
+            decorView.post(InputFeedbacks::preloadAppSoundsIfEnabled)
+        }
     }
 
     override fun onCreateInputView(): View? {

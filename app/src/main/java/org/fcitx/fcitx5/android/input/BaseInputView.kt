@@ -37,7 +37,7 @@ abstract class BaseInputView(
 
     private fun setupFcitxEventHandler() {
         eventHandlerJob = service.lifecycleScope.launch {
-            fcitx.runImmediately { eventFlow }.collect {
+            fcitx.eventFlow.collect {
                 handleFcitxEvent(it)
             }
         }

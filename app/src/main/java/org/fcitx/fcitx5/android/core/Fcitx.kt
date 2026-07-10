@@ -38,21 +38,26 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
     override val isReady
         get() = lifecycle.currentState == FcitxLifecycle.State.READY
 
-    override var inputMethodEntryCached =
-        InputMethodEntry(context.getString(R.string._not_available_))
+    @Volatile
+    override var cachedState = FcitxCachedState(
+        inputMethodEntry = InputMethodEntry(context.getString(R.string._not_available_))
+    )
         private set
 
-    override var statusAreaActionsCached: Array<Action> = emptyArray()
-        private set
+    override val inputMethodEntryCached: InputMethodEntry
+        get() = cachedState.inputMethodEntry
 
-    override var clientPreeditCached = FormattedText.Empty
-        private set
+    override val statusAreaActionsCached: Array<Action>
+        get() = cachedState.statusAreaActions
 
-    override var inputPanelCached = FcitxEvent.InputPanelEvent.Data()
-        private set
+    override val clientPreeditCached: FormattedText
+        get() = cachedState.clientPreedit
 
-    override var rimeAvailabilityCached = FcitxEvent.RimeAvailabilityEvent.Data.Unavailable
-        private set
+    override val inputPanelCached: FcitxEvent.InputPanelEvent.Data
+        get() = cachedState.inputPanel
+
+    override val rimeAvailabilityCached: FcitxEvent.RimeAvailabilityEvent.Data
+        get() = cachedState.rimeAvailability
 
     // TODO: custom log rule
     override fun setLogRule(verbose: Boolean) {
@@ -82,8 +87,12 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
     override suspend fun save() = withFcitxContext { saveFcitxState() }
     override suspend fun reloadConfig() = withFcitxContext {
         reloadFcitxConfig()
-        inputMethodStatus()?.let { inputMethodEntryCached = it }
-        statusAreaActionsCached = getFcitxStatusAreaActions() ?: emptyArray()
+        updateCachedState {
+            it.copy(
+                inputMethodEntry = inputMethodStatus() ?: it.inputMethodEntry,
+                statusAreaActions = getFcitxStatusAreaActions() ?: emptyArray()
+            )
+        }
     }
 
     override suspend fun sendKey(
@@ -541,22 +550,37 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
     private fun handleFcitxEvent(event: FcitxEvent<*>) {
         when (event) {
             is FcitxEvent.ReadyEvent -> lifecycleRegistry.postEvent(FcitxLifecycle.Event.ON_READY)
-            is FcitxEvent.IMChangeEvent -> inputMethodEntryCached = event.data
+            is FcitxEvent.IMChangeEvent -> updateCachedState {
+                it.copy(inputMethodEntry = event.data)
+            }
             is FcitxEvent.StatusAreaEvent -> {
                 val (actions, im) = event.data
-                statusAreaActionsCached = actions
+                val previousInputMethod = cachedState.inputMethodEntry
+                updateCachedState {
+                    it.copy(statusAreaActions = actions, inputMethodEntry = im)
+                }
                 // Engine subMode update won't trigger IMChangeEvent, but usually updates StatusArea
-                if (im != inputMethodEntryCached) {
-                    inputMethodEntryCached = im
+                if (im != previousInputMethod) {
                     // notify downstream consumers that engine subMode has changed
                     eventFlow_.tryEmit(FcitxEvent.IMChangeEvent(im))
                 }
             }
-            is FcitxEvent.ClientPreeditEvent -> clientPreeditCached = event.data
-            is FcitxEvent.InputPanelEvent -> inputPanelCached = event.data
-            is FcitxEvent.RimeAvailabilityEvent -> rimeAvailabilityCached = event.data
+            is FcitxEvent.ClientPreeditEvent -> updateCachedState {
+                it.copy(clientPreedit = event.data)
+            }
+            is FcitxEvent.InputPanelEvent -> updateCachedState {
+                it.copy(inputPanel = event.data)
+            }
+            is FcitxEvent.RimeAvailabilityEvent -> updateCachedState {
+                it.copy(rimeAvailability = event.data)
+            }
             else -> {}
         }
+    }
+
+    private inline fun updateCachedState(update: (FcitxCachedState) -> FcitxCachedState) {
+        val previous = cachedState
+        cachedState = update(previous).copy(revision = previous.revision + 1L)
     }
 
     fun start() {
@@ -602,9 +626,9 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
     private fun publishRimeLifecycleState(state: FcitxEvent.RimeAvailabilityEvent.State) {
         val data = FcitxEvent.RimeAvailabilityEvent.Data(
             state = state,
-            activeSchema = rimeAvailabilityCached.activeSchema
+            activeSchema = cachedState.rimeAvailability.activeSchema
         )
-        rimeAvailabilityCached = data
+        updateCachedState { it.copy(rimeAvailability = data) }
         eventFlow_.tryEmit(FcitxEvent.RimeAvailabilityEvent(data))
     }
 

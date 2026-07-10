@@ -60,6 +60,12 @@ object FcitxDaemon {
 
     private fun mkConnection(name: String) = object : FcitxConnection {
 
+        override val eventFlow
+            get() = ensureConnected { realFcitx.eventFlow }
+
+        override val cachedState
+            get() = ensureConnected { realFcitx.cachedState }
+
         private inline fun <T> ensureConnected(block: () -> T) =
             if (name in clients)
                 block()

@@ -491,6 +491,12 @@ picker. Feedback preference observation remains eager enough to preserve user
 settings, while sound decoding starts after the first input-surface frame and a
 not-yet-loaded sound is skipped rather than blocking a physical key.
 
+Fcitx publishes one immutable cached-state revision containing the current
+input method, status actions, preedit/input panel, and Rime availability. The
+connection exposes that revision and the event flow without `runBlocking`.
+Input views seed themselves from one revision and then consume events, avoiding
+both main-thread dispatcher entry and internally inconsistent multi-read state.
+
 `DataManager` remains the Data Installation Module. It uses a persisted source
 fingerprint that includes the app descriptor and installed plugin identities.
 An equal, completed fingerprint bypasses plugin descriptor parsing, hierarchy

@@ -69,14 +69,7 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
     private lateinit var rootView: FrameLayout
     private lateinit var keyboardView: FrameLayout
 
-    private val keyboards: HashMap<String, BaseKeyboard> by lazy {
-        hashMapOf(
-            TextKeyboard.Name to TextKeyboard(context, theme),
-            NumberKeyboard.Name to NumberKeyboard(context, theme),
-            TemporaryFullKeyboard.Name to TemporaryFullKeyboard(context, theme),
-            T9Keyboard.Name to T9Keyboard(context, theme)
-        )
-    }
+    private val keyboards = hashMapOf<String, BaseKeyboard>()
     private var currentKeyboardName = ""
     private var lastSymbolType: String by AppPrefs.getInstance().internal.lastSymbolLayout
 
@@ -84,6 +77,29 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
     var onHeightChanged: (() -> Unit)? = null
 
     private val currentKeyboard: BaseKeyboard? get() = keyboards[currentKeyboardName]
+
+    private fun supportsLayout(name: String): Boolean = when (name) {
+        TextKeyboard.Name,
+        NumberKeyboard.Name,
+        TemporaryFullKeyboard.Name,
+        T9Keyboard.Name -> true
+        else -> false
+    }
+
+    private fun keyboardFor(name: String): BaseKeyboard? {
+        if (!supportsLayout(name)) return null
+        return keyboards.getOrPut(name) {
+            // Inactive layouts are expensive View trees; the current layout is the only one that
+            // belongs on the first input-surface critical path.
+            when (name) {
+                TextKeyboard.Name -> TextKeyboard(context, theme)
+                NumberKeyboard.Name -> NumberKeyboard(context, theme)
+                TemporaryFullKeyboard.Name -> TemporaryFullKeyboard(context, theme)
+                T9Keyboard.Name -> T9Keyboard(context, theme)
+                else -> error("Unsupported keyboard layout $name")
+            }
+        }
+    }
 
     private val keyActionListener = KeyActionListener { it, source ->
         when (it) {
@@ -130,14 +146,14 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
         if (target != TemporaryFullKeyboard.Name) {
             setPasswordPeekMode(false)
         }
-        currentKeyboard?.let {
+        keyboardFor(target)?.let {
             it.keyActionListener = keyActionListener
             it.popupActionListener = popupActionListener
             keyboardView.apply { add(it, lParams(matchParent, matchParent)) }
             it.onAttach()
             it.onReturnDrawableUpdate(returnKeyDrawable.resourceId)
             val pendingInputMethod = pendingInputMethodDisplayAfterTemporary
-            val cachedInputMethod = fcitx.runImmediately { inputMethodEntryCached }
+            val cachedInputMethod = fcitx.cachedState.inputMethodEntry
             val displayInputMethod = pendingInputMethod
                 ?: displayInputMethodForLayout(cachedInputMethod, target)?.takeUnless {
                     suppressPasswordInputMethodDisplayAfterTemporary &&
@@ -181,7 +197,7 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
         val defaultMainKeyboard = if (useT9KeyboardLayout) T9Keyboard.Name else TextKeyboard.Name
         val requestedTarget = when {
             to.isNotEmpty() -> to
-            keyboards.containsKey(lastSymbolType) -> lastSymbolType
+            supportsLayout(lastSymbolType) -> lastSymbolType
             else -> defaultMainKeyboard
         }
         val target = if (temporaryTextKeyboard && requestedTarget == TextKeyboard.Name) {
@@ -191,7 +207,7 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
         }
         val leavingTemporaryTextKeyboard =
             temporaryTextKeyboard &&
-                keyboards.containsKey(target) &&
+                supportsLayout(target) &&
                 target != TemporaryFullKeyboard.Name &&
                 target != NumberKeyboard.Name
         if (leavingTemporaryTextKeyboard) {
@@ -208,7 +224,7 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
             target
         }
         ContextCompat.getMainExecutor(service).execute {
-            if (keyboards.containsKey(resolvedTarget)) {
+            if (supportsLayout(resolvedTarget)) {
                 if (remember && resolvedTarget != TextKeyboard.Name && resolvedTarget != T9Keyboard.Name) {
                     lastSymbolType = resolvedTarget
                 }

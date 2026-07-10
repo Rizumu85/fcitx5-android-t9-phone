@@ -26,6 +26,8 @@ interface FcitxAPI {
 
     val isReady: Boolean
 
+    val cachedState: FcitxCachedState
+
     val inputMethodEntryCached: InputMethodEntry
 
     val statusAreaActionsCached: Array<Action>

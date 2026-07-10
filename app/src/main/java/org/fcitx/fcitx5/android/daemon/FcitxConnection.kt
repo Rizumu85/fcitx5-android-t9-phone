@@ -5,12 +5,19 @@
 package org.fcitx.fcitx5.android.daemon
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.SharedFlow
 import org.fcitx.fcitx5.android.core.FcitxAPI
+import org.fcitx.fcitx5.android.core.FcitxCachedState
+import org.fcitx.fcitx5.android.core.FcitxEvent
 
 /**
  * Clients should use [FcitxConnection] to run fcitx operations.
  */
 interface FcitxConnection {
+
+    val eventFlow: SharedFlow<FcitxEvent<*>>
+
+    val cachedState: FcitxCachedState
 
     /**
      * Run an operation immediately

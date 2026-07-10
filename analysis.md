@@ -727,3 +727,12 @@ the Android get/replace APIs, while `.gitmodules` still pointed at upstream.
 Fresh clones could not fetch that commit. The maintained Android changes now
 live on the `android-t9` branch of the project fork, and the submodule URL points
 at that fetchable history before adding the availability callback.
+
+The input-surface slice removes two independent forms of eager work. Fcitx now
+publishes one immutable cached-state revision that the Android views can read
+without entering `runBlocking`; event collection is also exposed directly by
+the connection. Separately, `KeyboardWindow` constructs only its requested
+layout, picker windows and their large catalogs materialize only when opened,
+and SoundPool decoding is scheduled after the first visible input frame. A key
+pressed before a sound sample is ready intentionally has no sound rather than
+paying decoder initialization on the input path.

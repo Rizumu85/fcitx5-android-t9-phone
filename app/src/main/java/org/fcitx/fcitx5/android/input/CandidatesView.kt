@@ -586,7 +586,7 @@ class CandidatesView(
     }
 
     override fun onStartHandleFcitxEvent() {
-        val inputPanelData = fcitx.runImmediately { inputPanelCached }
+        val inputPanelData = fcitx.cachedState.inputPanel
         handleFcitxEvent(FcitxEvent.InputPanelEvent(inputPanelData))
     }
 

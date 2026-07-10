@@ -33,6 +33,7 @@ class InputWindowManager : UniqueViewComponent<InputWindowManager, FrameLayout>(
     private lateinit var scope: DynamicScope
 
     private val essentialWindows = mutableMapOf<EssentialWindow.Key, Pair<InputWindow, View?>>()
+    private val lazyEssentialWindows = mutableMapOf<EssentialWindow.Key, () -> InputWindow>()
 
     private var currentWindow: InputWindow? = null
     private var currentView: View? = null
@@ -71,19 +72,33 @@ class InputWindowManager : UniqueViewComponent<InputWindowManager, FrameLayout>(
         window: R,
         createView: Boolean = false
     ) where R : InputWindow, R : EssentialWindow {
-        if (window.key in essentialWindows) {
-            if (essentialWindows[window.key]!!.first === window)
+        essentialWindows[window.key]?.let { (existing) ->
+            if (existing === window) {
                 Timber.d("Skip adding essential window $window")
-            else
-                throw IllegalStateException("${window.key} is already occupied")
+                return
+            }
+            throw IllegalStateException("${window.key} is already occupied")
+        }
+        if (window.key in lazyEssentialWindows) {
+            throw IllegalStateException("${window.key} is already occupied")
         }
         scope += window
         val view = if (createView) window.onCreateView() else null
         essentialWindows[window.key] = window to view
     }
 
+    fun <R> addLazyEssentialWindow(
+        key: EssentialWindow.Key,
+        create: () -> R
+    ) where R : InputWindow, R : EssentialWindow {
+        require(key !in essentialWindows && key !in lazyEssentialWindows) {
+            "$key is already occupied"
+        }
+        lazyEssentialWindows[key] = create
+    }
+
     fun getEssentialWindow(windowKey: EssentialWindow.Key) =
-        essentialWindows[windowKey]?.first
+        materializeEssentialWindow(windowKey)?.first
             ?: throw IllegalArgumentException("Unable to find essential window associated with $windowKey")
 
     /**
@@ -93,7 +108,7 @@ class InputWindowManager : UniqueViewComponent<InputWindowManager, FrameLayout>(
      * Moreover, [attachWindow] can also add the essential window with key.
      */
     fun attachWindow(windowKey: EssentialWindow.Key) {
-        essentialWindows[windowKey]?.let { (window, _) ->
+        materializeEssentialWindow(windowKey)?.let { (window, _) ->
             attachWindow(window)
         } ?: throw IllegalStateException("$windowKey is not a known essential window key")
     }
@@ -102,6 +117,7 @@ class InputWindowManager : UniqueViewComponent<InputWindowManager, FrameLayout>(
      * Remove an essential window
      */
     fun removeEssentialWindow(windowKey: EssentialWindow.Key) {
+        if (lazyEssentialWindows.remove(windowKey) != null) return
         val (window, _) = essentialWindows[windowKey]
             ?: throw IllegalStateException("$windowKey is not a known essential window key")
         if (currentWindow === window)
@@ -110,6 +126,19 @@ class InputWindowManager : UniqueViewComponent<InputWindowManager, FrameLayout>(
         scope -= window
         // remove from map
         essentialWindows.remove(windowKey)
+    }
+
+    private fun materializeEssentialWindow(
+        key: EssentialWindow.Key
+    ): Pair<InputWindow, View?>? {
+        essentialWindows[key]?.let { return it }
+        val create = lazyEssentialWindows.remove(key) ?: return null
+        val window = create()
+        require(window is EssentialWindow && window.key == key) {
+            "Lazy essential window factory for $key returned $window"
+        }
+        scope += window
+        return (window to null).also { essentialWindows[key] = it }
     }
 
     /**

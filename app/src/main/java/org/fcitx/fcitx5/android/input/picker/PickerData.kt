@@ -12,7 +12,7 @@ object PickerData {
 
     val RecentlyUsedCategory = Category("⟳", R.drawable.ic_baseline_access_time_24)
 
-    val Symbol: List<Pair<Category, Array<String>>> = listOf(
+    val Symbol: List<Pair<Category, Array<String>>> by lazy(LazyThreadSafetyMode.NONE) { listOf(
         Category("1?#", R.drawable.symbol_number_punctuation) to arrayOf(
             "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
             "!", "@", "#", "$", "%", "^", "&", "*", "(", ")",
@@ -90,9 +90,9 @@ object PickerData {
             "＜", "＞", "ー", "−", "・", "￥", "〒", "々", "仝", "〃",
             "ゝ", "ゞ", "ヽ", "ヾ"
         )
-    )
+    ) }
 
-    val Emoji: List<Pair<Category, Array<String>>> = listOf(
+    val Emoji: List<Pair<Category, Array<String>>> by lazy(LazyThreadSafetyMode.NONE) { listOf(
         Category("🙂", R.drawable.ic_baseline_tag_faces_24) to arrayOf(
             "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", "🫠", "😉", "😊",
             "😇", "🥰", "😍", "🤩", "😘", "😗", "☺️", "😚", "😙", "🥲", "😋", "😛", "😜",
@@ -257,9 +257,9 @@ object PickerData {
             "🇺🇳", "🇺🇸", "🇺🇾", "🇺🇿", "🇻🇦", "🇻🇨", "🇻🇪", "🇻🇬", "🇻🇮", "🇻🇳", "🇻🇺", "🇼🇫", "🇼🇸",
             "🇽🇰", "🇾🇪", "🇾🇹", "🇿🇦", "🇿🇲", "🇿🇼", "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "🏴󠁧󠁢󠁳󠁣󠁴󠁿", "🏴󠁧󠁢󠁷󠁬󠁳󠁿"
         )
-    )
+    ) }
 
-    val Emoticon: List<Pair<Category, Array<String>>> = listOf(
+    val Emoticon: List<Pair<Category, Array<String>>> by lazy(LazyThreadSafetyMode.NONE) { listOf(
         Category("开心") to arrayOf(
             ":D", ":)", ";)", ":-)",
             "^_^", "(^^)", "(^^♪", "ʕ•ٹ•ʔ",
@@ -337,5 +337,5 @@ object PickerData {
             "(╯°口°)╯(┴—┴", "←◡←", "( ♥д♥)", "Σ>―(〃°ω°〃)♡→",
             "⁄(⁄ ⁄•⁄ω⁄•⁄ ⁄)⁄", "(╬ﾟдﾟ)▄︻┻┳═一", "･*･:≡(　ε:)", "¯\\_(ツ)_/¯"
         )
-    )
+    ) }
 }

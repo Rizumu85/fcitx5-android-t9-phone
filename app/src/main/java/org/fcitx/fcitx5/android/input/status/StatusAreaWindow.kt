@@ -148,7 +148,7 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
                 )
             }
             is StatusAreaEntry.Android -> when (entry.type) {
-                InputMethod -> fcitx.runImmediately { inputMethodEntryCached }.let {
+                InputMethod -> fcitx.cachedState.inputMethodEntry.let {
                     AppUtil.launchMainToInputMethodConfig(
                         context, it.uniqueName, it.displayName
                     )

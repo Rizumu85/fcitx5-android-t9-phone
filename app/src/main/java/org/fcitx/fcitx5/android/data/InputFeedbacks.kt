@@ -32,7 +32,6 @@ object InputFeedbacks {
 
     fun syncSystemPrefs() {
         systemSoundEffects = getSystemSettings<Int>(Settings.System.SOUND_EFFECTS_ENABLED) == 1
-        preloadAppSounds()
         // it says "Replaced by using android.os.VibrationAttributes.USAGE_TOUCH"
         // but gives no clue about how to use it, and this one still works
         @Suppress("DEPRECATION")
@@ -270,7 +269,13 @@ object InputFeedbacks {
         return id
     }
 
-    private fun preloadAppSounds() {
+    fun preloadAppSoundsIfEnabled() {
+        val enabled = when (soundOnKeyPress) {
+            InputFeedbackMode.Enabled -> true
+            InputFeedbackMode.Disabled -> false
+            InputFeedbackMode.FollowingSystem -> systemSoundEffects
+        }
+        if (!enabled) return
         synchronized(appSoundLock) {
             appSoundId(SoundEffect.Standard)
             appSoundId(SoundEffect.SpaceBar)
@@ -296,17 +301,32 @@ object InputFeedbacks {
         }
     }
 
+    private fun playLoadedAppSoundEffect(effect: SoundEffect, volume: Int) {
+        val gain = (volume.coerceIn(0, 100) / 100f).takeIf { it > 0f } ?: 0.5f
+        val soundId = synchronized(appSoundLock) {
+            if (appSoundPackVersion != UserKeySoundPack.version) return@synchronized 0
+            appSoundIds[sampleSoundIndex(sampleSoundEffect(effect))]
+                .takeIf(loadedAppSoundIds::contains)
+                ?: 0
+        }
+        if (soundId != 0) {
+            appSoundPool.play(soundId, gain, gain, 1, 0, 1f)
+        }
+    }
+
     fun soundEffect(effect: SoundEffect) {
         when (soundOnKeyPress) {
             InputFeedbackMode.Enabled -> {
                 val volume = soundOnKeyPressVolume.takeIf { it > 0 } ?: 50
-                playAppSoundEffect(effect, volume)
+                // A key press must never initialize decoders; sounds not ready after the first
+                // visible frame are intentionally skipped instead of delaying input.
+                playLoadedAppSoundEffect(effect, volume)
                 return
             }
             InputFeedbackMode.Disabled -> return
             InputFeedbackMode.FollowingSystem -> if (!systemSoundEffects) return
         }
-        playAppSoundEffect(effect, soundOnKeyPressVolume)
+        playLoadedAppSoundEffect(effect, soundOnKeyPressVolume)
     }
 
     fun previewSoundEffect(effect: SoundEffect) {
