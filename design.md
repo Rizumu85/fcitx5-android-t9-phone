@@ -484,6 +484,13 @@ composition ticket after asynchronous readiness. Input-surface creation does
 not wait for Rime deployment, while a late ready transition reliably refreshes
 the active Chinese session.
 
+The main and Rime plugin APKs may update independently. If a loaded older Rime
+addon lacks the availability export, the native Adapter catches the addon-call
+exception and publishes `Unavailable` instead of terminating the IME process.
+This is a fail-closed compatibility guard, not a fallback readiness path: Rime
+operations stay gated until a plugin implementing the explicit contract is
+installed.
+
 `KeyboardWindow` remains the owner of layout creation, attachment, detachment,
 and caching, but its implementation materializes one requested keyboard at a
 time. Picker catalogs are independently lazy and are loaded only with their

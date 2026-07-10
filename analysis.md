@@ -728,6 +728,16 @@ Fresh clones could not fetch that commit. The maintained Android changes now
 live on the `android-t9` branch of the project fork, and the submodule URL points
 at that fetchable history before adding the availability callback.
 
+Device installation exposed the corresponding runtime-version hazard: the
+main APK can be updated while an older Rime plugin APK remains installed. That
+plugin loads successfully under the shared `0.1` plugin descriptor but does
+not export the new availability callback; the generic Fcitx addon call throws
+`std::runtime_error`. Allowing that exception to escape aborts the native Fcitx
+thread and repeatedly restarts the whole IME. The native Rime Adapter now
+treats a missing availability export as `Unavailable`, logs the incompatibility,
+and keeps the IME alive. It does not restore the removed readiness heuristic;
+Chinese Rime input remains disabled until the matching plugin is installed.
+
 The input-surface slice removes two independent forms of eager work. Fcitx now
 publishes one immutable cached-state revision that the Android views can read
 without entering `runBlocking`; event collection is also exposed directly by

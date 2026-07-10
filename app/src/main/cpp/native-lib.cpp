@@ -1,6 +1,6 @@
 /*
  * SPDX-License-Identifier: LGPL-2.1-or-later
- * SPDX-FileCopyrightText: Copyright 2021-2024 Fcitx5 for Android Contributors
+ * SPDX-FileCopyrightText: Copyright 2021-2026 Fcitx5 for Android Contributors
  */
 #include <jni.h>
 
@@ -9,6 +9,7 @@
 #include <memory>
 #include <future>
 #include <fstream>
+#include <exception>
 
 #include <android/log.h>
 
@@ -459,8 +460,14 @@ public:
             callback(fcitx::RimeAvailability::Unavailable);
             return;
         }
-        p_rime->call<fcitx::IRimeEngine::setAvailabilityCallback>(
-                std::move(callback));
+        try {
+            p_rime->call<fcitx::IRimeEngine::setAvailabilityCallback>(callback);
+        } catch (const std::exception &error) {
+            // Plugin APKs update independently; a missing new export must disable Rime rather
+            // than terminate the whole IME process before the user can update the plugin.
+            FCITX_ERROR() << "Rime availability callback unavailable: " << error.what();
+            callback(fcitx::RimeAvailability::Unavailable);
+        }
     }
 
     void save() {
