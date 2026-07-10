@@ -142,18 +142,22 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var modeIndicatorOverlay: TransientModeIndicatorOverlay? = null
     private val passwordInputPreviewBuffer = StringBuilder()
     private var passwordInputPreviewCursor = 0
-    private val numberModeController = NumberModeController(
-        commitText = { text -> commitText(text) },
-        getTextBeforeCursor = {
-            currentInputConnection
-                ?.getTextBeforeCursor(96, 0)
-                ?.toString()
-        },
-        showOperatorHints = { inputView?.showNumberOperatorHints() },
-        hideOperatorHints = { inputView?.hideNumberOperatorHints() },
-        showEqualsChoice = { prefix, result -> inputView?.showNumberEqualsChoice(prefix, result) },
-        hideEqualsChoice = { inputView?.hideNumberEqualsChoice() }
-    )
+    private val numberModeControllerDelegate = lazy {
+        NumberModeController(
+            scope = lifecycleScope,
+            commitText = { text -> commitText(text) },
+            getTextBeforeCursor = {
+                currentInputConnection
+                    ?.getTextBeforeCursor(96, 0)
+                    ?.toString()
+            },
+            showOperatorHints = { inputView?.showNumberOperatorHints() },
+            hideOperatorHints = { inputView?.hideNumberOperatorHints() },
+            showEqualsChoice = { prefix, result -> inputView?.showNumberEqualsChoice(prefix, result) },
+            hideEqualsChoice = { inputView?.hideNumberEqualsChoice() }
+        )
+    }
+    private val numberModeController by numberModeControllerDelegate
     private val t9CandidateShortcutCommitter = T9CandidateShortcutCommitter(
         commitPendingPunctuationIndex = { index ->
             candidatesView?.commitT9PendingPunctuationShortcut(index) == true
@@ -826,6 +830,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun handleBackspaceKey() {
+        invalidateNumberExpressionForInput()
         if (t9InputModeEnabled && currentT9Mode == T9InputMode.CHINESE) {
             chineseT9Composition.backspaceFromVirtualKey()
         }
@@ -1016,6 +1021,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     fun commitText(text: String, cursor: Int = -1) {
+        invalidateNumberExpressionForInput()
         val ic = currentInputConnection ?: return
         if (physicalSelectionMode) {
             exitPhysicalSelectionMode(showBadge = true)
@@ -1137,7 +1143,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
         if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount != 0) return false
 
-        if (numberModeController.hasTransientPanel) {
+        if (numberModeControllerDelegate.isInitialized() && numberModeController.hasTransientPanel) {
             dismissNumberTransientPanel()
             selectionPreImeBackConsumed = true
             return true
@@ -1606,6 +1612,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private val t9ModeCoordinator: T9ModeCoordinator by lazy {
         T9ModeCoordinator(
             beforeModeChange = {
+                resetNumberModeIfInitialized()
                 resetMultiTapState()
                 smartEnglishCoordinator.reset()
                 smartEnglishCoordinator.flushLearningWord()
@@ -1972,6 +1979,21 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         numberModeController.dismissTransientPanel()
     }
 
+    private fun invalidateNumberExpressionForInput() {
+        if (t9InputModeEnabled &&
+            currentT9Mode == T9InputMode.NUMBER &&
+            numberModeControllerDelegate.isInitialized()
+        ) {
+            numberModeController.invalidatePendingEvaluation()
+        }
+    }
+
+    private fun resetNumberModeIfInitialized() {
+        if (numberModeControllerDelegate.isInitialized()) {
+            numberModeController.dismissTransientPanel()
+        }
+    }
+
     private fun commitNumberModeOperator(operator: String): Boolean {
         return numberModeController.commitOperator(operator)
     }
@@ -2187,7 +2209,17 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun routeNumberTransientPanelKeyDown(
         input: PhysicalInputRouter.Input
     ): PhysicalInputRouter.Result? {
-        val result = numberModeController.handleTransientPanelKeyDown(input.keyCode, input.event)
+        if (!t9InputModeEnabled || currentT9Mode != T9InputMode.NUMBER) return null
+        // Repeats belong to the same held key; invalidating them would cancel the result that
+        // the first long-press repeat just requested.
+        if (input.event.action == KeyEvent.ACTION_DOWN && input.event.repeatCount == 0) {
+            numberModeController.invalidatePendingEvaluation()
+        }
+        val result = numberModeController.handleTransientPanelKeyDown(
+            keyCode = input.keyCode,
+            action = input.event.action,
+            repeatCount = input.event.repeatCount
+        )
         return PhysicalInputRouter.Result(
             handled = result.handled,
             consumeKeyUp = result.consumedKeyUp,
@@ -2452,6 +2484,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     override fun onStartInput(attribute: EditorInfo, restarting: Boolean) {
+        resetNumberModeIfInitialized()
         clearPasswordInputPreview()
         // update selection as soon as possible
         // sometimes when restarting input, onUpdateSelection happens before onStartInput, and
@@ -2804,6 +2837,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     override fun onFinishInputView(finishingInput: Boolean) {
         Timber.d("onFinishInputView: finishingInput=$finishingInput")
+        resetNumberModeIfInitialized()
         updateSelectionBackCallback(false)
         decorLocationUpdated = false
         inputDeviceMgr.onFinishInputView()
@@ -2825,6 +2859,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     override fun onFinishInput() {
         Timber.d("onFinishInput")
+        resetNumberModeIfInitialized()
         updateSelectionBackCallback(false)
         inputDeviceMgr.onFinishInput()
         clearT9CompositionState()

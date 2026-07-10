@@ -1,21 +1,31 @@
 /*
  * SPDX-License-Identifier: LGPL-2.1-or-later
- * SPDX-FileCopyrightText: Copyright 2021-2025 Fcitx5 for Android Contributors
+ * SPDX-FileCopyrightText: Copyright 2021-2026 Fcitx5 for Android Contributors
  */
 
 package org.fcitx.fcitx5.android.input
 
 import android.view.KeyEvent
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
 import java.util.Locale
 
 class NumberModeController(
+    private val scope: CoroutineScope,
     private val commitText: (String) -> Unit,
     private val getTextBeforeCursor: () -> String?,
     private val showOperatorHints: () -> Unit,
     private val hideOperatorHints: () -> Unit,
     private val showEqualsChoice: (prefix: String, result: String) -> Unit,
-    private val hideEqualsChoice: () -> Unit
+    private val hideEqualsChoice: () -> Unit,
+    private val editorDispatcher: CoroutineDispatcher = Dispatchers.Main,
+    private val evaluationDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {
 
     private enum class TransientPanel {
@@ -44,6 +54,8 @@ class NumberModeController(
 
     private var transientPanel = TransientPanel.NONE
     private var pendingEqualsResult: String? = null
+    private var evaluationGeneration = 0L
+    private var evaluationJob: Job? = null
 
     val hasTransientPanel: Boolean
         get() = transientPanel != TransientPanel.NONE
@@ -57,6 +69,7 @@ class NumberModeController(
     }
 
     fun dismissTransientPanel() {
+        invalidatePendingEvaluation()
         val previousPanel = transientPanel
         transientPanel = TransientPanel.NONE
         pendingEqualsResult = null
@@ -69,25 +82,28 @@ class NumberModeController(
 
     fun commitOperator(operator: String): Boolean {
         dismissTransientPanel()
-        if (operator != "=" && operator != "≈") {
-            commitText(operator)
-            return true
-        }
-        val result = evaluateExpressionBeforeCursor(approximate = operator == "≈")
         commitText(operator)
-        if (result != null) {
-            pendingEqualsResult = result
-            transientPanel = TransientPanel.RESULT_CHOICE
-            showEqualsChoice(operator, result)
+        if (operator == "=" || operator == "≈") {
+            requestExpressionEvaluation(operator)
         }
         return true
     }
 
-    fun handleTransientPanelKeyDown(keyCode: Int, event: KeyEvent): KeyResult {
-        if (transientPanel == TransientPanel.NONE || event.action != KeyEvent.ACTION_DOWN) {
+    fun invalidatePendingEvaluation() {
+        evaluationGeneration += 1
+        evaluationJob?.cancel()
+        evaluationJob = null
+    }
+
+    fun handleTransientPanelKeyDown(
+        keyCode: Int,
+        action: Int,
+        repeatCount: Int
+    ): KeyResult {
+        if (transientPanel == TransientPanel.NONE || action != KeyEvent.ACTION_DOWN) {
             return KeyResult(handled = false)
         }
-        if (event.repeatCount > 0) return KeyResult(handled = true)
+        if (repeatCount > 0) return KeyResult(handled = true)
         return when (transientPanel) {
             TransientPanel.OPERATOR_HINT -> handleOperatorHintPanelKeyDown(keyCode)
             TransientPanel.RESULT_CHOICE -> handleResultChoiceKeyDown(keyCode)
@@ -142,9 +158,42 @@ class NumberModeController(
         }
     }
 
-    private fun evaluateExpressionBeforeCursor(approximate: Boolean = false): String? {
-        val before = getTextBeforeCursor() ?: return null
-        val expression = before.takeLastWhile {
+    private fun requestExpressionEvaluation(operator: String) {
+        val ticket = ++evaluationGeneration
+        evaluationJob = scope.launch(editorDispatcher) {
+            try {
+                // The operator must finish its editor effect before any read/parser work can delay input.
+                yield()
+                if (ticket != evaluationGeneration) return@launch
+                val before = getTextBeforeCursor() ?: return@launch
+                val result = withContext(evaluationDispatcher) {
+                    evaluateExpressionBeforeCursor(
+                        before = before,
+                        committedOperator = operator,
+                        approximate = operator == "≈"
+                    )
+                }
+                if (ticket != evaluationGeneration || result == null) return@launch
+                pendingEqualsResult = result
+                transientPanel = TransientPanel.RESULT_CHOICE
+                showEqualsChoice(operator, result)
+            } finally {
+                if (ticket == evaluationGeneration) evaluationJob = null
+            }
+        }
+    }
+
+    private fun evaluateExpressionBeforeCursor(
+        before: String,
+        committedOperator: String,
+        approximate: Boolean
+    ): String? {
+        val textBeforeOperator = if (before.endsWith(committedOperator)) {
+            before.dropLast(committedOperator.length)
+        } else {
+            before
+        }
+        val expression = textBeforeOperator.takeLastWhile {
             isExpressionChar(it)
         }.trim()
         if (expression.isBlank() || expression.none { it.isDigit() || it == 'π' }) return null

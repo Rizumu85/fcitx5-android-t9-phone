@@ -792,3 +792,13 @@ Snapshot. Resolved-segment and active-composition decisions perform no editor
 read; empty detection and deletion share the same extraction/surrounding-text
 result. Password Backspace reuses the same delete plan, while virtual-keyboard
 deletion retains its separate Fcitx behavior.
+
+Number `=` and `≈` previously read up to 96 editor characters and parsed the
+expression before committing the operator, so editor IPC was part of the
+physical-key completion time. Number Mode Controller now commits the operator
+first and queues the editor read for the next main-loop turn; parsing and
+formatting run on the computation dispatcher. Each request owns a monotonic
+generation ticket. A newer number-mode key, text effect, panel dismissal, mode
+change, or input-session transition cancels the job and rejects any late
+result. The deferred reader accepts either the post-commit text (and removes
+the committed `=`/`≈` suffix) or a still-stale pre-commit editor snapshot.

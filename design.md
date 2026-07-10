@@ -549,7 +549,13 @@ editor read is necessary. The Android adapter alone performs InputConnection
 IPC and applies the resulting cursor prediction/delete plan; password deletion
 uses the same plan rather than a parallel editor-read implementation.
 
-Number-mode operators commit immediately; optional expression
-evaluation runs under a generation ticket and cannot publish after newer input
-or panel dismissal. These policies stay behind their existing domain Modules
-rather than returning to `FcitxInputMethodService` condition chains.
+Number Mode Controller commits every operator immediately. For `=` and `≈`, it
+then defers the editor read until after the current input turn and performs
+expression parsing/formatting on a computation dispatcher. One monotonic
+generation ticket owns the read, calculation, and result-choice publication;
+newer input, panel dismissal, mode changes, and input lifecycle changes cancel
+that generation. The controller strips its just-committed operator when the
+editor has already applied it, so both immediate and delayed InputConnection
+visibility produce the same expression. These policies stay behind their
+existing domain Modules rather than returning to `FcitxInputMethodService`
+condition chains.
