@@ -38,7 +38,7 @@ class ChineseT9CodePresentationSource(
         ChineseT9Scheme.STROKE -> strokeDisplay(rawCode)
         ChineseT9Scheme.ZHUYIN -> when (val result = zhuyinResolver.resolve(rawCode)) {
             T9ZhuyinResolver.Result.Empty -> ""
-            is T9ZhuyinResolver.Result.Valid -> result.selectedReading
+            is T9ZhuyinResolver.Result.Valid -> ""
             is T9ZhuyinResolver.Result.Invalid -> result.rawDigits
         }
     }
@@ -52,15 +52,16 @@ class ChineseT9CodePresentationSource(
         T9StrokeCodec.display(rawCode).orEmpty()
 
     private fun zhuyinPresentation(key: ChineseT9PresentationSnapshotKey): T9PresentationState {
-        val preferred = key.selectedReading ?: key.candidateComment
-        return when (val result = zhuyinResolver.resolve(key.rawSequence, preferred)) {
+        return when (val result = zhuyinResolver.resolve(key.rawSequence)) {
             T9ZhuyinResolver.Result.Empty -> T9PresentationState(
                 topReading = null,
                 readingOptions = emptyList()
             )
             is T9ZhuyinResolver.Result.Valid -> T9PresentationState(
-                topReading = formatText(result.selectedReading),
-                readingOptions = result.readingOptions
+                // Predictive Zhuyin follows the focused Hanzi candidate, matching TT9's default
+                // interaction instead of exposing all possible transcriptions at once.
+                topReading = zhuyinCandidatePreview(key)?.let(formatText),
+                readingOptions = emptyList()
             )
             is T9ZhuyinResolver.Result.Invalid -> T9PresentationState(
                 topReading = formatText(result.rawDigits),
@@ -68,6 +69,16 @@ class ChineseT9CodePresentationSource(
                 candidateStatus = T9CandidateStatus.NO_MATCH
             )
         }
+    }
+
+    private fun zhuyinCandidatePreview(key: ChineseT9PresentationSnapshotKey): String? {
+        val reading = T9ZhuyinResolver.normalizeCandidateReading(key.candidateComment)
+        if (reading.isNotEmpty()) {
+            return reading.takeIf {
+                T9ZhuyinResolver.candidateReadingMatches(key.rawSequence, key.candidateComment)
+            }
+        }
+        return key.candidateText.takeIf(String::isNotBlank)
     }
 
     companion object {

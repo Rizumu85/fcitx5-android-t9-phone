@@ -6,6 +6,7 @@
 package org.fcitx.fcitx5.android.input.t9
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -22,19 +23,29 @@ class T9ZhuyinResolverTest {
 
     @Test
     fun resolvesSingleAndMultiSyllableDigitSequences() {
-        val hao = resolver.resolve("38", preferredReading = "ㄏㄠ") as T9ZhuyinResolver.Result.Valid
-        val niHao = resolver.resolve("2038", preferredReading = "ㄋㄧ ㄏㄠ") as T9ZhuyinResolver.Result.Valid
-
-        assertEquals("ㄏㄠ", hao.selectedReading)
-        assertEquals("ㄋㄧ ㄏㄠ", niHao.selectedReading)
-        assertTrue(niHao.readingOptions.contains("ㄋㄧ ㄏㄠ"))
+        assertTrue(resolver.resolve("38") is T9ZhuyinResolver.Result.Valid)
+        assertTrue(resolver.resolve("2038") is T9ZhuyinResolver.Result.Valid)
     }
 
     @Test
-    fun keepsAFirstKeyAsImmediatePartialReading() {
-        val result = resolver.resolve("3") as T9ZhuyinResolver.Result.Valid
+    fun localValidityMatchesTheExhaustiveTwoKeyRimeSweep() {
+        val invalid = setOf(
+            "11", "12", "13", "14", "15", "16",
+            "21", "22", "23", "24", "25", "26",
+            "31", "32", "33", "34", "35", "36",
+            "41", "42", "43", "44", "45", "46", "47", "48", "49"
+        )
 
-        assertTrue(result.readingOptions.containsAll(listOf("ㄍ", "ㄎ", "ㄏ")))
+        for (first in '0'..'9') {
+            for (second in '0'..'9') {
+                val code = "$first$second"
+                assertEquals(
+                    "Unexpected local validity for $code",
+                    code !in invalid,
+                    resolver.resolve(code) is T9ZhuyinResolver.Result.Valid
+                )
+            }
+        }
     }
 
     @Test
@@ -43,5 +54,16 @@ class T9ZhuyinResolverTest {
             T9ZhuyinResolver.Result.Invalid("33"),
             resolver.resolve("33")
         )
+    }
+
+    @Test
+    fun candidateReadingNormalizesRimeBoundariesAndMatchesCompletion() {
+        assertEquals(
+            "ㄋㄧ ㄏㄠ",
+            T9ZhuyinResolver.normalizeCandidateReading("ㄋㄧ'ㄏㄠ")
+        )
+        assertTrue(T9ZhuyinResolver.candidateReadingMatches("2038", "ㄋㄧ'ㄏㄠ"))
+        assertTrue(T9ZhuyinResolver.candidateReadingMatches("3", "ㄏㄠ"))
+        assertFalse(T9ZhuyinResolver.candidateReadingMatches("38", "ㄋㄧ"))
     }
 }

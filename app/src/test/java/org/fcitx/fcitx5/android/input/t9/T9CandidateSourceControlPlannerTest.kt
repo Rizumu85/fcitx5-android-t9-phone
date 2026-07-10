@@ -121,7 +121,7 @@ class T9CandidateSourceControlPlannerTest {
     }
 
     @Test
-    fun unresolvedZhuyinKeepsLocalReadingVisibleWithoutStartingBulkLoading() {
+    fun unresolvedZhuyinWaitsForTheCoherentRimeCandidateFrame() {
         val loadingState = ChineseT9CandidateLoadingState().apply {
             startIfNeeded(
                 chineseT9Active = true,
@@ -144,23 +144,23 @@ class T9CandidateSourceControlPlannerTest {
         )
 
         assertTrue(plan.waitForChineseCandidates)
-        assertFalse(plan.deferRender)
+        assertTrue(plan.deferRender)
         assertEquals(T9CandidateSourceControlPlanner.BulkAction.RESET, plan.bulkAction)
         assertEquals(T9CandidateSourceControlPlanner.FilterAction.EMPTY, plan.filterAction)
     }
 
     @Test
-    fun selectedZhuyinReadingUsesCrossPageBulkFiltering() {
+    fun readyZhuyinUsesTheEnginePageWithoutAParallelReadingFilter() {
         val plan = T9CandidateSourceControlPlanner.plan(
             input(
                 compositionKeyCount = 2,
-                filterPrefixesEmpty = false,
                 chineseScheme = ChineseT9Scheme.ZHUYIN
             )
         )
 
-        assertEquals(T9CandidateSourceControlPlanner.BulkAction.REQUEST, plan.bulkAction)
-        assertEquals(T9CandidateSourceControlPlanner.FilterAction.CHINESE_PREFIX_FILTER, plan.filterAction)
+        assertEquals(T9CandidateSourceControlPlanner.BulkAction.RESET, plan.bulkAction)
+        assertEquals(T9CandidateSourceControlPlanner.FilterAction.PASSTHROUGH, plan.filterAction)
+        assertTrue(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false, bulkFilterPending = false))
     }
 
     @Test

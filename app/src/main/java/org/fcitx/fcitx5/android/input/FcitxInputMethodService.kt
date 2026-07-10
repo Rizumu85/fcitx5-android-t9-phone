@@ -2069,9 +2069,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (reading.isEmpty()) return false
         when (activeChineseT9Scheme) {
             ChineseT9Scheme.PINYIN -> selectT9Pinyin(reading)
-            ChineseT9Scheme.ZHUYIN ->
-                if (!chineseT9Composition.selectZhuyinReading(reading)) return false
-            ChineseT9Scheme.STROKE -> return false
+            ChineseT9Scheme.STROKE,
+            ChineseT9Scheme.ZHUYIN -> return false
         }
         moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
         candidatesView?.refreshT9Ui()

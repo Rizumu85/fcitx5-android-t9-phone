@@ -73,12 +73,9 @@ object T9CandidateSourceControlPlanner {
     fun plan(input: Input): Plan {
         val chineseActive = input.surface == Surface.CHINESE
         val hasReadingFilter = input.chineseScheme?.hasReadingFilterRow == true
-        val hasImmediateLocalReading = chineseActive &&
-            input.chineseScheme == ChineseT9Scheme.ZHUYIN &&
-            input.compositionKeyCount > 0
         val needsBulkCandidates = when (input.chineseScheme) {
             ChineseT9Scheme.PINYIN -> true
-            ChineseT9Scheme.ZHUYIN -> !input.filterPrefixesEmpty
+            ChineseT9Scheme.ZHUYIN,
             ChineseT9Scheme.STROKE,
             null -> false
         }
@@ -93,13 +90,11 @@ object T9CandidateSourceControlPlanner {
         val suppressEmptyCandidates = chineseActive &&
             !input.pendingPunctuationActive &&
             input.compositionKeyCount <= 0
+        // A grouped Zhuyin code has no honest single local reading. Wait for the matching Rime
+        // candidate frame instead of flashing an arbitrary alphabetically selected syllable.
         val deferRender = chineseActive &&
             waitForChineseCandidates &&
-            !input.pendingPunctuationActive &&
-            !hasImmediateLocalReading
-        // Zhuyin owns an immediate local reading row. Its unfiltered Rime page must not delay that
-        // row behind a redundant all-candidate query; bulk loading begins only after a reading is
-        // selected and cross-page filtering becomes necessary.
+            !input.pendingPunctuationActive
         val bulkAction = if (
             !chineseActive ||
             suppressEmptyCandidates ||

@@ -18,7 +18,6 @@ data class ChineseT9InputSnapshot(
     val hasPendingPinyinSelection: Boolean,
     val sessionRevision: Long,
     val scheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN,
-    val selectedReading: String? = null,
     val hasInvalidReading: Boolean = false
 ) {
     fun compositionTicket(): ChineseT9CompositionTicket =
@@ -33,7 +32,8 @@ data class ChineseT9InputSnapshot(
         pendingPunctuationText: String?,
         inputPreedit: String,
         candidateComment: String,
-        candidateCursorIndex: Int
+        candidateCursorIndex: Int,
+        candidateText: String = ""
     ): ChineseT9PresentationSnapshotKey =
         ChineseT9PresentationSnapshotKey(
             pendingPunctuationText = pendingPunctuationText,
@@ -47,7 +47,7 @@ data class ChineseT9InputSnapshot(
             candidateCursorIndex = candidateCursorIndex,
             sessionRevision = sessionRevision,
             scheme = scheme,
-            selectedReading = selectedReading
+            candidateText = candidateText
         )
 
     fun presentationKey(
@@ -55,13 +55,14 @@ data class ChineseT9InputSnapshot(
         inputPanel: FcitxEvent.InputPanelEvent.Data,
         paged: FcitxEvent.PagedCandidateEvent.Data
     ): ChineseT9PresentationSnapshotKey {
-        val candidateComment = paged.candidates.getOrNull(paged.cursorIndex)?.comment
-            ?: paged.candidates.firstOrNull()?.comment.orEmpty()
+        val candidate = paged.candidates.getOrNull(paged.cursorIndex)
+            ?: paged.candidates.firstOrNull()
         return presentationKey(
             pendingPunctuationText = pendingPunctuationText,
             inputPreedit = inputPanel.preedit.toString(),
-            candidateComment = candidateComment,
-            candidateCursorIndex = paged.cursorIndex
+            candidateComment = candidate?.comment.orEmpty(),
+            candidateCursorIndex = paged.cursorIndex,
+            candidateText = candidate?.text.orEmpty()
         )
     }
 }
@@ -85,7 +86,7 @@ data class ChineseT9PresentationSnapshotKey(
     val candidateCursorIndex: Int,
     val sessionRevision: Long,
     val scheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN,
-    val selectedReading: String? = null
+    val candidateText: String = ""
 )
 
 class ChineseT9PresentationSnapshotCache {

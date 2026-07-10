@@ -28,5 +28,6 @@ class ChineseT9SchemeTest {
         assertFalse(ChineseT9Scheme.STROKE.acceptsCompositionDigit(7))
         assertTrue(ChineseT9Scheme.ZHUYIN.acceptsCompositionDigit(0))
         assertTrue(ChineseT9Scheme.ZHUYIN.acceptsCompositionDigit(9))
+        assertFalse(ChineseT9Scheme.ZHUYIN.hasReadingFilterRow)
     }
 }

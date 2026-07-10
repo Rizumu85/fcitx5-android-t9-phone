@@ -97,7 +97,7 @@ class ChineseT9CompositionCoordinatorTest {
     }
 
     @Test
-    fun zhuyinResolverProvidesImmediateReadingOptionsBeforeRimeCandidates() {
+    fun zhuyinWaitsForFocusedCandidateInsteadOfPublishingAnArbitraryReading() {
         val coordinator = coordinator()
         coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
@@ -114,22 +114,56 @@ class ChineseT9CompositionCoordinatorTest {
         )
 
         assertFalse(snapshot.hasInvalidReading)
-        assertTrue("ㄏㄠ" in presentation.readingOptions)
-        assertTrue(presentation.topReading?.toString() in presentation.readingOptions)
+        assertEquals(null, presentation.topReading)
+        assertTrue(presentation.readingOptions.isEmpty())
+        assertTrue(coordinator.readingCandidates().isEmpty())
     }
 
     @Test
-    fun selectedZhuyinReadingBecomesTheCrossPageFilterPrefix() {
+    fun zhuyinMultiSyllablePreviewUsesTheFocusedRimeReadingWithoutAFilterRow() {
+        val coordinator = coordinator()
+        coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)
+        listOf(
+            KeyEvent.KEYCODE_2,
+            KeyEvent.KEYCODE_0,
+            KeyEvent.KEYCODE_3,
+            KeyEvent.KEYCODE_8
+        ).forEach(coordinator::handleForwardedKeyDown)
+        val snapshot = coordinator.snapshot("")
+        val presentation = coordinator.presentation(
+            snapshot.presentationKey(
+                pendingPunctuationText = null,
+                inputPreedit = "20'38",
+                candidateComment = "ㄋㄧ'ㄏㄠ",
+                candidateCursorIndex = 0,
+                candidateText = "你好"
+            )
+        )
+
+        assertEquals("ㄋㄧ ㄏㄠ", presentation.topReading?.toString())
+        assertTrue(presentation.readingOptions.isEmpty())
+        assertTrue(snapshot.filterPrefixes.isEmpty())
+        assertEquals("ㄋㄧㄏㄠ", coordinator.literalCommitText("ㄋㄧ ㄏㄠ"))
+    }
+
+    @Test
+    fun zhuyinCandidateWithoutReadingUsesItsVisibleTextForPreview() {
         val coordinator = coordinator()
         coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
-        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_8)
 
-        assertTrue(coordinator.selectZhuyinReading("ㄏㄠ"))
         val snapshot = coordinator.snapshot("")
+        val presentation = coordinator.presentation(
+            snapshot.presentationKey(
+                pendingPunctuationText = null,
+                inputPreedit = "3",
+                candidateComment = "",
+                candidateCursorIndex = 0,
+                candidateText = "👌"
+            )
+        )
 
-        assertEquals("ㄏㄠ", snapshot.selectedReading)
-        assertEquals(listOf("ㄏㄠ"), snapshot.filterPrefixes)
+        assertEquals("👌", presentation.topReading?.toString())
     }
 
     @Test
