@@ -15,8 +15,8 @@ class SmartEnglishT9Controller private constructor(
     private val lifecycle: SmartEnglishLifecycle
 ) {
     constructor(
-        dictionary: T9EnglishDictionary = T9EnglishDictionary(),
-        predictionDictionary: SmartEnglishPredictionDictionary = SmartEnglishPredictionDictionary(),
+        dictionary: T9EnglishDictionary = T9EnglishDictionary.Shared,
+        predictionDictionary: SmartEnglishPredictionDictionary = SmartEnglishPredictionDictionary.Shared,
         candidateLimit: Int,
         noMatchText: String,
         isActive: () -> Boolean,

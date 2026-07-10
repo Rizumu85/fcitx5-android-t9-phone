@@ -22,7 +22,7 @@ class SmartEnglishLearnedPredictionsFragment :
     OnItemChangedListener<SmartEnglishLearnedPredictionsFragment.LearnedPredictionPair> {
 
     private val viewModel: MainViewModel by activityViewModels()
-    private val dictionary = SmartEnglishPredictionDictionary()
+    private val dictionary = SmartEnglishPredictionDictionary.Shared
     private var uiInitialized = false
 
     private val ui: BaseDynamicListUi<LearnedPredictionPair> by lazy {

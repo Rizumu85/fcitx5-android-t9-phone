@@ -14,10 +14,15 @@ import java.util.TreeMap
 
 class T9EnglishDictionary {
     private val learnedFile = File(appContext.filesDir, "t9/english-learned.txt")
-    private val learnedWordSet = linkedSetOf<String>()
+    private val learnedPersistence = SmartEnglishPersistence(
+        file = learnedFile,
+        defaultValue = emptySet(),
+        decode = { lines -> lines.mapNotNull(::normalizeLearnedWord).toSet() },
+        encode = { words -> words.sorted().joinToString(separator = "\n", postfix = "\n") }
+    )
+    private val learnedWordSet = learnedPersistence.snapshot().toMutableSet()
     private var learnedExactWordsByDigits: Map<String, List<String>> = emptyMap()
     private var learnedPrefixWordsByDigits: Map<String, List<String>> = emptyMap()
-    private var learnedFileLastModified = 0L
     private val candidateCache = object : LinkedHashMap<String, List<String>>(
         CandidateCacheSize,
         0.75f,
@@ -35,12 +40,12 @@ class T9EnglishDictionary {
     @Volatile
     private var builtInReady = false
 
+    init {
+        rebuildLearnedIndexes()
+    }
+
     val isReady: Boolean
         get() = builtInReady
-
-    init {
-        reloadLearnedWordsIfChanged()
-    }
 
     fun preload() {
         if (builtInReady) return
@@ -57,7 +62,6 @@ class T9EnglishDictionary {
     fun candidatesFor(digits: String, limit: Int = 10): List<String> =
         T9ResponsivenessTrace.measure("T9EnglishDictionary.candidatesFor") {
         if (digits.isEmpty()) return emptyList()
-        reloadLearnedWordsIfChanged()
         val cacheKey = "$digits|$limit"
         candidateCache[cacheKey]?.let { return it }
         val candidates = ArrayList<String>(limit)
@@ -94,17 +98,15 @@ class T9EnglishDictionary {
 
     @Synchronized
     fun learn(rawWord: String) {
-        reloadLearnedWordsIfChanged()
         val word = normalizeLearnedWord(rawWord) ?: return
         if (!learnedWordSet.add(word)) return
         rebuildLearnedIndexes()
         invalidateCandidateCache()
-        persistLearnedWords()
+        learnedPersistence.replace(learnedWordSet.toSet())
     }
 
     @Synchronized
     fun learnedWords(): List<String> {
-        reloadLearnedWordsIfChanged()
         return learnedWordSet.sorted()
     }
 
@@ -118,7 +120,7 @@ class T9EnglishDictionary {
             .forEach { learnedWordSet += it }
         rebuildLearnedIndexes()
         invalidateCandidateCache()
-        persistLearnedWords()
+        learnedPersistence.replace(learnedWordSet.toSet())
     }
 
     private fun cacheCandidates(cacheKey: String, candidates: List<String>): List<String> {
@@ -135,26 +137,6 @@ class T9EnglishDictionary {
         WarmupDigitSequences.forEach { digits ->
             candidatesFor(digits, WarmupCandidateLimit)
         }
-    }
-
-    private fun persistLearnedWords() {
-        learnedFile.parentFile?.mkdirs()
-        learnedFile.writeText(learnedWordSet.joinToString(separator = "\n", postfix = "\n"))
-        learnedFileLastModified = learnedFile.lastModified()
-    }
-
-    private fun reloadLearnedWordsIfChanged() {
-        val lastModified = if (learnedFile.isFile) learnedFile.lastModified() else 0L
-        if (lastModified == learnedFileLastModified) return
-        learnedWordSet.clear()
-        learnedFileLastModified = lastModified
-        if (learnedFile.isFile) {
-            learnedFile.readLines()
-                .mapNotNull(::normalizeLearnedWord)
-                .forEach { learnedWordSet += it }
-        }
-        rebuildLearnedIndexes()
-        invalidateCandidateCache()
     }
 
     private fun rebuildLearnedIndexes() {
@@ -225,6 +207,8 @@ class T9EnglishDictionary {
     }
 
     companion object {
+        val Shared by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { T9EnglishDictionary() }
+
         private const val BuiltInDictionaryAsset = "t9/english.tsv"
         private const val PrefixCandidatePoolSize = 64
         private const val CandidateCacheSize = 128

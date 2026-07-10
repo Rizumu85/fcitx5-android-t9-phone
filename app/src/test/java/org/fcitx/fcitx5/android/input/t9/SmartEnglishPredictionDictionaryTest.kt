@@ -65,6 +65,7 @@ class SmartEnglishPredictionDictionaryTest {
                     SmartEnglishPredictionDictionary.Prediction(word, score)
                 }
             },
-            learnedFile = learnedFile
+            learnedFile = learnedFile,
+            persistenceExecutor = java.util.concurrent.Executor(Runnable::run)
         )
 }

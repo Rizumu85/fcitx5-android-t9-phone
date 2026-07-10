@@ -8,17 +8,21 @@ package org.fcitx.fcitx5.android.input.t9
 import org.fcitx.fcitx5.android.utils.appContext
 import java.io.File
 import java.util.LinkedHashMap
+import java.util.concurrent.Executor
 
 class SmartEnglishPredictionDictionary(
     private val builtInAsset: String = BuiltInPredictionAsset,
-    private val learnedFile: File? = File(appContext.filesDir, "t9/english-next-learned.tsv")
+    learnedFile: File? = File(appContext.filesDir, "t9/english-next-learned.tsv"),
+    persistenceExecutor: Executor? = null
 ) {
     constructor(
         builtInPairs: Map<String, List<Prediction>>,
-        learnedFile: File? = null
+        learnedFile: File? = null,
+        persistenceExecutor: Executor? = null
     ) : this(
         builtInAsset = BuiltInPredictionAsset,
-        learnedFile = learnedFile
+        learnedFile = learnedFile,
+        persistenceExecutor = persistenceExecutor
     ) {
         builtInPredictionsByPrevious = builtInPairs
         builtInReady = true
@@ -29,8 +33,15 @@ class SmartEnglishPredictionDictionary(
         val score: Int
     )
 
-    private var learnedPredictionsByPrevious: Map<String, List<Prediction>> = emptyMap()
-    private var learnedFileLastModified = 0L
+    private val learnedPersistence = SmartEnglishPersistence(
+        file = learnedFile,
+        defaultValue = emptyMap(),
+        decode = { lines -> lines.mapNotNull(::parsePredictionLine).toMap() },
+        encode = ::encodeLearnedPredictions,
+        executor = persistenceExecutor ?: SmartEnglishPersistence.DefaultExecutor
+    )
+    private var learnedPredictionsByPrevious: Map<String, List<Prediction>> =
+        learnedPersistence.snapshot()
     private val predictionCache = object : LinkedHashMap<String, List<String>>(
         PredictionCacheSize,
         0.75f,
@@ -49,10 +60,6 @@ class SmartEnglishPredictionDictionary(
     val isReady: Boolean
         get() = builtInReady
 
-    init {
-        reloadLearnedPredictionsIfChanged()
-    }
-
     fun preload() {
         if (builtInReady) return
         val loaded = loadBuiltInPredictions()
@@ -70,7 +77,6 @@ class SmartEnglishPredictionDictionary(
             val previous = previousWords.asReversed()
                 .firstNotNullOfOrNull(::normalizePredictionWord)
                 ?: return emptyList()
-            reloadLearnedPredictionsIfChanged()
             val cacheKey = "$previous|$limit"
             predictionCache[cacheKey]?.let { return it }
             val predictions = ArrayList<String>(limit)
@@ -96,7 +102,6 @@ class SmartEnglishPredictionDictionary(
         val previous = normalizePredictionWord(previousRaw) ?: return
         val next = normalizePredictionWord(nextRaw) ?: return
         if (previous == next) return
-        reloadLearnedPredictionsIfChanged()
         val mutable = learnedPredictionsByPrevious
             .mapValues { (_, predictions) -> predictions.toMutableList() }
             .toMutableMap()
@@ -112,12 +117,11 @@ class SmartEnglishPredictionDictionary(
             predictions.sortedWith(PredictionQuality)
         }
         predictionCache.clear()
-        persistLearnedPredictions()
+        learnedPersistence.replace(learnedPredictionsByPrevious)
     }
 
     @Synchronized
     fun learnedPairs(): Map<String, List<Prediction>> {
-        reloadLearnedPredictionsIfChanged()
         return learnedPredictionsByPrevious
     }
 
@@ -135,7 +139,7 @@ class SmartEnglishPredictionDictionary(
             previous.takeIf { normalizedPredictions.isNotEmpty() }?.let { it to normalizedPredictions }
         }.toMap()
         predictionCache.clear()
-        persistLearnedPredictions()
+        learnedPersistence.replace(learnedPredictionsByPrevious)
     }
 
     private fun cachePredictions(cacheKey: String, predictions: List<String>): List<String> {
@@ -158,37 +162,11 @@ class SmartEnglishPredictionDictionary(
         return predictions
     }
 
-    private fun reloadLearnedPredictionsIfChanged() {
-        val file = learnedFile ?: return
-        val lastModified = if (file.isFile) file.lastModified() else 0L
-        if (lastModified == learnedFileLastModified) return
-        learnedFileLastModified = lastModified
-        learnedPredictionsByPrevious = if (file.isFile) {
-            file.readLines()
-                .mapNotNull(::parsePredictionLine)
-                .toMap()
-        } else {
-            emptyMap()
-        }
-        predictionCache.clear()
-    }
-
-    private fun persistLearnedPredictions() {
-        val file = learnedFile ?: return
-        file.parentFile?.mkdirs()
-        file.writeText(buildString {
-            learnedPredictionsByPrevious.toSortedMap().forEach { (previous, predictions) ->
-                append(previous)
-                predictions.forEach { prediction ->
-                    append('\t').append(prediction.word).append(':').append(prediction.score.coerceAtLeast(1))
-                }
-                append('\n')
-            }
-        })
-        learnedFileLastModified = file.lastModified()
-    }
-
     companion object {
+        val Shared by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+            SmartEnglishPredictionDictionary()
+        }
+
         private const val BuiltInPredictionAsset = "t9/english-next.tsv"
         private const val PredictionCacheSize = 96
 
@@ -211,6 +189,21 @@ class SmartEnglishPredictionDictionary(
                 Prediction(word, score.coerceAtLeast(1))
             }.sortedWith(PredictionQuality)
             return previous.takeIf { predictions.isNotEmpty() }?.let { it to predictions }
+        }
+
+        private fun encodeLearnedPredictions(
+            learned: Map<String, List<Prediction>>
+        ): String = buildString {
+            learned.toSortedMap().forEach { (previous, predictions) ->
+                append(previous)
+                predictions.forEach { prediction ->
+                    append('\t')
+                        .append(prediction.word)
+                        .append(':')
+                        .append(prediction.score.coerceAtLeast(1))
+                }
+                append('\n')
+            }
         }
     }
 }

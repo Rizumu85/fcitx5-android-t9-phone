@@ -20,7 +20,7 @@ import org.fcitx.fcitx5.android.ui.main.MainViewModel
 class SmartEnglishLearnedWordsFragment : Fragment(), OnItemChangedListener<String> {
 
     private val viewModel: MainViewModel by activityViewModels()
-    private val dictionary = T9EnglishDictionary()
+    private val dictionary = T9EnglishDictionary.Shared
     private var uiInitialized = false
 
     private val ui: BaseDynamicListUi<String> by lazy {
