@@ -8,10 +8,34 @@ package org.fcitx.fcitx5.android.input.t9
 import android.view.KeyEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PhysicalT9KeyHandlerTest {
+
+    @Test
+    fun firstChineseDigitStartsTraceBeforeOuterForwarding() {
+        T9ResponsivenessTrace.configure(enabled = true)
+        try {
+            val host = FakeHost(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                chineseComposing = false,
+                compositionKeyCount = 0
+            )
+            val handler = PhysicalT9KeyHandler(host)
+
+            val result = handler.handleKeyDown(
+                keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN)
+            )
+
+            assertFalse(result.handled)
+            assertEquals(KeyEvent.KEYCODE_2, result.consumedKeyUp)
+            assertNotNull(T9ResponsivenessTrace.activeInputId())
+        } finally {
+            T9ResponsivenessTrace.configure(enabled = false)
+        }
+    }
 
     @Test
     fun smartEnglishShortPressAppendsDigitOnKeyUpOnly() {

@@ -113,6 +113,23 @@ class PhysicalT9KeyHandler(private val host: Host) {
 
     private val keyFlow = PhysicalT9KeyFlow()
     private val commandExecutor = PhysicalT9CommandExecutor(host)
+    private val stateCapture = PhysicalT9StateCapture(
+        PhysicalT9StateCapture.Source(
+            mode = host::mode,
+            chineseScheme = host::chineseScheme,
+            isSmartEnglishActive = host::isSmartEnglishActive,
+            chineseComposing = host::chineseComposing,
+            compositionKeyCount = host::compositionKeyCount,
+            hasPendingPunctuation = host::hasPendingPunctuation,
+            hasSmartEnglishDigits = host::hasSmartEnglishDigits,
+            hasSmartEnglishCandidates = host::hasSmartEnglishCandidates,
+            hasMultiTapPendingChar = host::hasMultiTapPendingChar,
+            hasTopReadingCandidates = host::hasTopReadingCandidates,
+            hasBottomCandidateRow = host::hasBottomCandidateRow,
+            candidateFocus = host::candidateFocus,
+            heldPastLongPressDelay = host::keyHeldPastLongPressDelay
+        )
+    )
 
     fun resetSmartEnglishPendingDigit() = keyFlow.resetSmartEnglishPendingDigit()
 
@@ -137,19 +154,25 @@ class PhysicalT9KeyHandler(private val host: Host) {
     }
 
     private fun handleCommandKeyFlow(input: KeyInput): KeyResult {
-        val state = physicalKeyFlowState(input)
+        val state = stateCapture.capture(input)
         val decision = keyFlow.handle(input, state) ?: return KeyResult(handled = false)
-        // A deferred key-down has no user-visible work yet. Starting only when commands exist
-        // prevents long-press hold time from being misreported as input-processing latency.
-        val traceId = decision.commands.takeIf {
-            it.isNotEmpty() && (state.mode == Mode.CHINESE || state.isSmartEnglishActive)
-        }
-            ?.let {
+        // First Chinese digits intentionally continue through the outer mapped-key route. They
+        // still start a generation here, while command-free long-press deferrals do not.
+        val forwardsThroughOuterRoute = state.mode == Mode.CHINESE &&
+            !decision.handled &&
+            decision.consumedKeyUp == input.keyCode
+        val traceId = if (
+            (state.mode == Mode.CHINESE || state.isSmartEnglishActive) &&
+            (decision.commands.isNotEmpty() || forwardsThroughOuterRoute)
+        ) {
                 T9ResponsivenessTrace.beginInput(
                     path = state.tracePath(),
-                    requiresSourceEvent = decision.commands.any { it.waitsForFcitxSourceEvent() }
+                    requiresSourceEvent = forwardsThroughOuterRoute ||
+                        decision.commands.any { it.waitsForFcitxSourceEvent() }
                 )
-            }
+        } else {
+            null
+        }
         try {
             commandExecutor.execute(decision.commands, input)
         } finally {
@@ -174,22 +197,5 @@ class PhysicalT9KeyHandler(private val host: Host) {
         // waiting for an unrelated Rime event would strand those transactions.
         else -> false
     }
-
-    private fun physicalKeyFlowState(input: KeyInput): PhysicalT9KeyFlow.State =
-        PhysicalT9KeyFlow.State(
-            mode = host.mode,
-            isSmartEnglishActive = host.isSmartEnglishActive,
-            chineseComposing = host.chineseComposing,
-            compositionKeyCount = host.compositionKeyCount,
-            hasPendingPunctuation = host.hasPendingPunctuation,
-            hasSmartEnglishDigits = host.hasSmartEnglishDigits,
-            hasSmartEnglishCandidates = host.hasSmartEnglishCandidates,
-            hasMultiTapPendingChar = host.hasMultiTapPendingChar,
-            hasTopReadingCandidates = host.hasTopReadingCandidates,
-            hasBottomCandidateRow = host.hasBottomCandidateRow,
-            candidateFocus = host.candidateFocus,
-            heldPastLongPressDelay = host.keyHeldPastLongPressDelay(input),
-            chineseScheme = host.chineseScheme
-        )
 
 }
