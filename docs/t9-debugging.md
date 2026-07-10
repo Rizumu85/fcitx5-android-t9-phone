@@ -49,6 +49,26 @@ When there are duplicate wireless-debugging transports, pass `-s` explicitly:
 adb -s 192.168.x.x:PORT shell input keyboard keyevent KEYCODE_4
 ```
 
+## ADB Rime Data Imports
+
+Files copied into the debug Rime directory with `adb push` are owned by
+`shell`. On emulated external storage they may arrive as `0644`, which lets Rime
+read the configuration but prevents the app's `ext_data_rw` group from updating
+`user.yaml`. The failed write makes every process cold start repeat Rime
+maintenance and can add several seconds before Chinese input is ready.
+
+After an ADB import, make shell-owned files group-writable once:
+
+```bash
+RIME_DIR=/storage/emulated/0/Android/data/org.fcitx.fcitx5.android.debug/files/data/rime
+adb shell "find \"$RIME_DIR\" -type f -user shell -exec chmod 660 {} +"
+```
+
+Allow one deployment to finish, restart the debug IME, and check logcat. An
+unchanged configuration should not report `failed to save config to stream`,
+and Rime-ready should follow Fcitx-ready without another maintenance pass. Use
+the release package path without `.debug` when diagnosing the release IME.
+
 ## Responsiveness Trace
 
 Turn on **Trace T9 responsiveness** in the app developer settings before

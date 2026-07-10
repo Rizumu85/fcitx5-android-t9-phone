@@ -950,3 +950,13 @@ and then 1978.70 ms. The second run also completed a real physical-key Chinese
 composition without restarting the IME. Rime readiness still arrived later at
 6306.71 ms and 5696.53 ms, so engine readiness rather than Android input-view
 construction is now the largest user-visible cold-start gap.
+
+The apparent Rime gap was then reproduced as an environment failure rather than
+a runtime architecture cost. T9 configuration files pushed with ADB were owned
+by `shell` with mode `0644`, so Rime could read them but could not persist the
+new `last_build_time` in `user.yaml`. Logcat reported `failed to save config to
+stream`, and every process cold start repeated maintenance and rewrote compiled
+schema files. Granting the app's `ext_data_rw` group write permission and
+allowing one maintenance run removed the repeat: the next process reached Fcitx
+ready at 2246.50 ms and Rime ready at 2249.77 ms. The 3.27 ms gap does not
+justify moving user-editable Rime data away from external app storage.

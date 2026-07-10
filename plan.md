@@ -436,3 +436,6 @@ otherwise.
   keyboard materialization, root tree assembly, and residual property work.
 - [x] Deepen the selected startup Module with the smallest behavior-preserving
   change, add focused coverage at its Interface, and compare a new cold run.
+- [x] Diagnose the remaining Rime-ready gap, repair shell-owned test data
+  permissions, and verify that an unchanged deployment becomes ready with no
+  repeated maintenance.

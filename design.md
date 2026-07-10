@@ -643,3 +643,11 @@ can still enter and leave the scope. Only identity discovery changes. Equality,
 hashing, dependency arrival order, receiver registration, and view ownership
 remain unchanged. Focused tests lock down concrete type identity and same-type
 uniqueness so the optimization cannot silently alter scope semantics.
+
+ADB-imported Rime configuration is a development Adapter concern, not a Rime
+lifecycle fallback. The repeatable debugging workflow normalizes imported
+files to group-writable mode because Android exposes the app through the
+`ext_data_rw` group while ADB creates files as `shell`. Production keeps the
+existing external app-data location so users can replace Rime configuration;
+the runtime does not relocate or copy compiled state to hide an unwritable
+source tree.
