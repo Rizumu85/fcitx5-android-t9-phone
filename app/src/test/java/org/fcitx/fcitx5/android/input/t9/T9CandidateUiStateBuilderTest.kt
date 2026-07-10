@@ -282,6 +282,10 @@ class T9CandidateUiStateBuilderTest {
             data: FcitxEvent.PagedCandidateEvent.Data
         ): T9PagedCandidates = T9PagedCandidates.passthrough(data)
 
+        override fun filterT9StrokeCandidates(
+            data: FcitxEvent.PagedCandidateEvent.Data
+        ): T9PagedCandidates = T9PagedCandidates.passthrough(data)
+
         override fun resetT9BulkFilterState() = Unit
 
         override fun requestT9BulkFilteredCandidatesIfNeeded(chineseT9Active: Boolean, prefixes: List<String>) {
@@ -300,7 +304,7 @@ class T9CandidateUiStateBuilderTest {
         }
 
         override fun buildLocalBudgetedPagedFromCurrentPage(
-            data: FcitxEvent.PagedCandidateEvent.Data
+            source: T9PagedCandidates
         ): T9PagedCandidates? = null
 
         override fun resetT9LocalBudgetState() = Unit

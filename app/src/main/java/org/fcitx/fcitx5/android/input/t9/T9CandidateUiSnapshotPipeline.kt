@@ -11,6 +11,7 @@ class T9CandidateUiSnapshotPipeline(
     characterBudget: () -> Int,
     widthBudget: () -> T9CandidateWidthBudget?,
     candidateMatchesPrefix: (candidate: FcitxEvent.Candidate, prefix: String) -> Boolean = { _, _ -> false },
+    candidateIsRenderable: (FcitxEvent.Candidate) -> Boolean = { true },
     private val requestBulkCandidates: (chineseT9Active: Boolean, prefixes: List<String>) -> Unit = { _, _ -> },
     private val getPresentationState: (ChineseT9PresentationSnapshotKey) -> T9PresentationState = {
         T9PresentationState(topReading = null, readingOptions = emptyList())
@@ -90,6 +91,7 @@ class T9CandidateUiSnapshotPipeline(
         widthBudget = widthBudget,
         candidateMatchesPrefix = candidateMatchesPrefix
     )
+    private val strokeCandidateFilter = T9StrokeCandidateFilter(candidateIsRenderable)
     private val pinyinRowWindow = T9PinyinRowWindow()
     private val stateBuilder = T9CandidateUiStateBuilder(object : T9CandidateUiStateBuilder.Pipeline {
         override fun buildSmartEnglishPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates =
@@ -98,6 +100,10 @@ class T9CandidateUiSnapshotPipeline(
         override fun buildT9PendingPunctuationPaged(
             data: FcitxEvent.PagedCandidateEvent.Data
         ): T9PagedCandidates = sourceSessions.buildPendingPunctuationPaged(data)
+
+        override fun filterT9StrokeCandidates(
+            data: FcitxEvent.PagedCandidateEvent.Data
+        ): T9PagedCandidates = strokeCandidateFilter.filter(data)
 
         override fun resetT9BulkFilterState() {
             sourceSessions.resetChineseBulkFilterState()
@@ -120,8 +126,8 @@ class T9CandidateUiSnapshotPipeline(
             sourceSessions.filterChinesePagedByPinyinPrefixes(data, prefixes)
 
         override fun buildLocalBudgetedPagedFromCurrentPage(
-            data: FcitxEvent.PagedCandidateEvent.Data
-        ): T9PagedCandidates? = sourceSessions.buildChineseLocalBudgetedPagedFromCurrentPage(data)
+            source: T9PagedCandidates
+        ): T9PagedCandidates? = sourceSessions.buildChineseLocalBudgetedPagedFromCurrentPage(source)
 
         override fun resetT9LocalBudgetState() {
             sourceSessions.resetChineseLocalBudgetState()
@@ -185,6 +191,7 @@ class T9CandidateUiSnapshotPipeline(
 
     fun reset() {
         sourceSessions.reset()
+        strokeCandidateFilter.clearSource()
         pinyinRowWindow.clear()
     }
 
@@ -243,9 +250,9 @@ class T9CandidateUiSnapshotPipeline(
         sourceSessions.filterChinesePagedByPinyinPrefixes(data, prefixes)
 
     fun buildChineseLocalBudgetedPagedFromCurrentPage(
-        data: FcitxEvent.PagedCandidateEvent.Data
+        source: T9PagedCandidates
     ): T9PagedCandidates? =
-        sourceSessions.buildChineseLocalBudgetedPagedFromCurrentPage(data)
+        sourceSessions.buildChineseLocalBudgetedPagedFromCurrentPage(source)
 
     fun offsetChineseLocalBudgetedPage(delta: Int): Boolean =
         sourceSessions.offsetChineseLocalBudgetedPage(delta)

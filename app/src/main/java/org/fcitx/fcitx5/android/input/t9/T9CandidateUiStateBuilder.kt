@@ -56,6 +56,7 @@ class T9CandidateUiStateBuilder(
     interface Pipeline {
         fun buildSmartEnglishPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates
         fun buildT9PendingPunctuationPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates
+        fun filterT9StrokeCandidates(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates
         fun resetT9BulkFilterState()
         fun requestT9BulkFilteredCandidatesIfNeeded(chineseT9Active: Boolean, prefixes: List<String>)
         fun getT9BulkFilterState(): ChineseT9CandidatePipeline.BulkFilterState
@@ -64,7 +65,7 @@ class T9CandidateUiStateBuilder(
             prefixes: List<String>
         ): Pair<T9PagedCandidates, String?>
         fun buildLocalBudgetedPagedFromCurrentPage(
-            data: FcitxEvent.PagedCandidateEvent.Data
+            source: T9PagedCandidates
         ): T9PagedCandidates?
         fun resetT9LocalBudgetState()
         fun buildT9CursorContextSignature(preedit: CharSequence, prefixes: List<String>): String
@@ -106,6 +107,11 @@ class T9CandidateUiStateBuilder(
                 smartEnglishRawPaged?.let(pipeline::buildSmartEnglishPaged)
             }
             val t9FilterPrefixes = chineseSnapshot?.filterPrefixes ?: emptyList()
+            val chineseSourcePaged = if (chineseSnapshot?.scheme == ChineseT9Scheme.STROKE) {
+                pipeline.filterT9StrokeCandidates(input.rawPaged)
+            } else {
+                T9PagedCandidates.passthrough(input.rawPaged)
+            }
             val pendingPunctuationPaged = if (chineseSurface || smartEnglishSurface) {
                 input.pendingPunctuationRawPaged
             } else {
@@ -161,7 +167,7 @@ class T9CandidateUiStateBuilder(
                     T9CandidateSourceControlPlanner.FilterAction.CHINESE_PREFIX_FILTER ->
                         pipeline.filterPagedByT9PinyinPrefixes(input.rawPaged, t9FilterPrefixes)
                     T9CandidateSourceControlPlanner.FilterAction.PASSTHROUGH ->
-                        T9PagedCandidates.passthrough(input.rawPaged) to null
+                        chineseSourcePaged to null
                 }
             }
             val localBudgetedPaged = if (sourcePlan.shouldBuildLocalBudget(
@@ -170,7 +176,7 @@ class T9CandidateUiStateBuilder(
                 )
             ) {
                 T9ResponsivenessTrace.measure("CandidatesView.updateUi.localBudgetPage") {
-                    pipeline.buildLocalBudgetedPagedFromCurrentPage(input.rawPaged)
+                    pipeline.buildLocalBudgetedPagedFromCurrentPage(chineseSourcePaged)
                 }
             } else {
                 pipeline.resetT9LocalBudgetState()

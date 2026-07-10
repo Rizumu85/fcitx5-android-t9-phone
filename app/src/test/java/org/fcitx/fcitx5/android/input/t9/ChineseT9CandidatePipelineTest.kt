@@ -26,7 +26,7 @@ class ChineseT9CandidatePipelineTest {
             candidate("六")
         )
 
-        val first = pipeline.buildLocalBudgetedPagedFromCurrentPage(raw)
+        val first = pipeline.buildLocalBudgetedPagedFromCurrentPage(source(raw))
 
         assertNotNull(first)
         first!!
@@ -36,7 +36,7 @@ class ChineseT9CandidatePipelineTest {
         assertTrue(first.data.hasNext)
 
         assertTrue(pipeline.offsetLocalBudgetedPage(1))
-        val second = pipeline.buildLocalBudgetedPagedFromCurrentPage(raw)
+        val second = pipeline.buildLocalBudgetedPagedFromCurrentPage(source(raw))
 
         assertNotNull(second)
         second!!
@@ -48,11 +48,34 @@ class ChineseT9CandidatePipelineTest {
     }
 
     @Test
+    fun localBudgetPageKeepsSourceIndicesAfterEligibilityFiltering() {
+        val pipeline = pipeline(characterBudget = 4)
+        val filteredSource = T9PagedCandidates(
+            data = paged(
+                candidate("一"),
+                candidate("下"),
+                candidate("才"),
+                candidate("工"),
+                candidate("土")
+            ),
+            originalIndices = intArrayOf(0, 2, 3, 4, 5)
+        )
+
+        pipeline.buildLocalBudgetedPagedFromCurrentPage(filteredSource)
+        assertTrue(pipeline.offsetLocalBudgetedPage(1))
+        val second = pipeline.buildLocalBudgetedPagedFromCurrentPage(filteredSource)
+
+        assertNotNull(second)
+        assertEquals(listOf("土"), second!!.data.candidates.map { it.text })
+        assertArrayEquals(intArrayOf(5), second.originalIndices)
+    }
+
+    @Test
     fun localBudgetPageReturnsNullWhenRawPageAlreadyFits() {
         val pipeline = pipeline(characterBudget = 4)
         val raw = paged(candidate("一"), candidate("二"))
 
-        assertNull(pipeline.buildLocalBudgetedPagedFromCurrentPage(raw))
+        assertNull(pipeline.buildLocalBudgetedPagedFromCurrentPage(source(raw)))
         assertFalse(pipeline.hasLocalBudgetCandidates)
     }
 
@@ -65,8 +88,8 @@ class ChineseT9CandidatePipelineTest {
             candidate("六")
         )
 
-        val first = pipeline.buildLocalBudgetedPagedFromCurrentPage(raw)
-        val repeated = pipeline.buildLocalBudgetedPagedFromCurrentPage(raw)
+        val first = pipeline.buildLocalBudgetedPagedFromCurrentPage(source(raw))
+        val repeated = pipeline.buildLocalBudgetedPagedFromCurrentPage(source(raw))
 
         assertSame(first, repeated)
     }
@@ -79,11 +102,11 @@ class ChineseT9CandidatePipelineTest {
             candidate("四五"),
             candidate("六")
         )
-        pipeline.buildLocalBudgetedPagedFromCurrentPage(raw)
+        pipeline.buildLocalBudgetedPagedFromCurrentPage(source(raw))
         assertTrue(pipeline.offsetLocalBudgetedPage(1))
 
         pipeline.resetBulkFilter()
-        val repeated = pipeline.buildLocalBudgetedPagedFromCurrentPage(raw)
+        val repeated = pipeline.buildLocalBudgetedPagedFromCurrentPage(source(raw))
 
         assertNotNull(repeated)
         assertEquals(listOf("四五", "六"), repeated!!.data.candidates.map { it.text })
@@ -197,6 +220,9 @@ class ChineseT9CandidatePipelineTest {
             widthBudget = { null },
             candidateMatchesPrefix = matchesPrefix
         )
+
+    private fun source(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates =
+        T9PagedCandidates.passthrough(data)
 
     private fun paged(
         vararg candidates: FcitxEvent.Candidate,

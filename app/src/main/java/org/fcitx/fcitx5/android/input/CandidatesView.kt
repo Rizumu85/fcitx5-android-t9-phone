@@ -218,6 +218,7 @@ class CandidatesView(
         candidateMatchesPrefix = { candidate, prefix ->
             service.candidateMatchesT9ResolvedPrefix(candidate, prefix)
         },
+        candidateIsRenderable = ::isT9CandidateRenderable,
         requestBulkCandidates = ::requestT9BulkFilteredCandidatesIfNeeded,
         getPresentationState = service::getT9PresentationState,
         clearHiddenComposition = service::clearHiddenChineseT9CompositionIfCandidateUiSuppressed
@@ -893,6 +894,14 @@ class CandidatesView(
             InputUiFont.applyTo(this)
         }
         return paint.measureText(text).roundToInt()
+    }
+
+    private fun isT9CandidateRenderable(candidate: FcitxEvent.Candidate): Boolean {
+        val paint = t9CandidateMeasurePaint.apply {
+            textSize = fontSize * ctx.resources.displayMetrics.scaledDensity
+            InputUiFont.applyTo(this)
+        }
+        return paint.hasGlyph(candidate.text)
     }
 
     private fun currentPinyinSurfacePlan(

@@ -140,9 +140,10 @@ class T9CandidateUiSnapshotPipelineTest {
         val pipeline = pipeline(characterBudget = 4)
         val data = paged("一二三", "四五", "六", cursor = 0)
 
-        val first = pipeline.buildChineseLocalBudgetedPagedFromCurrentPage(data)
+        val source = T9PagedCandidates.passthrough(data)
+        val first = pipeline.buildChineseLocalBudgetedPagedFromCurrentPage(source)
         val moved = pipeline.offsetChineseLocalBudgetedPage(1)
-        val second = pipeline.buildChineseLocalBudgetedPagedFromCurrentPage(data)
+        val second = pipeline.buildChineseLocalBudgetedPagedFromCurrentPage(source)
 
         require(first != null)
         require(second != null)
@@ -237,7 +238,9 @@ class T9CandidateUiSnapshotPipelineTest {
     @Test
     fun resetClearsChineseAndPinyinState() {
         val pipeline = pipeline(characterBudget = 4)
-        pipeline.buildChineseLocalBudgetedPagedFromCurrentPage(paged("一二三", "四五", "六", cursor = 0))
+        pipeline.buildChineseLocalBudgetedPagedFromCurrentPage(
+            T9PagedCandidates.passthrough(paged("一二三", "四五", "六", cursor = 0))
+        )
         assertTrue(pipeline.offsetChineseLocalBudgetedPage(1))
         pipeline.submitPinyinWindow(listOf("ge", "he"))
 

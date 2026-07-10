@@ -129,9 +129,9 @@ class T9CandidateSourceSessions(
         chineseCandidatePipeline.filterPagedByPinyinPrefixes(data, prefixes)
 
     fun buildChineseLocalBudgetedPagedFromCurrentPage(
-        data: FcitxEvent.PagedCandidateEvent.Data
+        source: T9PagedCandidates
     ): T9PagedCandidates? =
-        chineseCandidatePipeline.buildLocalBudgetedPagedFromCurrentPage(data)
+        chineseCandidatePipeline.buildLocalBudgetedPagedFromCurrentPage(source)
 
     fun offsetChineseLocalBudgetedPage(delta: Int): Boolean =
         chineseCandidatePipeline.offsetLocalBudgetedPage(delta)

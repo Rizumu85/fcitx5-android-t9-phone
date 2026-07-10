@@ -43,6 +43,7 @@ class ChineseT9CandidatePipeline(
         val layoutHint: FcitxEvent.PagedCandidateEvent.LayoutHint,
         val hasPrev: Boolean,
         val hasNext: Boolean,
+        val originalIndicesHash: Int,
         val characterBudget: Int,
         val widthSignature: String
     )
@@ -182,8 +183,9 @@ class ChineseT9CandidatePipeline(
     }
 
     fun buildLocalBudgetedPagedFromCurrentPage(
-        data: FcitxEvent.PagedCandidateEvent.Data
+        source: T9PagedCandidates
     ): T9PagedCandidates? {
+        val data = source.data
         if (data.candidates.isEmpty()) return null
         val budget = characterBudget()
         val widthBudget = widthBudget()
@@ -192,6 +194,7 @@ class ChineseT9CandidatePipeline(
             layoutHint = data.layoutHint,
             hasPrev = data.hasPrev,
             hasNext = data.hasNext,
+            originalIndicesHash = source.originalIndices.contentHashCode(),
             characterBudget = budget,
             widthSignature = widthBudget?.signature.orEmpty()
         )
@@ -217,7 +220,7 @@ class ChineseT9CandidatePipeline(
         }
         if (signature == localBudgetNoPageSignature) return null
         if (signature != localBudgetSignature) {
-            val indexedCandidates = dedupeDisplayCandidates(data.candidates.withIndex().toList())
+            val indexedCandidates = dedupeDisplayCandidates(source.indexedCandidates())
             localBudgetPager.update(signature, indexedCandidates, budget, widthBudget)
             localBudgetSignature = signature
         }

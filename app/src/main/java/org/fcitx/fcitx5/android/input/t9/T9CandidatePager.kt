@@ -17,6 +17,11 @@ class T9PagedCandidates(
     fun withOriginalIndices(originalIndices: IntArray): T9PagedCandidates =
         T9PagedCandidates(data, originalIndices)
 
+    fun indexedCandidates(): List<IndexedValue<FcitxEvent.Candidate>> =
+        data.candidates.mapIndexed { shownIndex, candidate ->
+            IndexedValue(originalIndices.getOrElse(shownIndex) { shownIndex }, candidate)
+        }
+
     companion object {
         val Empty = T9PagedCandidates(
             FcitxEvent.PagedCandidateEvent.Data.Empty,
