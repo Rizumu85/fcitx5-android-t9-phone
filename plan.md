@@ -322,5 +322,5 @@ otherwise.
   readmes.
 - [x] Run the release unit-test gate and build all four ARM APKs with `key0`.
 - [x] Verify signatures and stage exactly four APKs plus two Baidu readmes.
-- [ ] Commit/push release metadata, tag `v4.2.0`, and publish the GitHub Release
+- [x] Commit/push release metadata, tag `v4.2.0`, and publish the GitHub Release
   with only the verified signed APKs.
