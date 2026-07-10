@@ -542,6 +542,81 @@ cold/outlier frame. The architectural work therefore reduced typical tail
 latency without claiming an improvement from the isolated maximum; future
 optimization should target snapshot and render stages, which still dominate.
 
+## Reading Row Frame Latency Follow-up
+
+The first Pinyin digit exposes a more specific latency shape than the earlier
+Zhuyin baseline. Twenty paced `4`/Backspace cycles on the target phone measured
+the Pinyin candidate frame at average 132.01 ms, p50 130.26 ms, p95 151.49 ms,
+and maximum 182.38 ms. The trace attributed 23.72 ms to the first engine event,
+80.14 ms to snapshot publication, 19.20 ms to synchronous rendering, and 8.91
+ms to the final frame. Fcitx logs show the matching input-panel and candidate
+events only 4-9 ms apart, so the 80 ms snapshot stage is not local Pinyin lookup.
+
+The dominant avoidable wait is the frame-aligned refresh dispatch. Every source
+event calls `postOnAnimation`, even though the Chinese Candidate Frame Gate
+already rejects an incomplete input-panel/candidate pair. On a busy or
+thermally constrained phone, that dispatch can miss more than one frame before
+snapshot work begins. The generation still needs one queued main-thread turn
+to coalesce source events, but it does not need to wait for the next animation
+callback.
+
+The reading-row reveal also retains a legacy one-layout delay from the former
+per-chip view implementation. The row is now a Canvas strip whose item bounds
+and content width are calculated synchronously. Once the candidate toolbar
+width and Canvas geometry are present, forcing an additional `post` plus
+pre-draw listener no longer protects against partial chip layout; it only
+delays the complete atomic surface. Width-unavailable frames must still stay
+hidden rather than publishing a clipped row.
+
+Finally, the candidate toolbar currently performs a natural hierarchy measure
+and may immediately repeat the same hierarchy measure after applying the stable
+tail width. The first measure already provides exact child geometry. The stable
+width can be published to the shared geometry Module and assigned as the root
+minimum for Android's real layout pass without synchronously measuring the same
+children a second time.
+
+Success requires preserving the accepted visual contract: no speculative local
+row, no stale Hanzi frame, no partial/clipped first reading row, no bubble-width
+flash, and no changed spacing or focus scale. The target signal is a lower
+Pinyin p50/p95 and a screen-recording in which the preview, reading row, and
+Hanzi row still first appear together.
+
+The first main-queue implementation reduced three consecutive 20-sample Pinyin
+windows to averages of 106.74, 90.04, and 89.43 ms. The latter two p95 values
+were 97.66 and 102.63 ms, and video still showed preview, reading row, and Hanzi
+in the same first visible frame. Snapshot publication nevertheless remained
+48-58 ms after the accepted source pair. Because the source-ready callback is
+already on the main thread and the Candidate Frame Gate has accepted both
+engine halves, another queued turn has no coalescing work left to perform.
+`T9CandidateRefreshGeneration` should therefore consume and publish its pending
+generation immediately at that exact readiness transition; its already-posted
+callback becomes stale by generation ownership. Incomplete and local refreshes
+continue to use normal main-queue coalescing.
+
+Targeted detailed timing and a one-key event probe found the remaining 48-58 ms
+wait. The ticket-matched Pinyin candidate event publishes immediately, but that
+first build starts an asynchronous `getCandidates(0, 80)` request and defers the
+frame until a second refresh. The request is made even when `filterPrefixes` is
+empty. In that state it performs no reading filtering; it merely reloads and
+deduplicates candidates that the accepted Rime page already contains. The
+normal local-budget pager can page the accepted Rime source and preserve its
+original indices without this engine round trip.
+
+The Bulk Candidate Loader is needed only after a concrete Pinyin or Zhuyin
+reading prefix must be matched across engine pages. Empty-prefix Pinyin input
+must use the accepted engine page immediately. This preserves selected-reading
+behavior and removes the largest first-reading-row delay rather than trying to
+micro-optimize the 2-4 ms snapshot builder or the local resolver.
+
+The final low-overhead rerun used the same twenty paced `4`/Backspace cycles on
+the same phone. It measured average 62.24 ms, p50 59.59 ms, p95 67.36 ms, and
+maximum 123.27 ms. Average, median, and p95 latency fell by approximately 53%,
+54%, and 56% respectively. The stage averages were 28.80 ms source wait, 15.36
+ms snapshot publication, 15.18 ms rendering, and 2.85 ms frame wait. Extracted
+screen-recording frames still show the preview, complete `g h i` reading row,
+and Hanzi row appearing together, and selecting a reading still triggers the
+cross-page bulk-filter path without a stale or empty frame.
+
 ### Device-dependent Stroke glyph coverage
 
 The curated dictionary removed non-Han components, but a two-key device sweep

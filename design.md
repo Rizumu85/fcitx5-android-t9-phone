@@ -409,3 +409,43 @@ ordinary portable Han occupies the early pages.
 The settings home uses a dedicated dial-pad icon for Chinese T9 Schemes rather
 than repeating the generic language icon used by the complete input-method
 list.
+
+## T9 Candidate Publication Dispatch
+
+`T9CandidateRefreshGeneration` owns coalescing and freshness; Android animation
+timing is not part of its domain contract. Its Android Adapter posts one normal
+main-queue callback for a generation. Input-panel and candidate callbacks in
+the same queue can still coalesce, while `ChineseT9CandidateFrameGate` remains
+the sole authority that decides whether the source is complete enough to
+publish. A newer generation invalidates the old callback exactly as before.
+When that gate accepts a ticket-matched engine pair on the main thread, the
+generation Module may consume the pending generation and publish it
+synchronously. The posted callback then fails its generation check and cannot
+publish a duplicate. This immediate path is not available to incomplete source
+events or speculative local reading data.
+
+The renderer publishes one complete candidate surface. It does not introduce a
+fast partial reading-row frame. The Canvas Reading Row reports synchronous
+content geometry as part of its render plan. When candidate width and Canvas
+geometry are ready, the row may participate in the same positioned reveal as
+the Hanzi row. A genuinely missing width keeps the whole surface pending and
+uses the existing deferred retry path.
+
+The shortcut toolbar performs at most one explicit hierarchy measurement for a
+new content structure. That measurement yields exact child bounds; the stable
+tail policy then returns the geometry width immediately and sets the root's
+minimum width for Android's upcoming layout pass. The geometry Module consumes
+that stable width, so the reading row and toolbar retain one width source
+without a second synchronous measurement.
+
+The low-overhead transaction trace marks Chinese source readiness only when the
+ticket-matched candidate/input-panel pair releases the Candidate Frame Gate.
+This keeps engine wait separate from queued snapshot publication and makes the
+next bottleneck visible without enabling high-overhead nested section timing.
+
+The Chinese Bulk Candidate Loader is a cross-page reading-filter Module, not a
+default Pinyin source. Pinyin and Zhuyin request it only when their composition
+snapshot carries at least one selected/resolved reading prefix. With no prefix,
+the accepted Rime page flows directly into the local width/character pager.
+This keeps ordinary first-key publication on one engine event while retaining
+`selectFromAll` and bulk original-index mapping for actual cross-page filters.

@@ -353,3 +353,21 @@ otherwise.
   one serialized engine-operation Module.
 - [x] Run focused and full unit tests, build/install debug, capture device
   performance, then commit and push coherent slices.
+
+## Reading Row Frame Latency
+
+- [x] Capture a paced Pinyin first-digit baseline and compare video frames with
+  Fcitx input-panel/candidate event timing.
+- [x] Replace animation-frame refresh dispatch with generation-owned main-queue
+  coalescing while retaining the Chinese Candidate Frame Gate.
+- [x] Let the accepted engine-pair transition consume and publish its pending
+  generation immediately, while stale posted callbacks remain inert.
+- [x] Restrict the Chinese Bulk Candidate Loader to non-empty reading prefixes
+  so ordinary Pinyin input publishes the accepted Rime page immediately.
+- [x] Let synchronous Canvas reading-row geometry join the first complete
+  candidate reveal without the obsolete per-chip layout wait.
+- [x] Remove the shortcut toolbar's redundant second explicit hierarchy measure
+  without changing its stable tail geometry.
+- [x] Mark Chinese trace source readiness at the accepted engine-frame pair.
+- [x] Run focused tests, build/install debug, repeat the same Pinyin benchmark,
+  inspect extracted first-appearance frames, then commit and push.
