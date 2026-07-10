@@ -726,7 +726,7 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
-    fun chineseIdleOneShortOrLongPressCommitsOneLiteralDigit() {
+    fun pinyinIdleOneUsesSeparatorOnShortPressAndLiteralDigitOnLongPress() {
         val shortFlow = PhysicalT9KeyFlow()
 
         val down = shortFlow.handle(
@@ -739,7 +739,7 @@ class PhysicalT9KeyFlowTest {
         )
 
         assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), down?.commands)
-        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitText("1")), up?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitText("'")), up?.commands)
 
         val longFlow = PhysicalT9KeyFlow()
         longFlow.handle(

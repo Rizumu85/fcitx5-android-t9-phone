@@ -255,7 +255,9 @@ internal class PhysicalT9ChineseKeyFlow(
                 commands = when {
                     wasLongPress -> emptyList()
                     state.compositionKeyCount > 0 -> listOf(Command.ForwardChineseT9SeparatorShortPress)
-                    else -> listOf(Command.CommitText("1"))
+                    // Product decision: short 1 has one Pinyin meaning; outside composition the
+                    // same key emits the visible apostrophe rather than reverting to digit input.
+                    else -> listOf(Command.CommitText("'"))
                 }
             )
         }
