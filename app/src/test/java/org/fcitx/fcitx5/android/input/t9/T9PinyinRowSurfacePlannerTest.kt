@@ -57,6 +57,33 @@ class T9PinyinRowSurfacePlannerTest {
     }
 
     @Test
+    fun foldedIdleRowUsesAdditionalWholeChipsWhenTheCandidateViewportIsWide() {
+        val plan = requireNotNull(
+            T9PinyinRowSurfacePlanner.plan(
+                input(
+                    candidateMeasuredWidthPx = 300,
+                    state = T9PinyinRowWindow.VisibleState(
+                        items = List(10) { "ㄗㄞ" },
+                        highlightedIndex = 0,
+                        windowStart = 0
+                    ),
+                    widths = T9PinyinRowWidthCalculator.Widths(
+                        fullContentWidthPx = 436,
+                        foldedChipContentWidthPx = 172,
+                        overflowHintStartPx = 176,
+                        foldedContentWidthPx = 194
+                    ),
+                    chipWidthsPx = List(10) { 40 }
+                )
+            )
+        )
+
+        assertEquals(6, plan.displayedItems.size)
+        assertEquals(264, plan.overflowHintStartPx)
+        assertEquals(260, plan.pinyinBarWidthPx)
+    }
+
+    @Test
     fun visualPlanExistsBeforeCandidateWidthIsReady() {
         val plan = requireNotNull(
             T9PinyinRowSurfacePlanner.plan(
@@ -80,19 +107,21 @@ class T9PinyinRowSurfacePlannerTest {
             highlightedIndex = 0,
             windowStart = 0
         ),
+        widths: T9PinyinRowWidthCalculator.Widths = T9PinyinRowWidthCalculator.Widths(
+            fullContentWidthPx = 260,
+            foldedChipContentWidthPx = 128,
+            overflowHintStartPx = 132,
+            foldedContentWidthPx = 150
+        ),
+        chipWidthsPx: List<Int> = listOf(34, 34, 24, 24, 14, 14, 14),
         focused: Boolean = false
     ): T9PinyinRowSurfacePlanner.Input =
         T9PinyinRowSurfacePlanner.Input(
             candidateMeasuredWidthPx = candidateMeasuredWidthPx,
             fallbackViewportWidthPx = fallbackViewportWidthPx,
             state = state,
-            widths = T9PinyinRowWidthCalculator.Widths(
-                fullContentWidthPx = 260,
-                foldedChipContentWidthPx = 128,
-                overflowHintStartPx = 132,
-                foldedContentWidthPx = 150
-            ),
-            chipWidthsPx = listOf(34, 34, 24, 24, 14, 14, 14),
+            widths = widths,
+            chipWidthsPx = chipWidthsPx,
             chipSpacingPx = 4,
             maxRowWidthPx = 320,
             minVisibleChips = 4,

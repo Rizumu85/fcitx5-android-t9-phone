@@ -25,9 +25,29 @@ object T9PinyinRowVisualPlanner {
     )
 
     fun plan(input: Input): Plan {
+        val foldedPreview = input.rowPlan
+            ?.takeIf { it.showHint }
+            ?.let { rowPlan ->
+                T9ReadingRowFoldedPreviewPlanner.plan(
+                    itemCount = input.state.items.size,
+                    minVisibleCount = rowPlan.visibleCount,
+                    viewportWidthPx = input.rowWidthPx,
+                    chipWidthsPx = input.chipWidthsPx,
+                    chipSpacingPx = input.chipSpacingPx,
+                    overflowHintSpacingPx = input.widths.overflowHintStartPx -
+                        input.widths.foldedChipContentWidthPx,
+                    overflowHintEndReservePx = input.widths.foldedContentWidthPx -
+                        input.widths.foldedChipContentWidthPx
+                )
+            }
+        val effectiveRowPlan = if (foldedPreview != null) {
+            input.rowPlan.copy(visibleCount = foldedPreview.visibleCount)
+        } else {
+            input.rowPlan
+        }
         val renderPlan = T9PinyinRowRenderPlanner.plan(
             state = input.state,
-            rowPlan = input.rowPlan,
+            rowPlan = effectiveRowPlan,
             focusedViewportWidthPx = input.rowWidthPx,
             focusedEdgeGuardPx = 0,
             chipWidthsPx = input.chipWidthsPx,
@@ -38,12 +58,12 @@ object T9PinyinRowVisualPlanner {
             displayedHighlight = renderPlan.displayedHighlight,
             showOverflowHint = renderPlan.showOverflowHint,
             overflowHintStartPx = if (renderPlan.showOverflowHint) {
-                input.widths.overflowHintStartPx
+                requireNotNull(foldedPreview).overflowHintStartPx
             } else {
                 0
             },
             pinyinBarWidthPx = if (renderPlan.showOverflowHint) {
-                input.widths.foldedChipContentWidthPx
+                requireNotNull(foldedPreview).chipContentWidthPx
             } else {
                 input.rowWidthPx
             },
