@@ -86,7 +86,7 @@ class ChineseT9CompositionCoordinator(
         ChineseT9Scheme.PINYIN -> lifecycle.backspaceFromVirtualKey()
         ChineseT9Scheme.STROKE -> rawCodeSession.backspace()
         ChineseT9Scheme.ZHUYIN -> rawCodeSession.backspace().also {
-            zhuyinReadingFilter.reset()
+            zhuyinReadingFilter.updateRawCode(rawCodeSession.rawCode)
             codePresentationCache.reset()
         }
     }
@@ -168,26 +168,6 @@ class ChineseT9CompositionCoordinator(
         ChineseT9Scheme.PINYIN -> T9PinyinUtils.t9KeyToPinyin(currentSegment())
         ChineseT9Scheme.STROKE -> emptyList()
         ChineseT9Scheme.ZHUYIN -> zhuyinReadingFilter.visibleOptions(rawCodeSession.rawCode)
-    }
-
-    fun canOpenZhuyinReadingFilter(): Boolean =
-        scheme == ChineseT9Scheme.ZHUYIN && zhuyinReadingFilter.canOpen(rawCodeSession.rawCode)
-
-    fun openZhuyinReadingFilter(preferredReading: String?): Boolean {
-        if (scheme != ChineseT9Scheme.ZHUYIN ||
-            !zhuyinReadingFilter.open(rawCodeSession.rawCode, preferredReading)
-        ) {
-            return false
-        }
-        codePresentationCache.reset()
-        return true
-    }
-
-    fun closeZhuyinReadingFilter(): Boolean {
-        if (scheme != ChineseT9Scheme.ZHUYIN || !zhuyinReadingFilter.expanded) return false
-        zhuyinReadingFilter.close()
-        codePresentationCache.reset()
-        return true
     }
 
     fun preeditDisplay(rawComposition: String? = null): FormattedText? = when (scheme) {
@@ -317,7 +297,9 @@ class ChineseT9CompositionCoordinator(
         val hadComposition = !rawCodeSession.isEmpty()
         if (keyCode == KeyEvent.KEYCODE_DEL) {
             rawCodeSession.backspace()
-            zhuyinReadingFilter.reset()
+            if (scheme == ChineseT9Scheme.ZHUYIN) {
+                zhuyinReadingFilter.updateRawCode(rawCodeSession.rawCode)
+            }
             codePresentationCache.reset()
             return when {
                 !hadComposition -> ChineseT9CompositionLifecycle.ForwardedKeyAction.NONE
@@ -331,7 +313,9 @@ class ChineseT9CompositionCoordinator(
             ?.takeIf(scheme::acceptsCompositionDigit)
             ?: return ChineseT9CompositionLifecycle.ForwardedKeyAction.NONE
         rawCodeSession.append(digit)
-        zhuyinReadingFilter.reset()
+        if (scheme == ChineseT9Scheme.ZHUYIN) {
+            zhuyinReadingFilter.updateRawCode(rawCodeSession.rawCode)
+        }
         codePresentationCache.reset()
         return ChineseT9CompositionLifecycle.ForwardedKeyAction.REFRESH_AFTER_ENGINE_CANDIDATES
     }

@@ -69,21 +69,14 @@ class T9ZhuyinResolverTest {
 
     @Test
     fun readingOptionsAreBuiltOnlyAsLegalWholeSequenceCombinations() {
-        val single = resolver.readingOptions("38", preferredReading = "ㄏㄠ")
-        val phrase = resolver.readingOptions("2038", preferredReading = "ㄋㄧ'ㄏㄠ")
+        val single = resolver.readingOptions("38")
+        val phrase = resolver.readingOptions("2038")
 
-        assertEquals("ㄏㄠ", single.first())
+        assertTrue("ㄏㄠ" in single)
         assertTrue("ㄍㄞ" in single)
         assertFalse("ㄍ" in single)
-        assertEquals("ㄋㄧ ㄏㄠ", phrase.first())
+        assertTrue(phrase.isNotEmpty())
         assertTrue(phrase.all { T9ZhuyinResolver.digitsForReading(it) == "2038" })
-    }
-
-    @Test
-    fun focusedCandidateCompletionProjectsToTheEnteredReadingPrefix() {
-        assertEquals("ㄏ", T9ZhuyinResolver.readingPrefixForDigits("3", "ㄏㄠ"))
-        assertEquals("ㄋㄧ ㄏ", T9ZhuyinResolver.readingPrefixForDigits("203", "ㄋㄧ'ㄏㄠ"))
-        assertEquals(null, T9ZhuyinResolver.readingPrefixForDigits("38", "ㄋㄧ"))
     }
 
     @Test

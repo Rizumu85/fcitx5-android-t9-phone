@@ -171,7 +171,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             hasSmartEnglishDigits = { smartEnglishCoordinator.hasDigits },
             hasSmartEnglishCandidates = { smartEnglishCoordinator.hasCandidates },
             hasMultiTapPendingChar = { t9MultiTapCoordinator.hasPendingChar },
-            hasTopReadingCandidates = ::hasT9ReadingSelectionTarget,
+            hasTopReadingCandidates = { getT9ReadingCandidates().isNotEmpty() },
             hasBottomCandidateRow = { candidatesView?.hasT9BottomCandidateRow() == true },
             candidateFocus = ::getT9CandidateFocus,
             keyHeldPastLongPressDelay = { input ->
@@ -1767,24 +1767,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun getT9CandidateFocus(): T9CandidateFocus = t9CandidateFocusController.current
 
     fun moveT9CandidateFocus(newFocus: T9CandidateFocus) {
-        val changedZhuyinFilter = if (isChineseT9InputModeActive() &&
-            activeChineseT9Scheme == ChineseT9Scheme.ZHUYIN
-        ) {
-            when (newFocus) {
-                T9CandidateFocus.TOP -> chineseT9Composition.openZhuyinReadingFilter(
-                    candidatesView?.getChineseT9ReadingPreview()
-                )
-                T9CandidateFocus.BOTTOM -> chineseT9Composition.closeZhuyinReadingFilter()
-            }
-        } else {
-            false
-        }
         t9CandidateFocusController.moveTo(newFocus)
-        if (changedZhuyinFilter) {
-            // The optional Zhuyin row belongs to focus navigation, so its visibility and focus
-            // publish in one UI snapshot instead of producing a transient empty top focus.
-            candidatesView?.refreshT9Ui()
-        }
     }
 
     fun getT9CandidateFocusIndicatorColor(): Int = highlightColor
@@ -1989,10 +1972,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         } else {
             emptyList()
         }
-
-    private fun hasT9ReadingSelectionTarget(): Boolean =
-        getT9ReadingCandidates().isNotEmpty() ||
-            (isChineseT9InputModeActive() && chineseT9Composition.canOpenZhuyinReadingFilter())
 
     private fun formattedT9Text(text: String): FormattedText? {
         if (text.isEmpty()) return null

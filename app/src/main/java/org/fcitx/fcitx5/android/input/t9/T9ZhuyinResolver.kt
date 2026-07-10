@@ -24,7 +24,6 @@ class T9ZhuyinResolver(
     private val completeDigitCodes: Set<String>
     private val prefixDigitCodes: Set<String>
     private val completeReadings: Set<String>
-    private val prefixReadings: Set<String>
     private val completeByDigits: Map<String, List<Segment>>
     private val prefixByDigits: Map<String, List<Segment>>
     private val validityCache = object : LinkedHashMap<String, Boolean>(
@@ -74,7 +73,6 @@ class T9ZhuyinResolver(
             .groupBy { digitsForReading(it.reading) }
             .filterKeys(String::isNotEmpty)
         prefixDigitCodes = prefixByDigits.keys
-        prefixReadings = prefixes.map(Segment::reading).toSet()
     }
 
     fun resolve(rawDigits: String): Result {
@@ -86,18 +84,11 @@ class T9ZhuyinResolver(
         return if (valid) Result.Valid(rawDigits) else Result.Invalid(rawDigits)
     }
 
-    fun readingOptions(rawDigits: String, preferredReading: String? = null): List<String> {
+    fun readingOptions(rawDigits: String): List<String> {
         if (resolve(rawDigits) !is Result.Valid) return emptyList()
-        val options = optionCache[rawDigits] ?: buildReadingOptions(rawDigits).also {
+        return optionCache[rawDigits] ?: buildReadingOptions(rawDigits).also {
             optionCache[rawDigits] = it
         }
-        val preferred = preferredReading?.let { readingPrefixForDigits(rawDigits, it) }
-        if (preferred == null || !isLegalReadingOption(rawDigits, preferred) ||
-            options.firstOrNull() == preferred
-        ) {
-            return options
-        }
-        return listOf(preferred) + options.filterNot { it == preferred }.take(MaxReadingOptions - 1)
     }
 
     fun candidateMatchesReadingOption(candidateReading: String, selectedReading: String): Boolean {
@@ -144,8 +135,8 @@ class T9ZhuyinResolver(
     }
 
     private fun buildReadingOptions(rawDigits: String): List<String> {
-        // Enumeration is intentionally separate from resolve(): ordinary typing pays only the
-        // validity check, while the bounded path set is built after the user opens the filter.
+        // Keep enumeration separate from resolve() so validation stays cheap for callers that do
+        // not render the row; the composition owner invokes this once per raw-code mutation.
         val memo = HashMap<Int, List<Path>>()
         fun pathsFrom(start: Int): List<Path> {
             memo[start]?.let { return it }
@@ -179,13 +170,6 @@ class T9ZhuyinResolver(
         return pathsFrom(0).map(Path::display)
     }
 
-    private fun isLegalReadingOption(rawDigits: String, reading: String): Boolean {
-        val segments = reading.split(' ').filter(String::isNotEmpty)
-        if (segments.isEmpty() || digitsForReading(reading) != rawDigits) return false
-        return segments.dropLast(1).all { it in completeReadings } &&
-            segments.last() in prefixReadings
-    }
-
     companion object {
         private const val MaxDigitsPerSyllable = 3
         private const val MaxCacheEntries = 128
@@ -211,25 +195,6 @@ class T9ZhuyinResolver(
         fun candidateReadingMatches(rawDigits: String, reading: String): Boolean {
             val normalized = normalizeCandidateReading(reading)
             return normalized.isNotEmpty() && digitsForReading(normalized).startsWith(rawDigits)
-        }
-
-        fun readingPrefixForDigits(rawDigits: String, reading: String): String? {
-            if (rawDigits.isEmpty()) return null
-            val segments = normalizeCandidateReading(reading)
-                .split(' ')
-                .filter(String::isNotEmpty)
-            if (segments.isEmpty() || !digitsForReading(segments.joinToString(" ")).startsWith(rawDigits)) {
-                return null
-            }
-            var remaining = rawDigits.length
-            return buildList {
-                segments.forEach { segment ->
-                    if (remaining <= 0) return@forEach
-                    val selected = segment.take(remaining)
-                    if (selected.isNotEmpty()) add(selected)
-                    remaining -= selected.length
-                }
-            }.takeIf { remaining == 0 }?.joinToString(" ")
         }
 
         fun digitForSymbol(char: Char): Char? = when (char) {

@@ -11,37 +11,22 @@ class T9ZhuyinReadingFilterSession(
     private var optionCode = ""
     private var options = emptyList<String>()
 
-    var expanded: Boolean = false
-        private set
-
     var selectedReading: String? = null
         private set
 
-    fun canOpen(rawDigits: String): Boolean =
-        rawDigits.isNotEmpty() && resolver.resolve(rawDigits) is T9ZhuyinResolver.Result.Valid
-
-    fun open(rawDigits: String, preferredReading: String?): Boolean {
-        if (!canOpen(rawDigits)) return false
-        val next = resolver.readingOptions(rawDigits, preferredReading)
-        if (next.isEmpty()) return false
+    fun updateRawCode(rawDigits: String) {
         optionCode = rawDigits
-        options = next
-        expanded = true
-        return true
-    }
-
-    fun close() {
-        expanded = false
+        options = resolver.readingOptions(rawDigits)
+        selectedReading = null
     }
 
     fun visibleOptions(rawDigits: String): List<String> =
-        options.takeIf { expanded && optionCode == rawDigits }.orEmpty()
+        options.takeIf { optionCode == rawDigits }.orEmpty()
 
     fun select(rawDigits: String, reading: String): Boolean {
         val normalized = T9ZhuyinResolver.normalizeCandidateReading(reading)
         if (normalized.isEmpty() || optionCode != rawDigits || normalized !in options) return false
         selectedReading = normalized
-        expanded = false
         return true
     }
 
@@ -50,7 +35,6 @@ class T9ZhuyinReadingFilterSession(
     fun reset() {
         optionCode = ""
         options = emptyList()
-        expanded = false
         selectedReading = null
     }
 }

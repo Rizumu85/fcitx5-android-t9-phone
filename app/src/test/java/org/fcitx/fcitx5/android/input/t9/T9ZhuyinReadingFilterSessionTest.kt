@@ -6,7 +6,6 @@
 package org.fcitx.fcitx5.android.input.t9
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -14,37 +13,42 @@ class T9ZhuyinReadingFilterSessionTest {
     private val session = T9ZhuyinReadingFilterSession(T9ZhuyinResolver())
 
     @Test
-    fun opensOnDemandAndPrioritizesTheFocusedCandidateReading() {
-        assertTrue(session.canOpen("38"))
-        assertTrue(session.open("38", "ㄏㄠ"))
+    fun rawCodePublishesLegalReadingOptionsByDefault() {
+        session.updateRawCode("38")
 
-        assertTrue(session.expanded)
-        assertEquals("ㄏㄠ", session.visibleOptions("38").first())
+        assertTrue("ㄏㄠ" in session.visibleOptions("38"))
+        assertTrue(session.visibleOptions("38").all {
+            T9ZhuyinResolver.digitsForReading(it) == "38"
+        })
         assertTrue(session.visibleOptions("3").isEmpty())
     }
 
     @Test
-    fun selectionClosesTheRowAndPublishesOneFilterPrefix() {
-        session.open("38", "ㄏㄠ")
+    fun selectionKeepsTheRowVisibleAndPublishesOneFilterPrefix() {
+        session.updateRawCode("38")
 
         assertTrue(session.select("38", "ㄏㄠ"))
 
-        assertFalse(session.expanded)
         assertEquals(listOf("ㄏㄠ"), session.filterPrefixes())
+        assertTrue("ㄏㄠ" in session.visibleOptions("38"))
+    }
+
+    @Test
+    fun rawCodeMutationReplacesOptionsAndClearsSelection() {
+        session.updateRawCode("38")
+        session.select("38", "ㄏㄠ")
+
+        session.updateRawCode("3")
+
+        assertTrue(session.filterPrefixes().isEmpty())
+        assertTrue(session.visibleOptions("3").isNotEmpty())
         assertTrue(session.visibleOptions("38").isEmpty())
     }
 
     @Test
-    fun dismissalPreservesSelectionButResetClearsTheCompositionContract() {
-        session.open("38", "ㄏㄠ")
-        session.select("38", "ㄏㄠ")
-        session.open("38", "ㄏㄠ")
+    fun invalidRawCodePublishesNoReadingOptions() {
+        session.updateRawCode("33")
 
-        session.close()
-        assertEquals(listOf("ㄏㄠ"), session.filterPrefixes())
-
-        session.reset()
-        assertFalse(session.expanded)
-        assertTrue(session.filterPrefixes().isEmpty())
+        assertTrue(session.visibleOptions("33").isEmpty())
     }
 }
