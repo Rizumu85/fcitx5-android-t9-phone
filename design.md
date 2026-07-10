@@ -283,10 +283,10 @@ non-Han filtering path.
 `T9ZhuyinResolver` builds compact immutable complete-code and prefix-code sets
 from legal toneless syllables. Lookup accepts a partial final syllable and uses
 bounded dynamic programming to answer only whether at least one legal
-segmentation exists. Its separate on-demand API materializes a bounded reading
-set only after the user opens the filter. Both result types are cached by raw
-digits, remain independent of Hanzi dictionary size, and keep ordinary key
-validation synchronous and allocation-light.
+segmentation exists. Its separate option API materializes a bounded reading set
+once per raw-code mutation. Both result types are cached by raw digits, remain
+independent of Hanzi dictionary size, and keep ordinary key validation
+synchronous and allocation-light.
 
 A resolver result has exactly three presentation states:
 
@@ -301,19 +301,20 @@ boundaries; a candidate with no comment may preview its visible text, such as
 an emoji. Focus movement and preview therefore consume one candidate snapshot
 instead of reconciling an independent local reading selection.
 
-### On-demand Zhuyin reading filter
+### Default Zhuyin reading filter
 
-`T9ZhuyinReadingFilterSession` owns the optional precision interaction. It is
-closed by default and therefore adds no path enumeration to ordinary digit
-input or candidate rendering. Moving focus up opens it with a bounded resolver
-snapshot; moving down closes it, and selecting an option records one normalized
-reading prefix before closing it. All raw-code mutations reset the session.
+`T9ZhuyinReadingFilterSession` owns the precision interaction. Every raw-code
+mutation replaces its bounded resolver snapshot, so a valid composition exposes
+reading options by default and an invalid composition exposes none. Focus
+navigation is shared with Pinyin: Up selects the reading row, Down selects the
+Hanzi row, and neither gesture changes visibility. Selecting an option records
+one normalized reading prefix while leaving the row present. All raw-code
+mutations reset the previous selection.
 
 The filter options are complete or final-partial legal reading combinations
 for the whole raw digit sequence. They are not independent symbol choices for
-each key. The currently focused candidate reading is moved to the front when it
-maps to one of those combinations, but it never creates an option that the
-resolver considers illegal.
+each key. Their resolver order is stable for a raw code; delayed Rime candidate
+updates must not reorder the visible row and cause a misleading flash.
 
 Candidate matching preserves the complete-versus-partial distinction. A
 selected complete final matches the complete candidate syllable exactly, while
@@ -324,14 +325,14 @@ selecting `ㄋㄧ` from also admitting `ㄋㄧㄠ`, while a one-key partial such
 The existing Chinese bulk candidate pipeline is reading-scheme neutral:
 Pinyin and an explicitly selected Zhuyin reading both provide normalized
 prefixes and a scheme-owned candidate matcher. Zhuyin requests the cross-page
-bulk source only after selection. Merely opening the filter keeps the current
-candidate page and bubble geometry, while the shared top-row renderer handles
-focus and horizontal movement.
+bulk source only after selection. Merely displaying the unselected row keeps
+the current candidate page and bubble geometry, while the shared top-row
+renderer handles focus and horizontal movement.
 
 The Android row Adapter tracks both the logical option window and the visual
 plan's displayed chip count. Cold reveal waits for the displayed count because
 a focused folded viewport intentionally materializes only a subset; using the
-logical count would leave a valid on-demand row permanently invisible.
+logical count would leave a valid default row permanently invisible.
 
 Late Rime events must match the composition ticket before replacing a valid or
 invalid state. An invalid state never exposes OK, numeric shortcut, or paging

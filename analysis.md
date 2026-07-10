@@ -407,7 +407,7 @@ boundaries. That left Latin `y` and `w` fragments in 232 observed comments.
 Every comment transform now recognizes both separators, and the repeated
 100-code sweep produced 10,704 candidate comments with zero Latin fragments.
 
-## On-demand Zhuyin Reading Filtering
+## Default Zhuyin Reading Filtering
 
 Candidate-driven preview fixes the misleading first frame, but grouped Zhuyin
 still has more ambiguity than candidate paging alone should carry. The filter
@@ -417,18 +417,20 @@ many physical actions, and lose syllable boundaries. For `38`, for example,
 the meaningful filter values are readings such as `ㄍㄞ`, `ㄍㄠ`, and `ㄏㄠ`,
 not separate selections from the `ㄍㄎㄏ` and `ㄞㄟㄠㄡ` key groups.
 
-The row must remain absent during normal prediction. Up from the Hanzi row
-opens a dedicated filter session and only then enumerates bounded legal reading
-paths. Left/right moves within those paths, OK selects one, and Down dismisses
-the session without changing the raw digits. Selection closes the row and
-filters candidates across pages by normalized Rime comments. Digit input,
-Backspace, candidate commit, scheme change, and composition reset all clear the
-filter session so a choice cannot leak into a newer composition.
+The first implementation kept this row hidden until Up was pressed. Device use
+showed that the gesture was undiscoverable and inconsistent with the established
+Pinyin interaction. Zhuyin must therefore publish its legal reading combinations
+by default whenever the current code is valid. Up and Down only move focus
+between the reading and Hanzi rows, exactly as they do for Pinyin; they do not
+change row visibility. Left/right moves within readings and OK applies one
+across candidate pages. Digit input, Backspace, candidate commit, scheme change,
+and composition reset rebuild or clear the filter state so a choice cannot leak
+into a newer composition.
 
-Physical-device verification exposed a renderer assumption hidden by Pinyin's
-usual already-visible lifecycle. Opening a long, folded reading row directly
-in focused state renders only the chips that fit the viewport, while reveal
-readiness compared the adapter count with the larger logical option window.
+Physical-device verification exposed a renderer assumption with a long,
+folded reading row. The visual plan renders only the chips that fit the
+viewport, while reveal readiness compared the adapter count with the larger
+logical option window.
 The row therefore stayed invisible even though focus had moved to it. Readiness
 now follows the displayed chip count produced by the visual plan, preserving
 the existing folded-row geometry for both Pinyin and Zhuyin.
