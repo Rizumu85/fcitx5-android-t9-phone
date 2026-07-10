@@ -482,14 +482,14 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
-    fun pinyinIdleOneShortPressCommitsOneLiteralDigit() {
+    fun pinyinIdleOneShortPressCommitsSeparator() {
         val host = FakeHost(mode = PhysicalT9KeyHandler.Mode.CHINESE)
         val handler = PhysicalT9KeyHandler(host)
 
         handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN))
         handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP))
 
-        assertEquals(listOf("1"), host.committedTexts)
+        assertEquals(listOf("'"), host.committedTexts)
     }
 
     @Test
