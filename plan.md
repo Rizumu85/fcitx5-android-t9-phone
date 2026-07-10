@@ -252,3 +252,14 @@ otherwise.
 - [x] Give Chinese T9 Schemes a dedicated dial-pad settings icon.
 - [x] Run focused tests and a debug build, install the APK and Rime data, then
   device-test all confirmed key, Stroke, Zhuyin, focus, and no-match cases.
+
+## Stroke Glyph Eligibility Follow-up
+
+- [x] Reproduce blank Stroke slots across single-key and two-key combinations
+  and capture their exact Rime text/code points on-device.
+- [x] Filter unsupported Stroke glyphs at the candidate-source boundary while
+  preserving original Rime selection indices.
+- [x] Demote supplementary Han in the generated mobile Stroke dictionary so
+  portable BMP candidates fill early pages.
+- [x] Add source-mapping and generator regression tests, remove diagnostic
+  logging, rebuild/deploy, and repeat the device sweep.

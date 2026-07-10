@@ -302,6 +302,15 @@ system family for unsupported runs. The same fallback plan feeds Android text
 measurement and TextView rendering so a legitimate rare Han character cannot
 collapse the final candidate focus geometry.
 
+Stroke adds one device-local eligibility pass before the candidate pager. It
+uses the same configured candidate Typeface as measurement and rendering,
+caches `hasGlyph` by candidate text for the lifetime of the input view, and
+returns `T9PagedCandidates` with original Rime indices. This is source
+normalization rather than a visual hide: every downstream width, page, focus,
+shortcut, and commit decision sees the same filtered candidate list. The Rime
+generator keeps complete supplementary Han but assigns it minimal weight so
+ordinary portable Han occupies the early pages.
+
 The settings home uses a dedicated dial-pad icon for Chinese T9 Schemes rather
 than repeating the generic language icon used by the complete input-method
 list.

@@ -366,8 +366,9 @@ normalizes compatibility ideographs, retains independently encoded radical
 forms such as `亻`, `氵`, and `扌` at lower priority, and rejects dedicated
 stroke symbols, component blocks, Tangut, and Latin entries. Common-character
 weights are attached during generation. Validation fails the generation when
-an unsupported code point leaks into the table. Runtime UI filtering is not a
-fallback for generated data.
+a non-Han code point leaks into the table. A later device sweep proved that
+valid supplementary Han still needs a separate font-eligibility check because
+Android glyph coverage varies by device.
 
 Android does not need a second large Stroke candidate resolver. A small
 `T9StrokeCodec` owns the deterministic digit-to-stroke map, unknown token,
@@ -399,3 +400,21 @@ sequence, and a non-interactive localized no-match state replaces the Hanzi
 row. It is distinct from dictionary loading and can never appear while a valid
 candidate generation is merely pending. Backspace restores the prior valid
 reading immediately; `#` does not commit an invalid internal digit code.
+
+### Device-dependent Stroke glyph coverage
+
+The curated dictionary removed non-Han components, but a two-key device sweep
+still reproduced blank slots. For Stroke code `12`, Rime returned U+2C09B and
+U+2CEB0 in slots 5 and 6. Both are valid supplementary-plane Han ideographs,
+yet the active custom-font-plus-system-fallback Typeface reports
+`Paint.hasGlyph() == false`; surrounding BMP candidates render normally. The
+same sweep found only supplementary-plane candidates among unsupported glyphs.
+
+Static Unicode-category filtering therefore cannot guarantee a visible row on
+different Android font stacks. Unsupported candidates must be removed at the
+owned Stroke candidate-source boundary before local paging and original-index
+mapping, not hidden by the Android row after paging. The filtered source keeps
+the original Rime indices so focus, numeric shortcuts, and commit remain exact.
+The generated dictionary additionally assigns supplementary Han the lowest
+weight so portable BMP candidates fill early pages while supported rare Han
+remain available on devices that can draw them.
