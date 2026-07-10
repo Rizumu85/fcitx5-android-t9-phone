@@ -34,7 +34,7 @@ are both literal numeric/operator input.
 
 | Scheme | Short `1` | Long `1` | Short `*` | Long `*` |
 | --- | --- | --- | --- | --- |
-| Pinyin | Syllable separator while composing; consumed with no action while idle | Candidate shortcut 1 while composing; literal `1` while idle | Commit the highlighted Hanzi without a space, then open Chinese punctuation; open punctuation directly while idle | Insert literal `*` and clear incompatible Chinese composition |
+| Pinyin | Syllable separator while composing; literal apostrophe while idle | Candidate shortcut 1 while composing; literal `1` while idle | Commit the highlighted Hanzi without a space, then open Chinese punctuation; open punctuation directly while idle | Insert literal `*` and clear incompatible Chinese composition |
 | Stroke | Horizontal stroke | Candidate shortcut 1; literal `1` when no candidate owns it | Commit the highlighted Hanzi, then open Chinese punctuation | Insert literal `*` |
 | Zhuyin | `ㄅㄆㄇㄈ` group | Candidate shortcut 1; literal `1` when no candidate owns it | Commit the highlighted Hanzi, then open Chinese punctuation | Insert literal `*` |
 | Smart English | Cycle `abc -> Abc -> ABC -> abc` | Candidate shortcut 1; literal `1` when no candidate owns it | Commit the selected word without a space or next-word prediction, then open English punctuation | Commit pending text and insert literal `*` |

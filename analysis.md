@@ -451,6 +451,16 @@ the bubble width. Focused navigation continues to use the same stable viewport.
 This rule applies equally to Pinyin and Zhuyin because both use the shared
 reading-row surface.
 
+## Pinyin `1` Separator Contract
+
+Pinyin already used short `1` as a syllable separator during composition, but
+the idle branch still emitted the digit `1`. That split meaning is difficult to
+learn and conflicts with the scheme-aware key map: Stroke and Zhuyin own `1` as
+input, while Pinyin owns it as the apostrophe separator. Short `1` must therefore
+emit an apostrophe when idle and append the same separator to a live Pinyin
+composition. Long `1` remains candidate shortcut 1 while composing and literal
+digit `1` while idle.
+
 ### Device-dependent Stroke glyph coverage
 
 The curated dictionary removed non-Han components, but a two-key device sweep

@@ -297,3 +297,10 @@ otherwise.
 - [x] Position the ellipsis from the exact displayed prefix.
 - [x] Run focused row-layout tests, build/install debug, and verify `68` on the
   physical phone without changing the short-Hanzi folded interaction.
+
+## Pinyin Short-`1` Separator
+
+- [x] Replace the idle short-`1` digit with a literal apostrophe.
+- [x] Preserve composing separator insertion and long-press shortcut/digit rules.
+- [x] Update the key contract and focused flow tests.
+- [x] Build/install debug for physical-phone verification.

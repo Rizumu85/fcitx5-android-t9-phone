@@ -81,8 +81,9 @@ frame analysis, see `docs/t9-debugging.md`.
 
 ### 中文/数字模式的 `1` 和 `*` 行为
 
-- In idle Pinyin mode, short or long `1` should commit one literal `1`. During
-  Pinyin composition, short `1` should keep acting as the syllable separator.
+- In idle Pinyin mode, short `1` should commit one literal apostrophe and long
+  `1` should commit one literal `1`. During Pinyin composition, short `1`
+  should append the syllable separator.
 - In Chinese mode, short `*` should open Chinese punctuation. With an active
   composition it should first commit the highlighted Hanzi candidate.
 - During Chinese composition, long `*` should replace/clear the current

@@ -4,9 +4,11 @@
 
 Physical keys map to domain commands through the active input scheme rather
 than carrying one global meaning. `*` is the shared symbol entry point for text
-schemes, while `1` remains available to the scheme: Pinyin separator, Stroke
-horizontal stroke, Zhuyin `ㄅㄆㄇㄈ`, or English case cycle. Number mode remains
-numeric and keeps its current `*` operator behavior.
+schemes, while `1` remains available to the scheme: Pinyin apostrophe separator,
+Stroke horizontal stroke, Zhuyin `ㄅㄆㄇㄈ`, or English case cycle. Short `1`
+appends the separator during Pinyin composition and emits a literal apostrophe
+while idle; long `1` retains shortcut/literal-digit behavior. Number mode
+remains numeric and keeps its current `*` operator behavior.
 
 English case uses one short-press cycle (`abc`, `Abc`, `ABC`) so long `1`
 remains the first candidate shortcut. Text-mode `*` owns a complete ordered
