@@ -119,20 +119,20 @@ class PhysicalT9CommandExecutorTest {
     }
 
     @Test
-    fun idleChinesePoundReturnsOnlyWhenNoSchemeCycleIsConfigured() {
+    fun idleChineseLongStarCommitsLiteralOnlyWhenNoSchemeCycleIsConfigured() {
         val oneSchemeHost = RecordingHost(cycleChineseSchemeResult = false)
         val multiSchemeHost = RecordingHost(cycleChineseSchemeResult = true)
 
         PhysicalT9CommandExecutor(oneSchemeHost).execute(
-            listOf(PhysicalT9KeyFlow.Command.CycleChineseSchemeOrReturn),
+            listOf(PhysicalT9KeyFlow.Command.CycleChineseSchemeOrCommitLiteralStar),
             input()
         )
         PhysicalT9CommandExecutor(multiSchemeHost).execute(
-            listOf(PhysicalT9KeyFlow.Command.CycleChineseSchemeOrReturn),
+            listOf(PhysicalT9KeyFlow.Command.CycleChineseSchemeOrCommitLiteralStar),
             input()
         )
 
-        assertEquals(listOf("cycleChineseScheme", "return"), oneSchemeHost.calls)
+        assertEquals(listOf("cycleChineseScheme", "commitLiteralStar"), oneSchemeHost.calls)
         assertEquals(listOf("cycleChineseScheme"), multiSchemeHost.calls)
     }
 
@@ -155,7 +155,7 @@ class PhysicalT9CommandExecutorTest {
         override val hasSmartEnglishDigits: Boolean = false,
         override val hasSmartEnglishCandidates: Boolean = false,
         override val hasMultiTapPendingChar: Boolean = false,
-        override val hasTopPinyinCandidates: Boolean = false,
+        override val hasTopReadingCandidates: Boolean = false,
         override val hasBottomCandidateRow: Boolean = false,
         override val candidateFocus: PhysicalT9KeyHandler.CandidateFocus =
             PhysicalT9KeyHandler.CandidateFocus.BOTTOM,
@@ -284,8 +284,8 @@ class PhysicalT9CommandExecutorTest {
         override fun moveCandidateFocus(focus: PhysicalT9KeyHandler.CandidateFocus) {
             calls += "moveCandidateFocus:$focus"
         }
-        override fun moveHighlightedPinyin(delta: Int): Boolean {
-            calls += "moveHighlightedPinyin:$delta"
+        override fun moveHighlightedReading(delta: Int): Boolean {
+            calls += "moveHighlightedReading:$delta"
             return false
         }
         override fun moveHighlightedBottomCandidate(delta: Int): Boolean {
@@ -296,8 +296,8 @@ class PhysicalT9CommandExecutorTest {
             calls += "offsetBottomCandidatePage:$delta"
             return false
         }
-        override fun commitHighlightedPinyin(): Boolean {
-            calls += "commitHighlightedPinyin"
+        override fun commitHighlightedReading(): Boolean {
+            calls += "commitHighlightedReading"
             return false
         }
         override fun commitHighlightedBottomCandidate(): Boolean {

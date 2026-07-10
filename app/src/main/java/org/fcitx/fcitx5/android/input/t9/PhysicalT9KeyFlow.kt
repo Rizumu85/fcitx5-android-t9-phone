@@ -16,7 +16,7 @@ class PhysicalT9KeyFlow {
         val hasSmartEnglishDigits: Boolean,
         val hasSmartEnglishCandidates: Boolean,
         val hasMultiTapPendingChar: Boolean,
-        val hasTopPinyinCandidates: Boolean,
+        val hasTopReadingCandidates: Boolean,
         val hasBottomCandidateRow: Boolean,
         val candidateFocus: PhysicalT9KeyHandler.CandidateFocus,
         val heldPastLongPressDelay: Boolean,
@@ -70,8 +70,8 @@ class PhysicalT9KeyFlow {
         data class MoveCandidateFocus(
             val focus: PhysicalT9KeyHandler.CandidateFocus
         ) : Command()
-        data class MoveHighlightedPinyin(val delta: Int) : Command()
-        object CommitHighlightedPinyin : Command()
+        data class MoveHighlightedReading(val delta: Int) : Command()
+        object CommitHighlightedReading : Command()
         data class CommitBottomCandidate(
             val fallback: BottomCandidateFallback
         ) : Command()
@@ -83,7 +83,7 @@ class PhysicalT9KeyFlow {
         data class ForwardChineseT9KeyShortPress(val keyCode: Int) : Command()
         object ForwardChineseT9SeparatorShortPress : Command()
         object CommitChineseCodePreview : Command()
-        object CycleChineseSchemeOrReturn : Command()
+        object CycleChineseSchemeOrCommitLiteralStar : Command()
         object TogglePendingPunctuationSet : Command()
         object CycleEnglishCase : Command()
         object HandleReturnKey : Command()

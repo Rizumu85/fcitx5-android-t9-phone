@@ -27,7 +27,7 @@ enum class ChineseT9Scheme(
         compactLabel = "注音",
         rimeSubModeNames = setOf("注音九键", "注音九鍵", "注音"),
         compositionDigits = 0..9,
-        hasReadingFilterRow = false
+        hasReadingFilterRow = true
     );
 
     fun acceptsCompositionDigit(digit: Int): Boolean = digit in compositionDigits

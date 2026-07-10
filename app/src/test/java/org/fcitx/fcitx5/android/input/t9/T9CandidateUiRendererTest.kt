@@ -68,7 +68,7 @@ class T9CandidateUiRendererTest {
         renderer.render(state(candidates = paged("a")))
         renderer.render(state(
             candidates = emptyPaged(),
-            pinyinOptions = emptyList(),
+            readingOptions = emptyList(),
             shouldShow = false
         ))
 
@@ -81,7 +81,7 @@ class T9CandidateUiRendererTest {
         val delegate = FakeDelegate()
         val renderer = T9CandidateUiRenderer(delegate)
 
-        val visible = state(candidates = paged("a"), pinyinOptions = listOf("a"))
+        val visible = state(candidates = paged("a"), readingOptions = listOf("a"))
         renderer.render(visible)
         renderer.hideImmediately()
         renderer.render(visible)
@@ -99,13 +99,29 @@ class T9CandidateUiRendererTest {
         renderer.render(
             state(
                 candidates = paged("hello"),
-                pinyinOptions = emptyList(),
+                readingOptions = emptyList(),
                 pinyinUseT9 = false
             )
         )
 
         assertEquals(listOf("renderPinyin", "show"), delegate.events)
         assertEquals(1, delegate.renderPinyinCount)
+    }
+
+    @Test
+    fun candidateStatusChangeIsForwardedToTheSurface() {
+        val delegate = FakeDelegate()
+        val renderer = T9CandidateUiRenderer(delegate)
+
+        renderer.render(
+            state(
+                candidates = emptyPaged(),
+                readingOptions = emptyList(),
+                candidateStatus = T9CandidateStatus.NO_MATCH
+            )
+        )
+
+        assertEquals(listOf(T9CandidateStatus.NO_MATCH), delegate.candidateStatuses)
     }
 
     private class FakeDelegate : T9CandidateUiRenderer.Delegate {
@@ -120,6 +136,7 @@ class T9CandidateUiRendererTest {
         val showRequests = mutableListOf<Boolean>()
         var hideCount = 0
         val events = mutableListOf<String>()
+        val candidateStatuses = mutableListOf<T9CandidateStatus?>()
 
         override fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean) = Unit
 
@@ -129,10 +146,13 @@ class T9CandidateUiRendererTest {
             candidates: FcitxEvent.PagedCandidateEvent.Data,
             orientation: FloatingCandidatesOrientation,
             showShortcutLabels: Boolean,
-            shortcutStyle: T9ShortcutCandidateStyle
-        ) = Unit
+            shortcutStyle: T9ShortcutCandidateStyle,
+            candidateStatus: T9CandidateStatus?
+        ) {
+            candidateStatuses += candidateStatus
+        }
 
-        override fun renderPinyin(pinyinOptions: List<String>, pinyinUseT9: Boolean): Boolean {
+        override fun renderPinyin(readingOptions: List<String>, pinyinUseT9: Boolean): Boolean {
             events += "renderPinyin"
             renderPinyinCount += 1
             return pinyinReady
@@ -159,9 +179,10 @@ class T9CandidateUiRendererTest {
 
     private fun state(
         candidates: FcitxEvent.PagedCandidateEvent.Data,
-        pinyinOptions: List<String> = listOf("a"),
+        readingOptions: List<String> = listOf("a"),
         pinyinUseT9: Boolean = true,
-        shouldShow: Boolean = true
+        shouldShow: Boolean = true,
+        candidateStatus: T9CandidateStatus? = null
     ): T9CandidateRenderState =
         T9CandidateRenderState(
             panel = FcitxEvent.InputPanelEvent.Data(),
@@ -169,8 +190,9 @@ class T9CandidateUiRendererTest {
             orientation = FloatingCandidatesOrientation.Horizontal,
             showShortcutLabels = true,
             shortcutStyle = T9ShortcutCandidateStyle.ADAPTIVE_TAIL,
+            candidateStatus = candidateStatus,
             reservePreeditRow = false,
-            pinyinOptions = pinyinOptions,
+            readingOptions = readingOptions,
             pinyinUseT9 = pinyinUseT9,
             focus = T9CandidateFocus.BOTTOM,
             preferAboveCursorAnchor = true,

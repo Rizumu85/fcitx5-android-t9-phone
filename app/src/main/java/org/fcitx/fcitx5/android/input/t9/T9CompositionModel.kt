@@ -31,9 +31,14 @@ data class T9CompositionModel(
 
 data class T9PresentationState(
     val topReading: FormattedText?,
-    val pinyinOptions: List<String>,
+    val readingOptions: List<String>,
     val reserveTopReadingRow: Boolean = false,
+    val candidateStatus: T9CandidateStatus? = null,
 ) {
-    val pinyinRowVisible: Boolean
-        get() = pinyinOptions.isNotEmpty()
+    val readingRowVisible: Boolean
+        get() = readingOptions.isNotEmpty()
+}
+
+enum class T9CandidateStatus {
+    NO_MATCH
 }

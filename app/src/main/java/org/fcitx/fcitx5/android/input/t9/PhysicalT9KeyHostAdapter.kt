@@ -23,7 +23,7 @@ class PhysicalT9KeyHostAdapter(
         val hasSmartEnglishDigits: () -> Boolean,
         val hasSmartEnglishCandidates: () -> Boolean,
         val hasMultiTapPendingChar: () -> Boolean,
-        val hasTopPinyinCandidates: () -> Boolean,
+        val hasTopReadingCandidates: () -> Boolean,
         val hasBottomCandidateRow: () -> Boolean,
         val candidateFocus: () -> T9CandidateFocus,
         val keyHeldPastLongPressDelay: (PhysicalT9KeyHandler.KeyInput) -> Boolean,
@@ -56,10 +56,10 @@ class PhysicalT9KeyHostAdapter(
     data class CandidateActions(
         val commitHanziShortcut: (Int) -> Boolean,
         val moveFocus: (T9CandidateFocus) -> Unit,
-        val moveHighlightedPinyin: (Int) -> Boolean,
+        val moveHighlightedReading: (Int) -> Boolean,
         val moveHighlightedBottomCandidate: (Int) -> Boolean,
         val offsetBottomCandidatePage: (Int) -> Boolean,
-        val commitHighlightedPinyin: () -> Boolean,
+        val commitHighlightedReading: () -> Boolean,
         val commitHighlightedBottomCandidate: () -> Boolean,
         val commitChineseCandidateAndShowPunctuation: () -> Unit
     )
@@ -112,8 +112,8 @@ class PhysicalT9KeyHostAdapter(
     override val hasMultiTapPendingChar: Boolean
         get() = state.hasMultiTapPendingChar()
 
-    override val hasTopPinyinCandidates: Boolean
-        get() = state.hasTopPinyinCandidates()
+    override val hasTopReadingCandidates: Boolean
+        get() = state.hasTopReadingCandidates()
 
     override val hasBottomCandidateRow: Boolean
         get() = state.hasBottomCandidateRow()
@@ -231,8 +231,8 @@ class PhysicalT9KeyHostAdapter(
             }
         )
 
-    override fun moveHighlightedPinyin(delta: Int): Boolean =
-        candidates.moveHighlightedPinyin(delta)
+    override fun moveHighlightedReading(delta: Int): Boolean =
+        candidates.moveHighlightedReading(delta)
 
     override fun moveHighlightedBottomCandidate(delta: Int): Boolean =
         candidates.moveHighlightedBottomCandidate(delta)
@@ -240,8 +240,8 @@ class PhysicalT9KeyHostAdapter(
     override fun offsetBottomCandidatePage(delta: Int): Boolean =
         candidates.offsetBottomCandidatePage(delta)
 
-    override fun commitHighlightedPinyin(): Boolean =
-        candidates.commitHighlightedPinyin()
+    override fun commitHighlightedReading(): Boolean =
+        candidates.commitHighlightedReading()
 
     override fun commitHighlightedBottomCandidate(): Boolean =
         candidates.commitHighlightedBottomCandidate()

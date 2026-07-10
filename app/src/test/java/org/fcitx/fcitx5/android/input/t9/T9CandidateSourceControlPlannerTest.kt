@@ -111,13 +111,73 @@ class T9CandidateSourceControlPlannerTest {
         val plan = T9CandidateSourceControlPlanner.plan(
             input(
                 compositionKeyCount = 2,
-                usesPinyinCandidatePipeline = false
+                chineseScheme = ChineseT9Scheme.STROKE
             )
         )
 
         assertEquals(T9CandidateSourceControlPlanner.BulkAction.RESET, plan.bulkAction)
         assertEquals(T9CandidateSourceControlPlanner.FilterAction.PASSTHROUGH, plan.filterAction)
         assertTrue(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false, bulkFilterPending = false))
+    }
+
+    @Test
+    fun unresolvedZhuyinKeepsLocalReadingVisibleWithoutStartingBulkLoading() {
+        val loadingState = ChineseT9CandidateLoadingState().apply {
+            startIfNeeded(
+                chineseT9Active = true,
+                ticket = ChineseT9CompositionTicket(
+                    scheme = ChineseT9Scheme.ZHUYIN,
+                    rawSequence = "3",
+                    digitSequence = "3",
+                    sessionRevision = 1
+                )
+            )
+        }
+
+        val plan = T9CandidateSourceControlPlanner.plan(
+            input(
+                loadingState = loadingState,
+                rawCandidatesEmpty = true,
+                compositionKeyCount = 1,
+                chineseScheme = ChineseT9Scheme.ZHUYIN
+            )
+        )
+
+        assertTrue(plan.waitForChineseCandidates)
+        assertFalse(plan.deferRender)
+        assertEquals(T9CandidateSourceControlPlanner.BulkAction.RESET, plan.bulkAction)
+        assertEquals(T9CandidateSourceControlPlanner.FilterAction.EMPTY, plan.filterAction)
+    }
+
+    @Test
+    fun selectedZhuyinReadingUsesCrossPageBulkFiltering() {
+        val plan = T9CandidateSourceControlPlanner.plan(
+            input(
+                compositionKeyCount = 2,
+                filterPrefixesEmpty = false,
+                chineseScheme = ChineseT9Scheme.ZHUYIN
+            )
+        )
+
+        assertEquals(T9CandidateSourceControlPlanner.BulkAction.REQUEST, plan.bulkAction)
+        assertEquals(T9CandidateSourceControlPlanner.FilterAction.CHINESE_PREFIX_FILTER, plan.filterAction)
+    }
+
+    @Test
+    fun invalidZhuyinShowsNoMatchWithoutEngineOrCandidateWork() {
+        val plan = T9CandidateSourceControlPlanner.plan(
+            input(
+                compositionKeyCount = 2,
+                chineseScheme = ChineseT9Scheme.ZHUYIN,
+                invalidReading = true
+            )
+        )
+
+        assertFalse(plan.waitForChineseCandidates)
+        assertFalse(plan.deferRender)
+        assertEquals(T9CandidateSourceControlPlanner.BulkAction.RESET, plan.bulkAction)
+        assertEquals(T9CandidateSourceControlPlanner.FilterAction.EMPTY, plan.filterAction)
+        assertFalse(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false, bulkFilterPending = false))
     }
 
     @Test
@@ -139,7 +199,8 @@ class T9CandidateSourceControlPlannerTest {
         compositionKeyCount: Int = 1,
         pendingPinyinSelection: Boolean = false,
         filterPrefixesEmpty: Boolean = true,
-        usesPinyinCandidatePipeline: Boolean = true
+        chineseScheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN,
+        invalidReading: Boolean = false
     ): T9CandidateSourceControlPlanner.Input =
         T9CandidateSourceControlPlanner.Input(
             surface = surface,
@@ -149,6 +210,7 @@ class T9CandidateSourceControlPlannerTest {
             compositionKeyCount = compositionKeyCount,
             pendingPinyinSelection = pendingPinyinSelection,
             filterPrefixesEmpty = filterPrefixesEmpty,
-            usesPinyinCandidatePipeline = usesPinyinCandidatePipeline
+            chineseScheme = chineseScheme,
+            invalidReading = invalidReading
         )
 }

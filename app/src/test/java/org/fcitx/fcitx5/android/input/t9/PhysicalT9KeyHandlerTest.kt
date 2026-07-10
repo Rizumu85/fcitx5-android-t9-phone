@@ -430,7 +430,7 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
-    fun chineseIdlePoundDoesNotReturnWhenSchemeCycleOwnsTheKey() {
+    fun chineseIdlePoundReturnsEvenWhenSeveralSchemesAreConfigured() {
         val host = FakeHost(
             mode = PhysicalT9KeyHandler.Mode.CHINESE,
             cycleChineseSchemeResult = true
@@ -440,8 +440,56 @@ class PhysicalT9KeyHandlerTest {
         assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN)).handled)
         assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP)).handled)
 
-        assertEquals(1, host.cycleChineseSchemeCount)
-        assertEquals(0, host.handleReturnCount)
+        assertEquals(0, host.cycleChineseSchemeCount)
+        assertEquals(1, host.handleReturnCount)
+    }
+
+    @Test
+    fun chineseIdleLongStarCyclesSchemeOrCommitsLiteralFallback() {
+        val cycleHost = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            cycleChineseSchemeResult = true
+        )
+        val cycleHandler = PhysicalT9KeyHandler(cycleHost)
+        cycleHandler.handleKeyDown(keyInput(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN))
+        cycleHandler.handleKeyDown(
+            keyInput(
+                keyCode = KeyEvent.KEYCODE_STAR,
+                action = KeyEvent.ACTION_DOWN,
+                repeatCount = 1,
+                eventTime = 700L
+            )
+        )
+        cycleHandler.handleKeyUp(keyInput(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP))
+
+        val fallbackHost = FakeHost(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        val fallbackHandler = PhysicalT9KeyHandler(fallbackHost)
+        fallbackHandler.handleKeyDown(keyInput(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN))
+        fallbackHandler.handleKeyDown(
+            keyInput(
+                keyCode = KeyEvent.KEYCODE_STAR,
+                action = KeyEvent.ACTION_DOWN,
+                repeatCount = 1,
+                eventTime = 700L
+            )
+        )
+        fallbackHandler.handleKeyUp(keyInput(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP))
+
+        assertEquals(1, cycleHost.cycleChineseSchemeCount)
+        assertEquals(0, cycleHost.commitLiteralStarCount)
+        assertEquals(1, fallbackHost.cycleChineseSchemeCount)
+        assertEquals(1, fallbackHost.commitLiteralStarCount)
+    }
+
+    @Test
+    fun pinyinIdleOneShortPressCommitsOneLiteralDigit() {
+        val host = FakeHost(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        val handler = PhysicalT9KeyHandler(host)
+
+        handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_1, KeyEvent.ACTION_DOWN))
+        handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_1, KeyEvent.ACTION_UP))
+
+        assertEquals(listOf("1"), host.committedTexts)
     }
 
     @Test
@@ -707,7 +755,7 @@ class PhysicalT9KeyHandlerTest {
         override var hasSmartEnglishDigits: Boolean = false,
         override var hasSmartEnglishCandidates: Boolean = hasSmartEnglishDigits,
         override var hasMultiTapPendingChar: Boolean = false,
-        override var hasTopPinyinCandidates: Boolean = false,
+        override var hasTopReadingCandidates: Boolean = false,
         override var hasBottomCandidateRow: Boolean = false,
         override var candidateFocus: PhysicalT9KeyHandler.CandidateFocus =
             PhysicalT9KeyHandler.CandidateFocus.BOTTOM,
@@ -874,7 +922,7 @@ class PhysicalT9KeyHandlerTest {
             candidateFocus = focus
         }
 
-        override fun moveHighlightedPinyin(delta: Int): Boolean = false
+        override fun moveHighlightedReading(delta: Int): Boolean = false
         override fun moveHighlightedBottomCandidate(delta: Int): Boolean {
             bottomCandidateMoves += delta
             return false
@@ -885,7 +933,7 @@ class PhysicalT9KeyHandlerTest {
             return false
         }
 
-        override fun commitHighlightedPinyin(): Boolean = false
+        override fun commitHighlightedReading(): Boolean = false
 
         override fun commitHighlightedBottomCandidate(): Boolean {
             commitHighlightedBottomCandidateCount += 1

@@ -65,7 +65,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
         val hasSmartEnglishDigits: Boolean
         val hasSmartEnglishCandidates: Boolean
         val hasMultiTapPendingChar: Boolean
-        val hasTopPinyinCandidates: Boolean
+        val hasTopReadingCandidates: Boolean
         val hasBottomCandidateRow: Boolean
         val candidateFocus: CandidateFocus
 
@@ -104,10 +104,10 @@ class PhysicalT9KeyHandler(private val host: Host) {
         fun forwardChineseT9SeparatorShortPress(): Boolean
         fun discardChineseCompositionForModeSwitch()
         fun moveCandidateFocus(focus: CandidateFocus)
-        fun moveHighlightedPinyin(delta: Int): Boolean
+        fun moveHighlightedReading(delta: Int): Boolean
         fun moveHighlightedBottomCandidate(delta: Int): Boolean
         fun offsetBottomCandidatePage(delta: Int): Boolean
-        fun commitHighlightedPinyin(): Boolean
+        fun commitHighlightedReading(): Boolean
         fun commitHighlightedBottomCandidate(): Boolean
     }
 
@@ -155,7 +155,7 @@ class PhysicalT9KeyHandler(private val host: Host) {
             hasSmartEnglishDigits = host.hasSmartEnglishDigits,
             hasSmartEnglishCandidates = host.hasSmartEnglishCandidates,
             hasMultiTapPendingChar = host.hasMultiTapPendingChar,
-            hasTopPinyinCandidates = host.hasTopPinyinCandidates,
+            hasTopReadingCandidates = host.hasTopReadingCandidates,
             hasBottomCandidateRow = host.hasBottomCandidateRow,
             candidateFocus = host.candidateFocus,
             heldPastLongPressDelay = host.keyHeldPastLongPressDelay(input),

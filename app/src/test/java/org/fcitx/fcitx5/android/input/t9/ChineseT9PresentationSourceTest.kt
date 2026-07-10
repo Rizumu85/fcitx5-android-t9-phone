@@ -25,7 +25,7 @@ class ChineseT9PresentationSourceTest {
         )
 
         assertEquals("ge", state.topReading?.toString())
-        assertEquals(listOf("ge", "he", "g", "h", "i"), state.pinyinOptions)
+        assertEquals(listOf("ge", "he", "g", "h", "i"), state.readingOptions)
     }
 
     @Test
@@ -45,7 +45,7 @@ class ChineseT9PresentationSourceTest {
         )
 
         assertEquals("ge'", state.topReading?.toString())
-        assertEquals(emptyList<String>(), state.pinyinOptions)
+        assertEquals(emptyList<String>(), state.readingOptions)
     }
 
     @Test
@@ -62,7 +62,7 @@ class ChineseT9PresentationSourceTest {
         )
 
         assertEquals("。", state.topReading?.toString())
-        assertEquals(emptyList<String>(), state.pinyinOptions)
+        assertEquals(emptyList<String>(), state.readingOptions)
     }
 
     private fun source(): ChineseT9PresentationSource =

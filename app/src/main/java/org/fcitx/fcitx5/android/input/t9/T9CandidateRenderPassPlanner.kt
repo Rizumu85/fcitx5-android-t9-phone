@@ -66,21 +66,21 @@ object T9CandidateRenderPassPlanner {
 
     private fun pinyinAction(input: Input): PinyinAction {
         if (!input.nextState.shouldShow) return PinyinAction.NONE
-        val hasPinyinRow = input.nextState.pinyinUseT9 && input.nextState.pinyinOptions.isNotEmpty()
+        val hasPinyinRow = input.nextState.pinyinUseT9 && input.nextState.readingOptions.isNotEmpty()
         val previousPinyinWasReady = input.previousVisibilityRequest?.contentReady == true
         val previousPanelWasShown = input.previousVisibilityRequest?.shouldShow == true
         val shouldClearPinyinRow = !input.nextState.pinyinUseT9 &&
             (
                 input.previousState == null ||
                     input.previousState.pinyinUseT9 ||
-                    input.previousState.pinyinOptions.isNotEmpty()
+                    input.previousState.readingOptions.isNotEmpty()
                 )
         val shouldEnsurePinyinRow = hasPinyinRow &&
             (
                 input.previousState == null ||
                     !previousPanelWasShown ||
                     !input.previousState.pinyinUseT9 ||
-                    input.previousState.pinyinOptions.isEmpty() ||
+                    input.previousState.readingOptions.isEmpty() ||
                     !previousPinyinWasReady
                 )
         return when {

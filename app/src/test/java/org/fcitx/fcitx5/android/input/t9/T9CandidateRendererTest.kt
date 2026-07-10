@@ -66,8 +66,8 @@ class T9CandidateRendererTest {
 
     @Test
     fun pinyinContentChangeRefreshesFocusForNewChips() {
-        val previous = state(pinyinOptions = listOf("a"))
-        val next = state(pinyinOptions = listOf("ai"))
+        val previous = state(readingOptions = listOf("a"))
+        val next = state(readingOptions = listOf("ai"))
 
         val patch = T9CandidateRenderer.diff(previous, next)
 
@@ -92,7 +92,7 @@ class T9CandidateRendererTest {
 
     private fun state(
         candidates: FcitxEvent.PagedCandidateEvent.Data = paged("a"),
-        pinyinOptions: List<String> = listOf("a"),
+        readingOptions: List<String> = listOf("a"),
         shortcutStyle: T9ShortcutCandidateStyle = T9ShortcutCandidateStyle.ADAPTIVE_TAIL,
         reservePreeditRow: Boolean = false,
         shouldShow: Boolean = true
@@ -104,7 +104,7 @@ class T9CandidateRendererTest {
             showShortcutLabels = true,
             shortcutStyle = shortcutStyle,
             reservePreeditRow = reservePreeditRow,
-            pinyinOptions = pinyinOptions,
+            readingOptions = readingOptions,
             pinyinUseT9 = true,
             focus = T9CandidateFocus.BOTTOM,
             preferAboveCursorAnchor = true,

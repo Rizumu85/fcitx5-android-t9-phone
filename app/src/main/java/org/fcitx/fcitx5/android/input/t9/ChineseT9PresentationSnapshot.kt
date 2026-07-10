@@ -17,7 +17,9 @@ data class ChineseT9InputSnapshot(
     val filterPrefixes: List<String>,
     val hasPendingPinyinSelection: Boolean,
     val sessionRevision: Long,
-    val scheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN
+    val scheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN,
+    val selectedReading: String? = null,
+    val hasInvalidReading: Boolean = false
 ) {
     fun compositionTicket(): ChineseT9CompositionTicket =
         ChineseT9CompositionTicket(
@@ -44,7 +46,8 @@ data class ChineseT9InputSnapshot(
             candidateComment = candidateComment,
             candidateCursorIndex = candidateCursorIndex,
             sessionRevision = sessionRevision,
-            scheme = scheme
+            scheme = scheme,
+            selectedReading = selectedReading
         )
 
     fun presentationKey(
@@ -81,7 +84,8 @@ data class ChineseT9PresentationSnapshotKey(
     val candidateComment: String,
     val candidateCursorIndex: Int,
     val sessionRevision: Long,
-    val scheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN
+    val scheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN,
+    val selectedReading: String? = null
 )
 
 class ChineseT9PresentationSnapshotCache {

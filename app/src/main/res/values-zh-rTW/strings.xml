@@ -9,6 +9,7 @@
     <string name="chinese_t9_stroke">五筆畫九鍵</string>
     <string name="chinese_t9_zhuyin">注音九鍵</string>
     <string name="chinese_t9_at_least_one">至少保留一個中文輸入方案</string>
+    <string name="t9_no_matches">無相符結果</string>
     <string name="add_input_method">新增輸入法</string>
     <string name="addons">附加元件</string>
     <string name="conf">設定</string>

@@ -79,7 +79,7 @@ internal class PhysicalT9ChineseKeyFlow(
                 } else {
                     Decision(
                         handled = true,
-                        commands = listOf(Command.CycleChineseSchemeOrReturn)
+                        commands = listOf(Command.HandleReturnKey)
                     )
                 }
             }
@@ -140,7 +140,15 @@ internal class PhysicalT9ChineseKeyFlow(
                 setDigitLongPressFlag(input.keyCode, true)
                 Decision(
                     handled = true,
-                    commands = listOf(Command.CommitLiteralStar)
+                    commands = listOf(
+                        if (state.hasChineseComposition) {
+                            Command.CommitLiteralStar
+                        } else {
+                            // Product decision: idle long-* owns scheme switching because every
+                            // Chinese scheme needs its digits and idle short-# must remain Return.
+                            Command.CycleChineseSchemeOrCommitLiteralStar
+                        }
+                    )
                 )
             } else {
                 Decision(handled = true)
@@ -215,7 +223,7 @@ internal class PhysicalT9ChineseKeyFlow(
                         when {
                             supportsTopReading &&
                                 state.candidateFocus == PhysicalT9KeyHandler.CandidateFocus.TOP ->
-                                Command.CommitHighlightedPinyin
+                                Command.CommitHighlightedReading
                             else -> Command.CommitBottomCandidate(BottomCandidateFallback.NONE)
                         }
                     )
@@ -247,7 +255,7 @@ internal class PhysicalT9ChineseKeyFlow(
                 commands = when {
                     wasLongPress -> emptyList()
                     state.compositionKeyCount > 0 -> listOf(Command.ForwardChineseT9SeparatorShortPress)
-                    else -> emptyList()
+                    else -> listOf(Command.CommitText("1"))
                 }
             )
         }

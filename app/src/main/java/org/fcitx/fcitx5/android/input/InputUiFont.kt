@@ -6,6 +6,8 @@ package org.fcitx.fcitx5.android.input
 
 import android.content.Context
 import android.graphics.Typeface
+import android.graphics.fonts.Font
+import android.graphics.fonts.FontFamily
 import android.os.Build
 import android.os.Environment
 import android.text.TextPaint
@@ -112,7 +114,22 @@ object InputUiFont {
 
     private fun typefaceFromFontFileValue(value: String): Typeface? {
         return runCatching {
-            Typeface.createFromFile(File(value.removePrefix(FontFilePrefix)))
+            val file = File(value.removePrefix(FontFilePrefix))
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // Product decision: custom typography must not turn a valid rare Han candidate
+                // into a blank chip. One fallback family also keeps Paint measurement aligned
+                // with the Typeface used by candidate TextViews.
+                val family = FontFamily.Builder(Font.Builder(file).build()).build()
+                Typeface.CustomFallbackBuilder(family)
+                    .setSystemFallback("sans-serif")
+                    .build()
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Typeface.Builder(file)
+                    .setFallback("sans-serif")
+                    .build()
+            } else {
+                Typeface.createFromFile(file)
+            }
         }.getOrNull()
     }
 }

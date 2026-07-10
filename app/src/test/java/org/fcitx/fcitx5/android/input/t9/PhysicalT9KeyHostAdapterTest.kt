@@ -85,7 +85,7 @@ class PhysicalT9KeyHostAdapterTest {
                 hasSmartEnglishDigits = { false },
                 hasSmartEnglishCandidates = { false },
                 hasMultiTapPendingChar = { false },
-                hasTopPinyinCandidates = { false },
+                hasTopReadingCandidates = { false },
                 hasBottomCandidateRow = { false },
                 candidateFocus = candidateFocus,
                 keyHeldPastLongPressDelay = { false }
@@ -114,10 +114,10 @@ class PhysicalT9KeyHostAdapterTest {
             candidates = PhysicalT9KeyHostAdapter.CandidateActions(
                 commitHanziShortcut = { false },
                 moveFocus = moveFocus,
-                moveHighlightedPinyin = { false },
+                moveHighlightedReading = { false },
                 moveHighlightedBottomCandidate = { false },
                 offsetBottomCandidatePage = { false },
-                commitHighlightedPinyin = { false },
+                commitHighlightedReading = { false },
                 commitHighlightedBottomCandidate = { false },
                 commitChineseCandidateAndShowPunctuation = {}
             ),

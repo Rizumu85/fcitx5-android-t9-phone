@@ -68,7 +68,7 @@ class ChineseT9CompositionCoordinatorTest {
             stateBeforeEnginePreedit
         )
         assertEquals(emptyList<String>(), snapshot.filterPrefixes)
-        assertEquals(emptyList<String>(), presentation.pinyinOptions)
+        assertEquals(emptyList<String>(), presentation.readingOptions)
         assertEquals("一？", presentation.topReading?.toString())
     }
 
@@ -94,6 +94,66 @@ class ChineseT9CompositionCoordinatorTest {
         assertEquals("38", snapshot.rawSequence)
         assertEquals(ChineseT9Scheme.ZHUYIN, snapshot.scheme)
         assertEquals("ㄏㄠ", presentation.topReading?.toString())
+    }
+
+    @Test
+    fun zhuyinResolverProvidesImmediateReadingOptionsBeforeRimeCandidates() {
+        val coordinator = coordinator()
+        coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_8)
+
+        val snapshot = coordinator.snapshot("")
+        val presentation = coordinator.presentation(
+            snapshot.presentationKey(
+                pendingPunctuationText = null,
+                inputPreedit = "",
+                candidateComment = "",
+                candidateCursorIndex = -1
+            )
+        )
+
+        assertFalse(snapshot.hasInvalidReading)
+        assertTrue("ㄏㄠ" in presentation.readingOptions)
+        assertTrue(presentation.topReading?.toString() in presentation.readingOptions)
+    }
+
+    @Test
+    fun selectedZhuyinReadingBecomesTheCrossPageFilterPrefix() {
+        val coordinator = coordinator()
+        coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_8)
+
+        assertTrue(coordinator.selectZhuyinReading("ㄏㄠ"))
+        val snapshot = coordinator.snapshot("")
+
+        assertEquals("ㄏㄠ", snapshot.selectedReading)
+        assertEquals(listOf("ㄏㄠ"), snapshot.filterPrefixes)
+    }
+
+    @Test
+    fun invalidZhuyinKeepsRawDigitsAndExposesNonInteractiveNoMatchState() {
+        val coordinator = coordinator()
+        coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
+
+        val snapshot = coordinator.snapshot("")
+        val presentation = coordinator.presentation(
+            snapshot.presentationKey(
+                pendingPunctuationText = null,
+                inputPreedit = "",
+                candidateComment = "",
+                candidateCursorIndex = -1
+            )
+        )
+
+        assertTrue(snapshot.hasInvalidReading)
+        assertEquals("33", presentation.topReading?.toString())
+        assertEquals(T9CandidateStatus.NO_MATCH, presentation.candidateStatus)
+        assertTrue(presentation.readingOptions.isEmpty())
+        assertEquals(null, coordinator.literalCommitText("33"))
     }
 
     @Test

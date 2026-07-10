@@ -16,7 +16,7 @@ class PhysicalT9SelectionModeTest {
         val decision = PhysicalT9SelectionMode.handle(
             input = input(KeyEvent.KEYCODE_DPAD_UP),
             state = state(
-                hasTopPinyinCandidates = true,
+                hasTopReadingCandidates = true,
                 hasBottomCandidateRow = true,
                 candidateFocus = PhysicalT9KeyHandler.CandidateFocus.BOTTOM
             ),
@@ -119,7 +119,7 @@ class PhysicalT9SelectionModeTest {
         hasSmartEnglishDigits: Boolean = false,
         hasSmartEnglishCandidates: Boolean = false,
         hasMultiTapPendingChar: Boolean = false,
-        hasTopPinyinCandidates: Boolean = false,
+        hasTopReadingCandidates: Boolean = false,
         hasBottomCandidateRow: Boolean = false,
         candidateFocus: PhysicalT9KeyHandler.CandidateFocus =
             PhysicalT9KeyHandler.CandidateFocus.BOTTOM,
@@ -134,7 +134,7 @@ class PhysicalT9SelectionModeTest {
             hasSmartEnglishDigits = hasSmartEnglishDigits,
             hasSmartEnglishCandidates = hasSmartEnglishCandidates,
             hasMultiTapPendingChar = hasMultiTapPendingChar,
-            hasTopPinyinCandidates = hasTopPinyinCandidates,
+            hasTopReadingCandidates = hasTopReadingCandidates,
             hasBottomCandidateRow = hasBottomCandidateRow,
             candidateFocus = candidateFocus,
             heldPastLongPressDelay = heldPastLongPressDelay

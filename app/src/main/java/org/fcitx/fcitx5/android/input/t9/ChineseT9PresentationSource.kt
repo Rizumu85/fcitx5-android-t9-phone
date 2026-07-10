@@ -15,7 +15,7 @@ class ChineseT9PresentationSource(
         key.pendingPunctuationText?.let {
             return T9PresentationState(
                 topReading = formatText(it),
-                pinyinOptions = emptyList()
+                readingOptions = emptyList()
             )
         }
         val candidateReading = buildCandidatePreviewReading(
@@ -60,7 +60,7 @@ class ChineseT9PresentationSource(
         }
         return T9PresentationState(
             topReading = topReading,
-            pinyinOptions = if (key.currentSegment.isEmpty()) {
+            readingOptions = if (key.currentSegment.isEmpty()) {
                 emptyList()
             } else {
                 T9PinyinUtils.t9KeyToPinyin(key.currentSegment)

@@ -17,7 +17,7 @@ class T9CandidateRenderPassPlannerTest {
     @Test
     fun firstVisibleChinesePinyinFrameRendersPinyinRow() {
         val plan = T9CandidateRenderPassPlanner.plan(
-            input(previous = null, next = state(pinyinOptions = listOf("ge", "he")))
+            input(previous = null, next = state(readingOptions = listOf("ge", "he")))
         )
 
         assertEquals(T9CandidateRenderPassPlanner.PinyinAction.RENDER, plan.pinyinAction)
@@ -26,8 +26,8 @@ class T9CandidateRenderPassPlannerTest {
 
     @Test
     fun candidateContentChangeWithReadyPinyinOnlySyncsPinyinLayout() {
-        val previous = state(candidates = paged("好"), pinyinOptions = listOf("ge", "he"))
-        val next = state(candidates = paged("好", "给"), pinyinOptions = listOf("ge", "he"))
+        val previous = state(candidates = paged("好"), readingOptions = listOf("ge", "he"))
+        val next = state(candidates = paged("好", "给"), readingOptions = listOf("ge", "he"))
         val plan = T9CandidateRenderPassPlanner.plan(
             input(
                 previous = previous,
@@ -41,8 +41,8 @@ class T9CandidateRenderPassPlannerTest {
 
     @Test
     fun pendingPinyinRevealRendersAgainUntilContentReady() {
-        val previous = state(candidates = paged("好"), pinyinOptions = listOf("ge"))
-        val next = state(candidates = paged("好"), pinyinOptions = listOf("ge"))
+        val previous = state(candidates = paged("好"), readingOptions = listOf("ge"))
+        val next = state(candidates = paged("好"), readingOptions = listOf("ge"))
         val plan = T9CandidateRenderPassPlanner.plan(
             input(
                 previous = previous,
@@ -56,8 +56,8 @@ class T9CandidateRenderPassPlannerTest {
 
     @Test
     fun nonChineseT9FrameClearsPreviouslyVisiblePinyinRow() {
-        val previous = state(pinyinOptions = listOf("ge"))
-        val next = state(pinyinUseT9 = false, pinyinOptions = emptyList())
+        val previous = state(readingOptions = listOf("ge"))
+        val next = state(pinyinUseT9 = false, readingOptions = emptyList())
 
         val plan = T9CandidateRenderPassPlanner.plan(
             input(previous = previous, next = next)
@@ -68,8 +68,8 @@ class T9CandidateRenderPassPlannerTest {
 
     @Test
     fun hiddenFrameSkipsChildRenderingAndPlansHide() {
-        val previous = state(pinyinOptions = listOf("ge"))
-        val next = state(shouldShow = false, pinyinOptions = emptyList())
+        val previous = state(readingOptions = listOf("ge"))
+        val next = state(shouldShow = false, readingOptions = emptyList())
 
         val plan = T9CandidateRenderPassPlanner.plan(
             input(
@@ -105,7 +105,7 @@ class T9CandidateRenderPassPlannerTest {
 
     private fun state(
         candidates: FcitxEvent.PagedCandidateEvent.Data = paged("好"),
-        pinyinOptions: List<String> = listOf("ge"),
+        readingOptions: List<String> = listOf("ge"),
         pinyinUseT9: Boolean = true,
         shouldShow: Boolean = true
     ): T9CandidateRenderState =
@@ -116,7 +116,7 @@ class T9CandidateRenderPassPlannerTest {
             showShortcutLabels = true,
             shortcutStyle = T9ShortcutCandidateStyle.ADAPTIVE_TAIL,
             reservePreeditRow = false,
-            pinyinOptions = pinyinOptions,
+            readingOptions = readingOptions,
             pinyinUseT9 = pinyinUseT9,
             focus = T9CandidateFocus.BOTTOM,
             preferAboveCursorAnchor = false,

@@ -34,10 +34,10 @@ object T9CandidateRenderStatePlanner {
                 )
             } ?: input.inputPanel
         }
-        val pinyinOptions = if (input.suppressEmptyCandidates) {
+        val readingOptions = if (input.suppressEmptyCandidates) {
             emptyList()
         } else {
-            input.presentationState?.pinyinOptions ?: emptyList()
+            input.presentationState?.readingOptions ?: emptyList()
         }
         return T9CandidateRenderState(
             panel = panel,
@@ -51,9 +51,10 @@ object T9CandidateRenderStatePlanner {
             } else {
                 T9ShortcutCandidateStyle.ADAPTIVE_TAIL
             },
+            candidateStatus = input.presentationState?.candidateStatus,
             reservePreeditRow = !input.suppressEmptyCandidates &&
                 input.presentationState?.reserveTopReadingRow == true,
-            pinyinOptions = pinyinOptions,
+            readingOptions = readingOptions,
             pinyinUseT9 = input.chineseT9Active,
             focus = input.focus,
             // Product decision: Chinese T9 should use the same stable bubble placement as Smart
@@ -66,26 +67,30 @@ object T9CandidateRenderStatePlanner {
 
     private fun shouldShowShortcutLabels(input: Input): Boolean =
         input.candidates.candidates.isNotEmpty() &&
+            input.presentationState?.candidateStatus == null &&
             (input.usesSmartEnglish || input.usesPendingPunctuation || input.chineseT9Active)
 
     private fun shouldShow(input: Input): Boolean =
         !input.suppressEmptyCandidates && evaluateVisibility(
             inputPanel = input.inputPanel,
             topReading = input.presentationState?.topReading,
-            pinyinRowVisible = input.presentationState?.pinyinRowVisible == true,
-            hasVisibleCandidates = input.candidates.candidates.isNotEmpty()
+            readingRowVisible = input.presentationState?.readingRowVisible == true,
+            hasVisibleCandidates = input.candidates.candidates.isNotEmpty(),
+            hasCandidateStatus = input.presentationState?.candidateStatus != null
         )
 
     private fun evaluateVisibility(
         inputPanel: FcitxEvent.InputPanelEvent.Data,
         topReading: FormattedText?,
-        pinyinRowVisible: Boolean,
-        hasVisibleCandidates: Boolean
+        readingRowVisible: Boolean,
+        hasVisibleCandidates: Boolean,
+        hasCandidateStatus: Boolean
     ): Boolean =
         inputPanel.preedit.isNotEmpty() ||
             hasVisibleCandidates ||
             inputPanel.auxUp.isNotEmpty() ||
             inputPanel.auxDown.isNotEmpty() ||
             topReading?.isNotEmpty() == true ||
-            pinyinRowVisible
+            readingRowVisible ||
+            hasCandidateStatus
 }

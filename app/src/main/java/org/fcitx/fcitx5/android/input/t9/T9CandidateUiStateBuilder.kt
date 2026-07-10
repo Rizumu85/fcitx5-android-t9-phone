@@ -127,8 +127,8 @@ class T9CandidateUiStateBuilder(
                     compositionKeyCount = compositionKeyCount,
                     pendingPinyinSelection = pendingT9PinyinSelection,
                     filterPrefixesEmpty = t9FilterPrefixes.isEmpty(),
-                    usesPinyinCandidatePipeline =
-                        chineseSnapshot?.scheme?.hasReadingFilterRow == true
+                    chineseScheme = chineseSnapshot?.scheme,
+                    invalidReading = chineseSnapshot?.hasInvalidReading == true
                 )
             )
             if (sourcePlan.deferRender) {
@@ -243,7 +243,7 @@ class T9CandidateUiStateBuilder(
             if (sourcePlan.suppressEmptyCandidates) {
                 pipeline.clearHiddenChineseT9CompositionIfCandidateUiSuppressed()
             }
-            val pinyinOptions = t9State?.pinyinOptions ?: emptyList()
+            val readingOptions = t9State?.readingOptions ?: emptyList()
             val shownState = ShownState(
                 paged = effectivePaged,
                 originalIndices = originalIndices,
@@ -255,7 +255,7 @@ class T9CandidateUiStateBuilder(
             )
             val focusPlan = effectiveT9CandidateFocus(
                 current = input.currentFocus,
-                pinyinOptions = pinyinOptions,
+                readingOptions = readingOptions,
                 useT9PinyinRow = chineseSurface
             )
             T9CandidateUiSnapshot(
@@ -321,7 +321,7 @@ class T9CandidateUiStateBuilder(
     private fun pendingPunctuationPresentationState(text: String): T9PresentationState =
         T9PresentationState(
             topReading = formattedText(text),
-            pinyinOptions = emptyList()
+            readingOptions = emptyList()
         )
 
     private fun formattedText(text: String): FormattedText? =
@@ -342,10 +342,10 @@ class T9CandidateUiStateBuilder(
 
     private fun effectiveT9CandidateFocus(
         current: T9CandidateFocus,
-        pinyinOptions: List<String>,
+        readingOptions: List<String>,
         useT9PinyinRow: Boolean
     ): FocusPlan {
-        if (useT9PinyinRow && pinyinOptions.isNotEmpty()) return FocusPlan(current, null)
+        if (useT9PinyinRow && readingOptions.isNotEmpty()) return FocusPlan(current, null)
         return FocusPlan(
             focus = T9CandidateFocus.BOTTOM,
             correction = T9CandidateFocus.BOTTOM.takeIf { current == T9CandidateFocus.TOP }

@@ -26,7 +26,7 @@ internal object PhysicalT9SelectionMode {
         if (input.action != KeyEvent.ACTION_DOWN) return null
         val focusKey = selectionFocusKey(input.keyCode, surface) ?: return null
         if (surface == Surface.CHINESE_CANDIDATES &&
-            !state.hasTopPinyinCandidates &&
+            !state.hasTopReadingCandidates &&
             !state.hasBottomCandidateRow
         ) {
             return null
@@ -76,7 +76,7 @@ internal object PhysicalT9SelectionMode {
         // removed that row. Treat the visible bottom row as authoritative instead of swallowing it.
         val effectiveFocus = if (
             state.candidateFocus == PhysicalT9KeyHandler.CandidateFocus.TOP &&
-            !state.hasTopPinyinCandidates &&
+            !state.hasTopReadingCandidates &&
             state.hasBottomCandidateRow
         ) {
             PhysicalT9KeyHandler.CandidateFocus.BOTTOM
@@ -86,7 +86,7 @@ internal object PhysicalT9SelectionMode {
         return when (focusKey) {
             PhysicalT9KeyPolicy.FocusKey.UP -> when {
                 effectiveFocus == PhysicalT9KeyHandler.CandidateFocus.BOTTOM &&
-                    state.hasTopPinyinCandidates ->
+                    state.hasTopReadingCandidates ->
                     Command.MoveCandidateFocus(PhysicalT9KeyHandler.CandidateFocus.TOP)
                 state.hasBottomCandidateRow -> Command.OffsetBottomCandidatePage(delta = -1)
                 else -> null
@@ -105,19 +105,19 @@ internal object PhysicalT9SelectionMode {
             }
             PhysicalT9KeyPolicy.FocusKey.LEFT -> when (effectiveFocus) {
                 PhysicalT9KeyHandler.CandidateFocus.TOP ->
-                    if (state.hasTopPinyinCandidates) Command.MoveHighlightedPinyin(delta = -1) else null
+                    if (state.hasTopReadingCandidates) Command.MoveHighlightedReading(delta = -1) else null
                 PhysicalT9KeyHandler.CandidateFocus.BOTTOM ->
                     if (state.hasBottomCandidateRow) Command.MoveBottomCandidate(delta = -1) else null
             }
             PhysicalT9KeyPolicy.FocusKey.RIGHT -> when (effectiveFocus) {
                 PhysicalT9KeyHandler.CandidateFocus.TOP ->
-                    if (state.hasTopPinyinCandidates) Command.MoveHighlightedPinyin(delta = 1) else null
+                    if (state.hasTopReadingCandidates) Command.MoveHighlightedReading(delta = 1) else null
                 PhysicalT9KeyHandler.CandidateFocus.BOTTOM ->
                     if (state.hasBottomCandidateRow) Command.MoveBottomCandidate(delta = 1) else null
             }
             PhysicalT9KeyPolicy.FocusKey.OK -> when (effectiveFocus) {
                 PhysicalT9KeyHandler.CandidateFocus.TOP ->
-                    if (state.hasTopPinyinCandidates) Command.CommitHighlightedPinyin else null
+                    if (state.hasTopReadingCandidates) Command.CommitHighlightedReading else null
                 PhysicalT9KeyHandler.CandidateFocus.BOTTOM ->
                     if (state.hasBottomCandidateRow) {
                         Command.CommitBottomCandidate(BottomCandidateFallback.NONE)

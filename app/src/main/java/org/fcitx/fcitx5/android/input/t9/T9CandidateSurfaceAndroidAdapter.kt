@@ -6,6 +6,7 @@
 package org.fcitx.fcitx5.android.input.t9
 
 import android.view.View
+import android.widget.TextView
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrientation
 import org.fcitx.fcitx5.android.input.candidates.floating.PagedCandidatesUi
@@ -17,6 +18,8 @@ class T9CandidateSurfaceAndroidAdapter(
     private val pinyinRowAdapter: T9PinyinRowAndroidAdapter,
     private val candidatesUi: PagedCandidatesUi,
     private val shortcutCandidatesUi: T9ShortcutCandidatesUi,
+    private val candidateStatusView: TextView,
+    private val candidateStatusText: (T9CandidateStatus) -> CharSequence,
     private val shortcutCandidateLayout: (FcitxEvent.PagedCandidateEvent.Data) -> T9ShortcutCandidateLayout,
     private val onShortcutCandidateMeasured: (Int?) -> Unit,
     private val setPreferAboveCursorAnchor: (Boolean) -> Unit,
@@ -42,16 +45,28 @@ class T9CandidateSurfaceAndroidAdapter(
         candidates: FcitxEvent.PagedCandidateEvent.Data,
         orientation: FloatingCandidatesOrientation,
         showShortcutLabels: Boolean,
-        shortcutStyle: T9ShortcutCandidateStyle
+        shortcutStyle: T9ShortcutCandidateStyle,
+        candidateStatus: T9CandidateStatus?
     ) {
         T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.visibility") {
-            if (showShortcutLabels) {
+            if (candidateStatus != null) {
+                candidatesUi.root.visibility = View.GONE
+                shortcutCandidatesUi.root.visibility = View.GONE
+                candidateStatusView.text = candidateStatusText(candidateStatus)
+                candidateStatusView.visibility = View.VISIBLE
+            } else if (showShortcutLabels) {
                 candidatesUi.root.visibility = View.GONE
                 shortcutCandidatesUi.root.visibility = View.VISIBLE
+                candidateStatusView.visibility = View.GONE
             } else {
                 shortcutCandidatesUi.root.visibility = View.GONE
                 candidatesUi.root.visibility = View.VISIBLE
+                candidateStatusView.visibility = View.GONE
             }
+        }
+        if (candidateStatus != null) {
+            onShortcutCandidateMeasured(null)
+            return
         }
         if (showShortcutLabels) {
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutLayout") {
@@ -69,8 +84,8 @@ class T9CandidateSurfaceAndroidAdapter(
         }
     }
 
-    override fun renderPinyin(pinyinOptions: List<String>, pinyinUseT9: Boolean): Boolean =
-        pinyinRowAdapter.render(pinyinOptions, pinyinUseT9)
+    override fun renderPinyin(readingOptions: List<String>, pinyinUseT9: Boolean): Boolean =
+        pinyinRowAdapter.render(readingOptions, pinyinUseT9)
 
     override fun syncPinyinLayout(): Boolean =
         pinyinRowAdapter.syncVisibleLayout()
@@ -106,6 +121,7 @@ class T9CandidateSurfaceAndroidAdapter(
         resetFocus()
         candidatesUi.update(emptyPaged, orientation)
         shortcutCandidatesUi.root.visibility = View.GONE
+        candidateStatusView.visibility = View.GONE
     }
 
     fun removePinyinRevealListener() {

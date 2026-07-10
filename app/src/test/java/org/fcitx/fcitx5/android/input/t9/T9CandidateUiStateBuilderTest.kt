@@ -73,7 +73,7 @@ class T9CandidateUiStateBuilderTest {
             smartEnglishPaged = paged("morning"),
             smartEnglishPresentation = T9PresentationState(
                 topReading = null,
-                pinyinOptions = emptyList(),
+                readingOptions = emptyList(),
                 reserveTopReadingRow = true
             )
         ))
@@ -90,7 +90,7 @@ class T9CandidateUiStateBuilderTest {
             chineseActive = false,
             smartEnglishPresentation = T9PresentationState(
                 topReading = text("hello"),
-                pinyinOptions = emptyList()
+                readingOptions = emptyList()
             ),
             pendingPunctuationPaged = pagedWithCursor(0, ".", ",")
         ))
@@ -121,7 +121,7 @@ class T9CandidateUiStateBuilderTest {
         val pipeline = FakePipeline(
             chinesePresentation = T9PresentationState(
                 topReading = null,
-                pinyinOptions = listOf("a", "b", "c")
+                readingOptions = listOf("a", "b", "c")
             )
         )
 
@@ -149,7 +149,7 @@ class T9CandidateUiStateBuilderTest {
         val pipeline = FakePipeline(
             chinesePresentation = T9PresentationState(
                 topReading = null,
-                pinyinOptions = listOf("a", "b", "c")
+                readingOptions = listOf("a", "b", "c")
             )
         )
 
@@ -171,7 +171,7 @@ class T9CandidateUiStateBuilderTest {
         val pipeline = FakePipeline(
             chinesePresentation = T9PresentationState(
                 topReading = text("stale"),
-                pinyinOptions = listOf("stale")
+                readingOptions = listOf("stale")
             )
         )
 
@@ -193,7 +193,7 @@ class T9CandidateUiStateBuilderTest {
         assertNotNull(result)
         assertFalse(result!!.renderState.shouldShow)
         assertTrue(result.renderState.candidates.candidates.isEmpty())
-        assertTrue(result.renderState.pinyinOptions.isEmpty())
+        assertTrue(result.renderState.readingOptions.isEmpty())
         assertEquals(0, pipeline.getT9PresentationCount)
     }
 
@@ -259,7 +259,7 @@ class T9CandidateUiStateBuilderTest {
 
     private class FakePipeline(
         private val chinesePresentation: T9PresentationState =
-            T9PresentationState(topReading = null, pinyinOptions = emptyList()),
+            T9PresentationState(topReading = null, readingOptions = emptyList()),
         private val bulkFilterState: ChineseT9CandidatePipeline.BulkFilterState =
             ChineseT9CandidatePipeline.BulkFilterState(
                 paged = null,

@@ -55,7 +55,7 @@ class MainFragment : PaddingPreferenceFragment() {
                 )
                 addDestinationPreference(
                     R.string.chinese_t9_schemes,
-                    R.drawable.ic_baseline_language_24,
+                    R.drawable.ic_baseline_dialpad_24,
                     SettingsRoute.ChineseT9Schemes
                 )
                 addDestinationPreference(

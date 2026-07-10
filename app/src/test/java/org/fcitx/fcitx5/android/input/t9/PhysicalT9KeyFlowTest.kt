@@ -432,7 +432,7 @@ class PhysicalT9KeyFlowTest {
             input(KeyEvent.KEYCODE_DPAD_UP, KeyEvent.ACTION_DOWN),
             state(
                 mode = PhysicalT9KeyHandler.Mode.CHINESE,
-                hasTopPinyinCandidates = true,
+                hasTopReadingCandidates = true,
                 hasBottomCandidateRow = true,
                 candidateFocus = PhysicalT9KeyHandler.CandidateFocus.BOTTOM
             )
@@ -441,7 +441,7 @@ class PhysicalT9KeyFlowTest {
             input(KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.ACTION_DOWN),
             state(
                 mode = PhysicalT9KeyHandler.Mode.CHINESE,
-                hasTopPinyinCandidates = true,
+                hasTopReadingCandidates = true,
                 hasBottomCandidateRow = true,
                 candidateFocus = PhysicalT9KeyHandler.CandidateFocus.TOP
             )
@@ -475,7 +475,7 @@ class PhysicalT9KeyFlowTest {
             input(KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.ACTION_DOWN),
             state(
                 mode = PhysicalT9KeyHandler.Mode.CHINESE,
-                hasTopPinyinCandidates = true,
+                hasTopReadingCandidates = true,
                 candidateFocus = PhysicalT9KeyHandler.CandidateFocus.TOP
             )
         )
@@ -483,14 +483,14 @@ class PhysicalT9KeyFlowTest {
             input(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.ACTION_DOWN),
             state(
                 mode = PhysicalT9KeyHandler.Mode.CHINESE,
-                hasTopPinyinCandidates = true,
+                hasTopReadingCandidates = true,
                 candidateFocus = PhysicalT9KeyHandler.CandidateFocus.TOP
             )
         )
 
-        assertEquals(listOf(PhysicalT9KeyFlow.Command.MoveHighlightedPinyin(delta = -1)), left?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.MoveHighlightedReading(delta = -1)), left?.commands)
         assertEquals(KeyEvent.KEYCODE_DPAD_LEFT, left?.consumedKeyUp)
-        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitHighlightedPinyin), ok?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitHighlightedReading), ok?.commands)
         assertEquals(KeyEvent.KEYCODE_DPAD_CENTER, ok?.consumedKeyUp)
     }
 
@@ -548,7 +548,7 @@ class PhysicalT9KeyFlowTest {
             input(KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.ACTION_DOWN),
             state(
                 mode = PhysicalT9KeyHandler.Mode.CHINESE,
-                hasTopPinyinCandidates = true,
+                hasTopReadingCandidates = true,
                 hasBottomCandidateRow = false,
                 candidateFocus = PhysicalT9KeyHandler.CandidateFocus.BOTTOM
             )
@@ -606,7 +606,7 @@ class PhysicalT9KeyFlowTest {
             )
         )
 
-        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitHighlightedPinyin), topUp?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitHighlightedReading), topUp?.commands)
 
         val bottomFlow = PhysicalT9KeyFlow()
         bottomFlow.handle(
@@ -726,7 +726,7 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
-    fun chineseIdleOneIsQuietAndLongPressCommitsLiteralOne() {
+    fun chineseIdleOneShortOrLongPressCommitsOneLiteralDigit() {
         val shortFlow = PhysicalT9KeyFlow()
 
         val down = shortFlow.handle(
@@ -739,7 +739,7 @@ class PhysicalT9KeyFlowTest {
         )
 
         assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), down?.commands)
-        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), up?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitText("1")), up?.commands)
 
         val longFlow = PhysicalT9KeyFlow()
         longFlow.handle(
@@ -1064,7 +1064,7 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
-    fun chineseIdlePoundRequestsSchemeCycleAndLongPressSwitchesMode() {
+    fun chineseIdlePoundReturnsAndLongPressSwitchesMode() {
         val shortFlow = PhysicalT9KeyFlow()
         shortFlow.handle(
             input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN),
@@ -1090,7 +1090,7 @@ class PhysicalT9KeyFlowTest {
         )
 
         assertEquals(
-            listOf(PhysicalT9KeyFlow.Command.CycleChineseSchemeOrReturn),
+            listOf(PhysicalT9KeyFlow.Command.HandleReturnKey),
             shortUp?.commands
         )
         assertEquals(listOf(PhysicalT9KeyFlow.Command.SwitchToNextMode), repeat?.commands)
@@ -1098,7 +1098,7 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
-    fun chineseStarShowsPunctuationAndLongPressCommitsLiteralStar() {
+    fun chineseStarShowsPunctuationAndIdleLongPressCyclesScheme() {
         val shortFlow = PhysicalT9KeyFlow()
 
         val down = shortFlow.handle(
@@ -1129,8 +1129,31 @@ class PhysicalT9KeyFlowTest {
             listOf(PhysicalT9KeyFlow.Command.CommitChineseCandidateAndShowPunctuation),
             up?.commands
         )
-        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitLiteralStar), repeat?.commands)
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.CycleChineseSchemeOrCommitLiteralStar),
+            repeat?.commands
+        )
         assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), longUp?.commands)
+    }
+
+    @Test
+    fun chineseComposingLongStarKeepsLiteralStarBehavior() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE, compositionKeyCount = 2)
+        )
+
+        val repeat = flow.handle(
+            input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                compositionKeyCount = 2,
+                heldPastLongPressDelay = true
+            )
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitLiteralStar), repeat?.commands)
     }
 
     @Test
@@ -1424,7 +1447,7 @@ class PhysicalT9KeyFlowTest {
         hasSmartEnglishDigits: Boolean = false,
         hasSmartEnglishCandidates: Boolean = false,
         hasMultiTapPendingChar: Boolean = false,
-        hasTopPinyinCandidates: Boolean = false,
+        hasTopReadingCandidates: Boolean = false,
         hasBottomCandidateRow: Boolean = false,
         candidateFocus: PhysicalT9KeyHandler.CandidateFocus =
             PhysicalT9KeyHandler.CandidateFocus.BOTTOM,
@@ -1440,7 +1463,7 @@ class PhysicalT9KeyFlowTest {
             hasSmartEnglishDigits = hasSmartEnglishDigits,
             hasSmartEnglishCandidates = hasSmartEnglishCandidates,
             hasMultiTapPendingChar = hasMultiTapPendingChar,
-            hasTopPinyinCandidates = hasTopPinyinCandidates,
+            hasTopReadingCandidates = hasTopReadingCandidates,
             hasBottomCandidateRow = hasBottomCandidateRow,
             candidateFocus = candidateFocus,
             heldPastLongPressDelay = heldPastLongPressDelay,

@@ -171,7 +171,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             hasSmartEnglishDigits = { smartEnglishCoordinator.hasDigits },
             hasSmartEnglishCandidates = { smartEnglishCoordinator.hasCandidates },
             hasMultiTapPendingChar = { t9MultiTapCoordinator.hasPendingChar },
-            hasTopPinyinCandidates = { getT9PinyinCandidates().isNotEmpty() },
+            hasTopReadingCandidates = { getT9ReadingCandidates().isNotEmpty() },
             hasBottomCandidateRow = { candidatesView?.hasT9BottomCandidateRow() == true },
             candidateFocus = ::getT9CandidateFocus,
             keyHeldPastLongPressDelay = { input ->
@@ -209,10 +209,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         candidates = PhysicalT9KeyHostAdapter.CandidateActions(
             commitHanziShortcut = t9CandidateShortcutCommitter::commitHanziKey,
             moveFocus = ::moveT9CandidateFocus,
-            moveHighlightedPinyin = { delta -> candidatesView?.moveHighlightedT9Pinyin(delta) == true },
+            moveHighlightedReading = { delta -> candidatesView?.moveHighlightedT9Reading(delta) == true },
             moveHighlightedBottomCandidate = { delta -> candidatesView?.moveHighlightedT9BottomCandidate(delta) == true },
             offsetBottomCandidatePage = { delta -> candidatesView?.offsetT9BottomCandidatePage(delta) == true },
-            commitHighlightedPinyin = ::commitHighlightedT9Pinyin,
+            commitHighlightedReading = ::commitHighlightedT9Reading,
             commitHighlightedBottomCandidate = { candidatesView?.commitHighlightedT9BottomCandidate() == true },
             commitChineseCandidateAndShowPunctuation = {
                 val selectionScheduled = candidatesView?.commitHighlightedT9ChineseCandidate {
@@ -1965,10 +1965,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return current == ticket || current.rawSequence.isEmpty()
     }
 
-    /** Candidate pinyin list for current T9 segment; empty if segment empty or not T9. */
-    fun getT9PinyinCandidates(): List<String> =
+    /** Scheme-owned reading options for the compact top candidate row. */
+    fun getT9ReadingCandidates(): List<String> =
         if (t9InputModeEnabled && currentT9Mode == T9InputMode.CHINESE) {
-            chineseT9Composition.pinyinCandidates()
+            chineseT9Composition.readingCandidates()
         } else {
             emptyList()
         }
@@ -2065,9 +2065,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
     }
 
-    fun commitT9PinyinSelection(pinyin: String): Boolean {
-        if (pinyin.isEmpty()) return false
-        selectT9Pinyin(pinyin)
+    fun commitT9ReadingSelection(reading: String): Boolean {
+        if (reading.isEmpty()) return false
+        when (activeChineseT9Scheme) {
+            ChineseT9Scheme.PINYIN -> selectT9Pinyin(reading)
+            ChineseT9Scheme.ZHUYIN ->
+                if (!chineseT9Composition.selectZhuyinReading(reading)) return false
+            ChineseT9Scheme.STROKE -> return false
+        }
         moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
         candidatesView?.refreshT9Ui()
         return true
@@ -2080,9 +2085,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return true
     }
 
-    fun commitHighlightedT9Pinyin(): Boolean {
-        val pinyin = candidatesView?.getHighlightedT9Pinyin() ?: return false
-        return commitT9PinyinSelection(pinyin)
+    fun commitHighlightedT9Reading(): Boolean {
+        val reading = candidatesView?.getHighlightedT9Reading() ?: return false
+        return commitT9ReadingSelection(reading)
     }
 
     private fun playPhysicalKeySound(keyCode: Int, event: KeyEvent) {

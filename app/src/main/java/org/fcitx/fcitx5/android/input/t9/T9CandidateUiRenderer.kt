@@ -18,9 +18,10 @@ class T9CandidateUiRenderer(
             candidates: FcitxEvent.PagedCandidateEvent.Data,
             orientation: FloatingCandidatesOrientation,
             showShortcutLabels: Boolean,
-            shortcutStyle: T9ShortcutCandidateStyle
+            shortcutStyle: T9ShortcutCandidateStyle,
+            candidateStatus: T9CandidateStatus?
         )
-        fun renderPinyin(pinyinOptions: List<String>, pinyinUseT9: Boolean): Boolean
+        fun renderPinyin(readingOptions: List<String>, pinyinUseT9: Boolean): Boolean
         fun syncPinyinLayout(): Boolean
         fun renderFocus(focus: T9CandidateFocus)
         fun showWhenPositioned(contentReady: Boolean)
@@ -81,7 +82,8 @@ class T9CandidateUiRenderer(
                     candidates = next.candidates,
                     orientation = next.orientation,
                     showShortcutLabels = next.showShortcutLabels,
-                    shortcutStyle = next.shortcutStyle
+                    shortcutStyle = next.shortcutStyle,
+                    candidateStatus = next.candidateStatus
                 )
             }
         }
@@ -93,7 +95,7 @@ class T9CandidateUiRenderer(
             }
             T9CandidateRenderPassPlanner.PinyinAction.RENDER -> {
                 T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPinyin") {
-                    delegate.renderPinyin(next.pinyinOptions, next.pinyinUseT9)
+                    delegate.renderPinyin(next.readingOptions, next.pinyinUseT9)
                 }
             }
             T9CandidateRenderPassPlanner.PinyinAction.SYNC_LAYOUT -> {

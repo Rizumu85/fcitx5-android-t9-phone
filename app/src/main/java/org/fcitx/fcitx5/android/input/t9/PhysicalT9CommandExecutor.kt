@@ -83,10 +83,10 @@ internal class PhysicalT9CommandExecutor(
                 host.offsetBottomCandidatePage(command.delta)
             is PhysicalT9KeyFlow.Command.MoveCandidateFocus ->
                 host.moveCandidateFocus(command.focus)
-            is PhysicalT9KeyFlow.Command.MoveHighlightedPinyin ->
-                host.moveHighlightedPinyin(command.delta)
-            PhysicalT9KeyFlow.Command.CommitHighlightedPinyin ->
-                host.commitHighlightedPinyin()
+            is PhysicalT9KeyFlow.Command.MoveHighlightedReading ->
+                host.moveHighlightedReading(command.delta)
+            PhysicalT9KeyFlow.Command.CommitHighlightedReading ->
+                host.commitHighlightedReading()
             is PhysicalT9KeyFlow.Command.CommitBottomCandidate -> {
                 host.commitHighlightedBottomCandidate() ||
                     when (command.fallback) {
@@ -118,8 +118,8 @@ internal class PhysicalT9CommandExecutor(
                 host.forwardChineseT9SeparatorShortPress()
             PhysicalT9KeyFlow.Command.CommitChineseCodePreview ->
                 host.commitChineseCodePreview()
-            PhysicalT9KeyFlow.Command.CycleChineseSchemeOrReturn -> {
-                if (!host.cycleChineseScheme()) host.handleReturnKey()
+            PhysicalT9KeyFlow.Command.CycleChineseSchemeOrCommitLiteralStar -> {
+                if (!host.cycleChineseScheme()) host.commitLiteralStar()
             }
             PhysicalT9KeyFlow.Command.TogglePendingPunctuationSet ->
                 host.togglePendingPunctuationSet()

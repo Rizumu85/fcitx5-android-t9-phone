@@ -15,11 +15,12 @@ data class T9CandidateRenderState(
     val showShortcutLabels: Boolean,
     val shortcutStyle: T9ShortcutCandidateStyle,
     val reservePreeditRow: Boolean,
-    val pinyinOptions: List<String>,
+    val readingOptions: List<String>,
     val pinyinUseT9: Boolean,
     val focus: T9CandidateFocus,
     val preferAboveCursorAnchor: Boolean,
-    val shouldShow: Boolean
+    val shouldShow: Boolean,
+    val candidateStatus: T9CandidateStatus? = null
 ) {
     val preeditSnapshot: T9PreeditSnapshot by lazy(LazyThreadSafetyMode.NONE) {
         T9CandidateSnapshots.preedit(panel, reservePreeditRow)
@@ -28,7 +29,7 @@ data class T9CandidateRenderState(
         T9CandidateSnapshots.renderCandidates(candidates, orientation, showShortcutLabels, shortcutStyle)
     }
     val pinyinSnapshot: T9PinyinSnapshot by lazy(LazyThreadSafetyMode.NONE) {
-        T9CandidateSnapshots.pinyin(pinyinOptions, pinyinUseT9)
+        T9CandidateSnapshots.pinyin(readingOptions, pinyinUseT9)
     }
     val visibilitySnapshot: T9VisibilitySnapshot by lazy(LazyThreadSafetyMode.NONE) {
         T9CandidateSnapshots.visibility(shouldShow, preferAboveCursorAnchor)
@@ -66,7 +67,9 @@ object T9CandidateRenderer {
         }
         val previousCandidate = previous.candidateSnapshot
         val nextCandidate = next.candidateSnapshot
-        val candidateContentChanged = previousCandidate.contentSignature != nextCandidate.contentSignature
+        val candidateContentChanged =
+            previousCandidate.contentSignature != nextCandidate.contentSignature ||
+                previous.candidateStatus != next.candidateStatus
         val pinyinChanged = previous.pinyinSnapshot != next.pinyinSnapshot
         return T9CandidateRenderPatch(
             preedit = previous.preeditSnapshot != next.preeditSnapshot,

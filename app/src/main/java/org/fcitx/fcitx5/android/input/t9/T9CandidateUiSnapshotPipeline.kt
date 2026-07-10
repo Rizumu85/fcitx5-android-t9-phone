@@ -13,7 +13,7 @@ class T9CandidateUiSnapshotPipeline(
     candidateMatchesPrefix: (candidate: FcitxEvent.Candidate, prefix: String) -> Boolean = { _, _ -> false },
     private val requestBulkCandidates: (chineseT9Active: Boolean, prefixes: List<String>) -> Unit = { _, _ -> },
     private val getPresentationState: (ChineseT9PresentationSnapshotKey) -> T9PresentationState = {
-        T9PresentationState(topReading = null, pinyinOptions = emptyList())
+        T9PresentationState(topReading = null, readingOptions = emptyList())
     },
     private val clearHiddenComposition: () -> Unit = {}
 ) {

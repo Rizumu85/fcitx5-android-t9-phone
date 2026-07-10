@@ -21,9 +21,14 @@ class ChineseT9CompositionCoordinator(
         formatText = formatText,
         buildPreeditDisplay = buildRawPreeditDisplay
     )
-    private val codePresentationSource = ChineseT9CodePresentationSource(formatText)
+    private val zhuyinResolver = T9ZhuyinResolver()
+    private val codePresentationSource = ChineseT9CodePresentationSource(
+        formatText = formatText,
+        zhuyinResolver = zhuyinResolver
+    )
     private val codePresentationCache = ChineseT9PresentationSnapshotCache()
     private var scheme = ChineseT9Scheme.PINYIN
+    private var selectedZhuyinReading: String? = null
 
     fun activateScheme(next: ChineseT9Scheme, forceReset: Boolean = false) {
         if (scheme == next && !forceReset) return
@@ -34,6 +39,7 @@ class ChineseT9CompositionCoordinator(
     fun clear() {
         lifecycle.clearCompositionState()
         rawCodeSession.clear()
+        selectedZhuyinReading = null
         codePresentationCache.reset()
     }
 
@@ -78,8 +84,11 @@ class ChineseT9CompositionCoordinator(
 
     fun backspaceFromVirtualKey() = when (scheme) {
         ChineseT9Scheme.PINYIN -> lifecycle.backspaceFromVirtualKey()
-        ChineseT9Scheme.STROKE,
-        ChineseT9Scheme.ZHUYIN -> rawCodeSession.backspace()
+        ChineseT9Scheme.STROKE -> rawCodeSession.backspace()
+        ChineseT9Scheme.ZHUYIN -> rawCodeSession.backspace().also {
+            selectedZhuyinReading = null
+            codePresentationCache.reset()
+        }
     }
 
     fun handleForwardedKeyDown(keyCode: Int): ChineseT9CompositionLifecycle.ForwardedKeyAction =
@@ -155,8 +164,15 @@ class ChineseT9CompositionCoordinator(
         ChineseT9Scheme.ZHUYIN -> rawCodeSession.currentSegment
     }
 
-    fun pinyinCandidates(): List<String> =
-        if (scheme.hasReadingFilterRow) T9PinyinUtils.t9KeyToPinyin(currentSegment()) else emptyList()
+    fun readingCandidates(): List<String> = when (scheme) {
+        ChineseT9Scheme.PINYIN -> T9PinyinUtils.t9KeyToPinyin(currentSegment())
+        ChineseT9Scheme.STROKE -> emptyList()
+        ChineseT9Scheme.ZHUYIN ->
+            (zhuyinResolver.resolve(rawCodeSession.rawCode, selectedZhuyinReading)
+                as? T9ZhuyinResolver.Result.Valid)
+                ?.readingOptions
+                .orEmpty()
+    }
 
     fun preeditDisplay(rawComposition: String? = null): FormattedText? = when (scheme) {
         ChineseT9Scheme.PINYIN -> presentationSource.preeditDisplay(
@@ -186,9 +202,10 @@ class ChineseT9CompositionCoordinator(
         ChineseT9Scheme.PINYIN -> preview
             .filter { char -> char in 'a'..'z' || char in 'A'..'Z' }
             .takeIf(String::isNotEmpty)
-        ChineseT9Scheme.STROKE -> preview
-            .filter { char -> char in StrokeLiteralSymbols }
-            .takeIf { text -> text.length == rawCodeSession.keyCount }
+        ChineseT9Scheme.STROKE -> T9StrokeCodec.literalCommitText(
+            rawCode = rawCodeSession.rawCode,
+            preview = preview
+        )
         ChineseT9Scheme.ZHUYIN -> preview
             .filter(ChineseT9CodePresentationSource::isZhuyinSymbol)
             // A fallback key group contains several alternatives per digit and is not a reading.
@@ -199,6 +216,11 @@ class ChineseT9CompositionCoordinator(
         candidate: FcitxEvent.Candidate,
         expected: String
     ): Boolean {
+        if (scheme == ChineseT9Scheme.ZHUYIN) {
+            val candidateReading = candidate.comment.filter(T9ZhuyinResolver::isZhuyinSymbol)
+            val expectedReading = expected.filter(T9ZhuyinResolver::isZhuyinSymbol)
+            return candidateReading.isNotEmpty() && candidateReading == expectedReading
+        }
         if (scheme != ChineseT9Scheme.PINYIN) return false
         val normalized = ChineseT9PresentationSource.normalizeCandidateComment(candidate.comment)
         val expectedSegments = resolvedSegmentsForFilterPrefix(expected)
@@ -246,6 +268,17 @@ class ChineseT9CompositionCoordinator(
     fun selectPinyin(pinyin: String): ChineseT9CompositionSession.PinyinSelectionRequest? =
         if (scheme == ChineseT9Scheme.PINYIN) session.selectPinyin(pinyin) else null
 
+    fun selectZhuyinReading(reading: String): Boolean {
+        if (scheme != ChineseT9Scheme.ZHUYIN ||
+            !zhuyinResolver.isValidReading(rawCodeSession.rawCode, reading)
+        ) {
+            return false
+        }
+        selectedZhuyinReading = reading
+        codePresentationCache.reset()
+        return true
+    }
+
     suspend fun mirrorPinyinSelection(
         api: FcitxAPI,
         request: ChineseT9CompositionSession.PinyinSelectionRequest
@@ -255,6 +288,7 @@ class ChineseT9CompositionCoordinator(
         if (scheme != ChineseT9Scheme.PINYIN) {
             val hadCode = !rawCodeSession.isEmpty()
             rawCodeSession.clear()
+            selectedZhuyinReading = null
             codePresentationCache.reset()
             return hadCode
         }
@@ -270,6 +304,8 @@ class ChineseT9CompositionCoordinator(
         val hadComposition = !rawCodeSession.isEmpty()
         if (keyCode == KeyEvent.KEYCODE_DEL) {
             rawCodeSession.backspace()
+            selectedZhuyinReading = null
+            codePresentationCache.reset()
             return when {
                 !hadComposition -> ChineseT9CompositionLifecycle.ForwardedKeyAction.NONE
                 rawCodeSession.isEmpty() ->
@@ -282,12 +318,19 @@ class ChineseT9CompositionCoordinator(
             ?.takeIf(scheme::acceptsCompositionDigit)
             ?: return ChineseT9CompositionLifecycle.ForwardedKeyAction.NONE
         rawCodeSession.append(digit)
+        selectedZhuyinReading = null
+        codePresentationCache.reset()
         return ChineseT9CompositionLifecycle.ForwardedKeyAction.REFRESH_AFTER_ENGINE_CANDIDATES
     }
 
     private fun rawCodeSnapshot(): ChineseT9InputSnapshot {
         val rawCode = rawCodeSession.rawCode
         val digitSequence = rawCodeSession.digitSequence
+        val zhuyinResolution = if (scheme == ChineseT9Scheme.ZHUYIN) {
+            zhuyinResolver.resolve(rawCode, selectedZhuyinReading)
+        } else {
+            null
+        }
         return ChineseT9InputSnapshot(
             rawSequence = rawCode,
             digitSequence = digitSequence,
@@ -298,10 +341,12 @@ class ChineseT9CompositionCoordinator(
                 rawPreedit = rawCode
             ),
             keyCount = rawCodeSession.keyCount,
-            filterPrefixes = emptyList(),
+            filterPrefixes = selectedZhuyinReading?.let(::listOf).orEmpty(),
             hasPendingPinyinSelection = false,
             sessionRevision = rawCodeSession.revision,
-            scheme = scheme
+            scheme = scheme,
+            selectedReading = selectedZhuyinReading,
+            hasInvalidReading = zhuyinResolution is T9ZhuyinResolver.Result.Invalid
         )
     }
 
@@ -352,9 +397,5 @@ class ChineseT9CompositionCoordinator(
             }
         }
         return rest
-    }
-
-    companion object {
-        private val StrokeLiteralSymbols = setOf('一', '丨', '丿', '丶', '乛', '？')
     }
 }

@@ -148,6 +148,6 @@ class ChineseT9PresentationSnapshotCacheTest {
                 flags = intArrayOf(TextFormatFlag.NoFlag.flag),
                 cursor = -1
             ),
-            pinyinOptions = listOf(text)
+            readingOptions = listOf(text)
         )
 }

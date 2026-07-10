@@ -22,7 +22,7 @@ object ChineseT9CandidateFreshness {
     }
 
     private fun matchesStroke(digitSequence: String, enginePreedit: String): Boolean {
-        val concrete = strokeDigits(enginePreedit)
+        val concrete = T9StrokeCodec.digitsFromEnginePreedit(enginePreedit)
         if (concrete.length < digitSequence.length) return false
         // Runtime wildcard expansion shows one concrete branch in Rime's preedit. Match the
         // requested pattern position-by-position so a delayed unrelated page cannot release it.
@@ -67,19 +67,6 @@ object ChineseT9CandidateFreshness {
         }
         return !hasCandidateReading &&
             enginePreedit.filter { it in '0'..'9' }.startsWith(digitSequence)
-    }
-
-    private fun strokeDigits(preedit: String): String = buildString {
-        preedit.forEach { char ->
-            when (char) {
-                '一', '⼀', '㇐' -> append('1')
-                '丨', '⼁', '㇑' -> append('2')
-                '丿', '⼃', '㇒' -> append('3')
-                '丶', '⼂', '㇏' -> append('4')
-                '乛', '⼄', '㇠' -> append('5')
-                '？' -> append('6')
-            }
-        }
     }
 
     private fun zhuyinDigits(reading: String): String = buildString {

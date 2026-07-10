@@ -40,6 +40,7 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
 import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateInteractionController
+import org.fcitx.fcitx5.android.input.t9.T9CandidateStatus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateSurfaceAndroidAdapter
 import org.fcitx.fcitx5.android.input.t9.T9CandidateSurfaceGeometry
 import org.fcitx.fcitx5.android.input.t9.T9CandidateUiInputSnapshot
@@ -321,6 +322,15 @@ class CandidatesView(
             }
         }
     )
+    private val candidateStatusView = TextView(ctx).apply {
+        setupTextViewCandidates(this)
+        setTextColor(theme.candidateCommentColor)
+        gravity = Gravity.CENTER
+        isSingleLine = true
+        isFocusable = false
+        isFocusableInTouchMode = false
+        visibility = View.GONE
+    }
 
     /** T9 pinyin selection bar: row above candidates, replaces number row when visible. */
     private val pinyinBarAdapter by lazy {
@@ -334,7 +344,7 @@ class CandidatesView(
             cornerRadiusPx = dpCandidates(windowRadius).toFloat(),
             precreatedChipCount = T9PinyinRowWindow.DEFAULT_MAX_VISIBLE_ITEMS,
             onChipClick = {
-                service.commitT9PinyinSelection(it)
+                service.commitT9ReadingSelection(it)
                 updateT9FocusIndicator()
             }
         )
@@ -457,9 +467,15 @@ class CandidatesView(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
         ))
+        addView(candidateStatusView, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ))
         setOnClickListener {
-            service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
-            updateT9FocusIndicator()
+            if (candidateStatusView.visibility != View.VISIBLE) {
+                service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
+                updateT9FocusIndicator()
+            }
         }
         isFocusable = false
         isFocusableInTouchMode = false
@@ -474,6 +490,12 @@ class CandidatesView(
         pinyinRowAdapter = t9PinyinRowAdapter,
         candidatesUi = candidatesUi,
         shortcutCandidatesUi = t9ShortcutCandidatesUi,
+        candidateStatusView = candidateStatusView,
+        candidateStatusText = { status ->
+            when (status) {
+                T9CandidateStatus.NO_MATCH -> ctx.getText(R.string.t9_no_matches)
+            }
+        },
         shortcutCandidateLayout = ::t9ShortcutCandidateLayout,
         onShortcutCandidateMeasured = t9CandidateSurfaceGeometry::observeCandidateVisualWidth,
         setPreferAboveCursorAnchor = floatingWindowController::setPreferAboveCursorAnchor,
@@ -649,7 +671,7 @@ class CandidatesView(
         t9CandidateUiRenderer.hideImmediately()
     }
 
-    fun getHighlightedT9Pinyin(): String? = t9PinyinRowAdapter.highlightedPinyin()
+    fun getHighlightedT9Reading(): String? = t9PinyinRowAdapter.highlightedPinyin()
 
     fun commitT9HanziShortcut(index: Int): Boolean {
         return t9CandidateInteractionController.commitBottomCandidate(index) ?: false
@@ -680,7 +702,7 @@ class CandidatesView(
         return service.normalizeChineseT9CodePreview(preview)
     }
 
-    fun moveHighlightedT9Pinyin(delta: Int): Boolean {
+    fun moveHighlightedT9Reading(delta: Int): Boolean {
         return t9PinyinRowAdapter.moveHighlighted(delta)
     }
 

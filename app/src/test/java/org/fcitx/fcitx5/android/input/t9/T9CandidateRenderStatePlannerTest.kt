@@ -27,7 +27,7 @@ class T9CandidateRenderStatePlannerTest {
                 ),
                 presentationState = T9PresentationState(
                     topReading = text("preview"),
-                    pinyinOptions = emptyList()
+                    readingOptions = emptyList()
                 )
             )
         )
@@ -49,14 +49,14 @@ class T9CandidateRenderStatePlannerTest {
                 suppressEmptyCandidates = true,
                 presentationState = T9PresentationState(
                     topReading = text("stale"),
-                    pinyinOptions = listOf("stale")
+                    readingOptions = listOf("stale")
                 )
             )
         )
 
         assertTrue(planned.panel.preedit.isEmpty())
         assertFalse(planned.shouldShow)
-        assertTrue(planned.pinyinOptions.isEmpty())
+        assertTrue(planned.readingOptions.isEmpty())
     }
 
     @Test
@@ -103,13 +103,32 @@ class T9CandidateRenderStatePlannerTest {
                 candidates = FcitxEvent.PagedCandidateEvent.Data.Empty,
                 presentationState = T9PresentationState(
                     topReading = null,
-                    pinyinOptions = listOf("gao")
+                    readingOptions = listOf("gao")
                 )
             )
         )
 
         assertTrue(planned.shouldShow)
-        assertEquals(listOf("gao"), planned.pinyinOptions)
+        assertEquals(listOf("gao"), planned.readingOptions)
+    }
+
+    @Test
+    fun noMatchStateKeepsPreviewVisibleWithoutInteractiveCandidates() {
+        val planned = T9CandidateRenderStatePlanner.plan(
+            input(
+                candidates = FcitxEvent.PagedCandidateEvent.Data.Empty,
+                presentationState = T9PresentationState(
+                    topReading = text("33"),
+                    readingOptions = emptyList(),
+                    candidateStatus = T9CandidateStatus.NO_MATCH
+                )
+            )
+        )
+
+        assertTrue(planned.shouldShow)
+        assertFalse(planned.showShortcutLabels)
+        assertEquals(T9CandidateStatus.NO_MATCH, planned.candidateStatus)
+        assertEquals("33", planned.panel.preedit.toString())
     }
 
     private fun input(

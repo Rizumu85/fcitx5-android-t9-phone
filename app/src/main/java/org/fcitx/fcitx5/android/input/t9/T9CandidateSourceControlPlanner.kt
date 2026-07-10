@@ -31,7 +31,8 @@ object T9CandidateSourceControlPlanner {
         val compositionKeyCount: Int,
         val pendingPinyinSelection: Boolean,
         val filterPrefixesEmpty: Boolean,
-        val usesPinyinCandidatePipeline: Boolean
+        val chineseScheme: ChineseT9Scheme?,
+        val invalidReading: Boolean = false
     )
 
     data class Plan(
@@ -43,13 +44,15 @@ object T9CandidateSourceControlPlanner {
         val filterAction: FilterAction,
         val pendingPinyinSelection: Boolean,
         private val pendingPunctuationActive: Boolean,
-        private val filterPrefixesEmpty: Boolean
+        private val filterPrefixesEmpty: Boolean,
+        private val invalidReading: Boolean
     ) {
         fun shouldBuildLocalBudget(hasBulkFilteredPage: Boolean, bulkFilterPending: Boolean): Boolean =
             surface == Surface.CHINESE &&
                 !suppressEmptyCandidates &&
                 !pendingPinyinSelection &&
                 !pendingPunctuationActive &&
+                !invalidReading &&
                 filterPrefixesEmpty &&
                 !hasBulkFilteredPage &&
                 !bulkFilterPending &&
@@ -69,38 +72,52 @@ object T9CandidateSourceControlPlanner {
 
     fun plan(input: Input): Plan {
         val chineseActive = input.surface == Surface.CHINESE
-        val waitForChineseCandidates = input.loadingState.shouldWaitForCandidates(
-            chineseT9Active = chineseActive,
-            compositionKeyCount = input.compositionKeyCount,
-            hasPendingPunctuation = input.pendingPunctuationActive,
-            pendingPinyinSelection = input.pendingPinyinSelection,
-            rawCandidatesEmpty = input.rawCandidatesEmpty
-        )
+        val hasReadingFilter = input.chineseScheme?.hasReadingFilterRow == true
+        val hasImmediateLocalReading = chineseActive &&
+            input.chineseScheme == ChineseT9Scheme.ZHUYIN &&
+            input.compositionKeyCount > 0
+        val needsBulkCandidates = when (input.chineseScheme) {
+            ChineseT9Scheme.PINYIN -> true
+            ChineseT9Scheme.ZHUYIN -> !input.filterPrefixesEmpty
+            ChineseT9Scheme.STROKE,
+            null -> false
+        }
+        val waitForChineseCandidates = !input.invalidReading &&
+            input.loadingState.shouldWaitForCandidates(
+                chineseT9Active = chineseActive,
+                compositionKeyCount = input.compositionKeyCount,
+                hasPendingPunctuation = input.pendingPunctuationActive,
+                pendingPinyinSelection = input.pendingPinyinSelection,
+                rawCandidatesEmpty = input.rawCandidatesEmpty
+            )
         val suppressEmptyCandidates = chineseActive &&
             !input.pendingPunctuationActive &&
             input.compositionKeyCount <= 0
         val deferRender = chineseActive &&
             waitForChineseCandidates &&
-            !input.pendingPunctuationActive
-        // The bulk pass exists to atomically filter Pinyin readings across pages. Stroke and
-        // Zhuyin already receive a complete native page, so routing them through that pass only
-        // delays their first visible frame and risks applying Pinyin-only freshness rules.
+            !input.pendingPunctuationActive &&
+            !hasImmediateLocalReading
+        // Zhuyin owns an immediate local reading row. Its unfiltered Rime page must not delay that
+        // row behind a redundant all-candidate query; bulk loading begins only after a reading is
+        // selected and cross-page filtering becomes necessary.
         val bulkAction = if (
             !chineseActive ||
             suppressEmptyCandidates ||
             input.pendingPinyinSelection ||
             waitForChineseCandidates ||
+            input.invalidReading ||
             input.pendingPunctuationActive ||
-            !input.usesPinyinCandidatePipeline
+            !needsBulkCandidates
         ) {
             BulkAction.RESET
         } else {
             BulkAction.REQUEST
         }
         val filterAction = when {
-            suppressEmptyCandidates || input.pendingPinyinSelection || waitForChineseCandidates ->
+            suppressEmptyCandidates || input.pendingPinyinSelection || waitForChineseCandidates ||
+                input.invalidReading ->
                 FilterAction.EMPTY
-            chineseActive && input.usesPinyinCandidatePipeline ->
+            chineseActive && hasReadingFilter ->
                 FilterAction.CHINESE_PREFIX_FILTER
             else -> FilterAction.PASSTHROUGH
         }
@@ -113,7 +130,8 @@ object T9CandidateSourceControlPlanner {
             filterAction = filterAction,
             pendingPinyinSelection = input.pendingPinyinSelection,
             pendingPunctuationActive = input.pendingPunctuationActive,
-            filterPrefixesEmpty = input.filterPrefixesEmpty
+            filterPrefixesEmpty = input.filterPrefixesEmpty,
+            invalidReading = input.invalidReading
         )
     }
 }

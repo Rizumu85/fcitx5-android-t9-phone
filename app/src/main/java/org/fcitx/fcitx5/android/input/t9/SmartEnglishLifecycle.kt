@@ -108,7 +108,7 @@ internal class SmartEnglishLifecycle(
                 val preview = predictionSession.selectedCandidate()?.let(::applyCaseToWord)
                 T9PresentationState(
                     topReading = preview?.let(formatText),
-                    pinyinOptions = emptyList(),
+                    readingOptions = emptyList(),
                     reserveTopReadingRow = true
                 )
             } else {
@@ -120,7 +120,7 @@ internal class SmartEnglishLifecycle(
         val preview = session.inputPreviewText(rawCandidates)
         return T9PresentationState(
             topReading = formatText(applyCaseToWord(preview)),
-            pinyinOptions = emptyList()
+            readingOptions = emptyList()
         )
     }
 

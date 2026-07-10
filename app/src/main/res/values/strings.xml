@@ -40,6 +40,7 @@
     <string name="chinese_t9_stroke">Stroke T9</string>
     <string name="chinese_t9_zhuyin">Zhuyin T9</string>
     <string name="chinese_t9_at_least_one">Keep at least one Chinese input scheme</string>
+    <string name="t9_no_matches">No matches</string>
     <string name="reloading">Reloading</string>
     <string name="importing">Importing</string>
     <string name="import_error">Import Error</string>

@@ -261,6 +261,20 @@ object T9PinyinUtils {
         put("WTAM", "xuan,yuan,zuan")
     }
 
+    private val completeSyllables: List<String> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        pinyinMap.values
+            .asSequence()
+            .flatMap { it.split(',').asSequence() }
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .filterNot { it.length == 1 && it !in setOf("a", "e", "o") }
+            .filterNot { it in setOf("zh", "ch", "sh") }
+            .distinct()
+            .toList()
+    }
+
+    internal fun completePinyinSyllables(): List<String> = completeSyllables
+
     private val pinyinByGroup = pinyinMap.mapValues { (_, value) ->
         value.split(",")
     }
