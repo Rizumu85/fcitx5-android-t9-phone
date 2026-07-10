@@ -21,8 +21,6 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.annotation.Size
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.daemon.FcitxConnection
@@ -36,6 +34,7 @@ import org.fcitx.fcitx5.android.input.candidates.floating.T9ShortcutCandidatesUi
 import org.fcitx.fcitx5.android.input.preedit.PreeditUi
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidateLoadingState
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionTicket
+import org.fcitx.fcitx5.android.input.t9.ChineseT9EngineOperation
 import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
 import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
@@ -53,7 +52,7 @@ import org.fcitx.fcitx5.android.input.t9.T9PinyinRowSurfacePlanner
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowWindow
 import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
 import org.fcitx.fcitx5.android.input.t9.T9ShortcutCandidateLayout
-import org.fcitx.fcitx5.android.input.t9.T9UiRefreshScheduler
+import org.fcitx.fcitx5.android.input.t9.T9CandidateRefreshGeneration
 import splitties.dimensions.dp
 import splitties.views.dsl.constraintlayout.below
 import splitties.views.dsl.constraintlayout.bottomOfParent
@@ -262,7 +261,7 @@ class CandidatesView(
             )
         }
     )
-    private val t9RefreshScheduler = T9UiRefreshScheduler(
+    private val t9RefreshGeneration = T9CandidateRefreshGeneration(
         postRefresh = { block -> postOnAnimation(block) },
         refreshNow = ::updateUi
     )
@@ -271,6 +270,9 @@ class CandidatesView(
     private val t9CandidateSurfaceGeometry = T9CandidateSurfaceGeometry(
         measurePinyinTextWidthPx = ::measureT9PinyinTextWidthPx,
         measureCandidateTextWidthPx = ::measureT9CandidateTextWidthPx
+    )
+    private val chineseT9EngineOperation = ChineseT9EngineOperation(
+        submit = { block -> service.postFcitxJob(block) }
     )
     private val showPaginationArrows by candidatesPrefs.showPaginationArrows
     private val candidatesUi = PagedCandidatesUi(
@@ -620,7 +622,7 @@ class CandidatesView(
 
     fun clearTransientState() {
         T9ResponsivenessTrace.cancelActiveInput()
-        t9RefreshScheduler.cancel()
+        t9RefreshGeneration.cancel()
         floatingWindowController.onSurfaceHidden()
         t9CandidateSurfaceAdapter.removePinyinRevealListener()
         inputPanel = FcitxEvent.InputPanelEvent.Data()
@@ -652,7 +654,7 @@ class CandidatesView(
      * delete-reopen) that don't trigger a fcitx event and therefore wouldn't otherwise redraw.
      */
     fun refreshT9Ui() {
-        t9RefreshScheduler.requestRefresh()
+        t9RefreshGeneration.requestRefresh(T9ResponsivenessTrace.activeInputId())
     }
 
     fun waitForT9EngineCandidatesThenRefresh() {
@@ -667,7 +669,7 @@ class CandidatesView(
 
     fun hideT9CandidateUiImmediately() {
         val traceId = T9ResponsivenessTrace.activeInputId()
-        t9RefreshScheduler.cancel()
+        t9RefreshGeneration.cancel()
         floatingWindowController.onSurfaceHidden()
         t9CandidateSurfaceAdapter.removePinyinRevealListener()
         // A hidden row must stop owning physical OK and numeric shortcuts immediately, even if
@@ -743,11 +745,15 @@ class CandidatesView(
         t9CandidateSurfaceAdapter.renderFocus(focus)
     }
 
-    private fun updateUi() = T9ResponsivenessTrace.measure("CandidatesView.updateUi") {
-        val traceId = T9ResponsivenessTrace.activeInputId()
+    private fun updateUi(
+        generation: T9CandidateRefreshGeneration.Generation
+    ) = T9ResponsivenessTrace.measure("CandidatesView.updateUi") {
+        val traceId = generation.traceInputId
         val snapshot = buildT9CandidateUiState() ?: return@measure
         T9ResponsivenessTrace.markSnapshotReady(traceId)
         applyT9CandidateUiSnapshot(snapshot)
+        t9CandidateSurfaceGeometry.beginFrame(generation.id)
+        t9CandidateSurfaceAdapter.beginFrame(generation.id)
         t9CandidateUiRenderer.render(snapshot.renderState)
         T9ResponsivenessTrace.markRenderComplete(traceId)
         if (traceId != null) {
@@ -817,38 +823,31 @@ class CandidatesView(
         val prefixToConsume = matchedPrefix?.takeIf {
             service.shouldConsumeT9ResolvedPinyinPrefixAfterHanziSelection(it, selectedCandidate)
         }
-        // Candidate indices are meaningful only for the engine frame that produced them. Run the
-        // select in the same serialized queue as physical input and validate both tickets first.
-        service.postFcitxJob {
-            val requestIsCurrent = withContext(Dispatchers.Main.immediate) {
+        chineseT9EngineOperation.enqueue(
+            acceptBefore = {
                 service.isCurrentChineseT9Composition(compositionTicket) &&
                     t9CandidateUiSnapshotPipeline.currentChineseSelectionTicket(
                         originalIndex = originalIndex,
                         candidate = selectedCandidate
                     ) == sourceTicket
-            }
-            if (!requestIsCurrent) return@postFcitxJob
-            val selected = if (fromAllCandidates) {
-                selectFromAll(originalIndex)
-            } else {
-                select(originalIndex)
-            }
-            if (selected) {
-                withContext(Dispatchers.Main.immediate) {
-                    if (!service.canFinishChineseT9CandidateSelection(compositionTicket)) {
-                        return@withContext
-                    }
-                    if (prefixToConsume != null) {
-                        service.consumeT9ResolvedPinyinPrefix(prefixToConsume)
-                    } else if (service.isChineseT9InputModeActive()) {
-                        service.consumeT9ReadingFromSelectedCandidate(selectedCandidate)
-                    }
-                    // Punctuation must appear only after Rime accepts the selected Hanzi;
-                    // otherwise the asynchronous select can overwrite the new punctuation row.
-                    onSelected?.invoke()
+            },
+            execute = {
+                if (fromAllCandidates) selectFromAll(originalIndex) else select(originalIndex)
+            },
+            acceptAfter = { selected ->
+                selected && service.canFinishChineseT9CandidateSelection(compositionTicket)
+            },
+            finish = {
+                if (prefixToConsume != null) {
+                    service.consumeT9ResolvedPinyinPrefix(prefixToConsume)
+                } else if (service.isChineseT9InputModeActive()) {
+                    service.consumeT9ReadingFromSelectedCandidate(selectedCandidate)
                 }
+                // Punctuation must appear only after Rime accepts the selected Hanzi;
+                // otherwise the asynchronous select can overwrite the new punctuation row.
+                onSelected?.invoke()
             }
-        }
+        )
         return true
     }
 
@@ -868,19 +867,19 @@ class CandidatesView(
         if (!t9CandidateUiSnapshotPipeline.shouldRequestChineseBulkFilter(signature)) return
         t9CandidateUiSnapshotPipeline.startChineseBulkFilterRequest(prefixes, signature)
         val layoutHint = paged.layoutHint
-        fcitx.launchOnReady { api ->
-            val rawCandidates = api.getCandidates(0, T9_BULK_FILTER_LIMIT)
-            post {
-                t9CandidateUiSnapshotPipeline.finishChineseBulkFilterRequest(
+        chineseT9EngineOperation.enqueue(
+            acceptBefore = { true },
+            execute = { getCandidates(0, T9_BULK_FILTER_LIMIT).toList() },
+            finish = { rawCandidates ->
+                val finished = t9CandidateUiSnapshotPipeline.finishChineseBulkFilterRequest(
                     signature = signature,
-                    rawCandidates = rawCandidates.toList(),
+                    rawCandidates = rawCandidates,
                     prefixes = prefixes,
                     layoutHint = layoutHint
                 )
-                    ?: return@post
-                refreshT9Ui()
+                if (finished != null) refreshT9Ui()
             }
-        }
+        )
     }
 
     private fun resetT9BulkFilterState() {

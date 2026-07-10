@@ -38,9 +38,15 @@ class T9CandidateSurfaceGeometry(
         val pinyinRowFocused: Boolean
     )
 
+    private var activeGenerationId = 0L
     private var candidateVisualWidthPx: Int? = null
 
-    fun observeCandidateVisualWidth(widthPx: Int?) {
+    fun beginFrame(generationId: Long) {
+        activeGenerationId = generationId
+    }
+
+    fun observeCandidateVisualWidth(generationId: Long, widthPx: Int?) {
+        if (generationId != activeGenerationId) return
         val measured = widthPx?.takeIf { it > 0 }
         if (candidateVisualWidthPx == measured) return
         candidateVisualWidthPx = measured

@@ -21,12 +21,17 @@ class T9CandidateSurfaceAndroidAdapter(
     private val candidateStatusView: TextView,
     private val candidateStatusText: (T9CandidateStatus) -> CharSequence,
     private val shortcutCandidateLayout: (FcitxEvent.PagedCandidateEvent.Data) -> T9ShortcutCandidateLayout,
-    private val onShortcutCandidateMeasured: (Int?) -> Unit,
+    private val onShortcutCandidateMeasured: (generationId: Long, widthPx: Int?) -> Unit,
     private val setPreferAboveCursorAnchor: (Boolean) -> Unit,
     private val showWhenPositioned: (contentReady: Boolean) -> Unit,
     private val hideSurfaceImmediately: () -> Unit
 ) : T9CandidateUiRenderer.Delegate {
     private var lastRenderedFocus = T9CandidateFocus.BOTTOM
+    private var activeGenerationId = 0L
+
+    fun beginFrame(generationId: Long) {
+        activeGenerationId = generationId
+    }
 
     override fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean) {
         setPreferAboveCursorAnchor.invoke(preferAboveCursorAnchor)
@@ -65,7 +70,7 @@ class T9CandidateSurfaceAndroidAdapter(
             }
         }
         if (candidateStatus != null) {
-            onShortcutCandidateMeasured(null)
+            onShortcutCandidateMeasured(activeGenerationId, null)
             return
         }
         if (showShortcutLabels) {
@@ -75,10 +80,14 @@ class T9CandidateSurfaceAndroidAdapter(
                 T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutUpdate") {
                     shortcutCandidatesUi.update(candidates, layout, shortcutStyle)
                 }
-                onShortcutCandidateMeasured(shortcutCandidatesUi.measuredToolbarWidthPx)
+                onShortcutCandidateMeasured(
+                    activeGenerationId,
+                    shortcutCandidatesUi.measuredToolbarWidthPx
+                )
             }
             return
         }
+        onShortcutCandidateMeasured(activeGenerationId, null)
         T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.pagedUpdate") {
             candidatesUi.update(candidates, orientation)
         }

@@ -76,6 +76,7 @@ import org.fcitx.fcitx5.android.input.cursor.CursorTracker
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionCoordinator
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionLifecycle
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionTicket
+import org.fcitx.fcitx5.android.input.t9.ChineseT9EngineOperation
 import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSnapshotKey
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSource
@@ -1702,6 +1703,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         formatText = ::formattedT9Text,
         buildRawPreeditDisplay = ::buildT9PreeditDisplay
     )
+    private val chineseT9EngineOperation by lazy {
+        ChineseT9EngineOperation<FcitxAPI>(
+            submit = { block ->
+                postFcitxJob(block)
+                Unit
+            }
+        )
+    }
     private val chineseT9SchemeCycle = ChineseT9SchemeCycleSession()
     private var activeChineseT9Scheme = ChineseT9Scheme.PINYIN
     private var activeChineseT9SubModeIdentity: String? = null
@@ -1901,7 +1910,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
         commitText("*")
         if (resetChineseEngine) {
-            postFcitxJob {
+            chineseT9EngineOperation.enqueue {
                 focusOutIn()
             }
         }
@@ -1937,8 +1946,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             }
             val states = KeyStates.fromKeyEvent(event)
             val up = event.action == KeyEvent.ACTION_UP
-            postFcitxJob {
+            val send: suspend FcitxAPI.() -> Unit = {
                 sendKey(sym, states, event.scanCode, up, timestamp)
+            }
+            if (t9InputModeEnabled && currentT9Mode == T9InputMode.CHINESE) {
+                chineseT9EngineOperation.enqueue(send)
+            } else {
+                postFcitxJob(send)
             }
             return true
         }
@@ -2045,15 +2059,21 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     private fun replayT9RawComposition(rawPreedit: String) {
         chineseT9Composition.prepareReplay(rawPreedit)
-        postFcitxJob {
-            setCandidatePagingMode(candidatePagingModeForCurrentInputDevice())
-            reset()
-            rawPreedit.forEach { ch ->
-                if (ch in '2'..'9' || ch == '\'') {
-                    sendKey(ch)
+        val ticket = chineseT9Composition.compositionTicket()
+        chineseT9EngineOperation.enqueue(
+            acceptBefore = { isCurrentChineseT9Composition(ticket) },
+            execute = {
+                setCandidatePagingMode(candidatePagingModeForCurrentInputDevice())
+                reset()
+                rawPreedit.forEach { ch ->
+                    if (ch in '2'..'9' || ch == '\'') {
+                        sendKey(ch)
+                    }
                 }
-            }
-        }
+            },
+            acceptAfter = { isCurrentChineseT9Composition(ticket) },
+            finish = {}
+        )
     }
 
     fun candidateMatchesT9ResolvedPrefix(
@@ -2068,12 +2088,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
      */
     fun selectT9Pinyin(pinyin: String) {
         val request = chineseT9Composition.selectPinyin(pinyin) ?: return
-        postFcitxJob {
-            chineseT9Composition.mirrorPinyinSelection(this, request)
-            this@FcitxInputMethodService.lifecycleScope.launch {
-                candidatesView?.refreshT9Ui()
-            }
-        }
+        val ticket = chineseT9Composition.compositionTicket()
+        chineseT9EngineOperation.enqueue(
+            acceptBefore = { isCurrentChineseT9Composition(ticket) },
+            execute = { chineseT9Composition.mirrorPinyinSelection(this, request) },
+            acceptAfter = { isCurrentChineseT9Composition(ticket) },
+            finish = { candidatesView?.refreshT9Ui() }
+        )
     }
 
     fun commitT9ReadingSelection(reading: String): Boolean {

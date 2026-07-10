@@ -68,13 +68,30 @@ class T9CandidateSurfaceGeometryTest {
 
     @Test
     fun observedToolbarWidthFeedsLaterSurfacePlans() {
-        geometry.observeCandidateVisualWidth(212)
+        geometry.beginFrame(1L)
+        geometry.observeCandidateVisualWidth(1L, 212)
 
         val plan = geometry.surfacePlan(surfaceInput(candidates = listOf("嘿", "给")))
 
         val pinyinSurface = requireNotNull(plan.pinyinSurface)
         assertTrue(pinyinSurface.contentReady)
         assertEquals(212, pinyinSurface.rowWidthPx)
+    }
+
+    @Test
+    fun staleFrameMeasurementCannotReplaceCurrentGeometryObservation() {
+        geometry.beginFrame(1L)
+        geometry.observeCandidateVisualWidth(1L, 212)
+        geometry.beginFrame(2L)
+
+        geometry.observeCandidateVisualWidth(1L, 80)
+
+        val retained = geometry.surfacePlan(surfaceInput(candidates = listOf("嘿", "给")))
+        assertEquals(212, requireNotNull(retained.pinyinSurface).rowWidthPx)
+
+        geometry.observeCandidateVisualWidth(2L, null)
+        val cleared = geometry.surfacePlan(surfaceInput(candidates = listOf("嘿", "给")))
+        assertEquals(144, requireNotNull(cleared.pinyinSurface).rowWidthPx)
     }
 
     private fun surfaceInput(
