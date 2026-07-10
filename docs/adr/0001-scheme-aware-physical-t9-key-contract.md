@@ -15,9 +15,9 @@ star. That assignment does not extend to the requested Chinese mechanisms:
 - Zhuyin input needs `1` for the `ㄅㄆㄇㄈ` group.
 - English has no letter group on short `1`, so it can use the key for case.
 
-This project calls the first mechanism **Stroke** or **five-stroke mobile
-input**. It is not Wubi 86, which uses Latin root codes and a different input
-model.
+This project calls the first mechanism **Stroke** or **mobile Stroke input**.
+Its Chinese product name is `笔画九键`/`筆畫九鍵`. It is not Wubi 86, which
+uses Latin root codes and a different input model.
 
 A literal global key map would either block Stroke and Zhuyin or force users to
 learn unrelated punctuation keys in each mechanism. The physical key path is
@@ -133,6 +133,16 @@ active scheme.
 The active scheme is shown in the T9 mode label. The Pinyin schema is named
 `拼音九键` rather than the now-ambiguous `中文九键`; the old name remains only
 as a compatibility alias when classifying an existing deployment.
+
+Each enabled Chinese scheme has an independent Simplified/Traditional default.
+The default is applied once when that scheme becomes active, not continuously
+enforced, so a user can still make a temporary Rime-side script change. Stroke
+uses Rime's `simplification` option while Pinyin and Zhuyin use
+`traditionalization`; `ChineseT9OutputScriptPolicy` hides that polarity
+difference from settings and the physical-key path. A generation-tagged session
+rejects stale asynchronous assignments, and the platform Adapter applies the
+result through a typed Rime option Interface rather than parsing translated
+status-action labels.
 
 ### 5. Preserve one command-based hot path
 

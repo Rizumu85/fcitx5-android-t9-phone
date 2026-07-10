@@ -400,3 +400,17 @@ otherwise.
   evaluation ticketed after immediate operator commit.
 - [x] Run focused regression tests after every slice, then build/install debug
   and compare warm key and cold-start traces on the target phone.
+
+## Stroke Naming And Chinese Output Script Defaults
+
+- [x] Rename current user-facing `五笔画`/`五筆畫` text to `笔画`/`筆畫` in the
+  app, maintained Rime configuration, and release documentation while keeping
+  correct English `Stroke` domain identifiers.
+- [x] Add independent Simplified/Traditional defaults for Pinyin, Stroke, and
+  Zhuyin to Chinese input settings.
+- [x] Apply each default once on scheme entry or an active preference change,
+  preserving temporary manual Rime toggles and keeping all work off the key
+  path.
+- [x] Add focused naming, option-polarity, and stale-request tests.
+- [x] Build both maintained repositories, install their debug artifacts, and
+  verify all three schemes and their configured scripts on the target phone.

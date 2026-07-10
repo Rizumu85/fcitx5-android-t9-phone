@@ -81,6 +81,21 @@ snapshots, while `FcitxInputMethodService` remains a platform Adapter. They must
 not introduce direct dictionary work, Rime calls, or Android view measurement
 into the synchronous physical-key decision path.
 
+### Chinese T9 Output Script Default
+
+The preferred Simplified or Traditional output selected independently for
+Pinyin, Stroke, and Zhuyin. It is applied once when its scheme becomes active,
+when Rime first becomes ready, or when that active preference changes. It is
+not a permanent lock: a manual Rime-side toggle remains effective for the rest
+of the current scheme visit.
+
+`ChineseT9OutputScriptPolicy` owns each scheme's Rime option name and polarity.
+`ChineseT9OutputScriptSession` owns generation-tagged requests across the
+asynchronous Fcitx seam. The platform Adapter verifies that the request still
+belongs to the active Rime scheme and applies one typed option assignment. It
+must not infer state by parsing translated status-action labels, and it must not
+read preferences or call Rime from the physical-key or candidate-frame path.
+
 ### Physical Input Router
 
 The ordered physical-key routing Module above Physical T9 Key Flow. It owns

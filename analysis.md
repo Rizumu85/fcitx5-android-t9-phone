@@ -841,3 +841,38 @@ The fail-closed guard keeps an older plugin from terminating the IME, but Chines
 input intentionally remains unavailable until the updated plugin is installed;
 future releases that include this main-app change must therefore publish the
 corresponding Rime plugin update.
+
+## Stroke Naming And Per-scheme Output Script
+
+The implemented numeric Chinese scheme is mobile **Stroke** input, not Wubi.
+Its English domain identifiers (`STROKE`, `T9StrokeCodec`, and the
+`t9_stroke` schema id) are already correct; only user-facing Chinese text was
+misnamed as `五笔画`. The maintained name is `笔画九键` (`筆畫九鍵` in
+Traditional Chinese). Existing deployed Rime configurations may still report
+the old label, so classification keeps that old text as an input alias without
+showing it in current UI or documentation.
+
+Pinyin, Stroke, and Zhuyin use different Rime conversion options. Pinyin and
+Zhuyin enable `traditionalization` to request Traditional output, while Stroke
+enables `simplification` to request Simplified output because its source table
+contains Traditional forms. A per-scheme setting therefore cannot safely treat
+the Rime checkbox polarity as uniform.
+
+The setting means the output script selected when a Chinese scheme becomes
+active, not a permanent lock. The user may still toggle Simplified/Traditional
+from Rime for the current visit. Scheme entry, Rime readiness, and an active
+preference change each issue a one-shot option assignment through a typed Rime
+Adapter. A monotonic request generation rejects assignments made stale by a
+newer scheme or preference transition. Later status updates do not force the
+configured default back.
+
+Device inspection showed that Rime's script actions are display actions, not
+checkable state: both `isCheckable` and `isChecked` remain false while the text
+changes between direction labels such as `简 -> 繁`. Parsing those labels would
+couple behavior to translated UI text and still leave ambiguous polarity. The
+app therefore sets the schema-owned option directly and keeps option name and
+polarity in `ChineseT9OutputScriptPolicy`. This work stays on scheme/readiness
+lifecycle events and adds no preference, action, or Rime read to the physical-key
+or candidate-frame path. The Chinese T9 preference category is also copied to
+device-protected storage so enabled schemes and output defaults remain the same
+when the IME starts before the first device unlock.

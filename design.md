@@ -566,3 +566,31 @@ editor has already applied it, so both immediate and delayed InputConnection
 visibility produce the same expression. These policies stay behind their
 existing domain Modules rather than returning to `FcitxInputMethodService`
 condition chains.
+
+## Chinese T9 Output Script Defaults
+
+`ChineseT9OutputScript` is the persisted product preference shared by all
+Chinese T9 schemes, with one value stored for Pinyin, Stroke, and Zhuyin.
+`ChineseT9OutputScriptPolicy` is the scheme policy Module. Its Interface maps a
+scheme and product script to one typed Rime option assignment. Its
+Implementation owns the differing option names and polarities, so neither the
+settings UI nor `FcitxInputMethodService` knows that Stroke simplification is
+inverted relative to Pinyin/Zhuyin traditionalization.
+
+`ChineseT9OutputScriptSession` owns only asynchronous request identity. Scheme
+activation, Rime-ready, and active-preference changes create a generation-tagged
+request. Before the serialized Fcitx job applies it, the session verifies that
+no newer request and no scheme transition made it stale. The Android/Fcitx
+Adapter also verifies that Rime is still the active input method, then calls the
+typed `FcitxAPI.setRimeOption` Interface.
+
+The Rime plugin Adapter applies that option to the active Rime session. It does
+not parse translated status-action labels or infer state from action checkbox
+fields, because script actions expose neither reliable checkable state nor a
+stable language-independent direction label. An older independently installed
+plugin that lacks the new export fails closed and logs the mismatch; there is
+no status-action fallback. Consequently a later manual Rime toggle remains in
+effect until the user enters the scheme again. No output-script work runs
+during a physical-key decision or candidate frame. The complete Chinese T9
+preference category participates in the existing device-protected preference
+sync, preserving the same scheme subset and script defaults during Direct Boot.
