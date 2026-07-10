@@ -135,6 +135,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private lateinit var contentView: FrameLayout
     private var inputView: InputView? = null
     private var candidatesView: CandidatesView? = null
+    private var modeIndicatorOverlay: TransientModeIndicatorOverlay? = null
     private val passwordInputPreviewBuffer = StringBuilder()
     private var passwordInputPreviewCursor = 0
     private val numberModeController = NumberModeController(
@@ -545,6 +546,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun replaceInputView(theme: Theme): InputView {
         val newInputView = InputView(this, fcitx, theme)
         setInputView(newInputView)
+        modeIndicatorOverlay?.bringToFront()
         inputDeviceMgr.setInputView(newInputView)
         inputView = newInputView
         return newInputView
@@ -556,6 +558,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         contentView.removeView(candidatesView)
         // put CandidatesView directly under content view
         contentView.addView(newCandidatesView)
+        modeIndicatorOverlay?.bringToFront()
         inputDeviceMgr.setCandidatesView(newCandidatesView)
         candidatesView = newCandidatesView
         return newCandidatesView
@@ -565,6 +568,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         navbarMgr.evaluate(window.window!!, inputDeviceMgr.isVirtualKeyboard)
         replaceInputView(theme)
         replaceCandidateView(theme)
+        modeIndicatorOverlay?.detach()
+        modeIndicatorOverlay = TransientModeIndicatorOverlay(this, theme).also {
+            it.attachTo(contentView)
+        }
+    }
+
+    private fun showModeIndicatorBadge(label: String) {
+        modeIndicatorOverlay?.show(label)
     }
 
     private fun shouldKeepTemporaryPasswordModeOnRestart(
@@ -1231,7 +1242,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         physicalSelectionFocus = cursor
         physicalSelectionActionPanelActive = false
         inputView?.hideSelectionActionHints()
-        inputView?.showModeIndicatorBadge("进入选区")
+        showModeIndicatorBadge("进入选区")
     }
 
     private fun exitPhysicalSelectionMode(showBadge: Boolean = false) {
@@ -1247,7 +1258,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         physicalSelectionAnchor = -1
         physicalSelectionFocus = -1
         if (showBadge) {
-            inputView?.showModeIndicatorBadge("退出选区")
+            showModeIndicatorBadge("退出选区")
         }
     }
 
@@ -1266,13 +1277,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun performPhysicalSelectionContextAction(action: Int, label: String) {
         dismissPhysicalSelectionActionPanel()
         currentInputConnection?.performContextMenuAction(action)
-        inputView?.showModeIndicatorBadge(label)
+        showModeIndicatorBadge(label)
     }
 
     private fun performPhysicalSelectionDeleteAction() {
         dismissPhysicalSelectionActionPanel()
         deleteSelectionIfAny()
-        inputView?.showModeIndicatorBadge("删除")
+        showModeIndicatorBadge("删除")
     }
 
     private fun cancelPhysicalSelectionActionPanelSelection() {
@@ -1595,7 +1606,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 onT9ModeChanged?.invoke(getCurrentT9ModeLabel())
             },
             showModeIndicator = {
-                inputView?.showModeIndicatorBadge(getCurrentT9ModeLabel())
+                showModeIndicatorBadge(getCurrentT9ModeLabel())
             }
         )
     }
@@ -1659,13 +1670,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         pendingMultiTapDisplay = { t9MultiTapCoordinator.pendingDisplayText() },
         setComposingText = { text -> currentInputConnection?.setComposingText(text, 1) },
         caseLabel = { smartEnglishCoordinator.caseLabel },
-        showModeIndicator = { label -> inputView?.showModeIndicatorBadge(label) }
+        showModeIndicator = ::showModeIndicatorBadge
     )
     private val smartEnglishModeController = SmartEnglishT9ModeController(
         initialEnabled = keyboardPrefs.smartEnglishT9.getValue(),
         setPreference = { enabled -> keyboardPrefs.smartEnglishT9.setValue(enabled) },
         onEnabledChanged = { enabled -> smartEnglishCoordinator.onEnabledChanged(enabled) },
-        showModeIndicator = { label -> inputView?.showModeIndicatorBadge(label) }
+        showModeIndicator = ::showModeIndicatorBadge
     )
     private val smartEnglishCoordinator: SmartEnglishT9Coordinator by lazy {
         SmartEnglishT9Coordinator(
@@ -1715,7 +1726,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
         if (currentT9Mode == T9InputMode.CHINESE) {
             onT9ModeChanged?.invoke(next.compactLabel)
-            inputView?.showModeIndicatorBadge(next.compactLabel)
+            showModeIndicatorBadge(next.compactLabel)
         }
     }
 
@@ -2756,6 +2767,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         keyboardPrefs.passwordInputPreview.unregisterOnChangeListener(passwordInputPreviewChangeListener)
         prefs.candidates.unregisterOnChangeListener(recreateCandidatesViewListener)
         ThemeManager.removeOnChangedListener(onThemeChangeListener)
+        modeIndicatorOverlay?.detach()
+        modeIndicatorOverlay = null
         super.onDestroy()
         // Fcitx might be used in super.onDestroy()
         FcitxDaemon.disconnect(javaClass.name)

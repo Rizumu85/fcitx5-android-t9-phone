@@ -114,31 +114,8 @@ class InputView(
         // bottomMargin as WindowInsets (Navigation Bar) offset
         setOnClickListener(placeholderOnClickListener)
     }
-    private val modeSwitchIndicatorHandler = Handler(Looper.getMainLooper())
-    private val modeSwitchIndicatorHideRunnable = Runnable {
-        hideModeSwitchIndicator()
-    }
     private val selectionActionPanel = SelectionActionPanel(context, theme)
     private val numberOperatorPanel = NumberOperatorPanel(context, theme)
-    private val modeSwitchIndicator = view(::AutoScaleTextView) {
-        alpha = 0f
-        visibility = GONE
-        isClickable = false
-        isFocusable = false
-        gravity = Gravity.CENTER
-        minimumWidth = dp(52)
-        minimumHeight = dp(26)
-        setPadding(dp(8), 0, dp(8), 0)
-        setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20f)
-        InputUiFont.applyTo(this, Typeface.BOLD)
-        setTextColor(theme.accentKeyTextColor)
-        background = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = dp(3f)
-            setColor(theme.accentKeyBackgroundColor)
-        }
-        elevation = dp(8).toFloat()
-    }
     private var passwordInputPreviewValue = ""
     private var passwordInputPreviewCursor = 0
     private var passwordInputPreviewCursorVisible = true
@@ -417,10 +394,6 @@ class InputView(
             centerVertically()
             centerHorizontally()
         })
-        add(modeSwitchIndicator, lParams(wrapContent, wrapContent) {
-            centerVertically()
-            centerHorizontally()
-        })
         selectionActionPanel.addTo(this)
         numberOperatorPanel.addTo(this)
 
@@ -634,25 +607,6 @@ class InputView(
         updatePasswordInputPreviewChrome()
     }
 
-    fun showModeIndicatorBadge(label: String) {
-        modeSwitchIndicatorHandler.removeCallbacks(modeSwitchIndicatorHideRunnable)
-        modeSwitchIndicator.animate().cancel()
-        modeSwitchIndicator.text = label
-        modeSwitchIndicator.visibility = VISIBLE
-        modeSwitchIndicator.alpha = 0f
-        modeSwitchIndicator.scaleX = 0.85f
-        modeSwitchIndicator.scaleY = 0.85f
-        modeSwitchIndicator.animate()
-            .alpha(1f)
-            .scaleX(1f)
-            .scaleY(1f)
-            .setDuration(80L)
-            .withEndAction {
-                modeSwitchIndicatorHandler.postDelayed(modeSwitchIndicatorHideRunnable, 420L)
-            }
-            .start()
-    }
-
     fun showSelectionActionHints() {
         selectionActionPanel.show()
     }
@@ -677,28 +631,13 @@ class InputView(
         numberOperatorPanel.hideEqualsChoice()
     }
 
-    private fun hideModeSwitchIndicator() {
-        modeSwitchIndicator.animate().cancel()
-        modeSwitchIndicator.animate()
-            .alpha(0f)
-            .scaleX(0.95f)
-            .scaleY(0.95f)
-            .setDuration(120L)
-            .withEndAction {
-                modeSwitchIndicator.visibility = GONE
-            }
-            .start()
-    }
-
     @RequiresApi(Build.VERSION_CODES.R)
     fun handleInlineSuggestions(response: InlineSuggestionsResponse): Boolean {
         return kawaiiBar.handleInlineSuggestions(response)
     }
 
     override fun onDetachedFromWindow() {
-        modeSwitchIndicatorHandler.removeCallbacks(modeSwitchIndicatorHideRunnable)
         passwordInputPreviewBlinkHandler.removeCallbacks(passwordInputPreviewBlinkRunnable)
-        modeSwitchIndicator.animate().cancel()
         keyboardWindow.onLayoutChanged = null
         keyboardWindow.onHeightChanged = null
         windowManager.onActiveWindowChanged = null
