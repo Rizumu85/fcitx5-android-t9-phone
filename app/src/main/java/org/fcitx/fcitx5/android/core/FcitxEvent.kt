@@ -204,6 +204,33 @@ sealed class FcitxEvent<T>(open val data: T) {
         data class Data(val reason: Reason, val oldInputMethod: String)
     }
 
+    data class RimeAvailabilityEvent(override val data: Data) :
+        FcitxEvent<RimeAvailabilityEvent.Data>(data) {
+
+        override val eventType = EventType.RimeAvailability
+
+        enum class State {
+            Unavailable,
+            Deploying,
+            Ready,
+            Failed;
+
+            companion object {
+                private val Types = entries.toTypedArray()
+                fun of(value: Int) = Types.getOrElse(value) { Unavailable }
+            }
+        }
+
+        data class Data(
+            val state: State,
+            val activeSchema: String
+        ) {
+            companion object {
+                val Unavailable = Data(State.Unavailable, "")
+            }
+        }
+    }
+
     data class UnknownEvent(override val data: Array<Any>) : FcitxEvent<Array<Any>>(data) {
 
         override val eventType = EventType.Unknown
@@ -236,6 +263,7 @@ sealed class FcitxEvent<T>(open val data: T) {
         DeleteSurrounding,
         PagedCandidate,
         SwitchInputMethod,
+        RimeAvailability,
         Unknown
     }
 
@@ -302,6 +330,12 @@ sealed class FcitxEvent<T>(open val data: T) {
                 EventType.SwitchInputMethod -> SwitchInputMethodEvent(
                     SwitchInputMethodEvent.Data(
                         SwitchInputMethodEvent.Reason.of(params[0] as Int),
+                        params[1] as String
+                    )
+                )
+                EventType.RimeAvailability -> RimeAvailabilityEvent(
+                    RimeAvailabilityEvent.Data(
+                        RimeAvailabilityEvent.State.of(params[0] as Int),
                         params[1] as String
                     )
                 )

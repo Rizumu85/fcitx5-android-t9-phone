@@ -720,3 +720,10 @@ Seven bounded slices are accepted, in this order:
 Each slice replaces its previous path rather than retaining a compatibility
 fallback. Focused tests must lock down endpoint ownership and stale-result
 rejection before device performance is compared.
+
+The Rime availability slice also exposed an existing source-control hazard:
+the parent repository already referenced a local-only fcitx5-rime commit for
+the Android get/replace APIs, while `.gitmodules` still pointed at upstream.
+Fresh clones could not fetch that commit. The maintained Android changes now
+live on the `android-t9` branch of the project fork, and the submodule URL points
+at that fetchable history before adding the availability callback.

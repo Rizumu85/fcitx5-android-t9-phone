@@ -386,7 +386,7 @@ otherwise.
 - [x] Extend responsiveness transactions to simple English, number mode,
   selection movement, editor effects, transient panels, and router-owned delete
   paths without broadening the O(1) key reducer.
-- [ ] Publish explicit Rime deployment/readiness and active-schema state, then
+- [x] Publish explicit Rime deployment/readiness and active-schema state, then
   gate Chinese engine operations by readiness and composition generation.
 - [ ] Lazily materialize keyboard layouts and picker catalogs, and move sound
   decoding after the first visible input-surface frame.

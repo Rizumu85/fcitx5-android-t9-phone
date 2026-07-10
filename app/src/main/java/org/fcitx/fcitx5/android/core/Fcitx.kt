@@ -51,6 +51,9 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
     override var inputPanelCached = FcitxEvent.InputPanelEvent.Data()
         private set
 
+    override var rimeAvailabilityCached = FcitxEvent.RimeAvailabilityEvent.Data.Unavailable
+        private set
+
     // TODO: custom log rule
     override fun setLogRule(verbose: Boolean) {
         setupLogStream(verbose)
@@ -551,6 +554,7 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
             }
             is FcitxEvent.ClientPreeditEvent -> clientPreeditCached = event.data
             is FcitxEvent.InputPanelEvent -> inputPanelCached = event.data
+            is FcitxEvent.RimeAvailabilityEvent -> rimeAvailabilityCached = event.data
             else -> {}
         }
     }
@@ -564,6 +568,7 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
             registerFcitxEventHandler(::handleFirstRunReadyEvent)
         }
         registerFcitxEventHandler(::handleFcitxEvent)
+        publishRimeLifecycleState(FcitxEvent.RimeAvailabilityEvent.State.Deploying)
         lifecycleRegistry.postEvent(FcitxLifecycle.Event.ON_START)
         ClipboardManager.addOnUpdateListener(onClipboardUpdate)
         DataManager.addOnNextSyncedCallback {
@@ -579,6 +584,7 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
             return
         }
         lifecycleRegistry.postEvent(FcitxLifecycle.Event.ON_STOP)
+        publishRimeLifecycleState(FcitxEvent.RimeAvailabilityEvent.State.Unavailable)
         Timber.i("Fcitx stop()")
         ClipboardManager.removeOnUpdateListener(onClipboardUpdate)
         FcitxPluginServices.disconnectAll()
@@ -591,6 +597,15 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
         // clear addon graph
         addonGraph = null
         addonReverseDependencies.clear()
+    }
+
+    private fun publishRimeLifecycleState(state: FcitxEvent.RimeAvailabilityEvent.State) {
+        val data = FcitxEvent.RimeAvailabilityEvent.Data(
+            state = state,
+            activeSchema = rimeAvailabilityCached.activeSchema
+        )
+        rimeAvailabilityCached = data
+        eventFlow_.tryEmit(FcitxEvent.RimeAvailabilityEvent(data))
     }
 
 }

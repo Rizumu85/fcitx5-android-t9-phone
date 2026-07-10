@@ -454,6 +454,15 @@ public:
         return p_rime->call<fcitx::IRimeEngine::replaceInput>(ic, start, length, replacement, caretPos);
     }
 
+    void setRimeAvailabilityCallback(fcitx::RimeAvailabilityCallback callback) {
+        if (!p_rime) {
+            callback(fcitx::RimeAvailability::Unavailable);
+            return;
+        }
+        p_rime->call<fcitx::IRimeEngine::setAvailabilityCallback>(
+                std::move(callback));
+    }
+
     void save() {
         p_instance->save();
     }
@@ -721,6 +730,21 @@ Java_org_fcitx_fcitx5_android_core_Fcitx_startupFcitx(
         env->SetObjectArrayElement(vararg, 1, JString(env, oldIM));
         env->CallStaticVoidMethod(GlobalRef->Fcitx, GlobalRef->HandleFcitxEvent, 10, *vararg);
     };
+    auto rimeAvailabilityCallback = [](const fcitx::RimeAvailability availability) {
+        auto env = GlobalRef->AttachEnv();
+        auto vararg = JRef<jobjectArray>(env, env->NewObjectArray(2, GlobalRef->Object, nullptr));
+        auto state = JRef(env, env->NewObject(
+                GlobalRef->Integer,
+                GlobalRef->IntegerInit,
+                static_cast<int>(availability)));
+        env->SetObjectArrayElement(vararg, 0, state);
+        auto status = availability == fcitx::RimeAvailability::Ready
+                ? Fcitx::Instance().inputMethodStatus()
+                : nullptr;
+        const std::string activeSchema = status ? status->subMode : "";
+        env->SetObjectArrayElement(vararg, 1, JString(env, activeSchema));
+        env->CallStaticVoidMethod(GlobalRef->Fcitx, GlobalRef->HandleFcitxEvent, 11, *vararg);
+    };
     auto toastCallback = [](const std::string &s) {
         auto env = GlobalRef->AttachEnv();
         env->CallStaticVoidMethod(GlobalRef->Fcitx, GlobalRef->ShowToast, *JString(env, s));
@@ -732,6 +756,7 @@ Java_org_fcitx_fcitx5_android_core_Fcitx_startupFcitx(
     Fcitx::Instance().startup([&](auto *androidfrontend) {
         FCITX_INFO() << "Setting up callback";
         readyCallback();
+        Fcitx::Instance().setRimeAvailabilityCallback(rimeAvailabilityCallback);
         androidfrontend->template call<fcitx::IAndroidFrontend::setCandidateListCallback>(candidateListCallback);
         androidfrontend->template call<fcitx::IAndroidFrontend::setCommitStringCallback>(commitStringCallback);
         androidfrontend->template call<fcitx::IAndroidFrontend::setPreeditCallback>(preeditCallback);

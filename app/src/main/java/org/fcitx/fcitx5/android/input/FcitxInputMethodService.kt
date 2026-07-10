@@ -87,6 +87,7 @@ import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHandler
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHostAdapter
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
 import org.fcitx.fcitx5.android.input.t9.PhysicalInputRouter
+import org.fcitx.fcitx5.android.input.t9.RimeAvailabilitySession
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9Coordinator
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishCaseCoordinator
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishLearningPolicy
@@ -371,6 +372,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     private fun clearT9CompositionState() {
         chineseT9Composition.clear()
+        chineseT9EngineOperation.discardPending()
     }
 
     private fun hasT9CompositionState(): Boolean =
@@ -654,12 +656,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
         postFcitxJob {
             val initialSubMode = inputMethodEntryCached.subMode.name
+            val initialRimeAvailability = rimeAvailabilityCached
             withContext(Dispatchers.Main.immediate) {
                 // A service can attach after Fcitx emitted its original IMChange. Initialize from
                 // the cached entry once; a newer event wins by setting the identity first.
                 if (activeChineseT9SubModeIdentity == null) {
                     activateChineseT9Scheme(initialSubMode)
                 }
+                handleRimeAvailability(initialRimeAvailability)
             }
         }
         pkgNameCache = PackageNameCache(this)
@@ -776,6 +780,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 handleDeleteSurrounding(before, after)
             }
             is FcitxEvent.IMChangeEvent -> {
+                rimeAvailabilitySession.observeActiveSchema(event.data.subMode.name)
                 activateChineseT9Scheme(event.data.subMode.name)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     val im = event.data.uniqueName
@@ -796,6 +801,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                     }
                 }
             }
+            is FcitxEvent.RimeAvailabilityEvent -> handleRimeAvailability(event.data)
             else -> {}
         }
     }
@@ -1714,17 +1720,59 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         formatText = ::formattedT9Text,
         buildRawPreeditDisplay = ::buildT9PreeditDisplay
     )
+    private val rimeAvailabilitySession = RimeAvailabilitySession()
     private val chineseT9EngineOperation by lazy {
         ChineseT9EngineOperation<FcitxAPI>(
             submit = { block ->
                 postFcitxJob(block)
                 Unit
-            }
+            },
+            ownerAvailable = { rimeAvailabilitySession.current.isReady },
+            ownerWaiting = {
+                rimeAvailabilitySession.current.state ==
+                    FcitxEvent.RimeAvailabilityEvent.State.Deploying
+            },
+            engineAvailable = {
+                rimeAvailabilityCached.state == FcitxEvent.RimeAvailabilityEvent.State.Ready
+            },
+            onPendingDropped = ::discardChineseCompositionForUnavailableRime
         )
     }
     private val chineseT9SchemeCycle = ChineseT9SchemeCycleSession()
     private var activeChineseT9Scheme = ChineseT9Scheme.PINYIN
     private var activeChineseT9SubModeIdentity: String? = null
+
+    private fun handleRimeAvailability(data: FcitxEvent.RimeAvailabilityEvent.Data) {
+        val transition = rimeAvailabilitySession.update(data)
+        transition.current.activeSchema.takeIf(String::isNotEmpty)?.let(::activateChineseT9Scheme)
+        if (!transition.changed) return
+        when (transition.current.state) {
+            FcitxEvent.RimeAvailabilityEvent.State.Ready -> {
+                chineseT9EngineOperation.onAvailabilityChanged(true)
+                if (chineseT9Composition.keyCount() > 0) {
+                    candidatesView?.waitForT9EngineCandidatesThenRefresh()
+                }
+            }
+            FcitxEvent.RimeAvailabilityEvent.State.Deploying -> {
+                if (transition.leftReady) {
+                    chineseT9EngineOperation.discardPending()
+                    discardChineseCompositionForUnavailableRime()
+                }
+            }
+            FcitxEvent.RimeAvailabilityEvent.State.Failed,
+            FcitxEvent.RimeAvailabilityEvent.State.Unavailable -> {
+                chineseT9EngineOperation.discardPending()
+                discardChineseCompositionForUnavailableRime()
+            }
+        }
+    }
+
+    private fun discardChineseCompositionForUnavailableRime() {
+        if (!chineseT9Composition.hasState() && composing.isEmpty()) return
+        resetComposingState()
+        clearTransientInputUiState()
+        currentInputConnection?.finishComposingText()
+    }
 
     private fun activateChineseT9Scheme(subModeName: String) {
         val identity = subModeName.trim()
