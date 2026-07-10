@@ -16,13 +16,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.broadcast.PunctuationComponent
+import org.fcitx.fcitx5.android.input.dependency.ConcreteUniqueComponent
 import org.fcitx.fcitx5.android.input.dependency.context
 import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.keyboard.KeyAction
 import org.fcitx.fcitx5.android.input.keyboard.KeyDef
 import org.mechdancer.dependency.Dependent
-import org.mechdancer.dependency.UniqueComponent
 import org.mechdancer.dependency.manager.ManagedHandler
 import org.mechdancer.dependency.manager.managedHandler
 import org.mechdancer.dependency.manager.must
@@ -36,7 +36,7 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 class PopupComponent :
-    UniqueComponent<PopupComponent>(), Dependent, ManagedHandler by managedHandler() {
+    ConcreteUniqueComponent<PopupComponent>(), Dependent, ManagedHandler by managedHandler() {
 
     private val service by manager.inputMethodService()
     private val context by manager.context()

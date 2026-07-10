@@ -908,3 +908,45 @@ at 4570.77 ms and Rime became ready at 6680.26 ms. Synchronous stage costs were
 Input-view construction is therefore the next optimization target. The data
 fingerprint fast path is measurable but is not the largest visible-stage cost,
 so optimizing it first would not address the dominant first-frame delay.
+
+The 2597.24 ms input-view total still combines unrelated work: navigation-bar
+evaluation, keyboard/input view construction and attachment, floating candidate
+view construction and attachment, and the transient mode indicator. The next
+diagnostic slice must split those phases inside the existing Cold-start
+Transaction before changing view lifecycle behavior. This avoids attributing
+debug-build class loading or `setInputView` attachment cost to whichever
+constructor merely appears largest in a static review.
+
+The nested target run measured 3114.06 ms for the complete input-view stage:
+2771.65 ms was `InputView` creation, 273.89 ms candidate attachment, 49.51 ms
+candidate creation, 10.65 ms input attachment, 4.38 ms mode-indicator
+replacement, and 3.26 ms navigation-bar evaluation. `InputView` creation is
+unambiguously dominant, but its Kotlin property initialization, dependency
+scope setup, active keyboard materialization, and root layout assembly still
+share one constructor interval. Those subphases need one final attribution pass
+before changing lazy/eager ownership.
+
+The final split measured dependency-scope setup at 2149.91 ms, of which
+2149.39 ms was component registration and only 0.26 ms was the ready callback.
+The active keyboard itself took 136.16 ms to create and 69.27 ms to attach.
+Inspection of the registration implementation found the structural cause:
+every input component computes its uniqueness key through
+`IUniqueComponent.defaultType()`, which walks Kotlin generic supertypes with
+`kotlin-reflect` the first time `DynamicScope` hashes that component. Ten cold
+component registrations pay this reflection cost before the first frame.
+
+The selected optimization is therefore not to make keyboard UI lazy again or
+move view creation to a background thread. Input components have a concrete
+runtime class that already is their uniqueness identity. A local component base
+can publish that concrete `KClass` directly, preserving DynamicScope's dynamic
+window behavior while deleting generic-supertype reflection from the startup
+path.
+
+Two target-device process-cold runs after the identity change confirmed the
+cause and the gain. Scope registration fell from 2149.39 ms to 10.88 ms and
+10.70 ms. Complete input-view construction fell from 2723.43 ms to 695.82 ms
+and 478.92 ms; the first input-surface frame moved from 4247.25 ms to 2248.78 ms
+and then 1978.70 ms. The second run also completed a real physical-key Chinese
+composition without restarting the IME. Rime readiness still arrived later at
+6306.71 ms and 5696.53 ms, so engine readiness rather than Android input-view
+construction is now the largest user-visible cold-start gap.

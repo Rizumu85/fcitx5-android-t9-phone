@@ -394,3 +394,16 @@ decision to defer the whole frame while engine or bulk candidates are not ready.
 This keeps transitions such as `ge` -> `gel` atomic: the user may see the
 previous complete candidate frame for a moment, but should not see a partial
 `gel HDL` row one frame before the final `gel HDL Hardware ...` row.
+
+### Input Dependency Identity
+
+The unique type used by the input surface's dynamic dependency scope. Input
+components and input windows are final runtime classes, so their concrete
+`KClass` is their identity. They must not rediscover that identity by walking
+generic supertypes during first input-surface construction.
+
+`ConcreteUniqueComponent` owns this identity rule for static input components;
+the `InputWindow` bases apply the same rule to dynamic windows. `DynamicScope`
+continues to own dependency arrival and window lifecycle. This keeps picker and
+keyboard replacement dynamic while removing Kotlin generic reflection from the
+cold input-view path.

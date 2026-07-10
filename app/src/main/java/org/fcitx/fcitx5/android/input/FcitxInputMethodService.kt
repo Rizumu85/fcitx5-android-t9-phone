@@ -585,33 +585,49 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     )
 
     private fun replaceInputView(theme: Theme): InputView {
-        val newInputView = InputView(this, fcitx, theme)
-        setInputView(newInputView)
-        modeIndicatorOverlay?.bringToFront()
-        inputDeviceMgr.setInputView(newInputView)
-        inputView = newInputView
+        val newInputView = StartupPerformanceTrace.measure(
+            StartupPerformanceTrace.Stage.INPUT_VIEW_CREATE
+        ) {
+            InputView(this, fcitx, theme)
+        }
+        StartupPerformanceTrace.measure(StartupPerformanceTrace.Stage.INPUT_VIEW_ATTACH) {
+            setInputView(newInputView)
+            modeIndicatorOverlay?.bringToFront()
+            inputDeviceMgr.setInputView(newInputView)
+            inputView = newInputView
+        }
         return newInputView
     }
 
     private fun replaceCandidateView(theme: Theme): CandidatesView {
-        val newCandidatesView = CandidatesView(this, fcitx, theme)
-        // replace CandidatesView manually
-        contentView.removeView(candidatesView)
-        // put CandidatesView directly under content view
-        contentView.addView(newCandidatesView)
-        modeIndicatorOverlay?.bringToFront()
-        inputDeviceMgr.setCandidatesView(newCandidatesView)
-        candidatesView = newCandidatesView
+        val newCandidatesView = StartupPerformanceTrace.measure(
+            StartupPerformanceTrace.Stage.CANDIDATE_VIEW_CREATE
+        ) {
+            CandidatesView(this, fcitx, theme)
+        }
+        StartupPerformanceTrace.measure(StartupPerformanceTrace.Stage.CANDIDATE_VIEW_ATTACH) {
+            // replace CandidatesView manually
+            contentView.removeView(candidatesView)
+            // put CandidatesView directly under content view
+            contentView.addView(newCandidatesView)
+            modeIndicatorOverlay?.bringToFront()
+            inputDeviceMgr.setCandidatesView(newCandidatesView)
+            candidatesView = newCandidatesView
+        }
         return newCandidatesView
     }
 
     private fun replaceInputViews(theme: Theme) {
-        navbarMgr.evaluate(window.window!!, inputDeviceMgr.isVirtualKeyboard)
+        StartupPerformanceTrace.measure(StartupPerformanceTrace.Stage.NAVBAR_EVALUATION) {
+            navbarMgr.evaluate(window.window!!, inputDeviceMgr.isVirtualKeyboard)
+        }
         replaceInputView(theme)
         replaceCandidateView(theme)
-        modeIndicatorOverlay?.detach()
-        modeIndicatorOverlay = TransientModeIndicatorOverlay(this, theme).also {
-            it.attachTo(contentView)
+        StartupPerformanceTrace.measure(StartupPerformanceTrace.Stage.MODE_INDICATOR_REPLACE) {
+            modeIndicatorOverlay?.detach()
+            modeIndicatorOverlay = TransientModeIndicatorOverlay(this, theme).also {
+                it.attachTo(contentView)
+            }
         }
     }
 

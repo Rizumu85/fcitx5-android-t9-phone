@@ -34,6 +34,7 @@ import androidx.core.view.updateLayoutParams
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.CapabilityFlags
 import org.fcitx.fcitx5.android.core.FcitxEvent
+import org.fcitx.fcitx5.android.core.performance.StartupPerformanceTrace
 import org.fcitx.fcitx5.android.daemon.FcitxConnection
 import org.fcitx.fcitx5.android.daemon.launchOnReady
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
@@ -178,22 +179,26 @@ class InputView(
     private val keyboardWindow = KeyboardWindow()
 
     private fun setupScope() {
-        scope += this@InputView.wrapToUniqueComponent()
-        scope += service.wrapToUniqueComponent()
-        scope += fcitx.wrapToUniqueComponent()
-        scope += theme.wrapToUniqueComponent()
-        scope += themedContext.wrapToUniqueComponent()
-        scope += broadcaster
-        scope += popup
-        scope += punctuation
-        scope += returnKeyDrawable
-        scope += preeditEmptyState
-        scope += preedit
-        scope += commonKeyActionListener
-        scope += windowManager
-        scope += kawaiiBar
-        scope += horizontalCandidate
-        broadcaster.onScopeSetupFinished(scope)
+        StartupPerformanceTrace.measure(StartupPerformanceTrace.Stage.INPUT_SCOPE_REGISTRATION) {
+            scope += this@InputView.wrapToUniqueComponent()
+            scope += service.wrapToUniqueComponent()
+            scope += fcitx.wrapToUniqueComponent()
+            scope += theme.wrapToUniqueComponent()
+            scope += themedContext.wrapToUniqueComponent()
+            scope += broadcaster
+            scope += popup
+            scope += punctuation
+            scope += returnKeyDrawable
+            scope += preeditEmptyState
+            scope += preedit
+            scope += commonKeyActionListener
+            scope += windowManager
+            scope += kawaiiBar
+            scope += horizontalCandidate
+        }
+        StartupPerformanceTrace.measure(StartupPerformanceTrace.Stage.INPUT_SCOPE_READY) {
+            broadcaster.onScopeSetupFinished(scope)
+        }
     }
 
     private val keyboardPrefs = AppPrefs.getInstance().keyboard
@@ -286,7 +291,9 @@ class InputView(
 
     init {
         // MUST call before any operation
-        setupScope()
+        StartupPerformanceTrace.measure(StartupPerformanceTrace.Stage.INPUT_SCOPE_SETUP) {
+            setupScope()
+        }
 
         // Sync T9 mode to space bar when user switches via # long press or language key
         service.onT9ModeChanged = { broadcaster.onT9ModeUpdate(it) }
@@ -297,7 +304,9 @@ class InputView(
         }
 
         // make sure KeyboardWindow's view has been created before it receives any broadcast
-        windowManager.addEssentialWindow(keyboardWindow, createView = true)
+        StartupPerformanceTrace.measure(StartupPerformanceTrace.Stage.ACTIVE_KEYBOARD_CREATE) {
+            windowManager.addEssentialWindow(keyboardWindow, createView = true)
+        }
         windowManager.addLazyEssentialWindow(PickerWindow.Key.Symbol, ::symbolPicker)
         windowManager.addLazyEssentialWindow(PickerWindow.Key.Emoji, ::emojiPicker)
         windowManager.addLazyEssentialWindow(PickerWindow.Key.Emoticon, ::emoticonPicker)
@@ -331,74 +340,82 @@ class InputView(
             }
         }
         // 2. attach window (triggers onAttached → onLayoutChanged)
-        windowManager.attachWindow(KeyboardWindow)
+        StartupPerformanceTrace.measure(StartupPerformanceTrace.Stage.ACTIVE_KEYBOARD_ATTACH) {
+            windowManager.attachWindow(KeyboardWindow)
+        }
 
         broadcaster.onImeUpdate(fcitx.cachedState.inputMethodEntry)
 
         customBackground.imageDrawable = theme.backgroundDrawable(keyBorder)
 
-        keyboardView = TopRoundedClipLayout(themedContext).apply {
-            topCornerRadiusPx = inputPanelTopCornerRadiusPx()
-            // allow MotionEvent to be delivered to keyboard while pressing on padding views.
-            // although it should be default for apps targeting Honeycomb (3.0, API 11) and higher,
-            // but it's not the case on some devices ... just set it here
-            isMotionEventSplittingEnabled = true
-            add(customBackground, lParams(matchParent, matchParent) {
-                centerVertically()
-                centerHorizontally()
-            })
-            add(kawaiiBar.view, lParams(matchParent, dp(KawaiiBarComponent.HEIGHT)) {
-                topOfParent()
-                centerHorizontally()
-            })
-            add(leftPaddingSpace, lParams {
-                below(kawaiiBar.view)
-                startOfParent()
-                bottomOfParent()
-            })
-            add(rightPaddingSpace, lParams {
-                below(kawaiiBar.view)
-                endOfParent()
-                bottomOfParent()
-            })
-            add(windowManager.view, lParams {
-                below(kawaiiBar.view)
-                above(bottomPaddingSpace)
-                /**
-                 * set start and end constrain in [updateKeyboardSize]
-                 */
-            })
-            add(bottomPaddingSpace, lParams {
-                startToEndOf(leftPaddingSpace)
-                endToStartOf(rightPaddingSpace)
-                bottomOfParent()
-            })
+        keyboardView = StartupPerformanceTrace.measure(
+            StartupPerformanceTrace.Stage.INPUT_CHROME_CREATE
+        ) {
+            TopRoundedClipLayout(themedContext).apply {
+                topCornerRadiusPx = inputPanelTopCornerRadiusPx()
+                // allow MotionEvent to be delivered to keyboard while pressing on padding views.
+                // although it should be default for apps targeting Honeycomb (3.0, API 11) and higher,
+                // but it's not the case on some devices ... just set it here
+                isMotionEventSplittingEnabled = true
+                add(customBackground, lParams(matchParent, matchParent) {
+                    centerVertically()
+                    centerHorizontally()
+                })
+                add(kawaiiBar.view, lParams(matchParent, dp(KawaiiBarComponent.HEIGHT)) {
+                    topOfParent()
+                    centerHorizontally()
+                })
+                add(leftPaddingSpace, lParams {
+                    below(kawaiiBar.view)
+                    startOfParent()
+                    bottomOfParent()
+                })
+                add(rightPaddingSpace, lParams {
+                    below(kawaiiBar.view)
+                    endOfParent()
+                    bottomOfParent()
+                })
+                add(windowManager.view, lParams {
+                    below(kawaiiBar.view)
+                    above(bottomPaddingSpace)
+                    /**
+                     * set start and end constrain in [updateKeyboardSize]
+                     */
+                })
+                add(bottomPaddingSpace, lParams {
+                    startToEndOf(leftPaddingSpace)
+                    endToStartOf(rightPaddingSpace)
+                    bottomOfParent()
+                })
+            }
         }
 
         // 3. Add views to layout
-        add(preedit.ui.root, lParams(matchParent, wrapContent) {
-            above(passwordInputPreview)
-            centerHorizontally()
-        })
-        add(passwordInputPreview, lParams(matchParent, dp(36)) {
-            above(keyboardView)
-            centerHorizontally()
-        })
-        add(keyboardView, lParams(matchParent, wrapContent) {
-            centerHorizontally()
-            bottomOfParent()
-        })
-        add(popup.root, lParams(matchParent, matchParent) {
-            centerVertically()
-            centerHorizontally()
-        })
-        selectionActionPanel.addTo(this)
-        numberOperatorPanel.addTo(this)
+        StartupPerformanceTrace.measure(StartupPerformanceTrace.Stage.INPUT_TREE_ASSEMBLY) {
+            add(preedit.ui.root, lParams(matchParent, wrapContent) {
+                above(passwordInputPreview)
+                centerHorizontally()
+            })
+            add(passwordInputPreview, lParams(matchParent, dp(36)) {
+                above(keyboardView)
+                centerHorizontally()
+            })
+            add(keyboardView, lParams(matchParent, wrapContent) {
+                centerHorizontally()
+                bottomOfParent()
+            })
+            add(popup.root, lParams(matchParent, matchParent) {
+                centerVertically()
+                centerHorizontally()
+            })
+            selectionActionPanel.addTo(this)
+            numberOperatorPanel.addTo(this)
 
-        // 4. updateKeyboardSize() after all add() so layoutParams exist (avoids NPE / wrong height)
-        updateInputPanelTopCornerRadius()
-        updatePasswordPeekChrome()
-        updateKeyboardSize()
+            // 4. updateKeyboardSize() after all add() so layoutParams exist (avoids NPE / wrong height)
+            updateInputPanelTopCornerRadius()
+            updatePasswordPeekChrome()
+            updateKeyboardSize()
+        }
 
         keyboardPrefs.registerOnChangeListener(onKeyboardSizeChangeListener)
         ThemeManager.prefs.inputPanelTopRadius.registerOnChangeListener(inputPanelTopRadiusChangeListener)

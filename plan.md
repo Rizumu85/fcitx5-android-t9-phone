@@ -427,3 +427,12 @@ otherwise.
 - [x] Build and install debug, capture a process-cold target-device report, and
   use its largest measured stage to choose the next optimization.
 - [x] Commit and push the instrumentation before changing startup behavior.
+- [x] Split the measured input-view total into navbar, input construction,
+  input attachment, candidate construction, candidate attachment, and mode
+  indicator stages without changing view behavior.
+- [x] Capture the nested process-cold report on the target phone and select the
+  largest measured nested stage rather than optimizing from static guesses.
+- [x] Attribute `InputView` creation across dependency-scope setup, active
+  keyboard materialization, root tree assembly, and residual property work.
+- [x] Deepen the selected startup Module with the smallest behavior-preserving
+  change, add focused coverage at its Interface, and compare a new cold run.

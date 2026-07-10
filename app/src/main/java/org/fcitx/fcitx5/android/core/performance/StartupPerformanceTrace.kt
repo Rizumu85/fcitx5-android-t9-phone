@@ -18,7 +18,20 @@ object StartupPerformanceTrace {
         APPLICATION_CREATE("application-create"),
         DATA_INSTALLATION("data-installation"),
         FCITX_NATIVE_STARTUP("fcitx-native-startup"),
-        INPUT_VIEW_CONSTRUCTION("input-view-construction")
+        INPUT_VIEW_CONSTRUCTION("input-view-construction"),
+        NAVBAR_EVALUATION("navbar-evaluation"),
+        INPUT_VIEW_CREATE("input-view-create"),
+        INPUT_VIEW_ATTACH("input-view-attach"),
+        CANDIDATE_VIEW_CREATE("candidate-view-create"),
+        CANDIDATE_VIEW_ATTACH("candidate-view-attach"),
+        MODE_INDICATOR_REPLACE("mode-indicator-replace"),
+        INPUT_SCOPE_SETUP("input-scope-setup"),
+        INPUT_SCOPE_REGISTRATION("input-scope-registration"),
+        INPUT_SCOPE_READY("input-scope-ready"),
+        ACTIVE_KEYBOARD_CREATE("active-keyboard-create"),
+        ACTIVE_KEYBOARD_ATTACH("active-keyboard-attach"),
+        INPUT_CHROME_CREATE("input-chrome-create"),
+        INPUT_TREE_ASSEMBLY("input-tree-assembly")
     }
 
     enum class Milestone(val traceName: String) {

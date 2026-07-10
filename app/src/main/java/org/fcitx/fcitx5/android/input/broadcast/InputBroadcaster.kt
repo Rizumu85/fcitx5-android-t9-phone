@@ -11,14 +11,15 @@ import org.fcitx.fcitx5.android.core.FcitxEvent.CandidateListEvent
 import org.fcitx.fcitx5.android.core.FcitxEvent.InputPanelEvent
 import org.fcitx.fcitx5.android.core.FormattedText
 import org.fcitx.fcitx5.android.core.InputMethodEntry
+import org.fcitx.fcitx5.android.input.dependency.ConcreteUniqueComponent
 import org.fcitx.fcitx5.android.input.wm.InputWindow
 import org.mechdancer.dependency.Dependent
 import org.mechdancer.dependency.DynamicScope
 import org.mechdancer.dependency.ScopeEvent
-import org.mechdancer.dependency.UniqueComponent
 import java.util.concurrent.ConcurrentLinkedQueue
 
-class InputBroadcaster : UniqueComponent<InputBroadcaster>(), Dependent, InputBroadcastReceiver {
+class InputBroadcaster : ConcreteUniqueComponent<InputBroadcaster>(), Dependent,
+    InputBroadcastReceiver {
 
     private val receivers = ConcurrentLinkedQueue<InputBroadcastReceiver>()
 

@@ -7,15 +7,16 @@ package org.fcitx.fcitx5.android.input.broadcast
 import android.view.inputmethod.EditorInfo
 import androidx.annotation.DrawableRes
 import org.fcitx.fcitx5.android.R
+import org.fcitx.fcitx5.android.input.dependency.ConcreteUniqueComponent
 import org.mechdancer.dependency.Dependent
-import org.mechdancer.dependency.UniqueComponent
 import org.mechdancer.dependency.manager.ManagedHandler
 import org.mechdancer.dependency.manager.managedHandler
 import org.mechdancer.dependency.manager.must
 import splitties.bitflags.hasFlag
 
 class ReturnKeyDrawableComponent :
-    UniqueComponent<ReturnKeyDrawableComponent>(), Dependent, ManagedHandler by managedHandler() {
+    ConcreteUniqueComponent<ReturnKeyDrawableComponent>(), Dependent,
+    ManagedHandler by managedHandler() {
 
     companion object {
         @DrawableRes

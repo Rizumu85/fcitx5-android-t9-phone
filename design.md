@@ -615,3 +615,31 @@ complete snapshot; if Rime is already ready, it publishes only the complete
 snapshot. Repeated lifecycle calls are ignored for the process generation.
 The existing responsiveness preference gates publication, not capture, because
 the preference itself is unavailable during the earliest Application stage.
+
+Input-surface attribution remains part of the same transaction rather than a
+second timer Module. Nested named stages distinguish navigation-bar evaluation,
+input view construction/attachment, candidate view construction/attachment,
+and mode-indicator replacement. The first occurrence remains authoritative for
+process-cold startup; later theme or preference recreations cannot overwrite it.
+Only the largest measured nested stage is eligible for the next behavior change.
+
+The measured selection is `InputView` creation. Its final attribution pass
+measures dependency-scope setup, active `KeyboardWindow` materialization, and
+root input-tree assembly inside the same transaction. Unmeasured constructor
+time remains an explicit residual for Kotlin property initializers. This keeps
+the instrumentation Interface semantic while making it possible to distinguish
+an expensive active keyboard from general class loading and chrome creation.
+
+`ConcreteUniqueComponent` is the Input Dependency Identity Module. Its
+Interface is the existing `IUniqueComponent.type`; its Implementation binds the
+identity directly to the final runtime class instead of asking the external
+dependency library to rediscover generic type arguments through Kotlin
+reflection. Static input components and `UniqueViewComponent` use this base.
+Dynamic `InputWindow` bases apply the same concrete-class identity because they
+already have a separate class hierarchy.
+
+`DynamicScope` remains the window lifecycle seam: pickers and keyboard windows
+can still enter and leave the scope. Only identity discovery changes. Equality,
+hashing, dependency arrival order, receiver registration, and view ownership
+remain unchanged. Focused tests lock down concrete type identity and same-type
+uniqueness so the optimization cannot silently alter scope semantics.

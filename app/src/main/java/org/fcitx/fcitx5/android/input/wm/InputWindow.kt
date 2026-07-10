@@ -54,7 +54,7 @@ sealed class InputWindow : Dependent {
     abstract class SimpleInputWindow<T : SimpleInputWindow<T>> : IUniqueComponent<T>,
         InputWindow() {
 
-        override val type: KClass<out IUniqueComponent<*>> by lazy { defaultType() }
+        override val type: KClass<out IUniqueComponent<*>> = javaClass.kotlin
 
         override fun equals(other: Any?): Boolean = defaultEquals(other)
 
@@ -78,7 +78,7 @@ sealed class InputWindow : Dependent {
             return false
         }
 
-        override val type: KClass<out IUniqueComponent<*>> by lazy { defaultType() }
+        override val type: KClass<out IUniqueComponent<*>> = javaClass.kotlin
 
         override fun equals(other: Any?): Boolean = defaultEquals(other)
 

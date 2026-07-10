@@ -11,18 +11,18 @@ import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesMode
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.broadcast.InputBroadcastReceiver
+import org.fcitx.fcitx5.android.input.dependency.ConcreteUniqueComponent
 import org.fcitx.fcitx5.android.input.dependency.context
 import org.fcitx.fcitx5.android.input.dependency.theme
 import org.mechdancer.dependency.Dependent
-import org.mechdancer.dependency.UniqueComponent
 import org.mechdancer.dependency.manager.ManagedHandler
 import org.mechdancer.dependency.manager.managedHandler
 import splitties.dimensions.dp
 import splitties.views.backgroundColor
 import splitties.views.horizontalPadding
 
-class PreeditComponent : UniqueComponent<PreeditComponent>(), Dependent, InputBroadcastReceiver,
-    ManagedHandler by managedHandler() {
+class PreeditComponent : ConcreteUniqueComponent<PreeditComponent>(), Dependent,
+    InputBroadcastReceiver, ManagedHandler by managedHandler() {
 
     private val context by manager.context()
     private val theme by manager.theme()
