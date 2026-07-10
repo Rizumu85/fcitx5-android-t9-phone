@@ -261,11 +261,13 @@ non-empty Stroke wildcard page, which was too weak under delayed event order.
 The same audit found lifecycle edge cases that need one scheme transition seam:
 a reconnected service can miss the original IM-change event, switching between
 two schema names that both classify as Pinyin must still clear session state,
-and candidate/loading/focus state must be invalidated together. Zhuyin reading
-boundaries entered by short `#` also need to live in the local raw-code session
-so Backspace removes the same token that Rime removes. Finally, asynchronous
-candidate selection must use the service's serialized Fcitx queue and reject a
-selection ticket after newer input or a scheme transition.
+and candidate/loading/focus state must be invalidated together. The early
+Zhuyin prototype also exposed that any engine delimiter would need matching
+local state. The final product decision avoids that duplicate state entirely:
+raw sessions store digits only and short `#` terminates the code by committing
+its preview. Finally, asynchronous candidate selection must use the service's
+serialized Fcitx queue and reject a selection ticket after newer input or a
+scheme transition.
 
 The follow-up implementation closes those lifecycle gaps. Bulk-source reset no
 longer clears the local pager, candidate loading is keyed by a composition
@@ -279,11 +281,24 @@ tickets before committing an original Rime index.
 The final device pass used the freshly installed debug APK and the explicit
 physical-keyboard source. A cold Zhuyin session accepted `38` immediately after
 service reconnect and displayed `好 / ㄏㄠ`; center committed the selected
-candidate. A short `#` boundary followed by Backspace restored the preceding
-Zhuyin code. Stroke accepted exact input and key `6` wildcard input, consumed
-unused short `7` during active composition, and short `0` committed the focused
-bottom-row candidate. Short `*` committed the focused Stroke candidate without
-a space and then opened the Chinese punctuation row.
+candidate. `2038` produced the ambiguous toneless phrase set and learned
+`你好` to the first position after one selection. Zhuyin `0` remained a real
+composition key, and short `#` committed exact Unicode `ㄋㄧㄏㄠ` rather than the
+focused Hanzi. Stroke accepted exact input and key `6` wildcard input, consumed
+unused short `7` during active composition, short `0` and center committed the
+focused bottom-row candidate, and short `#` committed exact stroke symbols.
+Backspace cleared both raw schemes without leaking to the editor. Short `*`
+opened the shared Chinese punctuation row, whose Backspace cancellation also
+remained intact.
+
+One apparent Pinyin `#` failure was isolated to the test harness rather than
+the key flow: repeatedly replacing the IME APK while Keep remained open left
+the editor holding a stale `InputConnection`. Candidate UI still reacted, but
+every direct editor commit, including punctuation, returned success without
+changing the note. Force-stopping and reopening the editor recreated the
+connection and restored all commits. Post-install QA must therefore reopen the
+target editor and wait for the IME session before injecting physical keys; no
+production fallback was added for this debugger-only lifecycle artifact.
 
 The raw-scheme trace no longer contains a Pinyin bulk request or repeated
 local-page rebuild after focus movement. On the target phone, a settled repeat
@@ -291,3 +306,41 @@ update measured about 4.35 ms; a cached focus move spent about 2.20 ms in
 `buildState` and 21.22 ms overall. The remaining roughly 143 ms cold first
 frame is dominated by font/layout/JIT startup rather than dictionary-size work
 on the physical-key reducer.
+
+## Chinese Scheme Commit And Quick Switching Follow-up
+
+The user clarified that short `#` during Chinese composition means **commit the
+visible input code literally**, not choose a Hanzi and not insert a reading
+delimiter. This applies consistently to Pinyin, Zhuyin, and Stroke. The
+existing device behavior does not satisfy that contract: after entering Pinyin
+`43`, short `#` leaves `ge` composing and opens Rime's `#` punctuation menu.
+Stroke currently consumes the key, while Zhuyin forwards it as an apostrophe
+delimiter. These are three unrelated engine effects behind one physical-key
+gesture.
+
+The replacement must resolve the current top preview through the shared
+presentation snapshot, validate that it is unambiguous for the active scheme,
+commit it through the Android input connection, and clear both local and Rime
+composition. Pinyin commits Latin reading text, Stroke commits the displayed
+stroke symbols, and Zhuyin commits one resolved Bopomofo symbol per input key;
+an unresolved fallback containing whole Zhuyin key groups is never committed.
+
+Users also need a fast path when they deliberately use several Chinese input
+schemes. The full Rime Dictionary Switch remains the escape hatch for every
+installed schema. A new top-level settings page chooses the smaller ordered set
+used by the physical shortcut. While Chinese composition is idle, short `#`
+cycles that set; during composition it commits the code; long `#` continues to
+cycle Chinese, English, and number modes. With only one configured Chinese
+scheme, idle short `#` retains its existing Return behavior.
+
+The quick-cycle path should activate the existing cached Rime schema action
+rather than add another schema state store or call Rime synchronously from the
+key reducer. The physical flow emits one semantic command, and the service
+resolves the next configured scheme only on that deliberate key release.
+Normal digit input therefore gains no preference reads, action scans, or
+engine round trips.
+
+Finally, `中文九键` is too broad now that Chinese mode contains three schemes.
+The Pinyin schema is renamed `拼音九键`; classification keeps the old name as a
+deployment-compatibility alias so an old compiled schema cannot temporarily
+fall back to the wrong physical-key contract.

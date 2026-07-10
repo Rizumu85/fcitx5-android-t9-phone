@@ -52,21 +52,25 @@ presses on `1..9,0`; moving English case to short `1` must not remove shortcut
 `ㄧㄨㄩ`. Physical OK/center remains the universal candidate confirmation.
 
 - Pinyin: short `0` confirms the focused pinyin or Hanzi row; idle `0` inserts
-  a space. Short `#` fixes/submits the current pinyin reading into composition;
-  it does not commit a Hanzi or insert a newline.
+  a space.
 - Stroke: short `0` confirms the highlighted Hanzi; idle `0` inserts a space.
-  Short `#` is consumed while composing because there is no separate phonetic
-  reading to submit.
-- Zhuyin: `0` enters `ㄧㄨㄩ`. Short `#` fixes/submits the current Zhuyin
-  reading; OK/center confirms the Hanzi candidate.
+  OK/center confirms the same highlighted candidate.
+- Zhuyin: `0` enters `ㄧㄨㄩ`; OK/center confirms the Hanzi candidate.
+- All Chinese schemes: short `#` while composing commits the literal code shown
+  in the top preview, not a Hanzi candidate. Pinyin commits Latin letters
+  without presentation separators, Stroke commits one displayed stroke symbol
+  per key, and Zhuyin commits one resolved Bopomofo symbol per key. An
+  unresolved Zhuyin fallback group is not committed as if it were a reading.
 - English: short `0` confirms with the existing spacing/prediction policy.
   Short `#` commits pending text without a space, performs return, and stops
   prediction.
 - Number: digits stay literal and short `#` performs return.
 
-Long `#` clears incompatible composition and switches to the next top-level
-mode. This avoids carrying hidden Pinyin, Stroke, or Zhuyin state into the next
-mode.
+Short `#` while Chinese composition is idle cycles the configured Chinese
+schemes. If only one scheme is configured and already active, it keeps the
+existing Return behavior. Long `#` clears incompatible composition and
+switches to the next top-level mode. This avoids carrying hidden Pinyin,
+Stroke, or Zhuyin state into the next mode.
 
 ### 3. Use the following Chinese code maps
 
@@ -117,11 +121,16 @@ Long `#` continues to cycle only the top-level modes: Chinese, English, and
 number. Pinyin, Stroke, and Zhuyin are Chinese input schemes, not extra entries
 in that fast cycle.
 
-Settings will own the enabled Chinese schemes and their order. The compact
-settings panel exposes one Chinese-scheme action whose menu focuses the current
-scheme. Users who need only one scheme see no additional switching step; users
-who enable several can change the Chinese mechanism explicitly without making
-the common Chinese/English/number cycle longer.
+The top-level **Chinese T9 Schemes** settings page owns the enabled subset.
+Pinyin is the sole default and at least one scheme must remain enabled. Idle
+short `#` cycles enabled schemes in the stable Pinyin -> Stroke -> Zhuyin order;
+the session remembers an in-flight target so rapid presses do not repeatedly
+resolve from a stale Rime status event. The existing Rime Dictionary Switch
+remains the full schema menu and focuses the active scheme.
+
+The active scheme is shown in the T9 mode label. The Pinyin schema is named
+`拼音九键` rather than the now-ambiguous `中文九键`; the old name remains only
+as a compatibility alias when classifying an existing deployment.
 
 ### 5. Preserve one command-based hot path
 
@@ -133,8 +142,9 @@ snapshot to semantic commands such as:
 - `ShowChinesePunctuationCandidates`
 - `ShowEnglishPunctuationCandidates`
 - `CommitChineseCandidateAndShowPunctuation`
+- `CommitChineseCodePreview`
+- `CycleChineseSchemeOrReturn`
 - `CommitLiteralStar`
-- future `AppendStrokeToken` and `AppendZhuyinGroup`
 
 Command names must not encode the old key that happened to trigger them.
 `PhysicalT9CommandExecutor` and host Adapters own side effects. Replaced `1`
@@ -181,9 +191,9 @@ Scheme transitions are identified by the concrete Rime sub-mode, not only by
 the broad `Pinyin`, `Stroke`, or `Zhuyin` classification. One transition
 operation clears composition, loading, source, focus, and presentation state;
 service reconnect also initializes from the cached current input method in
-case the original change event was missed. Zhuyin reading boundaries inserted
-by short `#` are stored in the local raw-code session as well as sent to Rime,
-which keeps local Backspace and engine state aligned.
+case the original change event was missed. Stroke and Zhuyin raw sessions store
+only their digit codes; short `#` is a terminal literal-code commit and does not
+add a second boundary syntax that local Backspace would need to mirror.
 
 ### 7. Keep key latency independent of dictionary size
 

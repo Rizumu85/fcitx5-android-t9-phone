@@ -159,8 +159,9 @@ ordinary non-owned Rime candidates.
 `ChineseT9Scheme` is the stable scheme identity used by the key flow and
 presentation pipeline. It classifies Rime's cached sub-mode as Pinyin, Stroke,
 or Zhuyin and exposes only scheme-level decisions: which digits compose,
-whether `0` confirms, whether short `#` fixes a reading, and how raw input is
-displayed. Rime schema names and spelling encodings stay behind this Module.
+whether `0` confirms, how a literal code preview is validated, and how raw
+input is displayed. Rime schema names and spelling encodings stay behind this
+Module.
 Fcitx IM-change events update this identity once at the adapter boundary; the
 physical-key and candidate paths only read the cached value and never call
 `runImmediately` to rediscover it.
@@ -194,8 +195,9 @@ The Rime data Adapter provides two schemas:
 
 Both schemas use the existing Rime candidate engine and user dictionary. There
 is no Android-side dictionary scan or parallel candidate renderer. The existing
-Dictionary Switch action is the only scheme switch UI, preserving the shallow
-Chinese/English/number top-level cycle.
+Dictionary Switch remains the complete schema menu, while the app's configured
+short-`#` cycle provides the fast path among selected Chinese schemes without
+lengthening the Chinese/English/number top-level cycle.
 
 Candidate readiness is also scheme-owned. Pinyin validates Latin candidate
 readings, Stroke validates the rendered stroke preedit, and Zhuyin validates
@@ -226,9 +228,35 @@ also initializes the cache from Fcitx's existing `inputMethodEntryCached` when
 the service attaches after the original IM-change event. The physical-key hot
 path continues to read only this cache.
 
-Zhuyin raw composition stores digits and semantic reading-boundary tokens.
-Short `#` appends a boundary before forwarding the delimiter to Rime, and
-Backspace removes the most recent token, keeping local and engine state in the
-same order. Candidate selection is posted to the service's serialized Fcitx
-queue with a composition and engine-event ticket; an obsolete request is
-dropped before its original index reaches Rime.
+Raw Stroke and Zhuyin composition stores only scheme-owned digit codes. Short
+`#` does not enter either engine: it commits the validated top preview as
+literal code and clears composition. Pinyin uses the same command and commits
+its selected Latin reading. This keeps the physical gesture independent of
+Rime punctuation and delimiter configuration. Candidate selection is posted to
+the service's serialized Fcitx queue with a composition and engine-event
+ticket; an obsolete request is dropped before its original index reaches Rime.
+
+## Chinese T9 Scheme Switching Design
+
+Rime's Dictionary Switch remains the complete installed-schema menu. The app
+adds a smaller user-configured Chinese T9 cycle containing Pinyin, Stroke, and
+Zhuyin in fixed order. At least one item must remain selected; Pinyin alone is
+the compatibility-preserving default.
+
+Physical `#` has a state-shaped contract:
+
+- composing Chinese: commit the active scheme's literal code preview;
+- idle Chinese with multiple configured schemes: activate the next scheme;
+- idle Chinese with one configured scheme: perform Return as before;
+- long press: clear composition and switch the top-level T9 mode.
+
+The key flow emits semantic commands only. A scheme-cycle Module chooses the
+next configured scheme, then the Fcitx adapter activates the matching action
+from the cached `fcitx-rime-im` menu. Scheme changes still enter through the
+existing IM-change lifecycle, so there is one source of truth for composition,
+loading, focus, and presentation reset. The space-bar mode label shows the
+current Chinese scheme to make a successful shortcut visible without a toast
+or another transient overlay.
+
+The Pinyin Rime schema is named `拼音九键`. `中文九键` remains only as a
+classification alias for already-compiled user data during deployment.

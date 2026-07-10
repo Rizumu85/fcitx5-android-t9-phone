@@ -213,5 +213,24 @@ otherwise.
   obsolete composition/source tickets.
 - [x] Re-run focused tests, install the debug APK, and measure the raw-scheme
   candidate path on the physical phone.
-- [ ] User-test physical shortcuts, punctuation, confirmation, deletion, and
-  long-`#` top-level mode switching across Pinyin, Stroke, and Zhuyin.
+- [x] Device-test physical shortcuts, punctuation, confirmation, and deletion
+  across Pinyin, Stroke, and Zhuyin; retain focused key-flow coverage for
+  long-`#` because adb's synthetic long press does not honor the device delay.
+
+## Chinese Scheme Commit And Quick Switching
+
+- [x] Reproduce Pinyin short-`#` opening Rime punctuation instead of committing
+  the visible reading, and audit the divergent Stroke/Zhuyin paths.
+- [x] Replace all three composing short-`#` paths with one semantic literal-code
+  commit command and delete the old Stroke no-op/Zhuyin delimiter behavior.
+- [x] Add a top-level settings page that selects at least one Chinese T9 scheme
+  for the quick cycle, defaulting to Pinyin only.
+- [x] Make idle short `#` cycle the configured Chinese schemes, while retaining
+  Return for a one-scheme configuration and long `#` for top-level modes.
+- [x] Show the active Chinese scheme in the T9 space-bar label and rename the
+  Pinyin schema from `中文九键` to `拼音九键`.
+- [x] Add focused key-flow, preview validation, and scheme-cycle regression
+  tests, and verify the settings invariant on-device.
+- [x] Build/install debug and run physical-device Pinyin, Stroke, and Zhuyin QA
+  with exact code commit, candidate selection, deletion, punctuation, and
+  scheme switching.
