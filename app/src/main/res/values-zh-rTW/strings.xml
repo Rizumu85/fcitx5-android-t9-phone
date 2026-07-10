@@ -6,9 +6,14 @@
     <string name="input_methods">輸入法</string>
     <string name="chinese_t9_schemes">中文輸入方案</string>
     <string name="chinese_t9_pinyin">拼音九鍵</string>
-    <string name="chinese_t9_stroke">五筆畫九鍵</string>
+    <string name="chinese_t9_stroke">筆畫九鍵</string>
     <string name="chinese_t9_zhuyin">注音九鍵</string>
     <string name="chinese_t9_at_least_one">至少保留一個中文輸入方案</string>
+    <string name="chinese_t9_pinyin_output_script">拼音預設輸出</string>
+    <string name="chinese_t9_stroke_output_script">筆畫預設輸出</string>
+    <string name="chinese_t9_zhuyin_output_script">注音預設輸出</string>
+    <string name="chinese_t9_output_simplified">簡體中文</string>
+    <string name="chinese_t9_output_traditional">繁體中文</string>
     <string name="t9_no_matches">無相符結果</string>
     <string name="add_input_method">新增輸入法</string>
     <string name="addons">附加元件</string>

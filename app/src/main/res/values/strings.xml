@@ -40,6 +40,11 @@
     <string name="chinese_t9_stroke">Stroke T9</string>
     <string name="chinese_t9_zhuyin">Zhuyin T9</string>
     <string name="chinese_t9_at_least_one">Keep at least one Chinese input scheme</string>
+    <string name="chinese_t9_pinyin_output_script">Default Pinyin output</string>
+    <string name="chinese_t9_stroke_output_script">Default Stroke output</string>
+    <string name="chinese_t9_zhuyin_output_script">Default Zhuyin output</string>
+    <string name="chinese_t9_output_simplified">Simplified Chinese</string>
+    <string name="chinese_t9_output_traditional">Traditional Chinese</string>
     <string name="t9_no_matches">No matches</string>
     <string name="reloading">Reloading</string>
     <string name="importing">Importing</string>

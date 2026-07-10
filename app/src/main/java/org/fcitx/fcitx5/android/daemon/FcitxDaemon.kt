@@ -55,6 +55,9 @@ object FcitxDaemon {
                 caretPos: Int
             ): Boolean =
                 realFcitx.replaceRimeInput(start, length, text, caretPos)
+
+            override suspend fun setRimeOption(name: String, enabled: Boolean): Boolean =
+                realFcitx.setRimeOption(name, enabled)
         }
     }
 

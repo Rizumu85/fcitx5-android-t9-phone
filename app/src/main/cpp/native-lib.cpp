@@ -455,6 +455,20 @@ public:
         return p_rime->call<fcitx::IRimeEngine::replaceInput>(ic, start, length, replacement, caretPos);
     }
 
+    bool setRimeOption(const std::string &name, bool enabled) {
+        if (!p_frontend || !p_rime) return false;
+        auto *ic = p_frontend->call<fcitx::IAndroidFrontend::activeInputContext>();
+        if (!ic) return false;
+        try {
+            return p_rime->call<fcitx::IRimeEngine::setOption>(ic, name, enabled);
+        } catch (const std::exception &error) {
+            // Plugin APKs update independently; a missing export must fail closed instead of
+            // restoring the translated status-action heuristic this typed contract replaces.
+            FCITX_ERROR() << "Rime option API unavailable: " << error.what();
+            return false;
+        }
+    }
+
     void setRimeAvailabilityCallback(fcitx::RimeAvailabilityCallback callback) {
         if (!p_rime) {
             callback(fcitx::RimeAvailability::Unavailable);
@@ -885,6 +899,13 @@ JNIEXPORT jboolean JNICALL
 Java_org_fcitx_fcitx5_android_core_Fcitx_replaceRimeInput(JNIEnv *env, jclass clazz, jint start, jint length, jstring replacement, jint caretPos) {
     RETURN_VALUE_IF_NOT_RUNNING(false)
     return Fcitx::Instance().replaceRimeInput(start, length, CString(env, replacement), caretPos);
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_org_fcitx_fcitx5_android_core_Fcitx_setRimeOption(JNIEnv *env, jclass clazz, jstring name, jboolean enabled) {
+    RETURN_VALUE_IF_NOT_RUNNING(false)
+    return Fcitx::Instance().setRimeOption(CString(env, name), enabled);
 }
 
 extern "C"

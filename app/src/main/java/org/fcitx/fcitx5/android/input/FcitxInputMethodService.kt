@@ -80,6 +80,8 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9EngineOperation
 import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSnapshotKey
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSource
+import org.fcitx.fcitx5.android.input.t9.ChineseT9OutputScript
+import org.fcitx.fcitx5.android.input.t9.ChineseT9OutputScriptSession
 import org.fcitx.fcitx5.android.input.t9.ChineseT9Scheme
 import org.fcitx.fcitx5.android.input.t9.ChineseT9SchemeCycle
 import org.fcitx.fcitx5.android.input.t9.ChineseT9SchemeCycleSession
@@ -561,6 +563,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         ManagedPreference.OnChangeListener<Boolean> { _, value ->
             T9ResponsivenessTrace.configure(enabled = value)
         }
+    private val chineseT9OutputScriptPrefs = ChineseT9Scheme.entries
+        .map(prefs.chineseT9::outputScriptPreference)
+        .toTypedArray()
+
+    @Keep
+    private val chineseT9OutputScriptChangeListener =
+        ManagedPreference.OnChangeListener<ChineseT9OutputScript> { key, value ->
+            if (key == prefs.chineseT9.outputScriptPreference(activeChineseT9Scheme).key) {
+                chineseT9OutputScriptSession.reapplyActiveScheme(activeChineseT9Scheme, value)
+                    ?.let(::enqueueChineseT9OutputScript)
+            }
+        }
 
     private val recreateInputViewPrefs: Array<ManagedPreference<*>> = arrayOf(
         prefs.keyboard.expandKeypressArea,
@@ -666,13 +680,16 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             }
         }
         postFcitxJob {
-            val initialSubMode = inputMethodEntryCached.subMode.name
+            val initialInputMethod = inputMethodEntryCached
             val initialRimeAvailability = rimeAvailabilityCached
             withContext(Dispatchers.Main.immediate) {
                 // A service can attach after Fcitx emitted its original IMChange. Initialize from
                 // the cached entry once; a newer event wins by setting the identity first.
                 if (activeChineseT9SubModeIdentity == null) {
-                    activateChineseT9Scheme(initialSubMode)
+                    observeChineseT9InputMethod(
+                        initialInputMethod.uniqueName,
+                        initialInputMethod.subMode.name
+                    )
                 }
                 handleRimeAvailability(initialRimeAvailability)
             }
@@ -692,6 +709,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         keyboardPrefs.longPressDelay.registerOnChangeListener(physicalLongPressDelayChangeListener)
         prefs.advanced.ignoreSystemCursor.registerOnChangeListener(ignoreSystemCursorChangeListener)
         prefs.internal.t9ResponsivenessTrace.registerOnChangeListener(t9ResponsivenessTraceChangeListener)
+        chineseT9OutputScriptPrefs.forEach {
+            it.registerOnChangeListener(chineseT9OutputScriptChangeListener)
+        }
         prefs.keyboard.inputUiFont.registerOnChangeListener(recreateInputViewsListener)
         keyboardPrefs.passwordInputPreview.registerOnChangeListener(passwordInputPreviewChangeListener)
         prefs.candidates.registerOnChangeListener(recreateCandidatesViewListener)
@@ -792,7 +812,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             }
             is FcitxEvent.IMChangeEvent -> {
                 rimeAvailabilitySession.observeActiveSchema(event.data.subMode.name)
-                activateChineseT9Scheme(event.data.subMode.name)
+                observeChineseT9InputMethod(event.data.uniqueName, event.data.subMode.name)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     val im = event.data.uniqueName
                     val subtype = SubtypeManager.subtypeOf(im) ?: return
@@ -1738,8 +1758,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         )
     }
     private val chineseT9SchemeCycle = ChineseT9SchemeCycleSession()
+    private val chineseT9OutputScriptSession = ChineseT9OutputScriptSession()
     private var activeChineseT9Scheme = ChineseT9Scheme.PINYIN
     private var activeChineseT9SubModeIdentity: String? = null
+    private var rimeInputMethodActive = false
 
     private fun handleRimeAvailability(data: FcitxEvent.RimeAvailabilityEvent.Data) {
         val transition = rimeAvailabilitySession.update(data)
@@ -1748,11 +1770,20 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         when (transition.current.state) {
             FcitxEvent.RimeAvailabilityEvent.State.Ready -> {
                 chineseT9EngineOperation.onAvailabilityChanged(true)
+                if (rimeInputMethodActive) {
+                    enqueueChineseT9OutputScript(
+                        chineseT9OutputScriptSession.onRimeReady(
+                            activeChineseT9Scheme,
+                            prefs.chineseT9.outputScript(activeChineseT9Scheme)
+                        )
+                    )
+                }
                 if (chineseT9Composition.keyCount() > 0) {
                     candidatesView?.waitForT9EngineCandidatesThenRefresh()
                 }
             }
             FcitxEvent.RimeAvailabilityEvent.State.Deploying -> {
+                chineseT9OutputScriptSession.invalidate()
                 if (transition.leftReady) {
                     chineseT9EngineOperation.discardPending()
                     discardChineseCompositionForUnavailableRime()
@@ -1760,6 +1791,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             }
             FcitxEvent.RimeAvailabilityEvent.State.Failed,
             FcitxEvent.RimeAvailabilityEvent.State.Unavailable -> {
+                chineseT9OutputScriptSession.invalidate()
                 chineseT9EngineOperation.discardPending()
                 discardChineseCompositionForUnavailableRime()
             }
@@ -1773,11 +1805,24 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         currentInputConnection?.finishComposingText()
     }
 
+    private fun observeChineseT9InputMethod(uniqueName: String, subModeName: String) {
+        rimeInputMethodActive = uniqueName == RIME_INPUT_METHOD
+        activateChineseT9Scheme(subModeName)
+        if (rimeInputMethodActive) {
+            chineseT9OutputScriptSession.enterScheme(
+                activeChineseT9Scheme,
+                prefs.chineseT9.outputScript(activeChineseT9Scheme)
+            )?.let(::enqueueChineseT9OutputScript)
+        } else {
+            chineseT9OutputScriptSession.leaveRime()
+        }
+    }
+
     private fun activateChineseT9Scheme(subModeName: String) {
         val identity = subModeName.trim()
         val previousIdentity = activeChineseT9SubModeIdentity
         if (previousIdentity == identity) return
-        val next = ChineseT9Scheme.fromRimeSubMode(identity)
+        val next = ChineseT9Scheme.fromRimeIdentity(identity)
         // IMChange is the source of truth so physical keys and UI snapshots never block on an
         // fcitx-thread round trip merely to classify the already-active Chinese scheme.
         activeChineseT9SubModeIdentity = identity
@@ -1794,6 +1839,22 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (currentT9Mode == T9InputMode.CHINESE) {
             onT9ModeChanged?.invoke(next.compactLabel)
             showModeIndicatorBadge(next.compactLabel)
+        }
+    }
+
+    private fun enqueueChineseT9OutputScript(
+        request: ChineseT9OutputScriptSession.Request
+    ) {
+        // Script defaults are one-shot lifecycle assignments. Status labels are translated and
+        // not stateful, so option polarity belongs to the policy instead of UI text parsing.
+        postFcitxJob {
+            val rimeIsActive = inputMethodEntryCached.uniqueName == RIME_INPUT_METHOD
+            val requestIsCurrent = withContext(Dispatchers.Main.immediate) {
+                chineseT9OutputScriptSession.isCurrent(request, activeChineseT9Scheme)
+            }
+            if (rimeIsActive && requestIsCurrent) {
+                setRimeOption(request.option.name, request.option.enabled)
+            }
         }
     }
 
@@ -2901,6 +2962,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         keyboardPrefs.longPressDelay.unregisterOnChangeListener(physicalLongPressDelayChangeListener)
         prefs.advanced.ignoreSystemCursor.unregisterOnChangeListener(ignoreSystemCursorChangeListener)
         prefs.internal.t9ResponsivenessTrace.unregisterOnChangeListener(t9ResponsivenessTraceChangeListener)
+        chineseT9OutputScriptPrefs.forEach {
+            it.unregisterOnChangeListener(chineseT9OutputScriptChangeListener)
+        }
         prefs.keyboard.inputUiFont.unregisterOnChangeListener(recreateInputViewsListener)
         keyboardPrefs.passwordInputPreview.unregisterOnChangeListener(passwordInputPreviewChangeListener)
         prefs.candidates.unregisterOnChangeListener(recreateCandidatesViewListener)
@@ -2941,6 +3005,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         private const val SELECTION_REPLACEMENT_KEY_WINDOW_MS = 300L
         private const val SmartEnglishCandidateLimit = 80
         private const val SmartEnglishNoMatchText = "No match"
+        private const val RIME_INPUT_METHOD = "rime"
         private val DIGIT_TEXTS = arrayOf("0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
     }
 }

@@ -27,8 +27,8 @@ object ChineseT9SchemeCycle {
         .firstOrNull { action -> action.name == RimeSchemeActionName }
         ?.menu
         ?.firstOrNull { action ->
-            target.matchesRimeSubMode(action.shortText) ||
-                target.matchesRimeSubMode(action.longText)
+            target.matchesRimeIdentity(action.shortText) ||
+                target.matchesRimeIdentity(action.longText)
         }
 
     private const val RimeSchemeActionName = "fcitx-rime-im"

@@ -23,6 +23,7 @@ import org.fcitx.fcitx5.android.input.keyboard.SwipeSymbolDirection
 import org.fcitx.fcitx5.android.input.picker.PickerWindow
 import org.fcitx.fcitx5.android.input.popup.EmojiModifier
 import org.fcitx.fcitx5.android.input.t9.ChineseT9Scheme
+import org.fcitx.fcitx5.android.input.t9.ChineseT9OutputScript
 import org.fcitx.fcitx5.android.utils.DeviceUtil
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.vibrator
@@ -430,14 +431,40 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
 
     inner class ChineseT9 : ManagedPreferenceCategory(R.string.chinese_t9_schemes, sharedPreferences) {
         val pinyin = switch(R.string.chinese_t9_pinyin, "chinese_t9_pinyin_enabled", true)
+        val pinyinOutputScript = enumList(
+            R.string.chinese_t9_pinyin_output_script,
+            "chinese_t9_pinyin_output_script",
+            ChineseT9OutputScript.Simplified
+        ) { pinyin.getValue() }
         val stroke = switch(R.string.chinese_t9_stroke, "chinese_t9_stroke_enabled", false)
+        val strokeOutputScript = enumList(
+            R.string.chinese_t9_stroke_output_script,
+            "chinese_t9_stroke_output_script",
+            ChineseT9OutputScript.Simplified
+        ) { stroke.getValue() }
         val zhuyin = switch(R.string.chinese_t9_zhuyin, "chinese_t9_zhuyin_enabled", false)
+        val zhuyinOutputScript = enumList(
+            R.string.chinese_t9_zhuyin_output_script,
+            "chinese_t9_zhuyin_output_script",
+            ChineseT9OutputScript.Simplified
+        ) { zhuyin.getValue() }
 
         fun enabledSchemes(): List<ChineseT9Scheme> = buildList {
             if (pinyin.getValue()) add(ChineseT9Scheme.PINYIN)
             if (stroke.getValue()) add(ChineseT9Scheme.STROKE)
             if (zhuyin.getValue()) add(ChineseT9Scheme.ZHUYIN)
         }
+
+        fun outputScriptPreference(
+            scheme: ChineseT9Scheme
+        ): ManagedPreference.PStringLike<ChineseT9OutputScript> = when (scheme) {
+            ChineseT9Scheme.PINYIN -> pinyinOutputScript
+            ChineseT9Scheme.STROKE -> strokeOutputScript
+            ChineseT9Scheme.ZHUYIN -> zhuyinOutputScript
+        }
+
+        fun outputScript(scheme: ChineseT9Scheme): ChineseT9OutputScript =
+            outputScriptPreference(scheme).getValue()
     }
 
     private val providers = mutableListOf<ManagedPreferenceProvider>()
@@ -486,6 +513,9 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
                 it.putValueTo(this@edit)
             }
             listOf(
+                // Chinese scheme and script defaults must survive Direct Boot because the IME can
+                // be selected before credential-protected preferences become available.
+                chineseT9,
                 keyboard,
                 candidates,
                 clipboard

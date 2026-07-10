@@ -68,6 +68,7 @@ interface FcitxAPI {
         text: String,
         caretPos: Int = -1
     ): Boolean
+    suspend fun setRimeOption(name: String, enabled: Boolean): Boolean
 
     suspend fun availableIme(): Array<InputMethodEntry>
     suspend fun enabledIme(): Array<InputMethodEntry>

@@ -13,11 +13,15 @@ import org.junit.Test
 class ChineseT9SchemeTest {
     @Test
     fun classifiesOwnedRimeSubModesAndKeepsUnknownPinyinCompatible() {
-        assertEquals(ChineseT9Scheme.PINYIN, ChineseT9Scheme.fromRimeSubMode("拼音九键"))
-        assertEquals(ChineseT9Scheme.PINYIN, ChineseT9Scheme.fromRimeSubMode("中文九键"))
-        assertEquals(ChineseT9Scheme.STROKE, ChineseT9Scheme.fromRimeSubMode("五笔画九键"))
-        assertEquals(ChineseT9Scheme.ZHUYIN, ChineseT9Scheme.fromRimeSubMode("注音九键"))
-        assertEquals(ChineseT9Scheme.PINYIN, ChineseT9Scheme.fromRimeSubMode("雾凇拼音"))
+        assertEquals(ChineseT9Scheme.PINYIN, ChineseT9Scheme.fromRimeIdentity("拼音九键"))
+        assertEquals(ChineseT9Scheme.PINYIN, ChineseT9Scheme.fromRimeIdentity("中文九键"))
+        assertEquals(ChineseT9Scheme.STROKE, ChineseT9Scheme.fromRimeIdentity("笔画九键"))
+        assertEquals(ChineseT9Scheme.STROKE, ChineseT9Scheme.fromRimeIdentity("五笔画九键"))
+        assertEquals(ChineseT9Scheme.ZHUYIN, ChineseT9Scheme.fromRimeIdentity("注音九键"))
+        assertEquals(ChineseT9Scheme.PINYIN, ChineseT9Scheme.fromRimeIdentity("雾凇拼音"))
+        assertEquals(ChineseT9Scheme.PINYIN, ChineseT9Scheme.fromRimeIdentity("t9"))
+        assertEquals(ChineseT9Scheme.STROKE, ChineseT9Scheme.fromRimeIdentity("t9_stroke"))
+        assertEquals(ChineseT9Scheme.ZHUYIN, ChineseT9Scheme.fromRimeIdentity("t9_zhuyin"))
     }
 
     @Test
