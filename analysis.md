@@ -391,8 +391,8 @@ between local legal-sequence validation and settled Rime candidate
 availability. The defect was therefore presentation ownership, not the phone
 key map. Normal predictive Zhuyin now waits for the ticket-matched Rime frame,
 uses the focused candidate comment as the top preview, and exposes no permanent
-reading-filter row. The local resolver only answers valid or invalid in O(n)
-with bounded syllable lookahead. Invalid input retains its digits and shows a
+reading-filter row. The resolver's normal key path only answers valid or
+invalid in O(n) with bounded syllable lookahead. Invalid input retains its digits and shows a
 non-interactive no-match state; valid input never flashes a speculative local
 reading.
 
@@ -406,6 +406,32 @@ use apostrophes between syllables, but `t9_zhuyin` treated only spaces as regex
 boundaries. That left Latin `y` and `w` fragments in 232 observed comments.
 Every comment transform now recognizes both separators, and the repeated
 100-code sweep produced 10,704 candidate comments with zero Latin fragments.
+
+## On-demand Zhuyin Reading Filtering
+
+Candidate-driven preview fixes the misleading first frame, but grouped Zhuyin
+still has more ambiguity than candidate paging alone should carry. The filter
+must operate on legal reading combinations, not one symbol choice per keypad
+digit. Per-key selection would expose invalid Cartesian products, require too
+many physical actions, and lose syllable boundaries. For `38`, for example,
+the meaningful filter values are readings such as `ㄍㄞ`, `ㄍㄠ`, and `ㄏㄠ`,
+not separate selections from the `ㄍㄎㄏ` and `ㄞㄟㄠㄡ` key groups.
+
+The row must remain absent during normal prediction. Up from the Hanzi row
+opens a dedicated filter session and only then enumerates bounded legal reading
+paths. Left/right moves within those paths, OK selects one, and Down dismisses
+the session without changing the raw digits. Selection closes the row and
+filters candidates across pages by normalized Rime comments. Digit input,
+Backspace, candidate commit, scheme change, and composition reset all clear the
+filter session so a choice cannot leak into a newer composition.
+
+Physical-device verification exposed a renderer assumption hidden by Pinyin's
+usual already-visible lifecycle. Opening a long, folded reading row directly
+in focused state renders only the chips that fit the viewport, while reveal
+readiness compared the adapter count with the larger logical option window.
+The row therefore stayed invisible even though focus had moved to it. Readiness
+now follows the displayed chip count produced by the visual plan, preserving
+the existing folded-row geometry for both Pinyin and Zhuyin.
 
 ### Device-dependent Stroke glyph coverage
 

@@ -274,3 +274,15 @@ otherwise.
   transforms that left Latin fragments in phrase readings.
 - [x] Add focused resolver, presentation, snapshot, and source-planner tests.
 - [x] Run the full unit suite, rebuild/install debug, and repeat final device QA.
+
+## On-demand Zhuyin Reading Filter
+
+- [x] Add a bounded, cached legal-reading option API separate from hot-path
+  validity checks.
+- [x] Add a Zhuyin filter session that opens on Up, closes on Down, and resets
+  on every raw-code lifecycle boundary.
+- [x] Route selected Zhuyin readings through the shared cross-page candidate
+  filter while keeping the default candidate-driven preview.
+- [x] Add key-flow, resolver, coordinator, presentation, and filtering tests.
+- [x] Build/install debug and verify `38`, `2038`, dismissal, selection,
+  Backspace, and invalid input on the physical phone.
