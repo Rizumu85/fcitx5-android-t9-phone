@@ -30,10 +30,10 @@ Success criteria for the implemented modes:
   emits semantic commands and does not perform dictionary lookup, Rime work,
   or Android view measurement.
 
-Stroke and Zhuyin engines are not part of this implementation slice. Their
-agreed key maps and performance architecture are recorded in an ADR so their
-later adapters join the existing command and candidate-snapshot pipelines
-without another physical-key rewrite.
+That key-remapping slice intentionally stopped before adding Stroke and Zhuyin
+engines. Their agreed key maps and performance architecture were recorded in an
+ADR first; the current follow-up now implements those adapters without another
+physical-key rewrite.
 
 ## Current Task
 
@@ -185,3 +185,109 @@ delay, and each held key triggers the long-press action at most once.
 
 Follow-up finding: the physical OK/confirm key path for selection mode still
 used `repeatCount == 1`. It should share the same held-duration gate.
+
+## Stroke And Zhuyin T9 Expansion
+
+The accepted key contract in ADR-0001 now needs a working engine and app-side
+scheme seam. Stroke means mobile five-stroke input, not Wubi 86. Its physical
+codes are `1..5` for horizontal, vertical, left-falling, dot/right-falling,
+and bend; `6` is an unknown-stroke token. Zhuyin uses all ten digit groups, so
+`0` cannot remain a universal Chinese confirmation key.
+
+The installed Rime plugin already ships the official `stroke` dictionary. The
+external Rime configuration can therefore add a numeric Stroke schema without
+duplicating the large dictionary. The existing `rime_ice` dictionary can also
+power Zhuyin by converting Pinyin syllables to canonical Zhuyin symbols and
+then collapsing those symbols into the agreed phone-key groups. This avoids a
+second large word dictionary and keeps user frequency learning in Rime.
+
+Rime's table translator does not provide an arbitrary input wildcard. An
+initial spelling-algebra prototype compiled one wildcard at each of twelve
+positions. Device evidence rejected that design: deployment exceeded 1 GB RSS
+and still had not produced the numeric Stroke prism after about a minute.
+Wildcard support must therefore stay out of the compiled dictionary.
+
+The revised Stroke Adapter keeps one exact numeric prism and expands key `6`
+only for the current query through a Lua translator. Exact input retains the
+native table-translator path. Wildcard input supports at most two unknown
+positions, performs at most 25 indexed table queries, collects a bounded number
+of results per branch, deduplicates, and reranks by candidate quality. This
+makes deployment independent of wildcard combinations and confines the extra
+cost to the uncommon wildcard query. The semantic `UNKNOWN` token remains in
+the app contract; expansion is an engine Adapter detail.
+
+The original Chinese composition Module was Pinyin-specific: it counted only
+`2..9`, resolved Pinyin filter chips, and mirrored selected Pinyin into Rime.
+Reusing it unchanged for Stroke or Zhuyin would create false filter rows and
+stale key counts. The new scheme-aware coordinator keeps that deep Pinyin
+implementation and delegates Stroke and Zhuyin to a compact raw-code session
+and render-ready presentation Adapter. All schemes still publish the existing
+candidate snapshot contract, so paging, bubble width, focus, shortcuts, and
+rendering stay shared.
+
+The current Rime schema action already provides the required user switching
+surface: it is labelled Dictionary Switch in compact settings and focuses the
+active schema in its menu. Adding the two schemas to `default.yaml` makes them
+available without adding another top-level mode or a duplicate settings item.
+The app can classify the cached Rime sub-mode using schema-owned display names;
+classification is O(1) and performs no Rime call in the physical-key hot path.
+
+Device deployment validated the revised engine design. The exact Stroke prism
+compiled to about 6.9 MB in a few seconds while the debug process stayed near
+322 MB RSS; the rejected wildcard-algebra build had exceeded 1 GB without
+finishing. Runtime `6` expansion produced candidates for one and two unknown
+strokes without a memory spike, and Zhuyin code `38` produced `好` with the
+`ㄏㄠ` reading.
+
+The first device pass also exposed two Pinyin assumptions outside composition:
+candidate freshness only recognized Latin T9 comments, and every Chinese
+scheme entered the asynchronous Pinyin bulk-filter pass. That left valid
+Stroke/Zhuyin candidates hidden or needlessly delayed. Freshness is now
+scheme-aware: Pinyin checks Latin readings, Stroke checks its engine preedit
+(with a bounded wildcard exception), and Zhuyin checks Bopomofo groups. Stroke
+and Zhuyin bypass the Pinyin-only bulk filter and render from the shared local
+page budget. Active scheme classification is updated by Fcitx IM-change events
+and cached, so keys and candidate frames do not synchronously cross to the
+Fcitx thread.
+
+A follow-up architecture audit found that merely bypassing the Pinyin bulk
+request was insufficient. Resetting that request also reset the shared local
+pager on every raw-scheme frame, defeating its cache and potentially losing a
+user-selected page. Waiting frames retained the previous interaction snapshot,
+so an invisible stale candidate could still receive OK or a numeric shortcut.
+The loading gate also lacked an explicit composition ticket and accepted any
+non-empty Stroke wildcard page, which was too weak under delayed event order.
+
+The same audit found lifecycle edge cases that need one scheme transition seam:
+a reconnected service can miss the original IM-change event, switching between
+two schema names that both classify as Pinyin must still clear session state,
+and candidate/loading/focus state must be invalidated together. Zhuyin reading
+boundaries entered by short `#` also need to live in the local raw-code session
+so Backspace removes the same token that Rime removes. Finally, asynchronous
+candidate selection must use the service's serialized Fcitx queue and reject a
+selection ticket after newer input or a scheme transition.
+
+The follow-up implementation closes those lifecycle gaps. Bulk-source reset no
+longer clears the local pager, candidate loading is keyed by a composition
+ticket, hidden or pending frames invalidate their interaction ticket, and one
+scheme-transition operation clears every transient candidate surface. Startup
+also initializes the concrete scheme identity from the cached current input
+method, covering reconnects that missed the original change event. Candidate
+selection is serialized and validates both composition and shown-source
+tickets before committing an original Rime index.
+
+The final device pass used the freshly installed debug APK and the explicit
+physical-keyboard source. A cold Zhuyin session accepted `38` immediately after
+service reconnect and displayed `好 / ㄏㄠ`; center committed the selected
+candidate. A short `#` boundary followed by Backspace restored the preceding
+Zhuyin code. Stroke accepted exact input and key `6` wildcard input, consumed
+unused short `7` during active composition, and short `0` committed the focused
+bottom-row candidate. Short `*` committed the focused Stroke candidate without
+a space and then opened the Chinese punctuation row.
+
+The raw-scheme trace no longer contains a Pinyin bulk request or repeated
+local-page rebuild after focus movement. On the target phone, a settled repeat
+update measured about 4.35 ms; a cached focus move spent about 2.20 ms in
+`buildState` and 21.22 ms overall. The remaining roughly 143 ms cold first
+frame is dominated by font/layout/JIT startup rather than dictionary-size work
+on the physical-key reducer.

@@ -21,13 +21,12 @@ names must not retain the old physical key that happened to trigger them. The
 mode-specific Physical T9 Key Flow Modules decide commands from one immutable
 state snapshot; the command executor and host Adapter own side-effect ordering.
 
-Future Stroke and Zhuyin implementations should add scheme-specific adapters,
-not branches in `FcitxInputMethodService`. Their composition sessions own raw
-codes and candidate lookup. The candidate UI continues to consume render-ready
-snapshots, so a new mechanism does not create a parallel row renderer or
-paging implementation. Lookup dictionaries are warmed outside key handling,
-and each key press only mutates a compact session key and requests one cached
-candidate snapshot.
+Stroke and Zhuyin use scheme-specific adapters, not service-owned input
+branches. Their composition sessions own raw codes and candidate presentation.
+The candidate UI continues to consume render-ready snapshots, so a new
+mechanism does not create a parallel row renderer or paging implementation.
+Lookup dictionaries are warmed outside key handling, and each key press only
+mutates a compact session key and requests one cached candidate snapshot.
 
 ## Project Goal
 
@@ -154,3 +153,82 @@ adapter seam that applies pipeline interaction results to host side effects.
 This keeps `CandidatesView` from carrying parallel Smart English, punctuation,
 and bulk-selection dispatch branches while preserving fallback handling for
 ordinary non-owned Rime candidates.
+
+## Chinese T9 Scheme Module Design
+
+`ChineseT9Scheme` is the stable scheme identity used by the key flow and
+presentation pipeline. It classifies Rime's cached sub-mode as Pinyin, Stroke,
+or Zhuyin and exposes only scheme-level decisions: which digits compose,
+whether `0` confirms, whether short `#` fixes a reading, and how raw input is
+displayed. Rime schema names and spelling encodings stay behind this Module.
+Fcitx IM-change events update this identity once at the adapter boundary; the
+physical-key and candidate paths only read the cached value and never call
+`runImmediately` to rediscover it.
+
+`ChineseT9CompositionCoordinator` remains the service-facing Interface. It
+delegates Pinyin to the existing resolved-segment implementation and delegates
+Stroke/Zhuyin to a compact raw-code session. Switching schemes clears the old
+session and presentation cache before the next key. The service and
+`CandidatesView` do not branch on Rime schema details.
+
+The Physical T9 Key Flow receives `ChineseT9Scheme` in its immutable state
+snapshot. It emits the existing forwarding and candidate commands according to
+the scheme contract. The reducer remains O(1): it does not query Rime, read a
+dictionary, build candidates, or measure views.
+
+Pinyin continues to publish its top reading and pinyin-filter row. Stroke and
+Zhuyin publish a top reading from their raw code and current candidate comment,
+but no fabricated Pinyin filter row. Their Hanzi candidates, numeric shortcut
+labels, paging, focus, width budgeting, and punctuation follow-up reuse the T9
+Candidate UI Snapshot Pipeline unchanged.
+
+The Rime data Adapter provides two schemas:
+
+- `t9_stroke` maps `1..5` to one exact official `hspnz` stroke prism. A bounded
+  Lua query Adapter expands up to two `6` tokens at runtime, merges a small
+  result pool by candidate quality, and leaves exact input on the native table
+  translator path. Wildcard combinations are never compiled into the prism.
+- `t9_zhuyin` converts `rime_ice` Pinyin spellings to Zhuyin, then collapses
+  symbols into the agreed `0..9` phone groups. Candidate comments are formatted
+  back to Zhuyin for the top reading.
+
+Both schemas use the existing Rime candidate engine and user dictionary. There
+is no Android-side dictionary scan or parallel candidate renderer. The existing
+Dictionary Switch action is the only scheme switch UI, preserving the shallow
+Chinese/English/number top-level cycle.
+
+Candidate readiness is also scheme-owned. Pinyin validates Latin candidate
+readings, Stroke validates the rendered stroke preedit, and Zhuyin validates
+Bopomofo comments against the phone groups. This keeps stale frames out without
+forcing non-Pinyin candidates through Pinyin inference. Only Pinyin uses the
+bulk prefix-filter session; Stroke and Zhuyin use the shared local page budget
+directly, avoiding an unnecessary asynchronous fetch before their first frame.
+
+The local pager and Pinyin bulk loader have independent reset semantics. A bulk
+reset must not erase a raw scheme's local page/cache; the complete candidate
+pipeline reset remains the explicit operation that clears both. Entering a
+waiting generation invalidates only the owned interaction snapshot while the
+renderer may retain the previous complete frame until its replacement is ready.
+This preserves the no-flash visual contract without allowing stale OK or
+shortcut selection.
+
+`ChineseT9CompositionTicket` identifies one candidate generation by scheme,
+raw sequence, and monotonic session revision. Candidate readiness and queued
+selection both validate this ticket. Input-panel and candidate events may
+arrive in either order, so the loading Module retains the latest pair and
+re-evaluates after either side changes. Stroke wildcard freshness compares each
+concrete preedit stroke against the requested pattern; `6` matches exactly one
+stroke rather than accepting an arbitrary non-empty page.
+
+One scheme-transition operation owns cached identity, composition cleanup,
+loading/source invalidation, focus reset, and presentation removal. Startup
+also initializes the cache from Fcitx's existing `inputMethodEntryCached` when
+the service attaches after the original IM-change event. The physical-key hot
+path continues to read only this cache.
+
+Zhuyin raw composition stores digits and semantic reading-boundary tokens.
+Short `#` appends a boundary before forwarding the delimiter to Rime, and
+Backspace removes the most recent token, keeping local and engine state in the
+same order. Candidate selection is posted to the service's serialized Fcitx
+queue with a composition and engine-event ticket; an obsolete request is
+dropped before its original index reaches Rime.

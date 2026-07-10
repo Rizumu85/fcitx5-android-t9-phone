@@ -178,3 +178,40 @@ otherwise.
   punctuation, Chinese local-budget/bulk source state, and owned shown-row
   original-index mapping live behind one internal Module instead of directly in
   the snapshot pipeline.
+
+## Stroke And Zhuyin T9 Development
+
+- [x] Record the accepted key maps, switching hierarchy, hot-path constraints,
+  and shared candidate-snapshot contract in ADR-0001.
+- [x] Add the `ChineseT9Scheme` Module and classify the cached Rime sub-mode
+  without synchronous engine work in the physical-key path.
+- [x] Make Physical T9 Key Flow interpret Chinese digits, `0`, and short `#`
+  through the active scheme, deleting replaced Pinyin-only fallback rules.
+- [x] Add a compact non-Pinyin composition/presentation session behind
+  `ChineseT9CompositionCoordinator` while preserving the existing Pinyin
+  resolved-segment implementation.
+- [x] Add `t9_stroke` and `t9_zhuyin` schemas to the maintained Rime config,
+  including bounded Stroke unknown-key support and Zhuyin comment formatting.
+- [x] Expose the new schemas through the existing Dictionary Switch menu and
+  keep the current scheme focused by the existing Rime action contract.
+- [x] Add focused unit tests for scheme classification, key-flow decisions,
+  raw-code presentation, and stale-session clearing.
+- [x] Build and install a debug APK; verify scheme switching, exact and unknown
+  Stroke lookup, Zhuyin `38 -> 好 / ㄏㄠ`, scheme-aware candidate freshness, and
+  bounded deployment memory on the physical phone.
+- [x] Decouple Pinyin bulk reset from local candidate paging and preserve raw
+  scheme page/cache state across unchanged refreshes.
+- [x] Add generation-aware candidate loading and invalidate stale interaction
+  snapshots while a replacement frame is pending or hidden.
+- [x] Make scheme transition and reconnect initialization clear composition,
+  loading, source, focus, and presentation state through one operation.
+- [x] Store Zhuyin short-`#` reading boundaries in the raw composition session
+  so Backspace stays aligned with Rime.
+- [x] Make raw-scheme `0` and universal OK fall back to the bottom candidate
+  row when no Pinyin row exists.
+- [x] Serialize candidate selection through the service Fcitx queue and reject
+  obsolete composition/source tickets.
+- [x] Re-run focused tests, install the debug APK, and measure the raw-scheme
+  candidate path on the physical phone.
+- [ ] User-test physical shortcuts, punctuation, confirmation, deletion, and
+  long-`#` top-level mode switching across Pinyin, Stroke, and Zhuyin.

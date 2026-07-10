@@ -84,9 +84,13 @@ owns backend spelling:
 
 Short `7..9` are consumed while Stroke composition is active so digits cannot
 leak into the editor. Their long presses remain candidate shortcuts or literal
-digit fallbacks. The Stroke Adapter translates `UNKNOWN` to the selected
-backend's wildcard, such as `?`, without exposing that encoding to the key
-flow or UI.
+digit fallbacks. The Stroke Adapter translates `UNKNOWN` to a backend query
+without exposing that encoding to the key flow or UI. For the Rime Adapter,
+exact `1..5` codes use one native table prism. Up to two `6` tokens are expanded
+only for the active query (at most 25 indexed lookups), then a bounded result
+pool is deduplicated and reranked by candidate quality. Wildcard combinations
+are not compiled because the twelve-position algebra prototype exceeded 1 GB
+deployment RSS on the target phone.
 
 Zhuyin uses the researched phone T9 grouping:
 
@@ -140,7 +144,10 @@ than retained as fallback behavior.
 Chinese candidate selection is asynchronous. The punctuation follow-up is
 therefore chained to successful Rime selection instead of rendering the
 punctuation row immediately. This prevents the later candidate event from
-overwriting or flashing the punctuation surface.
+overwriting or flashing the punctuation surface. Selection runs on the
+service's serialized Fcitx queue and carries both a composition ticket and a
+shown-source ticket. New input, paging, or a scheme transition invalidates the
+operation before an obsolete original index can be committed.
 
 ### 6. Reuse the candidate snapshot pipeline
 
@@ -157,6 +164,27 @@ branches, independent paging state, or direct view mutation in
 `FcitxInputMethodService`. Pinyin, Stroke, and Zhuyin may use different Rime
 schemas, but their Adapters publish the same render-ready candidate contract.
 
+Candidate freshness is interpreted at the scheme boundary. Pinyin validates
+Latin readings, Stroke validates its stroke preedit, and Zhuyin validates
+Bopomofo comments. The Pinyin bulk-filter session is not a generic Chinese
+stage: Stroke and Zhuyin bypass it and use the shared local page budget. This
+prevents a Pinyin-specific readiness heuristic from hiding or delaying valid
+non-Pinyin candidates.
+
+Bulk-filter state and local-pager state have independent reset operations.
+Disabling the Pinyin bulk source for Stroke or Zhuyin must not erase an
+unchanged local page, width budget, or source cache. While a replacement frame
+is pending or hidden, the pipeline invalidates its shown-interaction ticket so
+OK and numeric shortcuts cannot select candidates that are no longer visible.
+
+Scheme transitions are identified by the concrete Rime sub-mode, not only by
+the broad `Pinyin`, `Stroke`, or `Zhuyin` classification. One transition
+operation clears composition, loading, source, focus, and presentation state;
+service reconnect also initializes from the cached current input method in
+case the original change event was missed. Zhuyin reading boundaries inserted
+by short `#` are stored in the local raw-code session as well as sent to Rime,
+which keeps local Backspace and engine state aligned.
+
 ### 7. Keep key latency independent of dictionary size
 
 The physical-key reducer performs O(1) classification and compact session
@@ -166,9 +194,9 @@ wait, or Android view measurement.
 Each scheme caches candidate results by `(scheme, raw sequence, page,
 dictionary generation)`. Dictionaries and Rime schemas warm when the IME or
 input session starts, not on the first key. Slow engine results carry a
-generation token; stale results are discarded instead of briefly replacing a
-newer UI snapshot. Unchanged presentation snapshots do not rebuild or rerender
-candidate rows.
+composition ticket containing scheme, raw input, and session revision; stale
+results are discarded instead of briefly replacing a newer UI snapshot.
+Unchanged presentation snapshots do not rebuild or rerender candidate rows.
 
 ## Consequences
 
@@ -212,4 +240,5 @@ after it.
 ## References
 
 - [Rime Stroke schema](https://github.com/rime/rime-stroke/blob/master/stroke.schema.yaml)
+- [Rime Bopomofo schema](https://github.com/rime/rime-bopomofo/blob/master/bopomofo.schema.yaml)
 - [TT9 Bopomofo/Zhuyin proof of concept](https://github.com/taitungsun/tt9-bopomofo-zhuyin)
