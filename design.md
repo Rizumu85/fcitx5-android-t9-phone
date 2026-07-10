@@ -542,8 +542,14 @@ candidate quality ranking, and pair-frequency reranking. Dictionary and
 prediction Modules publish monotonic generations so an unchanged input can
 invalidate stale content without broad cache clearing.
 
-Physical delete is one ordered decision over one lazily captured editor
-snapshot. Number-mode operators commit immediately; optional expression
+Physical Delete Coordinator owns the precedence of resolved-segment reopening,
+active-composition pass-through, empty-editor IME hiding, and direct editor
+deletion. It captures at most one Editor Snapshot after local state proves an
+editor read is necessary. The Android adapter alone performs InputConnection
+IPC and applies the resulting cursor prediction/delete plan; password deletion
+uses the same plan rather than a parallel editor-read implementation.
+
+Number-mode operators commit immediately; optional expression
 evaluation runs under a generation ticket and cannot publish after newer input
 or panel dismissal. These policies stay behind their existing domain Modules
 rather than returning to `FcitxInputMethodService` condition chains.

@@ -83,6 +83,7 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSource
 import org.fcitx.fcitx5.android.input.t9.ChineseT9Scheme
 import org.fcitx.fcitx5.android.input.t9.ChineseT9SchemeCycle
 import org.fcitx.fcitx5.android.input.t9.ChineseT9SchemeCycleSession
+import org.fcitx.fcitx5.android.input.t9.PhysicalDeleteCoordinator
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHandler
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHostAdapter
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
@@ -344,9 +345,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             return false
         }
         if (!PhysicalT9KeyPolicy.isDeleteKey(keyCode)) return false
-        val lastSelection = selection.latest
-        if (!deleteBeforeCursorDirectly()) return false
-        recordPasswordInputPreviewBackspace(selectionDeleted = lastSelection.isNotEmpty())
+        val plan = physicalDeleteCoordinator.planPasswordDelete() ?: return false
+        if (!applyPhysicalDelete(plan)) return false
+        recordPasswordInputPreviewBackspace(
+            selectionDeleted = plan.kind == PhysicalDeleteCoordinator.DeleteKind.SELECTION
+        )
         return true
     }
 
@@ -364,6 +367,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var capabilityFlags = CapabilityFlags.DefaultFlags
 
     private val selection = CursorTracker()
+    private val physicalDeleteCoordinator = PhysicalDeleteCoordinator(
+        captureEditor = ::capturePhysicalDeleteEditorSnapshot
+    )
 
     val currentInputSelection: CursorRange
         get() = selection.latest
@@ -854,78 +860,61 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
     }
 
-    private fun shouldHideImeForEmptyEditorDelete(): Boolean {
-        if (composing.isNotEmpty()) return false
-        if (hasT9CompositionState()) return false
-        if (t9MultiTapCoordinator.hasPendingChar) return false
-        if (t9PunctuationCoordinator.isPending) return false
-
+    private fun capturePhysicalDeleteEditorSnapshot(): PhysicalDeleteCoordinator.EditorSnapshot? {
+        val ic = currentInputConnection ?: return null
         val lastSelection = selection.latest
-        if (lastSelection.isNotEmpty()) return false
-        if (lastSelection.start > 0 || lastSelection.end > 0) return false
-
-        val ic = currentInputConnection ?: return false
-        ic.getExtractedText(ExtractedTextRequest(), 0)?.text?.let {
-            return it.isEmpty()
-        }
-        val before = ic.getTextBeforeCursor(1, 0) ?: return false
-        val after = ic.getTextAfterCursor(1, 0) ?: return false
-        return before.isEmpty() && after.isEmpty()
-    }
-
-    private fun shouldDirectDeleteForIdlePhysicalBackspace(): Boolean =
-        composing.isEmpty() &&
-            !hasT9CompositionState() &&
-            !t9MultiTapCoordinator.hasPendingChar &&
-            !t9PunctuationCoordinator.isPending
-
-    private fun deleteBeforeCursorDirectly(): Boolean {
-        val ic = currentInputConnection ?: return false
-        val lastSelection = selection.latest
-        if (lastSelection.isNotEmpty()) {
-            selection.predict(lastSelection.start)
-            ic.commitText("", 1)
-            return true
+        val tracked = PhysicalDeleteCoordinator.Selection(lastSelection.start, lastSelection.end)
+        if (tracked.isSelected) {
+            return PhysicalDeleteCoordinator.EditorSnapshot(
+                trackedSelection = tracked,
+                extractedTextEmpty = null,
+                extractedSelection = null,
+                hasTextBeforeCursor = null,
+                hasTextAfterCursor = null
+            )
         }
         val extracted = ic.getExtractedText(ExtractedTextRequest(), 0)
         val extractedText = extracted?.text
         val extractedStart = extracted?.selectionStart ?: -1
         val extractedEnd = extracted?.selectionEnd ?: -1
-        if (extractedText != null && extractedStart >= 0 && extractedEnd >= 0) {
-            val start = minOf(extractedStart, extractedEnd)
-            val end = maxOf(extractedStart, extractedEnd)
-            if (start != end) {
-                selection.predict(start)
-                ic.commitText("", 1)
-                return true
+        val extractedSelection = if (
+            extractedText != null && extractedStart >= 0 && extractedEnd >= 0
+        ) {
+            PhysicalDeleteCoordinator.Selection(extractedStart, extractedEnd)
+        } else {
+            null
+        }
+        val needsBeforeCursor = extractedText == null ||
+            (extractedSelection == null && extractedText.isNotEmpty())
+        return PhysicalDeleteCoordinator.EditorSnapshot(
+            trackedSelection = tracked,
+            extractedTextEmpty = extractedText?.isEmpty(),
+            extractedSelection = extractedSelection,
+            hasTextBeforeCursor = if (needsBeforeCursor) {
+                ic.getTextBeforeCursor(1, 0)?.isNotEmpty()
+            } else {
+                null
+            },
+            hasTextAfterCursor = if (extractedText == null) {
+                ic.getTextAfterCursor(1, 0)?.isNotEmpty()
+            } else {
+                null
             }
-            if (start > 0) {
-                if (lastSelection.start > 0) {
-                    selection.predictOffset(-1)
-                } else {
-                    selection.predict(start - 1)
-                }
+        )
+    }
+
+    private fun applyPhysicalDelete(plan: PhysicalDeleteCoordinator.DeletePlan): Boolean {
+        val ic = currentInputConnection ?: return false
+        plan.predictedCursor?.let(selection::predict)
+        when (plan.kind) {
+            PhysicalDeleteCoordinator.DeleteKind.SELECTION -> ic.commitText("", 1)
+            PhysicalDeleteCoordinator.DeleteKind.BEFORE_CURSOR -> {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     ic.deleteSurroundingTextInCodePoints(1, 0)
                 } else {
                     ic.deleteSurroundingText(1, 0)
                 }
-                return true
             }
-            if (extractedText.isNotEmpty()) return false
-        }
-        if (lastSelection.start <= 0 &&
-            ic.getTextBeforeCursor(1, 0).isNullOrEmpty()
-        ) {
-            return false
-        }
-        if (lastSelection.start > 0) {
-            selection.predictOffset(-1)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            ic.deleteSurroundingTextInCodePoints(1, 0)
-        } else {
-            ic.deleteSurroundingText(1, 0)
         }
         return true
     }
@@ -1658,9 +1647,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 PhysicalInputRouter.Route(::routeActiveSelectionModeKeyDown),
                 PhysicalInputRouter.Route(::routeT9KeyDown),
                 PhysicalInputRouter.Route(::routeSelectionModeEntryKeyDown),
-                PhysicalInputRouter.Route(::routeEmptyEditorDeleteKeyDown),
-                PhysicalInputRouter.Route(::routeResolvedSegmentDeleteKeyDown),
-                PhysicalInputRouter.Route(::routeIdleDeleteKeyDown),
+                PhysicalInputRouter.Route(::routeEditorDeleteKeyDown),
                 PhysicalInputRouter.Route(::routeMappedKeyDown)
             ),
             // Selection-mode OK release must resolve its deferred short press before generic
@@ -2279,56 +2266,54 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             handlePhysicalSelectionModeKeyDown(input.keyCode, input.event)
         }
 
-    private fun routeEmptyEditorDeleteKeyDown(
+    private fun routeEditorDeleteKeyDown(
         input: PhysicalInputRouter.Input
     ): PhysicalInputRouter.Result? {
         if (input.mappedKeyCode != KeyEvent.KEYCODE_DEL ||
-            input.mappedEvent.action != KeyEvent.ACTION_DOWN ||
-            input.mappedEvent.repeatCount != 0 ||
-            !shouldHideImeForEmptyEditorDelete()
+            input.mappedEvent.action != KeyEvent.ACTION_DOWN
         ) return null
-        requestHideSelf(0)
-        return PhysicalInputRouter.Result(
-            handled = true,
-            consumeKeyUp = input.keyCode,
-            tracePath = "EDITOR/DELETE_HIDE_IME"
-        )
-    }
-
-    private fun routeResolvedSegmentDeleteKeyDown(
-        input: PhysicalInputRouter.Input
-    ): PhysicalInputRouter.Result? {
-        if (input.mappedKeyCode != KeyEvent.KEYCODE_DEL ||
-            input.mappedEvent.action != KeyEvent.ACTION_DOWN ||
-            !shouldReopenLastResolvedSegment()
-        ) return null
-        postFcitxJob {
-            if (popLastResolvedSegment(this)) {
-                this@FcitxInputMethodService.lifecycleScope.launch {
-                    candidatesView?.refreshT9Ui()
+        val decision = physicalDeleteCoordinator.decide(
+            input = PhysicalDeleteCoordinator.InputState(
+                hasComposingText = composing.isNotEmpty(),
+                hasT9Composition = hasT9CompositionState(),
+                hasPendingMultiTap = t9MultiTapCoordinator.hasPendingChar,
+                hasPendingPunctuation = t9PunctuationCoordinator.isPending,
+                canReopenResolvedSegment = shouldReopenLastResolvedSegment()
+            ),
+            repeatCount = input.mappedEvent.repeatCount
+        ) ?: return null
+        return when (decision) {
+            PhysicalDeleteCoordinator.Decision.HideIme -> {
+                requestHideSelf(0)
+                PhysicalInputRouter.Result(
+                    handled = true,
+                    consumeKeyUp = input.keyCode,
+                    tracePath = "EDITOR/DELETE_HIDE_IME"
+                )
+            }
+            PhysicalDeleteCoordinator.Decision.ReopenResolvedSegment -> {
+                postFcitxJob {
+                    if (popLastResolvedSegment(this)) {
+                        this@FcitxInputMethodService.lifecycleScope.launch {
+                            candidatesView?.refreshT9Ui()
+                        }
+                    }
                 }
+                PhysicalInputRouter.Result(
+                    handled = true,
+                    consumeKeyUp = input.keyCode,
+                    tracePath = "EDITOR/DELETE_REOPEN"
+                )
+            }
+            is PhysicalDeleteCoordinator.Decision.Delete -> {
+                if (!applyPhysicalDelete(decision.plan)) return null
+                PhysicalInputRouter.Result(
+                    handled = true,
+                    consumeKeyUp = input.keyCode,
+                    tracePath = "EDITOR/DELETE"
+                )
             }
         }
-        return PhysicalInputRouter.Result(
-            handled = true,
-            consumeKeyUp = input.keyCode,
-            tracePath = "EDITOR/DELETE_REOPEN"
-        )
-    }
-
-    private fun routeIdleDeleteKeyDown(
-        input: PhysicalInputRouter.Input
-    ): PhysicalInputRouter.Result? {
-        if (input.mappedKeyCode != KeyEvent.KEYCODE_DEL ||
-            input.mappedEvent.action != KeyEvent.ACTION_DOWN ||
-            !shouldDirectDeleteForIdlePhysicalBackspace() ||
-            !deleteBeforeCursorDirectly()
-        ) return null
-        return PhysicalInputRouter.Result(
-            handled = true,
-            consumeKeyUp = input.keyCode,
-            tracePath = "EDITOR/DELETE"
-        )
     }
 
     private fun routeMappedKeyDown(

@@ -781,3 +781,14 @@ dispatcher, and the bounded LRU retains later prefixes. Exact ordering,
 essential words, learned-word overlay, prefix ranking, and pair-frequency
 reranking remain unchanged. Dictionary and prediction generations invalidate
 only the affected Smart English snapshots; cursor movement performs no lookup.
+
+Physical Backspace previously passed through three independent router routes:
+empty-editor detection, resolved-segment reopening, and idle deletion. A
+non-empty idle editor could therefore execute `getExtractedText` once to reject
+IME hiding and again to decide the deletion, with extra surrounding-text IPC
+when extraction was unavailable. Physical Delete Coordinator now decides the
+ordered outcome from local composition state and one lazily captured Editor
+Snapshot. Resolved-segment and active-composition decisions perform no editor
+read; empty detection and deletion share the same extraction/surrounding-text
+result. Password Backspace reuses the same delete plan, while virtual-keyboard
+deletion retains its separate Fcitx behavior.
