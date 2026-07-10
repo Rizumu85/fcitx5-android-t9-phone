@@ -6,16 +6,17 @@
 package org.fcitx.fcitx5.android.input.t9
 
 import org.fcitx.fcitx5.android.core.FcitxEvent
-import org.fcitx.fcitx5.android.core.FormattedText
 import java.util.Locale
 
 internal class SmartEnglishLifecycle(
-    candidateProvider: (digits: String, limit: Int) -> List<String>,
+    private val candidateProvider: (digits: String, limit: Int) -> List<String>,
     private val predictionProvider: (previousWords: List<String>, limit: Int) -> List<String>,
     private val learnWord: (String) -> Unit,
     private val learnPredictionPair: (String, String) -> Unit,
     private val dictionaryReady: () -> Boolean,
     private val predictionReady: () -> Boolean,
+    private val dictionaryGeneration: () -> Long = { 0L },
+    private val predictionGeneration: () -> Long = { 0L },
     private val candidateLimit: Int,
     noMatchText: String,
     private val isActive: () -> Boolean,
@@ -29,30 +30,86 @@ internal class SmartEnglishLifecycle(
         CAPS
     }
 
-    private val session = SmartEnglishT9Session(
-        candidateProvider = candidateProvider,
-        candidateLimit = candidateLimit,
-        noMatchText = noMatchText
+    private data class RawLookupKey(
+        val digits: String,
+        val dictionaryGeneration: Long,
+        val dictionaryReady: Boolean
     )
+
+    private data class PairRankCacheKey(
+        val rawLookupKey: RawLookupKey,
+        val previousWords: List<String>,
+        val predictionGeneration: Long,
+        val predictionReady: Boolean
+    )
+
+    private enum class CandidateSource {
+        NONE,
+        TYPED,
+        PREDICTION
+    }
+
+    private data class CandidateContentKey(
+        val contentRevision: Long,
+        val active: Boolean,
+        val dictionaryGeneration: Long,
+        val predictionGeneration: Long,
+        val dictionaryReady: Boolean,
+        val predictionReady: Boolean,
+        val caseState: CaseState
+    ) {
+        val stableKey: String
+            get() = buildString {
+                append(contentRevision).append('|')
+                append(active).append('|')
+                append(dictionaryGeneration).append('|')
+                append(predictionGeneration).append('|')
+                append(dictionaryReady).append('|')
+                append(predictionReady).append('|')
+                append(caseState.name)
+            }
+    }
+
+    private data class CandidateContent(
+        val source: CandidateSource,
+        val candidates: Array<FcitxEvent.Candidate>,
+        val rawTypedCandidates: List<String> = emptyList(),
+        val reserveTopReadingRow: Boolean = false
+    )
+
+    private data class SnapshotKey(
+        val inputRevision: Long,
+        val contentKey: CandidateContentKey
+    )
+
+    private val session = SmartEnglishT9Session(noMatchText = noMatchText)
     private val predictionSession = SmartEnglishPredictionSession(
         predictionProvider = predictionProvider,
         candidateLimit = candidateLimit
     )
-
-    // Candidate UI asks for paged data and presentation separately. Keep TT9-style
-    // pair reranking stable within one input snapshot so those paths do not repeat
-    // prediction lookups or drift in ordering during a visual update.
+    private var rawLookupKey: RawLookupKey? = null
+    private var rawLookupValue: List<String> = emptyList()
     private var pairRankCacheKey: PairRankCacheKey? = null
     private var pairRankCacheValue: List<String> = emptyList()
+    private var candidateContentKey: CandidateContentKey? = null
+    private var candidateContentValue: CandidateContent? = null
+    private var snapshotKey: SnapshotKey? = null
+    private var snapshotValue: SmartEnglishSnapshot? = null
+    private var predictionCandidatesGeneration = Long.MIN_VALUE
     private val learningWord = StringBuilder()
     private val recentWords = ArrayDeque<String>()
     private var caseState = CaseState.OFF
+    private var inputRevision = 0L
+    private var contentRevision = 0L
 
     val hasDigits: Boolean
         get() = session.hasDigits
 
     val hasCandidates: Boolean
         get() = session.hasDigits || predictionSession.isVisible
+
+    val shouldRefreshAfterWarmup: Boolean
+        get() = session.hasDigits || predictionSession.hasContext
 
     val caseLabel: String
         get() = when (caseState) {
@@ -62,9 +119,10 @@ internal class SmartEnglishLifecycle(
         }
 
     fun appendDigit(digit: Int) {
+        if (digit !in 2..9) return
         predictionSession.reset()
         session.appendDigit(digit)
-        invalidatePairRanking()
+        advanceRevision()
         refreshUi()
     }
 
@@ -72,66 +130,77 @@ internal class SmartEnglishLifecycle(
         session.reset()
         predictionSession.reset()
         recentWords.clear()
-        invalidatePairRanking()
+        predictionCandidatesGeneration = Long.MIN_VALUE
+        advanceRevision()
         refreshUi()
     }
 
-    fun paged(): FcitxEvent.PagedCandidateEvent.Data? {
-        if (!isActive()) return null
-        if (!session.hasDigits) {
-            return predictionPaged()
+    fun snapshot(): SmartEnglishSnapshot {
+        val active = isActive()
+        val dictionaryIsReady = dictionaryReady()
+        val predictionIsReady = predictionReady()
+        // Read readiness before generation because preload publishes generation first and readiness last.
+        val currentDictionaryGeneration = dictionaryGeneration()
+        val currentPredictionGeneration = predictionGeneration()
+        if (!session.hasDigits && predictionSession.hasContext && predictionIsReady &&
+            predictionCandidatesGeneration != currentPredictionGeneration
+        ) {
+            predictionSession.refreshCandidates()
+            predictionCandidatesGeneration = currentPredictionGeneration
         }
-        val rawCandidates = pairRankedCandidates()
-        if (!dictionaryReady() && rawCandidates.isEmpty()) return null
-        val shown = session.visibleCandidates(
-            candidates = rawCandidates,
-            showNoMatch = dictionaryReady(),
-            transform = ::applyCaseToWord
-        ).map {
-            FcitxEvent.Candidate(label = "", text = it, comment = "")
-        }
-        if (shown.isEmpty()) return null
-        val cursor = session.cursor.coerceIn(shown.indices)
-        return FcitxEvent.PagedCandidateEvent.Data(
-            candidates = shown.toTypedArray(),
-            cursorIndex = cursor,
-            layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
-            hasPrev = false,
-            hasNext = false
+        val contentKey = CandidateContentKey(
+            contentRevision = contentRevision,
+            active = active,
+            dictionaryGeneration = currentDictionaryGeneration,
+            predictionGeneration = currentPredictionGeneration,
+            dictionaryReady = dictionaryIsReady,
+            predictionReady = predictionIsReady,
+            caseState = caseState
         )
-    }
-
-    fun presentation(formatText: (String) -> FormattedText?): T9PresentationState? {
-        if (!isActive()) return null
-        if (!session.hasDigits) {
-            return if (predictionSession.isVisible && predictionReady()) {
-                val preview = predictionSession.selectedCandidate()?.let(::applyCaseToWord)
-                T9PresentationState(
-                    topReading = preview?.let(formatText),
-                    readingOptions = emptyList(),
-                    reserveTopReadingRow = true
-                )
-            } else {
-                null
-            }
+        val key = SnapshotKey(inputRevision = inputRevision, contentKey = contentKey)
+        if (key == snapshotKey) return requireNotNull(snapshotValue)
+        val content = candidateContent(contentKey)
+        val cursor = if (content.candidates.isEmpty()) {
+            -1
+        } else {
+            when (content.source) {
+                CandidateSource.NONE -> -1
+                CandidateSource.TYPED -> session.cursor
+                CandidateSource.PREDICTION -> predictionSession.cursor
+            }.coerceIn(content.candidates.indices)
         }
-        val rawCandidates = pairRankedCandidates()
-        if (!dictionaryReady() && rawCandidates.isEmpty()) return null
-        val preview = session.inputPreviewText(rawCandidates)
-        return T9PresentationState(
-            topReading = formatText(applyCaseToWord(preview)),
-            readingOptions = emptyList()
-        )
+        val previewText = when (content.source) {
+            CandidateSource.NONE -> null
+            CandidateSource.TYPED -> applyCaseToWord(
+                session.inputPreviewText(content.rawTypedCandidates)
+            )
+            CandidateSource.PREDICTION -> content.candidates.getOrNull(cursor)?.text
+        }
+        val stableContentKey = contentKey.stableKey
+        return SmartEnglishSnapshot(
+            publicationKey = "$stableContentKey|$inputRevision",
+            contentKey = stableContentKey,
+            inputRevision = inputRevision,
+            dictionaryGeneration = currentDictionaryGeneration,
+            predictionGeneration = currentPredictionGeneration,
+            paged = if (content.candidates.isNotEmpty()) paged(content.candidates, cursor) else null,
+            previewText = previewText,
+            reserveTopReadingRow = content.reserveTopReadingRow
+        ).also {
+            snapshotKey = key
+            snapshotValue = it
+        }
     }
 
     fun moveCandidate(delta: Int): Boolean {
         if (!isActive()) return false
         val moved = if (session.hasDigits) {
-            session.moveCandidate(delta)
+            session.moveCandidate(delta, snapshot().paged?.candidates?.size ?: 0)
         } else {
             predictionSession.moveCandidate(delta)
         }
         if (!moved) return false
+        advanceRevision(contentChanged = false)
         refreshUi()
         return true
     }
@@ -139,11 +208,12 @@ internal class SmartEnglishLifecycle(
     fun moveSelectionTo(index: Int): Boolean {
         if (!isActive()) return false
         val moved = if (session.hasDigits) {
-            session.setCandidateIndex(index)
+            session.setCandidateIndex(index, snapshot().paged?.candidates?.size ?: 0)
         } else {
             predictionSession.setCandidateIndex(index)
         }
         if (!moved) return false
+        advanceRevision(contentChanged = false)
         return true
     }
 
@@ -163,16 +233,15 @@ internal class SmartEnglishLifecycle(
         }
         commitText(applyCaseToWord(selected) + if (appendSpace) " " else "")
         session.reset()
-        invalidatePairRanking()
         if (continuePrediction) {
             rememberCommittedWord(selected)
         } else {
-            // 1/# confirmation is meant to settle the visible word before a
-            // punctuation or return action; keeping next-word predictions open
-            // would make the follow-up key confirm an unrelated suggestion.
+            // Punctuation/Return confirmation must not expose an unrelated next-word prediction.
             predictionSession.reset()
+            predictionCandidatesGeneration = Long.MIN_VALUE
         }
-        consumeShiftOnce()
+        consumeShiftOnceInternal()
+        advanceRevision()
         refreshUi()
         return true
     }
@@ -185,7 +254,7 @@ internal class SmartEnglishLifecycle(
             predictionSession.hide()
         }
         if (!changed) return false
-        invalidatePairRanking()
+        advanceRevision()
         refreshUi()
         return true
     }
@@ -196,9 +265,7 @@ internal class SmartEnglishLifecycle(
     }
 
     fun consumeShiftOnce() {
-        if (caseState == CaseState.SHIFT_ONCE) {
-            caseState = CaseState.OFF
-        }
+        if (consumeShiftOnceInternal()) advanceRevision()
     }
 
     fun cycleCase(): String {
@@ -207,6 +274,7 @@ internal class SmartEnglishLifecycle(
             CaseState.SHIFT_ONCE -> CaseState.CAPS
             CaseState.CAPS -> CaseState.OFF
         }
+        advanceRevision()
         refreshUi()
         return caseLabel
     }
@@ -236,21 +304,63 @@ internal class SmartEnglishLifecycle(
         }
     }
 
-    private fun predictionPaged(): FcitxEvent.PagedCandidateEvent.Data? {
-        if (!predictionReady()) return null
-        val shown = predictionSession.rawCandidates().map {
-            FcitxEvent.Candidate(label = "", text = applyCaseToWord(it), comment = "")
+    private fun candidateContent(key: CandidateContentKey): CandidateContent {
+        if (key == candidateContentKey) return requireNotNull(candidateContentValue)
+        val content = when {
+            !key.active -> CandidateContent(CandidateSource.NONE, emptyArray())
+            session.hasDigits -> {
+                val rawCandidates = pairRankedCandidates(
+                    dictionaryIsReady = key.dictionaryReady,
+                    dictionaryGeneration = key.dictionaryGeneration,
+                    predictionIsReady = key.predictionReady,
+                    predictionGeneration = key.predictionGeneration
+                )
+                val shown = session.visibleCandidates(
+                    candidates = rawCandidates,
+                    showNoMatch = key.dictionaryReady,
+                    transform = ::applyCaseToWord
+                ).map { FcitxEvent.Candidate(label = "", text = it, comment = "") }
+                if (!key.dictionaryReady && shown.isEmpty()) {
+                    CandidateContent(CandidateSource.NONE, emptyArray())
+                } else {
+                    CandidateContent(
+                        source = CandidateSource.TYPED,
+                        candidates = shown.toTypedArray(),
+                        rawTypedCandidates = rawCandidates
+                    )
+                }
+            }
+            !key.predictionReady -> CandidateContent(CandidateSource.NONE, emptyArray())
+            else -> {
+                val shown = predictionSession.rawCandidates().map {
+                    FcitxEvent.Candidate(label = "", text = applyCaseToWord(it), comment = "")
+                }
+                if (shown.isEmpty()) {
+                    CandidateContent(CandidateSource.NONE, emptyArray())
+                } else {
+                    CandidateContent(
+                        source = CandidateSource.PREDICTION,
+                        candidates = shown.toTypedArray(),
+                        reserveTopReadingRow = true
+                    )
+                }
+            }
         }
-        if (shown.isEmpty()) return null
-        val cursor = predictionSession.cursor.coerceIn(shown.indices)
-        return FcitxEvent.PagedCandidateEvent.Data(
-            candidates = shown.toTypedArray(),
-            cursorIndex = cursor,
-            layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
-            hasPrev = false,
-            hasNext = false
-        )
+        candidateContentKey = key
+        candidateContentValue = content
+        return content
     }
+
+    private fun paged(
+        candidates: Array<FcitxEvent.Candidate>,
+        cursor: Int
+    ) = FcitxEvent.PagedCandidateEvent.Data(
+        candidates = candidates,
+        cursorIndex = cursor,
+        layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
+        hasPrev = false,
+        hasNext = false
+    )
 
     private fun applyCaseToWord(word: String): String = when (caseState) {
         CaseState.OFF -> word
@@ -260,33 +370,58 @@ internal class SmartEnglishLifecycle(
         CaseState.CAPS -> word.uppercase()
     }
 
-    private fun pairRankedCandidates(): List<String> {
-        val rawCandidates = session.rawCandidates()
-        val key = PairRankCacheKey(
+    private fun rawCandidates(
+        dictionaryIsReady: Boolean = dictionaryReady(),
+        dictionaryGeneration: Long = dictionaryGeneration()
+    ): List<String> {
+        val key = RawLookupKey(
             digits = session.digitSequence,
+            dictionaryGeneration = dictionaryGeneration,
+            dictionaryReady = dictionaryIsReady
+        )
+        if (key == rawLookupKey) return rawLookupValue
+        return candidateProvider(key.digits, candidateLimit).also {
+            rawLookupKey = key
+            rawLookupValue = it
+        }
+    }
+
+    private fun pairRankedCandidates(
+        dictionaryIsReady: Boolean = dictionaryReady(),
+        dictionaryGeneration: Long = dictionaryGeneration(),
+        predictionIsReady: Boolean = predictionReady(),
+        predictionGeneration: Long = predictionGeneration()
+    ): List<String> {
+        val rawCandidates = rawCandidates(dictionaryIsReady, dictionaryGeneration)
+        val currentRawLookupKey = requireNotNull(rawLookupKey)
+        val key = PairRankCacheKey(
+            rawLookupKey = currentRawLookupKey,
             previousWords = recentWords.toList(),
-            candidates = rawCandidates
+            predictionGeneration = predictionGeneration,
+            predictionReady = predictionIsReady
         )
         if (key == pairRankCacheKey) return pairRankCacheValue
-        return rankCandidatesByPreviousWord(rawCandidates, key.digits).also {
+        return rankCandidatesByPreviousWord(
+            candidates = rawCandidates,
+            digits = currentRawLookupKey.digits,
+            previousWords = key.previousWords,
+            predictionIsReady = predictionIsReady
+        ).also {
             pairRankCacheKey = key
             pairRankCacheValue = it
         }
     }
 
-    private fun invalidatePairRanking() {
-        pairRankCacheKey = null
-        pairRankCacheValue = emptyList()
-    }
-
     private fun rankCandidatesByPreviousWord(
         candidates: List<String>,
-        digits: String
+        digits: String,
+        previousWords: List<String>,
+        predictionIsReady: Boolean
     ): List<String> {
-        if (candidates.size < 2 || recentWords.isEmpty() || digits.isEmpty() || !predictionReady()) {
+        if (candidates.size < 2 || previousWords.isEmpty() || digits.isEmpty() || !predictionIsReady) {
             return candidates
         }
-        val predictionRank = predictionProvider(recentWords.toList(), candidateLimit)
+        val predictionRank = predictionProvider(previousWords, candidateLimit)
             .filter { T9EnglishDictionary.t9DigitsForWord(it) == digits }
             .mapIndexed { index, word -> word.lowercase(Locale.US) to index }
             .toMap()
@@ -296,8 +431,9 @@ internal class SmartEnglishLifecycle(
         if (ranked.isEmpty()) return candidates
         return buildList(candidates.size) {
             ranked.sortedWith(
-                compareBy<IndexedValue<String>> { predictionRank[it.value.lowercase(Locale.US)] ?: Int.MAX_VALUE }
-                    .thenBy { it.index }
+                compareBy<IndexedValue<String>> {
+                    predictionRank[it.value.lowercase(Locale.US)] ?: Int.MAX_VALUE
+                }.thenBy { it.index }
             ).forEach { add(it.value) }
             indexed.filterNot { (_, word) -> predictionRank.containsKey(word.lowercase(Locale.US)) }
                 .forEach { add(it.value) }
@@ -315,15 +451,23 @@ internal class SmartEnglishLifecycle(
             recentWords.removeFirst()
         }
         predictionSession.updateContext(recentWords.toList())
+        predictionCandidatesGeneration = predictionGeneration()
+    }
+
+    private fun consumeShiftOnceInternal(): Boolean {
+        if (caseState != CaseState.SHIFT_ONCE) return false
+        caseState = CaseState.OFF
+        return true
+    }
+
+    private fun advanceRevision(contentChanged: Boolean = true) {
+        inputRevision += 1
+        if (contentChanged) contentRevision += 1
+        snapshotKey = null
+        snapshotValue = null
     }
 
     companion object {
         private const val RecentWordContextSize = 3
     }
-
-    private data class PairRankCacheKey(
-        val digits: String,
-        val previousWords: List<String>,
-        val candidates: List<String>
-    )
 }

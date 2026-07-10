@@ -18,8 +18,8 @@ class T9SmartEnglishPageCacheTest {
         val cache = cache()
         val data = paged("hello", "help", cursor = 1)
 
-        val first = cache.build(data)
-        val second = cache.build(data)
+        val first = cache.build(data, contentKey = "words")
+        val second = cache.build(data, contentKey = "words")
 
         assertSame(first, second)
         assertArrayEquals(intArrayOf(0, 1), second.originalIndices)
@@ -30,8 +30,8 @@ class T9SmartEnglishPageCacheTest {
     fun cursorChangeReusesPagerButBuildsNewPagedResult() {
         val cache = cache()
 
-        cache.build(paged("hello", "help", cursor = 0))
-        val second = cache.build(paged("hello", "help", cursor = 1))
+        cache.build(paged("hello", "help", cursor = 0), contentKey = "words")
+        val second = cache.build(paged("hello", "help", cursor = 1), contentKey = "words")
 
         assertArrayEquals(intArrayOf(0, 1), second.originalIndices)
         assertEquals(1, second.data.cursorIndex)
@@ -48,7 +48,8 @@ class T9SmartEnglishPageCacheTest {
                 layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
                 hasPrev = false,
                 hasNext = false
-            )
+            ),
+            contentKey = "empty"
         )
 
         assertEquals(0, result.data.candidates.size)

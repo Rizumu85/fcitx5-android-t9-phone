@@ -394,7 +394,7 @@ otherwise.
   exclude Android-only T9 assets from native installation.
 - [x] Produce local selection frames and atomic punctuation-source transitions
   instead of broad candidate UI resets.
-- [ ] Publish one Smart English snapshot per revision and remove duplicate
+- [x] Publish one Smart English snapshot per revision and remove duplicate
   lookup/ranking/list construction from candidate frames.
 - [ ] Capture physical-delete editor state once and make number expression
   evaluation ticketed after immediate operator commit.

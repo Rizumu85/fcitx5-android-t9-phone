@@ -34,7 +34,7 @@ class SmartEnglishT9CoordinatorTest {
         coordinator.onEnabledChanged(false)
 
         assertEquals(1, host.resetPendingDigitCount)
-        assertEquals(null, coordinator.paged())
+        assertEquals(null, coordinator.snapshot().paged)
     }
 
     private class FakeHost {

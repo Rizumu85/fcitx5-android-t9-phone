@@ -276,8 +276,8 @@ class T9CandidateUiStateBuilderTest {
         val presentationKeys = mutableListOf<ChineseT9PresentationSnapshotKey>()
 
         override fun buildSmartEnglishPaged(
-            data: FcitxEvent.PagedCandidateEvent.Data
-        ): T9PagedCandidates = T9PagedCandidates.passthrough(data)
+            snapshot: SmartEnglishUiSnapshot
+        ): T9PagedCandidates? = snapshot.paged?.let(T9PagedCandidates::passthrough)
 
         override fun buildT9PendingPunctuationPaged(
             data: FcitxEvent.PagedCandidateEvent.Data
@@ -358,9 +358,19 @@ class T9CandidateUiStateBuilderTest {
             chineseT9Active = chineseActive,
             smartEnglishActive = smartEnglishActive,
             chineseSnapshot = chineseSnapshot,
-            smartEnglishRawPaged = smartEnglishPaged,
+            smartEnglishSnapshot = if (
+                smartEnglishPaged != null || smartEnglishPresentation != null
+            ) {
+                SmartEnglishUiSnapshot(
+                    publicationKey = "publication",
+                    contentKey = "content",
+                    paged = smartEnglishPaged,
+                    presentation = smartEnglishPresentation
+                )
+            } else {
+                null
+            },
             pendingPunctuationRawPaged = pendingPunctuationPaged,
-            smartEnglishPresentation = smartEnglishPresentation,
             currentFocus = currentFocus
         )
 

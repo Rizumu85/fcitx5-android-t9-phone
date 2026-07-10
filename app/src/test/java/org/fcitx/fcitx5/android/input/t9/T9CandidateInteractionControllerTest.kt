@@ -71,14 +71,19 @@ class T9CandidateInteractionControllerTest {
             paged = paged(cursor = 0, "a").copy(hasNext = true)
         )
         pipeline.buildSmartEnglishPaged(
-            FcitxEvent.PagedCandidateEvent.Data(
-                candidates = (0..10).map {
-                    FcitxEvent.Candidate(label = "", text = "word$it", comment = "")
-                }.toTypedArray(),
-                cursorIndex = 0,
-                layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
-                hasPrev = false,
-                hasNext = false
+            SmartEnglishUiSnapshot(
+                publicationKey = "publication",
+                contentKey = "content",
+                paged = FcitxEvent.PagedCandidateEvent.Data(
+                    candidates = (0..10).map {
+                        FcitxEvent.Candidate(label = "", text = "word$it", comment = "")
+                    }.toTypedArray(),
+                    cursorIndex = 0,
+                    layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
+                    hasPrev = false,
+                    hasNext = false
+                ),
+                presentation = null
             )
         )
         val host = FakeHost()

@@ -25,6 +25,7 @@ class SmartEnglishPredictionDictionary(
         persistenceExecutor = persistenceExecutor
     ) {
         builtInPredictionsByPrevious = builtInPairs
+        predictionGeneration = 1L
         builtInReady = true
     }
 
@@ -57,8 +58,14 @@ class SmartEnglishPredictionDictionary(
     @Volatile
     private var builtInReady = false
 
+    @Volatile
+    private var predictionGeneration = 0L
+
     val isReady: Boolean
         get() = builtInReady
+
+    val generation: Long
+        get() = predictionGeneration
 
     fun preload() {
         if (builtInReady) return
@@ -66,6 +73,7 @@ class SmartEnglishPredictionDictionary(
         synchronized(this) {
             if (builtInReady) return
             builtInPredictionsByPrevious = loaded
+            predictionGeneration += 1
             builtInReady = true
             predictionCache.clear()
         }
@@ -117,6 +125,7 @@ class SmartEnglishPredictionDictionary(
             predictions.sortedWith(PredictionQuality)
         }
         predictionCache.clear()
+        predictionGeneration += 1
         learnedPersistence.replace(learnedPredictionsByPrevious)
     }
 
@@ -139,6 +148,7 @@ class SmartEnglishPredictionDictionary(
             previous.takeIf { normalizedPredictions.isNotEmpty() }?.let { it to normalizedPredictions }
         }.toMap()
         predictionCache.clear()
+        predictionGeneration += 1
         learnedPersistence.replace(learnedPredictionsByPrevious)
     }
 

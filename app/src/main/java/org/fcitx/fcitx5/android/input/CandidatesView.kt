@@ -668,7 +668,7 @@ class CandidatesView(
             t9CandidateUiSnapshotPipeline.shownSource ==
             T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH
         ) {
-            service.getSmartEnglishT9Presentation()
+            service.getSmartEnglishT9Snapshot().presentation
         } else {
             null
         }
@@ -818,6 +818,11 @@ class CandidatesView(
         val smartEnglishActive = t9InputModeEnabled &&
             !chineseT9Active &&
             service.isSmartEnglishT9InputModeActive()
+        val smartEnglishSnapshot = if (smartEnglishActive) {
+            service.getSmartEnglishT9Snapshot()
+        } else {
+            null
+        }
         // Product decision: collect volatile service/view state once per frame so the snapshot
         // pipeline decides from a stable picture instead of interleaving getters with UI rules.
         return t9CandidateUiSnapshotPipeline.build(
@@ -836,18 +841,9 @@ class CandidatesView(
                 } else {
                     null
                 },
-                smartEnglishRawPaged = if (smartEnglishActive) {
-                    service.getSmartEnglishT9Paged()
-                } else {
-                    null
-                },
+                smartEnglishSnapshot = smartEnglishSnapshot,
                 pendingPunctuationRawPaged = if (chineseT9Active || smartEnglishActive) {
                     service.getPendingT9PunctuationPaged()
-                } else {
-                    null
-                },
-                smartEnglishPresentation = if (smartEnglishActive) {
-                    service.getSmartEnglishT9Presentation()
                 } else {
                     null
                 },

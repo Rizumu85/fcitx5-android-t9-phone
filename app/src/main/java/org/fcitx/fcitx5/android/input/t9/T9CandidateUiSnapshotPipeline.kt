@@ -97,8 +97,8 @@ class T9CandidateUiSnapshotPipeline(
     private var lastInput: T9CandidateUiInputSnapshot? = null
     private var currentUiSnapshot: T9CandidateUiSnapshot? = null
     private val stateBuilder = T9CandidateUiStateBuilder(object : T9CandidateUiStateBuilder.Pipeline {
-        override fun buildSmartEnglishPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates =
-            sourceSessions.buildSmartEnglishPaged(data)
+        override fun buildSmartEnglishPaged(snapshot: SmartEnglishUiSnapshot): T9PagedCandidates? =
+            sourceSessions.buildSmartEnglishPaged(snapshot)
 
         override fun buildT9PendingPunctuationPaged(
             data: FcitxEvent.PagedCandidateEvent.Data
@@ -325,8 +325,8 @@ class T9CandidateUiSnapshotPipeline(
     fun highlightedPinyin(): String? =
         pinyinRowWindow.highlightedPinyin()
 
-    fun buildSmartEnglishPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates =
-        sourceSessions.buildSmartEnglishPaged(data)
+    fun buildSmartEnglishPaged(snapshot: SmartEnglishUiSnapshot): T9PagedCandidates? =
+        sourceSessions.buildSmartEnglishPaged(snapshot)
 
     fun buildPendingPunctuationPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates =
         sourceSessions.buildPendingPunctuationPaged(data)

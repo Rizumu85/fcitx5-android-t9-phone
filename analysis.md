@@ -765,3 +765,19 @@ between a committed word or Hanzi and the punctuation row. In-page punctuation
 preview moves use the same local selection frame. A broad transient clear is an
 explicit lifecycle request reserved for a genuinely incompatible composition,
 not the default punctuation-entry behavior.
+
+Smart English now has one publication owner. A changed digit sequence,
+dictionary/prediction generation, prediction context, or case state builds one
+immutable candidate-content snapshot; a cursor-only revision reuses that
+candidate array and its page-cache content key while publishing only the new
+cursor and preview. Candidate paging and presentation therefore cannot perform
+independent dictionary lookups or observe different rankings in one frame.
+
+The 3.6 MB built-in dictionary previously expanded every word into every T9
+prefix during preload, creating a large map before first use. It now parses one
+ordered exact-sequence index and computes only bounded 64-word prefix pools on
+demand. Common one-, two-, and three-digit prefixes are warmed on the IO
+dispatcher, and the bounded LRU retains later prefixes. Exact ordering,
+essential words, learned-word overlay, prefix ranking, and pair-frequency
+reranking remain unchanged. Dictionary and prediction generations invalidate
+only the affected Smart English snapshots; cursor movement performs no lookup.

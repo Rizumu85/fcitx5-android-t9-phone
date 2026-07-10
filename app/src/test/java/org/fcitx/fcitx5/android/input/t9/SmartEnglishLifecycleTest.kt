@@ -21,7 +21,7 @@ class SmartEnglishLifecycleTest {
         assertTrue(lifecycle.commitCandidate())
 
         assertEquals(listOf("good "), host.committedTexts)
-        assertEquals("morning", lifecycle.paged()?.candidates?.first()?.text)
+        assertEquals("morning", lifecycle.snapshot().paged?.candidates?.first()?.text)
     }
 
     @Test
@@ -36,7 +36,7 @@ class SmartEnglishLifecycleTest {
 
         assertEquals(listOf("good", "morning"), host.learnedWords)
         assertTrue(host.learnedPredictionPairs.contains("good" to "morning"))
-        assertEquals("morning", lifecycle.paged()?.candidates?.first()?.text)
+        assertEquals("morning", lifecycle.snapshot().paged?.candidates?.first()?.text)
     }
 
     private class Host(

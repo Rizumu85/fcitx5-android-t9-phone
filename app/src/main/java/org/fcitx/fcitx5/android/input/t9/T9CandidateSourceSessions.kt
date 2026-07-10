@@ -151,8 +151,10 @@ class T9CandidateSourceSessions(
     fun buildChineseCursorContextSignature(preedit: CharSequence, prefixes: List<String>): String =
         chineseCandidatePipeline.buildCursorContextSignature(preedit, prefixes)
 
-    fun buildSmartEnglishPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates =
-        smartEnglishPageCache.build(data)
+    fun buildSmartEnglishPaged(snapshot: SmartEnglishUiSnapshot): T9PagedCandidates? =
+        snapshot.paged?.let { data ->
+            smartEnglishPageCache.build(data, snapshot.contentKey)
+        }
 
     fun buildPendingPunctuationPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates {
         val signature = T9CandidateSnapshots.pagerContent(data, characterBudget(), widthBudget())

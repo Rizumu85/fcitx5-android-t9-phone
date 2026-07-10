@@ -92,6 +92,7 @@ import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9Coordinator
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishCaseCoordinator
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishLearningPolicy
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9ModeController
+import org.fcitx.fcitx5.android.input.t9.SmartEnglishUiSnapshot
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocusController
 import org.fcitx.fcitx5.android.input.t9.T9CandidateShortcutCommitter
@@ -1709,7 +1710,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             shouldLearnWords = ::shouldLearnEnglishWords,
             commitText = ::commitText,
             refreshUi = { candidatesView?.refreshT9Ui() },
-            resetPendingDigit = ::resetSmartEnglishPendingDigit
+            resetPendingDigit = ::resetSmartEnglishPendingDigit,
+            formatText = ::formattedT9Text
         )
     }
     private val t9PunctuationCoordinator: T9PunctuationCoordinator = T9PunctuationCoordinator(
@@ -1919,11 +1921,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         smartEnglishModeController.toggle()
     }
 
-    fun getSmartEnglishT9Paged(): FcitxEvent.PagedCandidateEvent.Data? =
-        smartEnglishCoordinator.paged()
-
-    fun getSmartEnglishT9Presentation(): T9PresentationState? =
-        smartEnglishCoordinator.presentation(::formattedT9Text)
+    fun getSmartEnglishT9Snapshot(): SmartEnglishUiSnapshot =
+        smartEnglishCoordinator.snapshot()
 
     fun moveSmartEnglishSelectionTo(index: Int): Boolean =
         smartEnglishCoordinator.moveSelectionTo(index)

@@ -11,7 +11,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.core.FormattedText
 
 class SmartEnglishT9Coordinator(
@@ -22,7 +21,8 @@ class SmartEnglishT9Coordinator(
     private val isEnabled: () -> Boolean,
     private val isActive: () -> Boolean,
     private val resetPendingDigit: () -> Unit,
-    private val refreshUi: () -> Unit
+    private val refreshUi: () -> Unit,
+    private val formatText: (String) -> FormattedText? = { null }
 ) {
     constructor(
         candidateLimit: Int,
@@ -35,7 +35,8 @@ class SmartEnglishT9Coordinator(
         shouldLearnWords: () -> Boolean,
         commitText: (String) -> Unit,
         refreshUi: () -> Unit,
-        resetPendingDigit: () -> Unit
+        resetPendingDigit: () -> Unit,
+        formatText: (String) -> FormattedText? = { null }
     ) : this(
         controller = SmartEnglishT9Controller(
             candidateLimit = candidateLimit,
@@ -51,10 +52,13 @@ class SmartEnglishT9Coordinator(
         isEnabled = isEnabled,
         isActive = isActive,
         resetPendingDigit = resetPendingDigit,
-        refreshUi = refreshUi
+        refreshUi = refreshUi,
+        formatText = formatText
     )
 
     private var warmupJob: Job? = null
+    private var previousCoreSnapshot: SmartEnglishSnapshot? = null
+    private var previousUiSnapshot: SmartEnglishUiSnapshot? = null
 
     val hasDigits: Boolean
         get() = controller.hasDigits
@@ -64,9 +68,6 @@ class SmartEnglishT9Coordinator(
 
     val caseLabel: String
         get() = controller.caseLabel
-
-    val isDictionaryReady: Boolean
-        get() = controller.isDictionaryReady
 
     fun warmupIfEnabled() {
         if (isEnabled()) warmup()
@@ -82,13 +83,13 @@ class SmartEnglishT9Coordinator(
     }
 
     fun warmup() {
-        if (controller.isDictionaryReady) return
+        if (controller.isReady) return
         if (warmupJob?.isActive == true) return
         warmupJob = scope.launch(ioDispatcher) {
-            controller.preloadDictionary()
+            controller.preload()
             withContext(mainDispatcher) {
                 warmupJob = null
-                if (isActive() && controller.hasDigits) {
+                if (isActive() && controller.shouldRefreshAfterWarmup) {
                     refreshUi()
                 }
             }
@@ -105,11 +106,14 @@ class SmartEnglishT9Coordinator(
         controller.reset()
     }
 
-    fun paged(): FcitxEvent.PagedCandidateEvent.Data? =
-        controller.paged()
-
-    fun presentation(formatText: (String) -> FormattedText?): T9PresentationState? =
-        controller.presentation(formatText)
+    fun snapshot(): SmartEnglishUiSnapshot {
+        val core = controller.snapshot()
+        if (core === previousCoreSnapshot) return requireNotNull(previousUiSnapshot)
+        return core.toUiSnapshot(formatText).also {
+            previousCoreSnapshot = core
+            previousUiSnapshot = it
+        }
+    }
 
     fun moveCandidate(delta: Int): Boolean =
         controller.moveCandidate(delta)

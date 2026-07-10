@@ -5,13 +5,10 @@
 
 package org.fcitx.fcitx5.android.input.t9
 
-import org.fcitx.fcitx5.android.core.FcitxEvent
-import org.fcitx.fcitx5.android.core.FormattedText
-
 class SmartEnglishT9Controller private constructor(
     private val dictionary: T9EnglishDictionary?,
     private val predictionDictionary: SmartEnglishPredictionDictionary?,
-    private val dictionaryReady: () -> Boolean,
+    private val resourcesReady: () -> Boolean,
     private val lifecycle: SmartEnglishLifecycle
 ) {
     constructor(
@@ -26,7 +23,7 @@ class SmartEnglishT9Controller private constructor(
     ) : this(
         dictionary = dictionary,
         predictionDictionary = predictionDictionary,
-        dictionaryReady = dictionary::isReady,
+        resourcesReady = { dictionary.isReady && predictionDictionary.isReady },
         lifecycle = SmartEnglishLifecycle(
             candidateProvider = dictionary::candidatesFor,
             predictionProvider = predictionDictionary::predictionsAfter,
@@ -34,6 +31,8 @@ class SmartEnglishT9Controller private constructor(
             learnPredictionPair = predictionDictionary::learn,
             dictionaryReady = dictionary::isReady,
             predictionReady = predictionDictionary::isReady,
+            dictionaryGeneration = dictionary::generation,
+            predictionGeneration = predictionDictionary::generation,
             candidateLimit = candidateLimit,
             noMatchText = noMatchText,
             isActive = isActive,
@@ -50,6 +49,8 @@ class SmartEnglishT9Controller private constructor(
         learnPredictionPair: (String, String) -> Unit = { _, _ -> },
         dictionaryReady: () -> Boolean = { true },
         predictionReady: () -> Boolean = { true },
+        dictionaryGeneration: () -> Long = { 0L },
+        predictionGeneration: () -> Long = { 0L },
         candidateLimit: Int,
         noMatchText: String,
         isActive: () -> Boolean,
@@ -59,7 +60,7 @@ class SmartEnglishT9Controller private constructor(
     ) : this(
         dictionary = null,
         predictionDictionary = null,
-        dictionaryReady = dictionaryReady,
+        resourcesReady = { dictionaryReady() && predictionReady() },
         lifecycle = SmartEnglishLifecycle(
             candidateProvider = candidateProvider,
             predictionProvider = predictionProvider,
@@ -67,6 +68,8 @@ class SmartEnglishT9Controller private constructor(
             learnPredictionPair = learnPredictionPair,
             dictionaryReady = dictionaryReady,
             predictionReady = predictionReady,
+            dictionaryGeneration = dictionaryGeneration,
+            predictionGeneration = predictionGeneration,
             candidateLimit = candidateLimit,
             noMatchText = noMatchText,
             isActive = isActive,
@@ -85,10 +88,13 @@ class SmartEnglishT9Controller private constructor(
     val caseLabel: String
         get() = lifecycle.caseLabel
 
-    val isDictionaryReady: Boolean
-        get() = dictionaryReady()
+    val isReady: Boolean
+        get() = resourcesReady()
 
-    fun preloadDictionary() {
+    val shouldRefreshAfterWarmup: Boolean
+        get() = lifecycle.shouldRefreshAfterWarmup
+
+    fun preload() {
         dictionary?.preload()
         predictionDictionary?.preload()
     }
@@ -99,11 +105,8 @@ class SmartEnglishT9Controller private constructor(
     fun reset() =
         lifecycle.reset()
 
-    fun paged(): FcitxEvent.PagedCandidateEvent.Data? =
-        lifecycle.paged()
-
-    fun presentation(formatText: (String) -> FormattedText?): T9PresentationState? =
-        lifecycle.presentation(formatText)
+    fun snapshot(): SmartEnglishSnapshot =
+        lifecycle.snapshot()
 
     fun moveCandidate(delta: Int): Boolean =
         lifecycle.moveCandidate(delta)

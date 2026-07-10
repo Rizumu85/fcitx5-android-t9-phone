@@ -15,16 +15,18 @@ class SmartEnglishT9SessionTest {
 
     @Test
     fun previewShowsTypedPrefixOfSelectedCandidate() {
-        val session = fakeSession(
-            "435" to listOf("hello", "help")
-        )
+        val session = fakeSession()
+        val candidates = listOf("hello", "help")
 
         session.appendDigit(4)
         session.appendDigit(3)
         session.appendDigit(5)
 
-        assertEquals(listOf("hello", "help"), session.visibleCandidates { it })
-        assertEquals("hel", session.inputPreviewText())
+        assertEquals(
+            listOf("hello", "help"),
+            session.visibleCandidates(candidates = candidates, transform = { it })
+        )
+        assertEquals("hel", session.inputPreviewText(candidates))
     }
 
     @Test
@@ -33,47 +35,41 @@ class SmartEnglishT9SessionTest {
 
         session.appendDigit(9)
 
-        assertEquals(listOf("No match"), session.visibleCandidates { it })
-        assertEquals("w", session.inputPreviewText())
-        assertNull(session.selectedRawCandidate())
+        assertEquals(
+            listOf("No match"),
+            session.visibleCandidates(candidates = emptyList(), transform = { it })
+        )
+        assertEquals("w", session.inputPreviewText(emptyList()))
+        assertNull(session.selectedRawCandidate(emptyList()))
     }
 
     @Test
     fun movingAndBackspaceKeepCursorInsideSession() {
-        val session = fakeSession(
-            "4663" to listOf("good", "home")
-        )
+        val session = fakeSession()
+        val candidates = listOf("good", "home")
 
         listOf(4, 6, 6, 3).forEach(session::appendDigit)
 
-        assertTrue(session.moveCandidate(1))
+        assertTrue(session.moveCandidate(1, candidates.size))
         assertEquals(1, session.cursor)
-        assertEquals("home", session.selectedRawCandidate())
+        assertEquals("home", session.selectedRawCandidate(candidates))
 
         assertTrue(session.backspace())
         assertEquals(0, session.cursor)
-        assertEquals("gmm", session.inputPreviewText())
+        assertEquals("gmm", session.inputPreviewText(emptyList()))
     }
 
     @Test
     fun invalidCandidateIndexIsRejected() {
-        val session = fakeSession(
-            "4" to listOf("I")
-        )
+        val session = fakeSession()
 
         session.appendDigit(4)
 
-        assertFalse(session.setCandidateIndex(4))
+        assertFalse(session.setCandidateIndex(4, size = 1))
         assertEquals(0, session.cursor)
     }
 
-    private fun fakeSession(vararg candidates: Pair<String, List<String>>): SmartEnglishT9Session {
-        val candidateMap = candidates.toMap()
-        return SmartEnglishT9Session(
-            candidateProvider = { digits, _ -> candidateMap[digits].orEmpty() },
-            candidateLimit = 80,
-            noMatchText = "No match"
-        )
-    }
+    private fun fakeSession(): SmartEnglishT9Session =
+        SmartEnglishT9Session(noMatchText = "No match")
 
 }

@@ -21,9 +21,8 @@ data class T9CandidateUiInputSnapshot(
     val chineseT9Active: Boolean,
     val smartEnglishActive: Boolean,
     val chineseSnapshot: ChineseT9InputSnapshot?,
-    val smartEnglishRawPaged: FcitxEvent.PagedCandidateEvent.Data?,
+    val smartEnglishSnapshot: SmartEnglishUiSnapshot?,
     val pendingPunctuationRawPaged: FcitxEvent.PagedCandidateEvent.Data?,
-    val smartEnglishPresentation: T9PresentationState?,
     val currentFocus: T9CandidateFocus
 )
 
@@ -54,7 +53,7 @@ class T9CandidateUiStateBuilder(
     )
 
     interface Pipeline {
-        fun buildSmartEnglishPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates
+        fun buildSmartEnglishPaged(snapshot: SmartEnglishUiSnapshot): T9PagedCandidates?
         fun buildT9PendingPunctuationPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates
         fun filterT9StrokeCandidates(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates
         fun resetT9BulkFilterState()
@@ -91,7 +90,7 @@ class T9CandidateUiStateBuilder(
                 ?.text
                 ?.let(::pendingPunctuationPresentationState)
         T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH ->
-            smartEnglishPresentation ?: input.smartEnglishPresentation
+            smartEnglishPresentation ?: input.smartEnglishSnapshot?.presentation
         T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK,
         T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_LOCAL,
         T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_ENGINE ->
@@ -125,13 +124,13 @@ class T9CandidateUiStateBuilder(
             } else {
                 null
             }
-            val smartEnglishRawPaged = if (smartEnglishSurface) {
-                input.smartEnglishRawPaged
+            val smartEnglishSnapshot = if (smartEnglishSurface) {
+                input.smartEnglishSnapshot
             } else {
                 null
             }
             val smartEnglishPaged = T9ResponsivenessTrace.measure("CandidatesView.updateUi.smartEnglishPage") {
-                smartEnglishRawPaged?.let(pipeline::buildSmartEnglishPaged)
+                smartEnglishSnapshot?.let(pipeline::buildSmartEnglishPaged)
             }
             val t9FilterPrefixes = chineseSnapshot?.filterPrefixes ?: emptyList()
             val chineseSourcePaged = if (chineseSnapshot?.scheme == ChineseT9Scheme.STROKE) {
@@ -265,7 +264,7 @@ class T9CandidateUiStateBuilder(
                         // bubble confirmation as Chinese before committing a symbol candidate.
                         pendingPunctuationText(presentationPlan, effectivePaged)
                             ?.let(::pendingPunctuationPresentationState)
-                            ?: input.smartEnglishPresentation
+                            ?: smartEnglishSnapshot?.presentation
                     }
                     T9CandidateSourceControlPlanner.Surface.OTHER -> {
                         clearChinesePresentationState()

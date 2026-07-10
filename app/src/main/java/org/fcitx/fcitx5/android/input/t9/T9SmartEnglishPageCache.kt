@@ -26,16 +26,17 @@ class T9SmartEnglishPageCache(
         cachedPaged = null
     }
 
-    fun build(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates {
+    fun build(
+        data: FcitxEvent.PagedCandidateEvent.Data,
+        contentKey: String
+    ): T9PagedCandidates {
         val budget = T9ResponsivenessTrace.measure("CandidatesView.updateUi.smartEnglishPage.characterBudget") {
             characterBudget()
         }
         val widthBudget = T9ResponsivenessTrace.measure("CandidatesView.updateUi.smartEnglishPage.widthBudget") {
             widthBudget()
         }
-        val signature = T9ResponsivenessTrace.measure("CandidatesView.updateUi.smartEnglishPage.signature") {
-            T9CandidateSnapshots.pagerContent(data, budget, widthBudget)
-        }
+        val signature = "$contentKey|$budget|${widthBudget?.signature.orEmpty()}"
         val selectedIndex = data.candidates.indices
             .takeIf { !it.isEmpty() }
             ?.let { data.cursorIndex.coerceIn(it) }

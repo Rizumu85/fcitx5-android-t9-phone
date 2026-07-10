@@ -45,6 +45,16 @@ class SmartEnglishPredictionDictionaryTest {
     }
 
     @Test
+    fun learnedPairPublishesANewGeneration() {
+        val dictionary = dictionary()
+        val initialGeneration = dictionary.generation
+
+        dictionary.learn("good", "morning")
+
+        assertEquals(initialGeneration + 1, dictionary.generation)
+    }
+
+    @Test
     fun learnedPairsAreReloadedFromDisk() {
         val file = temporaryFolder.newFile("english-next-learned.tsv")
         val first = dictionary(learnedFile = file)

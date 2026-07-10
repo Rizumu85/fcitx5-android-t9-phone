@@ -526,12 +526,21 @@ The established final-chip focus scale may perform its bounded tail measurement
 without rebuilding source pages or candidate geometry. Page transitions and
 any failed invariant continue through one complete snapshot publication.
 
-Smart English Lifecycle publishes one immutable snapshot keyed by input
-revision, dictionary generation, page, and case state. Ranked candidates,
-cursor validity, paging data, and presentation derive from that publication.
-Raw lookup is reused across cursor and casing changes. Built-in dictionary data
-may use a build-time compact index, but ranking parity and learned-word overlay
-remain part of the existing dictionary implementation.
+Smart English Lifecycle publishes one immutable snapshot keyed by input and
+content revisions plus dictionary, prediction, readiness, and case generations.
+Ranked candidates, cursor validity, paging data, and presentation derive from
+that publication. Cursor-only revisions reuse the candidate array and stable
+content key; casing changes reuse the raw lookup but republish transformed
+content. Candidate UI consumes this single snapshot rather than asking for
+paged candidates and presentation separately.
+
+The built-in English dictionary uses one ordered exact-sequence index. Prefix
+candidate pools are bounded, computed on demand, and retained in an LRU; common
+prefixes are warmed off the input thread. This avoids the eager all-prefix
+memory expansion while preserving exact order, the learned-word overlay,
+candidate quality ranking, and pair-frequency reranking. Dictionary and
+prediction Modules publish monotonic generations so an unchanged input can
+invalidate stale content without broad cache clearing.
 
 Physical delete is one ordered decision over one lazily captured editor
 snapshot. Number-mode operators commit immediately; optional expression

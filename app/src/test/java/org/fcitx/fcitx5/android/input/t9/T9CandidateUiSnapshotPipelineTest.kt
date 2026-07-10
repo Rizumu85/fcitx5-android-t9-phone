@@ -18,7 +18,11 @@ class T9CandidateUiSnapshotPipelineTest {
     @Test
     fun smartEnglishSnapshotOwnsOriginalIndexMapping() {
         val pipeline = pipeline()
-        val shown = pipeline.buildSmartEnglishPaged(paged("hello", "help", cursor = 1))
+        val shown = requireNotNull(
+            pipeline.buildSmartEnglishPaged(
+                smartEnglishSnapshot(paged("hello", "help", cursor = 1))
+            )
+        )
 
         pipeline.updateShownState(
             source = T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH,
@@ -75,11 +79,15 @@ class T9CandidateUiSnapshotPipelineTest {
     @Test
     fun smartEnglishPageOffsetReturnsNextOriginalIndex() {
         val pipeline = pipeline(characterBudget = 30)
-        val shown = pipeline.buildSmartEnglishPaged(
-            paged(
-                "a", "b", "c", "d", "e",
-                "f", "g", "h", "i", "j", "k",
-                cursor = 0
+        val shown = requireNotNull(
+            pipeline.buildSmartEnglishPaged(
+                smartEnglishSnapshot(
+                    paged(
+                        "a", "b", "c", "d", "e",
+                        "f", "g", "h", "i", "j", "k",
+                        cursor = 0
+                    )
+                )
             )
         )
         pipeline.updateShownState(
@@ -271,4 +279,13 @@ class T9CandidateUiSnapshotPipelineTest {
             hasPrev = false,
             hasNext = false
         )
+
+    private fun smartEnglishSnapshot(
+        paged: FcitxEvent.PagedCandidateEvent.Data
+    ): SmartEnglishUiSnapshot = SmartEnglishUiSnapshot(
+        publicationKey = "publication",
+        contentKey = "content",
+        paged = paged,
+        presentation = null
+    )
 }

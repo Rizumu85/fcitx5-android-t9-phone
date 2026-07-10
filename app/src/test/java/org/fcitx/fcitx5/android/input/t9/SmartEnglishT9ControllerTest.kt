@@ -10,6 +10,8 @@ import org.fcitx.fcitx5.android.core.TextFormatFlag
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -22,7 +24,7 @@ class SmartEnglishT9ControllerTest {
 
         controller.appendDigit(4)
 
-        val paged = controller.paged()
+        val paged = controller.snapshot().paged
         assertNotNull(paged)
         assertEquals("I", paged!!.candidates.single().text)
         assertEquals(1, host.refreshCount)
@@ -59,7 +61,7 @@ class SmartEnglishT9ControllerTest {
         val controller = host.controller()
         controller.appendDigit(4)
 
-        assertEquals(null, controller.paged())
+        assertEquals(null, controller.snapshot().paged)
         assertFalse(controller.commitCandidate())
     }
 
@@ -69,9 +71,7 @@ class SmartEnglishT9ControllerTest {
         val controller = host.controller()
         controller.appendDigit(4)
 
-        val presentation = controller.presentation {
-            FormattedText(arrayOf(it), intArrayOf(TextFormatFlag.NoFlag.flag), -1)
-        }
+        val presentation = controller.uiSnapshot().presentation
 
         assertEquals("I", presentation?.topReading?.toString())
     }
@@ -85,8 +85,41 @@ class SmartEnglishT9ControllerTest {
 
         assertTrue(controller.moveSelectionTo(1))
 
-        assertEquals(1, controller.paged()?.cursorIndex)
+        assertEquals(1, controller.snapshot().paged?.cursorIndex)
         assertEquals(refreshCount, host.refreshCount)
+    }
+
+    @Test
+    fun cursorOnlyRevisionReusesLookupAndCandidateContent() {
+        val host = FakeHost()
+        val controller = host.controller()
+        listOf(4, 3, 5).forEach(controller::appendDigit)
+        val first = controller.snapshot()
+        val lookupCount = host.candidateLookupCount
+
+        assertTrue(controller.moveSelectionTo(1))
+        val second = controller.snapshot()
+
+        assertEquals(lookupCount, host.candidateLookupCount)
+        assertEquals(first.contentKey, second.contentKey)
+        assertNotEquals(first.publicationKey, second.publicationKey)
+        assertSame(first.paged?.candidates, second.paged?.candidates)
+        assertEquals(1, second.paged?.cursorIndex)
+        assertSame(second, controller.snapshot())
+    }
+
+    @Test
+    fun dictionaryGenerationInvalidatesLookupForUnchangedDigits() {
+        val host = FakeHost()
+        val controller = host.controller()
+        listOf(4, 3, 5).forEach(controller::appendDigit)
+        val first = controller.snapshot()
+
+        host.dictionaryGeneration += 1
+        val second = controller.snapshot()
+
+        assertEquals(2, host.candidateLookupCount)
+        assertNotEquals(first.contentKey, second.contentKey)
     }
 
     @Test
@@ -96,10 +129,8 @@ class SmartEnglishT9ControllerTest {
 
         controller.appendDigit(9)
 
-        assertEquals(null, controller.paged())
-        assertEquals(null, controller.presentation {
-            FormattedText(arrayOf(it), intArrayOf(TextFormatFlag.NoFlag.flag), -1)
-        })
+        assertEquals(null, controller.snapshot().paged)
+        assertEquals(null, controller.uiSnapshot().presentation)
     }
 
     @Test
@@ -109,7 +140,7 @@ class SmartEnglishT9ControllerTest {
 
         controller.appendDigit(4)
 
-        assertEquals("I", controller.paged()?.candidates?.single()?.text)
+        assertEquals("I", controller.snapshot().paged?.candidates?.single()?.text)
     }
 
     @Test
@@ -119,10 +150,8 @@ class SmartEnglishT9ControllerTest {
 
         listOf(4, 3, 5).forEach(controller::appendDigit)
 
-        assertEquals("hello", controller.paged()?.candidates?.first()?.text)
-        assertEquals("hel", controller.presentation {
-            FormattedText(arrayOf(it), intArrayOf(TextFormatFlag.NoFlag.flag), -1)
-        }?.topReading?.toString())
+        assertEquals("hello", controller.snapshot().paged?.candidates?.first()?.text)
+        assertEquals("hel", controller.uiSnapshot().presentation?.topReading?.toString())
     }
 
     @Test
@@ -144,10 +173,8 @@ class SmartEnglishT9ControllerTest {
         assertTrue(controller.commitCandidate())
 
         assertEquals(listOf("good "), host.committedTexts)
-        assertEquals("morning", controller.paged()?.candidates?.first()?.text)
-        val presentation = controller.presentation {
-            FormattedText(arrayOf(it), intArrayOf(TextFormatFlag.NoFlag.flag), -1)
-        }
+        assertEquals("morning", controller.snapshot().paged?.candidates?.first()?.text)
+        val presentation = controller.uiSnapshot().presentation
         assertEquals("morning", presentation?.topReading?.toString())
         assertTrue(presentation?.reserveTopReadingRow == true)
     }
@@ -162,7 +189,7 @@ class SmartEnglishT9ControllerTest {
         assertTrue(controller.commitCandidate())
 
         assertEquals(listOf("good ", "morning "), host.committedTexts)
-        assertEquals("sunshine", controller.paged()?.candidates?.first()?.text)
+        assertEquals("sunshine", controller.snapshot().paged?.candidates?.first()?.text)
     }
 
     @Test
@@ -174,7 +201,7 @@ class SmartEnglishT9ControllerTest {
         assertTrue(controller.commitCandidate(appendSpace = false))
 
         assertEquals(listOf("good"), host.committedTexts)
-        assertEquals(null, controller.paged())
+        assertEquals(null, controller.snapshot().paged)
     }
 
     @Test
@@ -187,7 +214,7 @@ class SmartEnglishT9ControllerTest {
         assertTrue(controller.commitCandidate(appendSpace = false))
 
         assertEquals(listOf("good ", "morning"), host.committedTexts)
-        assertEquals(null, controller.paged())
+        assertEquals(null, controller.snapshot().paged)
     }
 
     @Test
@@ -199,7 +226,7 @@ class SmartEnglishT9ControllerTest {
 
         "6676464".forEach { controller.appendDigit(it.digitToInt()) }
 
-        assertEquals("morning", controller.paged()?.candidates?.first()?.text)
+        assertEquals("morning", controller.snapshot().paged?.candidates?.first()?.text)
         assertTrue(controller.commitCandidate())
         assertEquals(listOf("good ", "morning "), host.committedTexts)
     }
@@ -213,7 +240,7 @@ class SmartEnglishT9ControllerTest {
 
         listOf(4, 6, 6).forEach(controller::appendDigit)
 
-        assertEquals(listOf("good", "home"), controller.paged()?.candidates?.map { it.text })
+        assertEquals(listOf("good", "home"), controller.snapshot().paged?.candidates?.map { it.text })
     }
 
     @Test
@@ -225,7 +252,7 @@ class SmartEnglishT9ControllerTest {
 
         assertTrue(controller.backspace())
 
-        assertEquals(null, controller.paged())
+        assertEquals(null, controller.snapshot().paged)
         assertFalse(controller.backspace())
     }
 
@@ -261,13 +288,19 @@ class SmartEnglishT9ControllerTest {
         val learnedWords = mutableListOf<String>()
         val learnedPredictionPairs = mutableListOf<Pair<String, String>>()
         var refreshCount = 0
+        var candidateLookupCount = 0
+        var dictionaryGeneration = 0L
 
         fun controller(): SmartEnglishT9Controller = SmartEnglishT9Controller(
-            candidateProvider = { digits, limit -> candidates[digits].orEmpty().take(limit) },
+            candidateProvider = { digits, limit ->
+                candidateLookupCount += 1
+                candidates[digits].orEmpty().take(limit)
+            },
             predictionProvider = { words, limit -> predictions[words.last()].orEmpty().take(limit) },
             learnWord = { learnedWords += it },
             learnPredictionPair = { previous, next -> learnedPredictionPairs += previous to next },
             dictionaryReady = { dictionaryReady },
+            dictionaryGeneration = { dictionaryGeneration },
             candidateLimit = 10,
             noMatchText = "No match",
             isActive = { active },
@@ -276,4 +309,9 @@ class SmartEnglishT9ControllerTest {
             refreshUi = { refreshCount += 1 }
         )
     }
+
+    private fun SmartEnglishT9Controller.uiSnapshot(): SmartEnglishUiSnapshot =
+        snapshot().toUiSnapshot { text ->
+            FormattedText(arrayOf(text), intArrayOf(TextFormatFlag.NoFlag.flag), -1)
+        }
 }

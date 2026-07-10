@@ -20,6 +20,9 @@ class SmartEnglishPredictionSession(
     val cursor: Int
         get() = cursorIndex
 
+    val hasContext: Boolean
+        get() = contextWords.isNotEmpty()
+
     fun reset() {
         contextWords = emptyList()
         candidates = emptyList()
@@ -67,6 +70,10 @@ class SmartEnglishPredictionSession(
 
     fun selectedCandidate(index: Int? = null): String? =
         rawCandidates().getOrNull(index ?: cursorIndex)
+
+    fun refreshCandidates() {
+        if (contextWords.isNotEmpty()) rebuildCandidates()
+    }
 
     private fun rebuildCandidates() {
         candidates = if (contextWords.isEmpty()) {

@@ -6,20 +6,8 @@
 package org.fcitx.fcitx5.android.input.t9
 
 class SmartEnglishT9Session(
-    private val candidateProvider: (digits: String, limit: Int) -> List<String>,
-    private val candidateLimit: Int,
     private val noMatchText: String
 ) {
-    constructor(
-        dictionary: T9EnglishDictionary,
-        candidateLimit: Int,
-        noMatchText: String
-    ) : this(
-        candidateProvider = dictionary::candidatesFor,
-        candidateLimit = candidateLimit,
-        noMatchText = noMatchText
-    )
-
     private val digits = StringBuilder()
     private var cursorIndex = 0
 
@@ -43,11 +31,8 @@ class SmartEnglishT9Session(
         cursorIndex = 0
     }
 
-    fun rawCandidates(): List<String> =
-        if (digits.isEmpty()) emptyList() else candidateProvider(digits.toString(), candidateLimit)
-
     fun visibleCandidates(
-        candidates: List<String> = rawCandidates(),
+        candidates: List<String>,
         showNoMatch: Boolean = true,
         transform: (String) -> String
     ): List<String> {
@@ -59,7 +44,7 @@ class SmartEnglishT9Session(
         }
     }
 
-    fun inputPreviewText(candidates: List<String> = rawCandidates()): String {
+    fun inputPreviewText(candidates: List<String>): String {
         val typedLength = digits.length
         val selectedPrefix = candidates
             .getOrNull(cursorIndex)
@@ -70,21 +55,23 @@ class SmartEnglishT9Session(
             ?: digitSkeleton()
     }
 
-    fun moveCandidate(delta: Int): Boolean {
-        val size = visibleCandidates { it }.size
+    fun moveCandidate(delta: Int, size: Int): Boolean {
         if (size <= 0) return false
-        cursorIndex = (cursorIndex + delta).coerceIn(0, size - 1)
+        val next = (cursorIndex + delta).coerceIn(0, size - 1)
+        if (next == cursorIndex) return false
+        cursorIndex = next
         return true
     }
 
-    fun setCandidateIndex(index: Int): Boolean {
-        if (index !in visibleCandidates { it }.indices) return false
+    fun setCandidateIndex(index: Int, size: Int): Boolean {
+        if (index !in 0 until size) return false
+        if (index == cursorIndex) return true
         cursorIndex = index
         return true
     }
 
     fun selectedRawCandidate(
-        candidates: List<String> = rawCandidates(),
+        candidates: List<String>,
         index: Int? = null
     ): String? =
         candidates.getOrNull(index ?: cursorIndex)
