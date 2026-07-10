@@ -653,6 +653,12 @@ class CandidatesView(
         updateT9FocusIndicator()
     }
 
+    fun completeDirectT9InteractionFrame(traceId: Long) {
+        T9ResponsivenessTrace.markSnapshotReady(traceId)
+        T9ResponsivenessTrace.markRenderComplete(traceId)
+        postOnAnimation { T9ResponsivenessTrace.completeFrame(traceId) }
+    }
+
     /**
      * Force a full UI refresh. Needed after model-only mutations (pinyin chip selection,
      * delete-reopen) that don't trigger a fcitx event and therefore wouldn't otherwise redraw.

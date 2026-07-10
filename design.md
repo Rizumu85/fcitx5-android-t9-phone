@@ -466,3 +466,54 @@ work across nearby reading windows, while last-value row-width and chip-width
 snapshots avoid rebuilding identical measurement aggregates. Keys include the
 reading text and every metric that affects the result; candidate content,
 focus-window planning, and Android rendering remain outside the cache.
+
+## Physical Input And Cold-start Performance Design
+
+The existing Physical Input Responsiveness Module becomes the common lifecycle
+for accepted physical T9 actions. A transaction records a semantic path and one
+completion kind: editor effect, input-surface frame, candidate frame, or
+Fcitx-source candidate frame. Physical T9 Key Flow continues to emit commands;
+it does not time Android work. Command execution and platform adapters mark the
+owned completion boundary, and a newer accepted input invalidates an older
+unfinished transaction.
+
+Fcitx readiness and Rime availability are separate states. The Rime adapter
+publishes deployment state and active schema identity. Chinese T9 engine
+operations accept input only against a ready generation and revalidate their
+composition ticket after asynchronous readiness. Input-surface creation does
+not wait for Rime deployment, while a late ready transition reliably refreshes
+the active Chinese session.
+
+`KeyboardWindow` remains the owner of layout creation, attachment, detachment,
+and caching, but its implementation materializes one requested keyboard at a
+time. Picker catalogs are independently lazy and are loaded only with their
+picker. Feedback preference observation remains eager enough to preserve user
+settings, while sound decoding starts after the first input-surface frame and a
+not-yet-loaded sound is skipped rather than blocking a physical key.
+
+`DataManager` remains the Data Installation Module. It uses a persisted source
+fingerprint that includes the app descriptor and installed plugin identities.
+An equal, completed fingerprint bypasses plugin descriptor parsing, hierarchy
+construction, copies, and descriptor writes. Any app/plugin version change,
+missing completion marker, or interrupted install uses the existing complete
+diff-and-copy implementation. Android-only T9 dictionary assets do not enter
+the native installation plan.
+
+Local candidate selection produces a render-ready selection frame from the T9
+Candidate UI Snapshot Pipeline. Content and geometry remain untouched when
+only the cursor changes. T9 Punctuation Lifecycle replaces one candidate
+source atomically; it requests a global transient clear only when incompatible
+composition must actually be discarded.
+
+Smart English Lifecycle publishes one immutable snapshot keyed by input
+revision, dictionary generation, page, and case state. Ranked candidates,
+cursor validity, paging data, and presentation derive from that publication.
+Raw lookup is reused across cursor and casing changes. Built-in dictionary data
+may use a build-time compact index, but ranking parity and learned-word overlay
+remain part of the existing dictionary implementation.
+
+Physical delete is one ordered decision over one lazily captured editor
+snapshot. Number-mode operators commit immediately; optional expression
+evaluation runs under a generation ticket and cannot publish after newer input
+or panel dismissal. These policies stay behind their existing domain Modules
+rather than returning to `FcitxInputMethodService` condition chains.

@@ -246,7 +246,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             discardChineseCompositionForModeSwitch = ::discardChineseCompositionForModeSwitch
         )
     )
-    private val physicalT9KeyHandler = PhysicalT9KeyHandler(physicalT9KeyHost)
+    private val physicalT9KeyHandler = PhysicalT9KeyHandler(
+        host = physicalT9KeyHost,
+        completeInputSurfaceFrame = { traceId ->
+            decorView.postOnAnimation {
+                T9ResponsivenessTrace.completeInputSurfaceFrame(traceId)
+            }
+        },
+        completeCandidateFrame = { traceId ->
+            candidatesView?.completeDirectT9InteractionFrame(traceId)
+                ?: T9ResponsivenessTrace.discardInput(traceId)
+        }
+    )
 
     private fun isTemporaryPasswordKeyboardVisible(): Boolean =
         inputView?.isTemporaryPasswordKeyboardVisible() == true
@@ -2140,7 +2151,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         input: PhysicalInputRouter.Input
     ): PhysicalInputRouter.Result? {
         val result = numberModeController.handleTransientPanelKeyDown(input.keyCode, input.event)
-        return PhysicalInputRouter.Result(result.handled, result.consumedKeyUp)
+        return PhysicalInputRouter.Result(
+            handled = result.handled,
+            consumeKeyUp = result.consumedKeyUp,
+            tracePath = "NUMBER/TRANSIENT_PANEL"
+        )
             .takeIf { it.handled || it.consumeKeyUp != null }
     }
 
@@ -2149,7 +2164,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     ): PhysicalInputRouter.Result? =
         handledPhysicalRoute(
             handlePhysicalSelectionActionPanelKeyDown(input.keyCode, input.event),
-            input.keyCode
+            input.keyCode,
+            "EDITOR/SELECTION_ACTION"
         )
 
     private fun routePasswordHorizontalFocusKeyDown(
@@ -2160,7 +2176,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             !PhysicalT9KeyPolicy.isHorizontalFocusKey(input.keyCode)
         ) return null
         handleArrowKey(input.keyCode)
-        return PhysicalInputRouter.Result(handled = true, consumeKeyUp = input.keyCode)
+        return PhysicalInputRouter.Result(
+            handled = true,
+            consumeKeyUp = input.keyCode,
+            tracePath = "PASSWORD/NAVIGATION"
+        )
     }
 
     private fun routePasswordBackspaceKeyDown(
@@ -2168,7 +2188,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     ): PhysicalInputRouter.Result? =
         handledPhysicalRoute(
             handlePhysicalPasswordBackspaceKey(input.keyCode, input.event),
-            input.keyCode
+            input.keyCode,
+            "PASSWORD/DELETE"
         )
 
     private fun routePasswordLiteralKeyDown(
@@ -2176,7 +2197,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     ): PhysicalInputRouter.Result? =
         handledPhysicalRoute(
             commitPhysicalPasswordLiteralKey(input.keyCode, input.event),
-            input.keyCode
+            input.keyCode,
+            "PASSWORD/TEXT_INPUT"
         )
 
     private fun routeActiveSelectionModeKeyDown(
@@ -2185,7 +2207,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (!physicalSelectionMode) return null
         return handledPhysicalRoute(
             handlePhysicalSelectionModeKeyDown(input.keyCode, input.event),
-            input.keyCode
+            input.keyCode,
+            "EDITOR/SELECTION"
         )
     }
 
@@ -2199,7 +2222,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         input: PhysicalInputRouter.Input
     ): PhysicalInputRouter.Result? =
         // Entry owns its release callback, so it must not be swallowed by generic pairing.
-        PhysicalInputRouter.Result(handled = true).takeIf {
+        PhysicalInputRouter.Result(
+            handled = true,
+            tracePath = "EDITOR/SELECTION"
+        ).takeIf {
             handlePhysicalSelectionModeKeyDown(input.keyCode, input.event)
         }
 
@@ -2212,7 +2238,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             !shouldHideImeForEmptyEditorDelete()
         ) return null
         requestHideSelf(0)
-        return PhysicalInputRouter.Result(handled = true, consumeKeyUp = input.keyCode)
+        return PhysicalInputRouter.Result(
+            handled = true,
+            consumeKeyUp = input.keyCode,
+            tracePath = "EDITOR/DELETE_HIDE_IME"
+        )
     }
 
     private fun routeResolvedSegmentDeleteKeyDown(
@@ -2229,7 +2259,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 }
             }
         }
-        return PhysicalInputRouter.Result(handled = true, consumeKeyUp = input.keyCode)
+        return PhysicalInputRouter.Result(
+            handled = true,
+            consumeKeyUp = input.keyCode,
+            tracePath = "EDITOR/DELETE_REOPEN"
+        )
     }
 
     private fun routeIdleDeleteKeyDown(
@@ -2240,7 +2274,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             !shouldDirectDeleteForIdlePhysicalBackspace() ||
             !deleteBeforeCursorDirectly()
         ) return null
-        return PhysicalInputRouter.Result(handled = true, consumeKeyUp = input.keyCode)
+        return PhysicalInputRouter.Result(
+            handled = true,
+            consumeKeyUp = input.keyCode,
+            tracePath = "EDITOR/DELETE"
+        )
     }
 
     private fun routeMappedKeyDown(
@@ -2253,7 +2291,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
         return PhysicalInputRouter.Result(
             handled = forwardKeyEvent(input.mappedEvent) ||
-                super.onKeyDown(input.mappedKeyCode, input.mappedEvent)
+                super.onKeyDown(input.mappedKeyCode, input.mappedEvent),
+            tracePath = "PHYSICAL/MAPPED_KEY"
         )
     }
 
@@ -2276,8 +2315,16 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 super.onKeyUp(input.mappedKeyCode, input.mappedEvent)
         )
 
-    private fun handledPhysicalRoute(handled: Boolean, consumeKeyUp: Int): PhysicalInputRouter.Result? =
-        PhysicalInputRouter.Result(handled = true, consumeKeyUp = consumeKeyUp)
+    private fun handledPhysicalRoute(
+        handled: Boolean,
+        consumeKeyUp: Int,
+        tracePath: String
+    ): PhysicalInputRouter.Result? =
+        PhysicalInputRouter.Result(
+            handled = true,
+            consumeKeyUp = consumeKeyUp,
+            tracePath = tracePath
+        )
             .takeIf { handled }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {

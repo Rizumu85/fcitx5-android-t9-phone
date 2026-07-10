@@ -11,6 +11,12 @@ object T9ResponsivenessTrace {
     const val SlowSectionThresholdNanos = 2_000_000L
     const val DefaultAggregationWindow = 20
 
+    enum class CompletionKind {
+        EFFECT,
+        INPUT_SURFACE_FRAME,
+        CANDIDATE_FRAME
+    }
+
     data class SectionSummary(
         val section: String,
         val count: Int,
@@ -32,6 +38,7 @@ object T9ResponsivenessTrace {
         val p95Nanos: Long,
         val maxNanos: Long,
         val averageDecisionNanos: Long,
+        val averageEffectNanos: Long,
         val averageSourceWaitNanos: Long,
         val averageSnapshotNanos: Long,
         val averageRenderNanos: Long,
@@ -75,8 +82,10 @@ object T9ResponsivenessTrace {
         val id: Long,
         val path: String,
         val startedNanos: Long,
+        val completionKind: CompletionKind,
         val requiresSourceEvent: Boolean,
         var decisionCompleteNanos: Long? = null,
+        var effectAppliedNanos: Long? = null,
         var sourceEventNanos: Long? = null,
         var snapshotReadyNanos: Long? = null,
         var renderCompleteNanos: Long? = null
@@ -85,6 +94,7 @@ object T9ResponsivenessTrace {
     private data class InputLatencySample(
         val totalNanos: Long,
         val decisionNanos: Long,
+        val effectNanos: Long,
         val sourceWaitNanos: Long,
         val snapshotNanos: Long,
         val renderNanos: Long,
@@ -150,7 +160,12 @@ object T9ResponsivenessTrace {
             }.values.toList()
         }
 
-    fun beginInput(path: String, requiresSourceEvent: Boolean = false): Long? {
+    fun beginInput(
+        path: String,
+        completionKind: CompletionKind = CompletionKind.CANDIDATE_FRAME,
+        requiresSourceEvent: Boolean = false,
+        startedNanos: Long? = null
+    ): Long? {
         val activeConfig = config
         if (!activeConfig.enabled) return null
         return synchronized(lock) {
@@ -161,17 +176,43 @@ object T9ResponsivenessTrace {
                 activeInput = InputTransaction(
                     id = id,
                     path = path,
-                    startedNanos = activeConfig.nanoTime(),
+                    startedNanos = startedNanos ?: activeConfig.nanoTime(),
+                    completionKind = completionKind,
                     requiresSourceEvent = requiresSourceEvent
                 )
             }
         }
     }
 
+    fun captureInputStartNanos(): Long? {
+        val activeConfig = config
+        return if (activeConfig.enabled) activeConfig.nanoTime() else null
+    }
+
+    fun recordCompletedEffect(path: String, startedNanos: Long?): InputLatencySummary? {
+        if (startedNanos == null) return null
+        val inputId = beginInput(
+            path = path,
+            completionKind = CompletionKind.EFFECT,
+            startedNanos = startedNanos
+        )
+        markDecisionComplete(inputId)
+        markEffectApplied(inputId)
+        return completeEffect(inputId)
+    }
+
     fun markDecisionComplete(inputId: Long?) {
         mark(inputId) { transaction, now ->
             if (transaction.decisionCompleteNanos == null) {
                 transaction.decisionCompleteNanos = now
+            }
+        }
+    }
+
+    fun markEffectApplied(inputId: Long?) {
+        mark(inputId) { transaction, now ->
+            if (transaction.effectAppliedNanos == null) {
+                transaction.effectAppliedNanos = now
             }
         }
     }
@@ -210,28 +251,36 @@ object T9ResponsivenessTrace {
         }
     }
 
-    fun completeFrame(inputId: Long?): InputLatencySummary? {
-        if (inputId == null) return null
-        val activeConfig = config
-        if (!activeConfig.enabled) return null
-        val summary = synchronized(lock) {
-            val transaction = activeInput?.takeIf { it.id == inputId } ?: return null
-            if (transaction.requiresSourceEvent && transaction.sourceEventNanos == null) return null
-            if (transaction.snapshotReadyNanos == null || transaction.renderCompleteNanos == null) return null
-            val frameNanos = activeConfig.nanoTime()
-            val sample = transaction.toSample(frameNanos)
-            activeInput = null
-            val pathStats = inputStats.getOrPut(transaction.path, ::MutableInputLatencyStats)
-            pathStats.samples += sample
-            if (pathStats.samples.size < activeConfig.aggregationWindow) return null
-            pathStats.toSummary(transaction.path).also {
-                latestCompletedInputSummaries[transaction.path] = it
-                pathStats.samples.clear()
-                pathStats.replacedCount = 0
-            }
+    fun completeEffect(inputId: Long?): InputLatencySummary? = complete(
+        inputId = inputId,
+        completionKind = CompletionKind.EFFECT
+    ) { transaction, completedNanos ->
+        transaction.toEffectSample(completedNanos)
+    }
+
+    fun completeInputSurfaceFrame(inputId: Long?): InputLatencySummary? = complete(
+        inputId = inputId,
+        completionKind = CompletionKind.INPUT_SURFACE_FRAME
+    ) { transaction, frameNanos ->
+        transaction.toInputSurfaceSample(frameNanos)
+    }
+
+    fun completeFrame(inputId: Long?): InputLatencySummary? = complete(
+        inputId = inputId,
+        completionKind = CompletionKind.CANDIDATE_FRAME
+    ) { transaction, frameNanos ->
+        if (transaction.requiresSourceEvent && transaction.sourceEventNanos == null) return@complete null
+        if (transaction.snapshotReadyNanos == null || transaction.renderCompleteNanos == null) {
+            return@complete null
         }
-        logInputSummary(summary)
-        return summary
+        transaction.toCandidateFrameSample(frameNanos)
+    }
+
+    fun discardInput(inputId: Long?) {
+        if (inputId == null || !config.enabled) return
+        synchronized(lock) {
+            if (activeInput?.id == inputId) activeInput = null
+        }
     }
 
     fun cancelActiveInput() {
@@ -296,21 +345,79 @@ object T9ResponsivenessTrace {
         }
     }
 
-    private fun InputTransaction.toSample(frameNanos: Long): InputLatencySample {
+    private fun complete(
+        inputId: Long?,
+        completionKind: CompletionKind,
+        buildSample: (InputTransaction, Long) -> InputLatencySample?
+    ): InputLatencySummary? {
+        if (inputId == null) return null
+        val activeConfig = config
+        if (!activeConfig.enabled) return null
+        val summary = synchronized(lock) {
+            val transaction = activeInput?.takeIf {
+                it.id == inputId && it.completionKind == completionKind
+            } ?: return null
+            val completedNanos = activeConfig.nanoTime()
+            val sample = buildSample(transaction, completedNanos) ?: return null
+            activeInput = null
+            val pathStats = inputStats.getOrPut(transaction.path, ::MutableInputLatencyStats)
+            pathStats.samples += sample
+            if (pathStats.samples.size < activeConfig.aggregationWindow) return null
+            pathStats.toSummary(transaction.path).also {
+                latestCompletedInputSummaries[transaction.path] = it
+                pathStats.samples.clear()
+                pathStats.replacedCount = 0
+            }
+        }
+        logInputSummary(summary)
+        return summary
+    }
+
+    private fun InputTransaction.toCandidateFrameSample(frameNanos: Long): InputLatencySample {
         val source = sourceEventNanos
         // Fcitx may publish its source event synchronously before command execution returns.
         // Clamp the stage boundary to preserve an additive, non-overlapping latency breakdown.
         val decision = minOf(decisionCompleteNanos ?: startedNanos, source ?: Long.MAX_VALUE)
-        val sourceBoundary = maxOf(source ?: decision, decision)
+        val effect = maxOf(effectAppliedNanos ?: decision, decision)
+        val sourceBoundary = maxOf(source ?: effect, effect)
         val snapshot = maxOf(requireNotNull(snapshotReadyNanos), sourceBoundary)
         val render = maxOf(requireNotNull(renderCompleteNanos), snapshot)
         return InputLatencySample(
             totalNanos = (frameNanos - startedNanos).coerceAtLeast(0L),
             decisionNanos = (decision - startedNanos).coerceAtLeast(0L),
-            sourceWaitNanos = if (source == null) 0L else sourceBoundary - decision,
+            effectNanos = (effect - decision).coerceAtLeast(0L),
+            sourceWaitNanos = if (source == null) 0L else sourceBoundary - effect,
             snapshotNanos = snapshot - sourceBoundary,
             renderNanos = (render - snapshot).coerceAtLeast(0L),
             frameWaitNanos = (frameNanos - render).coerceAtLeast(0L)
+        )
+    }
+
+    private fun InputTransaction.toEffectSample(completedNanos: Long): InputLatencySample {
+        val decision = maxOf(decisionCompleteNanos ?: startedNanos, startedNanos)
+        return InputLatencySample(
+            totalNanos = (completedNanos - startedNanos).coerceAtLeast(0L),
+            decisionNanos = (decision - startedNanos).coerceAtLeast(0L),
+            effectNanos = (completedNanos - decision).coerceAtLeast(0L),
+            sourceWaitNanos = 0L,
+            snapshotNanos = 0L,
+            renderNanos = 0L,
+            frameWaitNanos = 0L
+        )
+    }
+
+    private fun InputTransaction.toInputSurfaceSample(frameNanos: Long): InputLatencySample? {
+        val effectApplied = effectAppliedNanos ?: return null
+        val decision = maxOf(decisionCompleteNanos ?: startedNanos, startedNanos)
+        val effect = maxOf(effectApplied, decision)
+        return InputLatencySample(
+            totalNanos = (frameNanos - startedNanos).coerceAtLeast(0L),
+            decisionNanos = (decision - startedNanos).coerceAtLeast(0L),
+            effectNanos = (effect - decision).coerceAtLeast(0L),
+            sourceWaitNanos = 0L,
+            snapshotNanos = 0L,
+            renderNanos = 0L,
+            frameWaitNanos = (frameNanos - effect).coerceAtLeast(0L)
         )
     }
 
@@ -325,6 +432,7 @@ object T9ResponsivenessTrace {
             p95Nanos = totals.percentile(95),
             maxNanos = totals.lastOrNull() ?: 0L,
             averageDecisionNanos = samples.averageOf(InputLatencySample::decisionNanos),
+            averageEffectNanos = samples.averageOf(InputLatencySample::effectNanos),
             averageSourceWaitNanos = samples.averageOf(InputLatencySample::sourceWaitNanos),
             averageSnapshotNanos = samples.averageOf(InputLatencySample::snapshotNanos),
             averageRenderNanos = samples.averageOf(InputLatencySample::renderNanos),
@@ -366,7 +474,7 @@ object T9ResponsivenessTrace {
 
     private fun logInputSummary(summary: InputLatencySummary) {
         Timber.d(
-            "T9 input latency: path=%s count=%d replaced=%d avg=%.2f ms p50=%.2f ms p95=%.2f ms max=%.2f ms stages[decision=%.2f source=%.2f snapshot=%.2f render=%.2f frame=%.2f]",
+            "T9 input latency: path=%s count=%d replaced=%d avg=%.2f ms p50=%.2f ms p95=%.2f ms max=%.2f ms stages[decision=%.2f effect=%.2f source=%.2f snapshot=%.2f render=%.2f frame=%.2f]",
             summary.path,
             summary.count,
             summary.replacedCount,
@@ -375,6 +483,7 @@ object T9ResponsivenessTrace {
             summary.p95Nanos / 1_000_000.0,
             summary.maxNanos / 1_000_000.0,
             summary.averageDecisionNanos / 1_000_000.0,
+            summary.averageEffectNanos / 1_000_000.0,
             summary.averageSourceWaitNanos / 1_000_000.0,
             summary.averageSnapshotNanos / 1_000_000.0,
             summary.averageRenderNanos / 1_000_000.0,

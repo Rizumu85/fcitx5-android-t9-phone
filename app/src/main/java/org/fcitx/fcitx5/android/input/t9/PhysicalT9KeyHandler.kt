@@ -7,7 +7,11 @@ package org.fcitx.fcitx5.android.input.t9
 
 import android.view.KeyEvent
 
-class PhysicalT9KeyHandler(private val host: Host) {
+class PhysicalT9KeyHandler(
+    private val host: Host,
+    private val completeInputSurfaceFrame: (Long) -> Unit = {},
+    private val completeCandidateFrame: (Long) -> Unit = {}
+) {
 
     enum class Mode {
         CHINESE,
@@ -161,41 +165,37 @@ class PhysicalT9KeyHandler(private val host: Host) {
         val forwardsThroughOuterRoute = state.mode == Mode.CHINESE &&
             !decision.handled &&
             decision.consumedKeyUp == input.keyCode
-        val traceId = if (
-            (state.mode == Mode.CHINESE || state.isSmartEnglishActive) &&
-            (decision.commands.isNotEmpty() || forwardsThroughOuterRoute)
-        ) {
-                T9ResponsivenessTrace.beginInput(
-                    path = state.tracePath(),
-                    requiresSourceEvent = forwardsThroughOuterRoute ||
-                        decision.commands.any { it.waitsForFcitxSourceEvent() }
-                )
-        } else {
-            null
+        val tracePlan = PhysicalT9TracePlanner.plan(state, decision, forwardsThroughOuterRoute)
+        val traceId = tracePlan?.let {
+            T9ResponsivenessTrace.beginInput(
+                path = it.path,
+                completionKind = it.completionKind,
+                requiresSourceEvent = it.requiresSourceEvent
+            )
         }
+        T9ResponsivenessTrace.markDecisionComplete(traceId)
         try {
             commandExecutor.execute(decision.commands, input)
-        } finally {
-            T9ResponsivenessTrace.markDecisionComplete(traceId)
+            T9ResponsivenessTrace.markEffectApplied(traceId)
+            when (tracePlan?.completionKind) {
+                T9ResponsivenessTrace.CompletionKind.EFFECT ->
+                    T9ResponsivenessTrace.completeEffect(traceId)
+                T9ResponsivenessTrace.CompletionKind.INPUT_SURFACE_FRAME ->
+                    traceId?.let(completeInputSurfaceFrame)
+                T9ResponsivenessTrace.CompletionKind.CANDIDATE_FRAME ->
+                    if (tracePlan.candidateFrameIsSynchronous) {
+                        traceId?.let(completeCandidateFrame)
+                    }
+                null -> Unit
+            }
+        } catch (error: Throwable) {
+            T9ResponsivenessTrace.discardInput(traceId)
+            throw error
         }
         return KeyResult(
             handled = decision.handled,
             consumedKeyUp = decision.consumedKeyUp
         )
-    }
-
-    private fun PhysicalT9KeyFlow.State.tracePath(): String = when (mode) {
-        Mode.CHINESE -> "CHINESE/${chineseScheme.name}"
-        Mode.ENGLISH -> if (isSmartEnglishActive) "SMART_ENGLISH" else "ENGLISH"
-        Mode.NUMBER -> "NUMBER"
-    }
-
-    private fun PhysicalT9KeyFlow.Command.waitsForFcitxSourceEvent(): Boolean = when (this) {
-        is PhysicalT9KeyFlow.Command.ForwardChineseT9KeyShortPress,
-        PhysicalT9KeyFlow.Command.ForwardChineseT9SeparatorShortPress -> true
-        // Local focus, paging, punctuation, and immediate-hide commands own their next UI frame;
-        // waiting for an unrelated Rime event would strand those transactions.
-        else -> false
     }
 
 }

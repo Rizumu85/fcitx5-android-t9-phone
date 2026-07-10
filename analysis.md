@@ -670,3 +670,53 @@ the original Rime indices so focus, numeric shortcuts, and commit remain exact.
 The generated dictionary additionally assigns supplementary Han the lowest
 weight so portable BMP candidates fill early pages while supported rare Han
 remain available on devices that can draw them.
+
+## Physical Input And Cold-start Performance Rollout
+
+A target-device cold-start probe exposed a different bottleneck from the warm
+candidate path. One process-cold sample took about 4.86 seconds from process
+start to `onStartInputView`, skipped 183 frames while creating the input
+surface, and spent about 2.37 seconds between the Fcitx ready event and
+`KeyboardWindow` attachment. An unchanged `DataManager.sync()` still took
+about 375 ms. These are diagnostic samples rather than percentile baselines,
+but they are large enough to define the next investigation boundaries.
+
+First-install work and repeated-start work must remain distinct. Native Fcitx
+and Rime files must be materialized on first install or update, and Rime may
+need to compile the selected schema. An unchanged installed process should not
+rediscover every plugin, rebuild the complete data hierarchy, rewrite the same
+descriptor, construct inactive keyboards, initialize unopened picker catalogs,
+or decode feedback sounds before the first visible frame.
+
+The current transaction trace also has incomplete coverage. It begins inside
+the T9 handler only for Chinese and Smart English candidate decisions and ends
+only at a candidate frame. Simple English composition, number-mode effects,
+local D-pad selection, physical delete, Return, mode changes, and transient
+panels either produce no sample or leave a candidate-frame transaction pending.
+Performance work on those paths must begin with one semantic transaction model
+that distinguishes editor effects, input-surface frames, candidate frames, and
+Fcitx-backed source frames.
+
+The Physical T9 Key Flow reducer is already mode-shaped and O(1). The rollout
+must not move file access, Rime readiness checks, editor IPC, dictionary scans,
+or Android measurement into that reducer. The Android adapters own effects and
+frame observation; deeper runtime Modules own state, invalidation, and ordering.
+
+Seven bounded slices are accepted, in this order:
+
+1. Extend responsiveness transactions across physical T9 commands and the
+   remaining router-owned effects.
+2. Publish explicit Rime availability separately from generic Fcitx readiness.
+3. Materialize only the active keyboard, opened picker catalog, and post-frame
+   feedback resources.
+4. Give native data installation a trustworthy unchanged fast path.
+5. Replace broad candidate refreshes for local selection and punctuation with
+   local frames or atomic source transitions.
+6. Publish one Smart English snapshot per input revision and remove repeated
+   lookup/list construction from a frame.
+7. Capture physical-delete editor state once and move number expression work
+   after the immediate operator effect.
+
+Each slice replaces its previous path rather than retaining a compatibility
+fallback. Focused tests must lock down endpoint ownership and stale-result
+rejection before device performance is compared.

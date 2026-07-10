@@ -380,3 +380,23 @@ otherwise.
 - [x] Add geometry-cache regression coverage for cache hits and invalidation.
 - [x] Run focused tests, install debug, verify Pinyin and folded Zhuyin focus
   navigation on the target phone, then commit and push coherent slices.
+
+## Physical Input And Cold-start Performance
+
+- [x] Extend responsiveness transactions to simple English, number mode,
+  selection movement, editor effects, transient panels, and router-owned delete
+  paths without broadening the O(1) key reducer.
+- [ ] Publish explicit Rime deployment/readiness and active-schema state, then
+  gate Chinese engine operations by readiness and composition generation.
+- [ ] Lazily materialize keyboard layouts and picker catalogs, and move sound
+  decoding after the first visible input-surface frame.
+- [ ] Add an interrupted-install-safe DataManager fingerprint fast path and
+  exclude Android-only T9 assets from native installation.
+- [ ] Produce local selection frames and atomic punctuation-source transitions
+  instead of broad candidate UI resets.
+- [ ] Publish one Smart English snapshot per revision and remove duplicate
+  lookup/ranking/list construction from candidate frames.
+- [ ] Capture physical-delete editor state once and make number expression
+  evaluation ticketed after immediate operator commit.
+- [ ] Run focused regression tests after every slice, then build/install debug
+  and compare warm key and cold-start traces on the target phone.

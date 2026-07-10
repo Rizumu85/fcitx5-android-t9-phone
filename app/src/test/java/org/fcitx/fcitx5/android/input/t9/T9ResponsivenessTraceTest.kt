@@ -114,6 +114,7 @@ class T9ResponsivenessTraceTest {
         assertEquals(12_000_000L, summary.p50Nanos)
         assertEquals(12_000_000L, summary.p95Nanos)
         assertEquals(1_000_000L, summary.averageDecisionNanos)
+        assertEquals(0L, summary.averageEffectNanos)
         assertEquals(3_000_000L, summary.averageSourceWaitNanos)
         assertEquals(3_000_000L, summary.averageSnapshotNanos)
         assertEquals(2_000_000L, summary.averageRenderNanos)
@@ -208,6 +209,7 @@ class T9ResponsivenessTraceTest {
 
         val summary = T9ResponsivenessTrace.completeFrame(inputId)!!
         val stageTotal = summary.averageDecisionNanos +
+            summary.averageEffectNanos +
             summary.averageSourceWaitNanos +
             summary.averageSnapshotNanos +
             summary.averageRenderNanos +
@@ -216,6 +218,58 @@ class T9ResponsivenessTraceTest {
         assertEquals(summary.averageNanos, stageTotal)
         assertEquals(2L, summary.averageDecisionNanos)
         assertEquals(0L, summary.averageSourceWaitNanos)
+    }
+
+    @Test
+    fun editorEffectCompletesWithoutCandidateFrame() {
+        var now = 0L
+        T9ResponsivenessTrace.configure(
+            enabled = true,
+            aggregationWindow = 1,
+            nanoTime = { now }
+        )
+
+        val inputId = T9ResponsivenessTrace.beginInput(
+            path = "ENGLISH/TEXT_INPUT",
+            completionKind = T9ResponsivenessTrace.CompletionKind.EFFECT
+        )
+        now = 1L
+        T9ResponsivenessTrace.markDecisionComplete(inputId)
+        now = 4L
+        T9ResponsivenessTrace.markEffectApplied(inputId)
+
+        val summary = T9ResponsivenessTrace.completeEffect(inputId)!!
+
+        assertEquals(4L, summary.averageNanos)
+        assertEquals(1L, summary.averageDecisionNanos)
+        assertEquals(3L, summary.averageEffectNanos)
+        assertEquals(0L, summary.averageFrameWaitNanos)
+    }
+
+    @Test
+    fun inputSurfaceTransactionWaitsForItsFrameEndpoint() {
+        var now = 0L
+        T9ResponsivenessTrace.configure(
+            enabled = true,
+            aggregationWindow = 1,
+            nanoTime = { now }
+        )
+
+        val inputId = T9ResponsivenessTrace.beginInput(
+            path = "ENGLISH/CASE",
+            completionKind = T9ResponsivenessTrace.CompletionKind.INPUT_SURFACE_FRAME
+        )
+        now = 1L
+        T9ResponsivenessTrace.markDecisionComplete(inputId)
+        now = 3L
+        T9ResponsivenessTrace.markEffectApplied(inputId)
+        now = 8L
+
+        assertNull(T9ResponsivenessTrace.completeEffect(inputId))
+        val summary = T9ResponsivenessTrace.completeInputSurfaceFrame(inputId)!!
+
+        assertEquals(2L, summary.averageEffectNanos)
+        assertEquals(5L, summary.averageFrameWaitNanos)
     }
 
     @Test

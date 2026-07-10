@@ -33,7 +33,8 @@ class PhysicalInputRouter(
 
     data class Result(
         val handled: Boolean,
-        val consumeKeyUp: Int? = null
+        val consumeKeyUp: Int? = null,
+        val tracePath: String? = null
     )
 
     fun interface Route {
@@ -42,32 +43,55 @@ class PhysicalInputRouter(
 
     private var consumedKeyUp: Int? = null
 
-    fun handleKeyDown(keyCode: Int, event: KeyEvent): Boolean =
-        runRoutes(keyDownRoutes, Input(keyCode, event, mapInput))
+    fun handleKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        val startedNanos = T9ResponsivenessTrace.captureInputStartNanos()
+        val activeTraceAtStart = T9ResponsivenessTrace.activeInputId()
+        val result = runRoutes(keyDownRoutes, Input(keyCode, event, mapInput))
+        recordOwnedRouteEffect(result, startedNanos, activeTraceAtStart)
+        return result?.handled == true
+    }
 
     fun handleKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        val startedNanos = T9ResponsivenessTrace.captureInputStartNanos()
+        val activeTraceAtStart = T9ResponsivenessTrace.activeInputId()
         val input = Input(keyCode, event, mapInput)
-        if (runRoutes(keyUpBeforePairingRoutes, input)) {
+        val beforePairing = runRoutes(keyUpBeforePairingRoutes, input)
+        if (beforePairing?.handled == true) {
             if (consumedKeyUp == input.keyCode) consumedKeyUp = null
+            recordOwnedRouteEffect(beforePairing, startedNanos, activeTraceAtStart)
             return true
         }
         if (consumedKeyUp == input.keyCode) {
             consumedKeyUp = null
             return true
         }
-        return runRoutes(keyUpAfterPairingRoutes, input)
+        val afterPairing = runRoutes(keyUpAfterPairingRoutes, input)
+        recordOwnedRouteEffect(afterPairing, startedNanos, activeTraceAtStart)
+        return afterPairing?.handled == true
     }
 
     fun reset() {
         consumedKeyUp = null
     }
 
-    private fun runRoutes(routes: List<Route>, input: Input): Boolean {
+    private fun runRoutes(routes: List<Route>, input: Input): Result? {
         routes.forEach { route ->
             val result = route.handle(input) ?: return@forEach
             result.consumeKeyUp?.let { consumedKeyUp = it }
-            if (result.handled) return true
+            if (result.handled) return result
         }
-        return false
+        return null
+    }
+
+    private fun recordOwnedRouteEffect(
+        result: Result?,
+        startedNanos: Long?,
+        activeTraceAtStart: Long?
+    ) {
+        val path = result?.tracePath ?: return
+        // A T9 route may start an asynchronous candidate transaction before the mapped-key
+        // fallback handles the same down event. That generation, not the fallback route, owns it.
+        if (T9ResponsivenessTrace.activeInputId() != activeTraceAtStart) return
+        T9ResponsivenessTrace.recordCompletedEffect(path, startedNanos)
     }
 }

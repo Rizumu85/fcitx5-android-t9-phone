@@ -7,10 +7,71 @@ package org.fcitx.fcitx5.android.input.t9
 
 import android.view.KeyEvent
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PhysicalInputRouterTest {
+
+    @Test
+    fun routerOwnedEffectUsesTheWholeKeyDownRouteDuration() {
+        var now = 0L
+        T9ResponsivenessTrace.configure(
+            enabled = true,
+            aggregationWindow = 1,
+            nanoTime = { now }
+        )
+        try {
+            val router = PhysicalInputRouter(
+                keyDownRoutes = listOf(
+                    PhysicalInputRouter.Route {
+                        now = 7L
+                        PhysicalInputRouter.Result(
+                            handled = true,
+                            tracePath = "EDITOR/DELETE"
+                        )
+                    }
+                ),
+                keyUpBeforePairingRoutes = emptyList(),
+                keyUpAfterPairingRoutes = emptyList()
+            )
+
+            assertTrue(handleDown(router))
+
+            val summary = T9ResponsivenessTrace.latestInputSummaries().single()
+            assertEquals("EDITOR/DELETE", summary.path)
+            assertEquals(7L, summary.averageNanos)
+        } finally {
+            T9ResponsivenessTrace.configure(enabled = false)
+        }
+    }
+
+    @Test
+    fun routeEffectDoesNotReplaceTransactionStartedInsideTheRoute() {
+        T9ResponsivenessTrace.configure(enabled = true, aggregationWindow = 1)
+        try {
+            val router = PhysicalInputRouter(
+                keyDownRoutes = listOf(
+                    PhysicalInputRouter.Route {
+                        T9ResponsivenessTrace.beginInput("CHINESE/PINYIN/INPUT")
+                        PhysicalInputRouter.Result(
+                            handled = true,
+                            tracePath = "PHYSICAL/MAPPED_KEY"
+                        )
+                    }
+                ),
+                keyUpBeforePairingRoutes = emptyList(),
+                keyUpAfterPairingRoutes = emptyList()
+            )
+
+            assertTrue(handleDown(router))
+
+            assertNotNull(T9ResponsivenessTrace.activeInputId())
+            assertTrue(T9ResponsivenessTrace.latestInputSummaries().isEmpty())
+        } finally {
+            T9ResponsivenessTrace.configure(enabled = false)
+        }
+    }
 
     @Test
     fun firstHandledKeyDownRouteWins() {
