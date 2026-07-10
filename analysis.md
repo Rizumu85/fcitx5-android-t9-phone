@@ -435,6 +435,22 @@ The row therefore stayed invisible even though focus had moved to it. Readiness
 now follows the displayed chip count produced by the visual plan, preserving
 the existing folded-row geometry for both Pinyin and Zhuyin.
 
+### Folded reading preview must use its real viewport
+
+Device reproduction with Zhuyin code `68` showed ten Hanzi candidates and a
+wide candidate bubble, but the reading row still rendered exactly four chips
+plus an ellipsis. The overflow decision correctly detected that the complete
+reading list exceeded the bubble; the rendering contract then incorrectly used
+`minVisibleChips` as a fixed preview count. Four chips are only the minimum for
+the short-Hanzi-page edge case, not the preview size for every overflowing row.
+
+The folded preview must therefore fit the largest whole-chip prefix inside the
+actual stable row width while reserving the measured ellipsis and edge safety.
+It may never show fewer than the configured minimum when that minimum defines
+the bubble width. Focused navigation continues to use the same stable viewport.
+This rule applies equally to Pinyin and Zhuyin because both use the shared
+reading-row surface.
+
 ### Device-dependent Stroke glyph coverage
 
 The curated dictionary removed non-Han components, but a two-key device sweep

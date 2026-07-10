@@ -334,6 +334,14 @@ plan's displayed chip count. Cold reveal waits for the displayed count because
 a focused folded viewport intentionally materializes only a subset; using the
 logical count would leave a valid default row permanently invisible.
 
+For an unfocused folded row, `minVisibleChips` is a lower bound rather than a
+fixed count. A pure folded-preview planner receives the measured chip widths,
+spacing, stable row width, and measured hint reserve, then returns the largest
+whole-chip prefix that fits before the ellipsis. The renderer derives the hint
+position from that same prefix, so width policy and pixels cannot disagree.
+Focused navigation removes the hint but keeps the same row width and exposes a
+sliding whole-chip window.
+
 Late Rime events must match the composition ticket before replacing a valid or
 invalid state. An invalid state never exposes OK, numeric shortcut, or paging
 actions, and short `#` cannot commit its internal digit sequence.

@@ -288,3 +288,12 @@ otherwise.
 - [x] Add key-flow, resolver, coordinator, presentation, and filtering tests.
 - [x] Build/install debug and verify `38`, `2038`, selection, Backspace, and
   invalid `33` with the unified Pinyin-like interaction on the physical phone.
+
+## Viewport-aware Folded Reading Preview
+
+- [x] Reproduce and lock down the `68` fixed-four-chip regression.
+- [x] Compute the folded preview count from measured chip widths and the stable
+  row viewport while preserving four chips as the minimum.
+- [x] Position the ellipsis from the exact displayed prefix.
+- [x] Run focused row-layout tests, build/install debug, and verify `68` on the
+  physical phone without changing the short-Hanzi folded interaction.
