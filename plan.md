@@ -313,3 +313,14 @@ otherwise.
 - [x] Preserve badge appearance, animation timing, and non-interactive behavior.
 - [x] Build/install debug and verify English case feedback over Smart English
   candidates on the physical phone.
+
+## Release 4.2.0
+
+- [x] Advance the version name/code and align stable README/Baidu instructions
+  with the final Chinese T9 key contract.
+- [x] Write concise, version-specific 4.2.0 release notes and versioned Baidu
+  readmes.
+- [x] Run the release unit-test gate and build all four ARM APKs with `key0`.
+- [x] Verify signatures and stage exactly four APKs plus two Baidu readmes.
+- [ ] Commit/push release metadata, tag `v4.2.0`, and publish the GitHub Release
+  with only the verified signed APKs.

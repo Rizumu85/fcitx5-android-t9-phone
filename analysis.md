@@ -477,6 +477,22 @@ and candidate surfaces. Existing visual behavior and timeout remain unchanged.
 There is no useful JVM seam for Android sibling draw order; physical-device
 capture is the regression signal.
 
+## 4.2.0 Release Boundary
+
+The post-4.1.0 work is a feature release rather than a patch release. It adds
+Stroke and Zhuyin T9 schemes, configurable Chinese-scheme cycling, continuous
+Smart English prediction, and substantial candidate/input pipeline changes.
+The release must therefore advance both the public version name to `4.2.0` and
+the base version code from 15 to 16.
+
+The stable README already describes most current behavior, but the Baidu
+instructions still contain an obsolete short-`#` scheme-switch contract. The
+release must align every public instruction with the shipped key contract:
+idle short `#` is return/search, composing short `#` submits the visible raw
+code, long `#` changes top-level mode, and idle long `*` cycles enabled Chinese
+schemes. Release artifacts must be signed with the existing `key0` key and
+verified before publication.
+
 ### Device-dependent Stroke glyph coverage
 
 The curated dictionary removed non-Han components, but a two-key device sweep

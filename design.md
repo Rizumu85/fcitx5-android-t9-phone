@@ -16,6 +16,13 @@ is non-interactive, so candidate and keyboard touch handling remain unchanged.
 Mode, scheme, selection, and English case feedback all use this one topmost
 surface instead of embedding duplicate badges in feature-specific views.
 
+Release 4.2.0 is packaged as four signed ARM APKs: app and Rime plugin for
+`arm64-v8a` and `armeabi-v7a`. Evergreen behavior remains in the README and
+Baidu installation guide; version-specific additions and fixes live only in
+`release-notes-v4.2.0.md`. Generated APKs are staged locally but remain ignored
+by Git, while version metadata, notes, and staging readmes are committed and
+tagged.
+
 English case uses one short-press cycle (`abc`, `Abc`, `ABC`) so long `1`
 remains the first candidate shortcut. Text-mode `*` owns a complete ordered
 interaction: commit the pending word or Chinese candidate without adding a
