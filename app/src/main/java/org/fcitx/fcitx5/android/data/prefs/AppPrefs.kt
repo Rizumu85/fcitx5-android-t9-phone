@@ -22,6 +22,7 @@ import org.fcitx.fcitx5.android.input.keyboard.SpaceLongPressBehavior
 import org.fcitx.fcitx5.android.input.keyboard.SwipeSymbolDirection
 import org.fcitx.fcitx5.android.input.picker.PickerWindow
 import org.fcitx.fcitx5.android.input.popup.EmojiModifier
+import org.fcitx.fcitx5.android.input.t9.ChineseT9Scheme
 import org.fcitx.fcitx5.android.utils.DeviceUtil
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.vibrator
@@ -427,6 +428,18 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         )
     }
 
+    inner class ChineseT9 : ManagedPreferenceCategory(R.string.chinese_t9_schemes, sharedPreferences) {
+        val pinyin = switch(R.string.chinese_t9_pinyin, "chinese_t9_pinyin_enabled", true)
+        val stroke = switch(R.string.chinese_t9_stroke, "chinese_t9_stroke_enabled", false)
+        val zhuyin = switch(R.string.chinese_t9_zhuyin, "chinese_t9_zhuyin_enabled", false)
+
+        fun enabledSchemes(): List<ChineseT9Scheme> = buildList {
+            if (pinyin.getValue()) add(ChineseT9Scheme.PINYIN)
+            if (stroke.getValue()) add(ChineseT9Scheme.STROKE)
+            if (zhuyin.getValue()) add(ChineseT9Scheme.ZHUYIN)
+        }
+    }
+
     private val providers = mutableListOf<ManagedPreferenceProvider>()
 
     fun <T : ManagedPreferenceProvider> registerProvider(
@@ -442,6 +455,7 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
     }
 
     val internal = Internal().register()
+    val chineseT9 = ChineseT9().register()
     val keyboard = Keyboard().register()
     val candidates = Candidates().register()
     val clipboard = Clipboard().register()

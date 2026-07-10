@@ -77,7 +77,10 @@ internal class PhysicalT9ChineseKeyFlow(
                     session.poundLongPressTriggered = false
                     Decision(handled = true)
                 } else {
-                    Decision(handled = true, commands = listOf(Command.HandleReturnKey))
+                    Decision(
+                        handled = true,
+                        commands = listOf(Command.CycleChineseSchemeOrReturn)
+                    )
                 }
             }
             else -> null
@@ -118,11 +121,7 @@ internal class PhysicalT9ChineseKeyFlow(
             } else {
                 Decision(
                     handled = true,
-                    commands = if (state.chineseScheme == ChineseT9Scheme.STROKE) {
-                        emptyList()
-                    } else {
-                        listOf(Command.ForwardChineseComposingPoundShortPress)
-                    }
+                    commands = listOf(Command.CommitChineseCodePreview)
                 )
             }
         }

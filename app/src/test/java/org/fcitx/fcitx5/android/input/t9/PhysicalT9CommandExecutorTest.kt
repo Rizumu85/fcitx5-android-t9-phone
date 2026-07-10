@@ -118,6 +118,24 @@ class PhysicalT9CommandExecutorTest {
         )
     }
 
+    @Test
+    fun idleChinesePoundReturnsOnlyWhenNoSchemeCycleIsConfigured() {
+        val oneSchemeHost = RecordingHost(cycleChineseSchemeResult = false)
+        val multiSchemeHost = RecordingHost(cycleChineseSchemeResult = true)
+
+        PhysicalT9CommandExecutor(oneSchemeHost).execute(
+            listOf(PhysicalT9KeyFlow.Command.CycleChineseSchemeOrReturn),
+            input()
+        )
+        PhysicalT9CommandExecutor(multiSchemeHost).execute(
+            listOf(PhysicalT9KeyFlow.Command.CycleChineseSchemeOrReturn),
+            input()
+        )
+
+        assertEquals(listOf("cycleChineseScheme", "return"), oneSchemeHost.calls)
+        assertEquals(listOf("cycleChineseScheme"), multiSchemeHost.calls)
+    }
+
     private fun input(): PhysicalT9KeyHandler.KeyInput =
         PhysicalT9KeyHandler.KeyInput(
             keyCode = KeyEvent.KEYCODE_0,
@@ -145,7 +163,8 @@ class PhysicalT9CommandExecutorTest {
         private val commitPendingPunctuationResult: Boolean = false,
         private val commitSmartEnglishCandidateResult: Boolean = false,
         private val commitMultiTapCharResult: Boolean = false,
-        private val commitHighlightedBottomCandidateResult: Boolean = false
+        private val commitHighlightedBottomCandidateResult: Boolean = false,
+        private val cycleChineseSchemeResult: Boolean = false
     ) : PhysicalT9KeyHandler.Host {
         val calls = mutableListOf<String>()
 
@@ -239,6 +258,14 @@ class PhysicalT9CommandExecutorTest {
         }
         override fun handleReturnKey() {
             calls += "return"
+        }
+        override fun commitChineseCodePreview(): Boolean {
+            calls += "commitChineseCodePreview"
+            return true
+        }
+        override fun cycleChineseScheme(): Boolean {
+            calls += "cycleChineseScheme"
+            return cycleChineseSchemeResult
         }
         override fun forwardChineseT9KeyShortPress(
             keyCode: Int,

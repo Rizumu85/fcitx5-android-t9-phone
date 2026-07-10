@@ -35,6 +35,11 @@
     <string name="setup_channel">设置向导</string>
     <string name="pinyin_dict">拼音词库</string>
     <string name="dictionary_management">词库管理</string>
+    <string name="chinese_t9_schemes">中文输入方案</string>
+    <string name="chinese_t9_pinyin">拼音九键</string>
+    <string name="chinese_t9_stroke">五笔画九键</string>
+    <string name="chinese_t9_zhuyin">注音九键</string>
+    <string name="chinese_t9_at_least_one">至少保留一个中文输入方案</string>
     <string name="reloading">重新加载中</string>
     <string name="importing">正在导入</string>
     <string name="import_error">导入错误</string>

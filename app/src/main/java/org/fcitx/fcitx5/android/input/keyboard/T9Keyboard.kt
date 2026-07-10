@@ -85,7 +85,7 @@ class T9Keyboard(
 
     /**
      * Updates the space bar to show the current T9 mode (中/En/123) so the user can see
-     * which mode is active without changing the actual Rime schema (still 中文九键).
+     * which mode is active without changing the active Rime schema name.
      */
     fun updateT9ModeLabel(modeLabel: String) {
         t9ModeLabel = modeLabel

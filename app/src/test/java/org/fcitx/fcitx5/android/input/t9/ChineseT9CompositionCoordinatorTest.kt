@@ -112,24 +112,33 @@ class ChineseT9CompositionCoordinatorTest {
     }
 
     @Test
-    fun zhuyinBoundaryIsRemovedBeforeItsPreviousDigit() {
+    fun pinyinLiteralCommitOmitsPresentationSeparators() {
+        val coordinator = coordinator()
+
+        assertEquals("kale", coordinator.literalCommitText("ka' le"))
+        assertEquals(null, coordinator.literalCommitText("' "))
+    }
+
+    @Test
+    fun literalCommitTextRejectsAmbiguousZhuyinFallback() {
         val coordinator = coordinator()
         coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_8)
-        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_POUND)
 
-        val withBoundary = coordinator.snapshot("38'")
-        coordinator.backspaceFromVirtualKey()
-        val withoutBoundary = coordinator.snapshot("38")
-        coordinator.backspaceFromVirtualKey()
-        val withoutLastDigit = coordinator.snapshot("3")
+        assertEquals("ㄏㄠ", coordinator.literalCommitText("ㄏㄠ"))
+        assertEquals(null, coordinator.literalCommitText("ㄍㄎㄏ ㄞㄟㄠㄡ"))
+    }
 
-        assertEquals("38'", withBoundary.rawSequence)
-        assertEquals("38", withBoundary.digitSequence)
-        assertEquals(2, withBoundary.keyCount)
-        assertEquals("38", withoutBoundary.rawSequence)
-        assertEquals("3", withoutLastDigit.rawSequence)
+    @Test
+    fun strokeLiteralCommitUsesOneDisplayedSymbolPerCode() {
+        val coordinator = coordinator()
+        coordinator.activateScheme(ChineseT9Scheme.STROKE)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_1)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_6)
+
+        assertEquals("一？", coordinator.literalCommitText("一？"))
+        assertEquals(null, coordinator.literalCommitText("一"))
     }
 
     @Test

@@ -73,7 +73,6 @@ class ChineseT9CodePresentationSource(
 
     private fun zhuyinFallback(rawCode: String): String = rawCode.map { digit ->
         when (digit) {
-            '\'' -> "/"
             '0' -> "ㄧㄨㄩ"
             '1' -> "ㄅㄆㄇㄈ"
             '2' -> "ㄉㄊㄋㄌ"
@@ -88,6 +87,8 @@ class ChineseT9CodePresentationSource(
         }
     }.joinToString(" ")
 
-    private fun isZhuyinSymbol(char: Char): Boolean =
-        char in '\u3105'..'\u312F' || char in '\u31A0'..'\u31BF'
+    companion object {
+        fun isZhuyinSymbol(char: Char): Boolean =
+            char in '\u3105'..'\u312F' || char in '\u31A0'..'\u31BF'
+    }
 }

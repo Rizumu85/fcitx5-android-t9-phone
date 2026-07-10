@@ -63,6 +63,9 @@ sealed class SettingsRoute : Parcelable {
     data object DictionaryManagement : SettingsRoute()
 
     @Serializable
+    data object ChineseT9Schemes : SettingsRoute()
+
+    @Serializable
     data object AddonList : SettingsRoute()
 
     @Serializable
@@ -210,6 +213,9 @@ sealed class SettingsRoute : Parcelable {
             fragment<InputMethodConfigFragment, InputMethodConfig>()
             fragment<DictionaryManagementFragment, DictionaryManagement> {
                 label = ctx.getString(R.string.dictionary_management)
+            }
+            fragment<ChineseT9SchemeSettingsFragment, ChineseT9Schemes> {
+                label = ctx.getString(R.string.chinese_t9_schemes)
             }
             fragment<AddonListFragment, AddonList> {
                 label = ctx.getString(R.string.addons)

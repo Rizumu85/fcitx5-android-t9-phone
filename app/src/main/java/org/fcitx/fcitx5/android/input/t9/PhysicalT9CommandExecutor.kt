@@ -5,8 +5,6 @@
 
 package org.fcitx.fcitx5.android.input.t9
 
-import android.view.KeyEvent
-
 internal class PhysicalT9CommandExecutor(
     private val host: PhysicalT9KeyHandler.Host
 ) {
@@ -118,8 +116,11 @@ internal class PhysicalT9CommandExecutor(
                 host.forwardChineseT9KeyShortPress(command.keyCode, input)
             PhysicalT9KeyFlow.Command.ForwardChineseT9SeparatorShortPress ->
                 host.forwardChineseT9SeparatorShortPress()
-            PhysicalT9KeyFlow.Command.ForwardChineseComposingPoundShortPress ->
-                host.forwardChineseT9KeyShortPress(KeyEvent.KEYCODE_POUND, input)
+            PhysicalT9KeyFlow.Command.CommitChineseCodePreview ->
+                host.commitChineseCodePreview()
+            PhysicalT9KeyFlow.Command.CycleChineseSchemeOrReturn -> {
+                if (!host.cycleChineseScheme()) host.handleReturnKey()
+            }
             PhysicalT9KeyFlow.Command.TogglePendingPunctuationSet ->
                 host.togglePendingPunctuationSet()
             PhysicalT9KeyFlow.Command.CycleEnglishCase ->

@@ -98,6 +98,8 @@ class PhysicalT9KeyHandler(private val host: Host) {
         fun smartEnglishBackspace(): Boolean
         fun flushEnglishLearningWord()
         fun handleReturnKey()
+        fun commitChineseCodePreview(): Boolean
+        fun cycleChineseScheme(): Boolean
         fun forwardChineseT9KeyShortPress(keyCode: Int, input: KeyInput): Boolean
         fun forwardChineseT9SeparatorShortPress(): Boolean
         fun discardChineseCompositionForModeSwitch()

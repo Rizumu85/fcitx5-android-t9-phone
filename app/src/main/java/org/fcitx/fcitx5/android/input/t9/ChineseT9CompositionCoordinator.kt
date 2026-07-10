@@ -182,6 +182,19 @@ class ChineseT9CompositionCoordinator(
             }
         }
 
+    fun literalCommitText(preview: String): String? = when (scheme) {
+        ChineseT9Scheme.PINYIN -> preview
+            .filter { char -> char in 'a'..'z' || char in 'A'..'Z' }
+            .takeIf(String::isNotEmpty)
+        ChineseT9Scheme.STROKE -> preview
+            .filter { char -> char in StrokeLiteralSymbols }
+            .takeIf { text -> text.length == rawCodeSession.keyCount }
+        ChineseT9Scheme.ZHUYIN -> preview
+            .filter(ChineseT9CodePresentationSource::isZhuyinSymbol)
+            // A fallback key group contains several alternatives per digit and is not a reading.
+            .takeIf { text -> text.length == rawCodeSession.keyCount }
+    }
+
     fun candidateMatchesResolvedPrefix(
         candidate: FcitxEvent.Candidate,
         expected: String
@@ -265,13 +278,6 @@ class ChineseT9CompositionCoordinator(
                     ChineseT9CompositionLifecycle.ForwardedKeyAction.REFRESH_AFTER_ENGINE_CANDIDATES
             }
         }
-        if (scheme == ChineseT9Scheme.ZHUYIN && keyCode == KeyEvent.KEYCODE_POUND) {
-            return if (rawCodeSession.appendBoundary()) {
-                ChineseT9CompositionLifecycle.ForwardedKeyAction.REFRESH_AFTER_ENGINE_CANDIDATES
-            } else {
-                ChineseT9CompositionLifecycle.ForwardedKeyAction.NONE
-            }
-        }
         val digit = PhysicalT9KeyPolicy.t9Digit(keyCode)
             ?.takeIf(scheme::acceptsCompositionDigit)
             ?: return ChineseT9CompositionLifecycle.ForwardedKeyAction.NONE
@@ -346,5 +352,9 @@ class ChineseT9CompositionCoordinator(
             }
         }
         return rest
+    }
+
+    companion object {
+        private val StrokeLiteralSymbols = setOf('一', '丨', '丿', '丶', '乛', '？')
     }
 }

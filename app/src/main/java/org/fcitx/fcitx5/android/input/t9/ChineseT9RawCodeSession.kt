@@ -19,15 +19,10 @@ class ChineseT9RawCodeSession {
         get() = digitCount
 
     val digitSequence: String
-        get() = buildString(digitCount) {
-            code.forEach { token -> if (token.isDigit()) append(token) }
-        }
+        get() = code.toString()
 
     val currentSegment: String
-        get() {
-            val start = code.indexOfLast { token -> token == '\'' } + 1
-            return code.substring(start).filter(Char::isDigit)
-        }
+        get() = code.toString()
 
     fun append(digit: Int) {
         code.append(digit)
@@ -35,16 +30,9 @@ class ChineseT9RawCodeSession {
         revision += 1
     }
 
-    fun appendBoundary(): Boolean {
-        if (code.isEmpty() || code.last() == '\'') return false
-        code.append('\'')
-        revision += 1
-        return true
-    }
-
     fun backspace() {
         if (code.isEmpty()) return
-        if (code.last().isDigit()) digitCount -= 1
+        digitCount -= 1
         code.deleteCharAt(code.lastIndex)
         revision += 1
     }

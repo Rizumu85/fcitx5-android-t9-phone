@@ -80,6 +80,8 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSnapshotKey
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSource
 import org.fcitx.fcitx5.android.input.t9.ChineseT9Scheme
+import org.fcitx.fcitx5.android.input.t9.ChineseT9SchemeCycle
+import org.fcitx.fcitx5.android.input.t9.ChineseT9SchemeCycleSession
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHandler
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHostAdapter
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
@@ -235,6 +237,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             showNumberOperatorHintPanel = ::showNumberOperatorHintPanel,
             commitLiteralStar = { commitLiteralT9Star(getT9InputState()) },
             handleReturnKey = ::handleReturnKey,
+            commitChineseCodePreview = { commitChineseT9CodePreview() },
+            cycleChineseScheme = { cycleChineseT9Scheme() },
             forwardChineseT9KeyShortPress = ::forwardChineseT9KeyShortPress,
             forwardChineseT9SeparatorShortPress = ::forwardChineseT9SeparatorShortPress,
             discardChineseCompositionForModeSwitch = ::discardChineseCompositionForModeSwitch
@@ -896,9 +900,19 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return true
     }
 
-    private fun commitT9PreviewPinyinFromReturn(): Boolean {
-        val text = candidatesView?.getT9PreviewCommitText() ?: return false
+    private fun commitChineseT9CodePreview(): Boolean = commitChineseT9CodePreview(
+        expectedScheme = null
+    )
+
+    private fun commitT9PreviewPinyinFromReturn(): Boolean = commitChineseT9CodePreview(
+        expectedScheme = ChineseT9Scheme.PINYIN
+    )
+
+    private fun commitChineseT9CodePreview(expectedScheme: ChineseT9Scheme?): Boolean {
+        if (expectedScheme != null && activeChineseT9Scheme != expectedScheme) return false
+        val text = candidatesView?.getChineseT9CodeCommitText() ?: return false
         commitText(text)
+        clearT9CompositionState()
         clearTransientInputUiState()
         currentInputConnection?.finishComposingText()
         postFcitxJob {
@@ -1577,11 +1591,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             onEnglishModeEntered = {
                 smartEnglishCoordinator.onModeEntered()
             },
-            onModeLabelChanged = { label ->
-                onT9ModeChanged?.invoke(label)
+            onModeLabelChanged = {
+                onT9ModeChanged?.invoke(getCurrentT9ModeLabel())
             },
-            showModeIndicator = { label ->
-                inputView?.showModeIndicatorBadge(label)
+            showModeIndicator = {
+                inputView?.showModeIndicatorBadge(getCurrentT9ModeLabel())
             }
         )
     }
@@ -1677,6 +1691,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         formatText = ::formattedT9Text,
         buildRawPreeditDisplay = ::buildT9PreeditDisplay
     )
+    private val chineseT9SchemeCycle = ChineseT9SchemeCycleSession()
     private var activeChineseT9Scheme = ChineseT9Scheme.PINYIN
     private var activeChineseT9SubModeIdentity: String? = null
 
@@ -1689,6 +1704,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         // fcitx-thread round trip merely to classify the already-active Chinese scheme.
         activeChineseT9SubModeIdentity = identity
         activeChineseT9Scheme = next
+        chineseT9SchemeCycle.observeActive(next)
         chineseT9Composition.activateScheme(
             next = next,
             forceReset = previousIdentity != null
@@ -1697,6 +1713,32 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             t9PunctuationCoordinator.cancel()
             clearTransientInputUiState()
         }
+        if (currentT9Mode == T9InputMode.CHINESE) {
+            onT9ModeChanged?.invoke(next.compactLabel)
+            inputView?.showModeIndicatorBadge(next.compactLabel)
+        }
+    }
+
+    private fun cycleChineseT9Scheme(): Boolean {
+        val target = chineseT9SchemeCycle.requestNext(
+            active = activeChineseT9Scheme,
+            enabled = prefs.chineseT9.enabledSchemes()
+        ) ?: return false
+        // Rime already owns schema availability and activation. Reuse its cached menu action so
+        // the quick path does not create a second schema state store or touch dictionary data.
+        postFcitxJob {
+            val currentActions = statusAreaActionsCached
+            val action = ChineseT9SchemeCycle.findAction(currentActions, target)
+                ?: ChineseT9SchemeCycle.findAction(statusArea(), target)
+            if (action != null) {
+                activateAction(action.id)
+            } else {
+                withContext(Dispatchers.Main.immediate) {
+                    chineseT9SchemeCycle.reject(target)
+                }
+            }
+        }
+        return true
     }
 
     private fun resetSmartEnglishPendingDigit() {
@@ -1827,7 +1869,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
      */
     var onT9ModeChanged: ((String) -> Unit)? = null
 
-    fun getCurrentT9ModeLabel(): String = t9ModeCoordinator.currentLabel
+    fun getCurrentT9ModeLabel(): String = if (currentT9Mode == T9InputMode.CHINESE) {
+        activeChineseT9Scheme.compactLabel
+    } else {
+        t9ModeCoordinator.currentLabel
+    }
 
     fun switchToNextT9Mode() {
         t9ModeCoordinator.switchToNextMode()
@@ -1967,6 +2013,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
         return chineseT9Composition.presentation(key)
     }
+
+    fun normalizeChineseT9CodePreview(preview: String): String? =
+        chineseT9Composition.literalCommitText(preview)
 
     fun shouldConsumeT9ResolvedPinyinPrefixAfterHanziSelection(
         prefix: String,

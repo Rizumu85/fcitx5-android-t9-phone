@@ -54,6 +54,11 @@ class MainFragment : PaddingPreferenceFragment() {
                     SettingsRoute.InputMethodList
                 )
                 addDestinationPreference(
+                    R.string.chinese_t9_schemes,
+                    R.drawable.ic_baseline_language_24,
+                    SettingsRoute.ChineseT9Schemes
+                )
+                addDestinationPreference(
                     R.string.dictionary_management,
                     R.drawable.ic_baseline_library_books_24,
                     SettingsRoute.DictionaryManagement

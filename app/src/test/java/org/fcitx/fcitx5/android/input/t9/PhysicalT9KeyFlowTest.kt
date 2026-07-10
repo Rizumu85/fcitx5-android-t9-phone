@@ -866,7 +866,7 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
-    fun chineseComposingPoundShortPressDefersRimePinyinPreviewUntilKeyUp() {
+    fun chineseComposingPoundShortPressCommitsCodePreviewOnKeyUp() {
         val flow = PhysicalT9KeyFlow()
 
         val down = flow.handle(
@@ -880,11 +880,11 @@ class PhysicalT9KeyFlowTest {
 
         assertEquals(true, down?.handled)
         assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), down?.commands)
-        assertEquals(listOf(PhysicalT9KeyFlow.Command.ForwardChineseComposingPoundShortPress), up?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitChineseCodePreview), up?.commands)
     }
 
     @Test
-    fun chineseCompositionKeysPoundShortPressDefersEvenBeforeEditorComposingArrives() {
+    fun chineseCompositionKeysPoundCommitsPreviewBeforeEditorComposingArrives() {
         val flow = PhysicalT9KeyFlow()
 
         val down = flow.handle(
@@ -898,7 +898,7 @@ class PhysicalT9KeyFlowTest {
 
         assertEquals(true, down?.handled)
         assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), down?.commands)
-        assertEquals(listOf(PhysicalT9KeyFlow.Command.ForwardChineseComposingPoundShortPress), up?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitChineseCodePreview), up?.commands)
     }
 
     @Test
@@ -957,7 +957,7 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
-    fun zhuyinZeroComposesAndStrokePoundDoesNotOpenReadingSelection() {
+    fun zhuyinZeroComposesAndStrokePoundCommitsCodePreview() {
         val zhuyinFlow = PhysicalT9KeyFlow()
         zhuyinFlow.handle(
             input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN),
@@ -998,7 +998,10 @@ class PhysicalT9KeyFlowTest {
             listOf(PhysicalT9KeyFlow.Command.ForwardChineseT9KeyShortPress(KeyEvent.KEYCODE_0)),
             zeroUp?.commands
         )
-        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), poundUp?.commands)
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.CommitChineseCodePreview),
+            poundUp?.commands
+        )
     }
 
     @Test
@@ -1061,7 +1064,7 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
-    fun chineseIdlePoundReturnsAndLongPressSwitchesMode() {
+    fun chineseIdlePoundRequestsSchemeCycleAndLongPressSwitchesMode() {
         val shortFlow = PhysicalT9KeyFlow()
         shortFlow.handle(
             input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN),
@@ -1086,7 +1089,10 @@ class PhysicalT9KeyFlowTest {
             state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
         )
 
-        assertEquals(listOf(PhysicalT9KeyFlow.Command.HandleReturnKey), shortUp?.commands)
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.CycleChineseSchemeOrReturn),
+            shortUp?.commands
+        )
         assertEquals(listOf(PhysicalT9KeyFlow.Command.SwitchToNextMode), repeat?.commands)
         assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), longUp?.commands)
     }

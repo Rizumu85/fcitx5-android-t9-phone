@@ -128,6 +128,8 @@ class PhysicalT9KeyHostAdapterTest {
                 showNumberOperatorHintPanel = {},
                 commitLiteralStar = {},
                 handleReturnKey = {},
+                commitChineseCodePreview = { false },
+                cycleChineseScheme = { false },
                 forwardChineseT9KeyShortPress = { _, _ -> false },
                 forwardChineseT9SeparatorShortPress = { false },
                 discardChineseCompositionForModeSwitch = discardChineseCompositionForModeSwitch

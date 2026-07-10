@@ -327,7 +327,7 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
-    fun chineseCompositionPoundShortPressDefersRimeForwardingUntilKeyUp() {
+    fun chineseCompositionPoundShortPressCommitsCodePreviewOnKeyUp() {
         val host = FakeHost(
             mode = PhysicalT9KeyHandler.Mode.CHINESE,
             chineseComposing = true,
@@ -338,12 +338,13 @@ class PhysicalT9KeyHandlerTest {
         assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN)).handled)
         assertEquals(emptyList<Int>(), host.forwardedChineseT9Keys)
         assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP)).handled)
-        assertEquals(listOf(KeyEvent.KEYCODE_POUND), host.forwardedChineseT9Keys)
+        assertEquals(1, host.commitChineseCodePreviewCount)
+        assertEquals(emptyList<Int>(), host.forwardedChineseT9Keys)
         assertEquals(0, host.handleReturnCount)
     }
 
     @Test
-    fun chineseCompositionKeysPoundShortPressDefersBeforeEditorComposingArrives() {
+    fun chineseCompositionKeysPoundCommitsPreviewBeforeEditorComposingArrives() {
         val host = FakeHost(
             mode = PhysicalT9KeyHandler.Mode.CHINESE,
             chineseComposing = false,
@@ -354,7 +355,8 @@ class PhysicalT9KeyHandlerTest {
         assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN)).handled)
         assertEquals(emptyList<Int>(), host.forwardedChineseT9Keys)
         assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP)).handled)
-        assertEquals(listOf(KeyEvent.KEYCODE_POUND), host.forwardedChineseT9Keys)
+        assertEquals(1, host.commitChineseCodePreviewCount)
+        assertEquals(emptyList<Int>(), host.forwardedChineseT9Keys)
         assertEquals(0, host.handleReturnCount)
     }
 
@@ -425,6 +427,21 @@ class PhysicalT9KeyHandlerTest {
         assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP)).handled)
 
         assertEquals(1, host.handleReturnCount)
+    }
+
+    @Test
+    fun chineseIdlePoundDoesNotReturnWhenSchemeCycleOwnsTheKey() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            cycleChineseSchemeResult = true
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN)).handled)
+        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP)).handled)
+
+        assertEquals(1, host.cycleChineseSchemeCount)
+        assertEquals(0, host.handleReturnCount)
     }
 
     @Test
@@ -696,7 +713,8 @@ class PhysicalT9KeyHandlerTest {
             PhysicalT9KeyHandler.CandidateFocus.BOTTOM,
         private val commitHighlightedBottomCandidateResult: Boolean = false,
         private val smartEnglishShortcutResult: Boolean = false,
-        private val commitSmartEnglishCandidateResult: Boolean = true
+        private val commitSmartEnglishCandidateResult: Boolean = true,
+        private val cycleChineseSchemeResult: Boolean = false
     ) : PhysicalT9KeyHandler.Host {
         val committedTexts = mutableListOf<String>()
         val appendedSmartEnglishDigits = mutableListOf<Int>()
@@ -712,6 +730,8 @@ class PhysicalT9KeyHandlerTest {
         var showEnglishPunctuationCount = 0
         var cycleEnglishCaseCount = 0
         var handleReturnCount = 0
+        var commitChineseCodePreviewCount = 0
+        var cycleChineseSchemeCount = 0
         val numberOperatorKeys = mutableListOf<Int>()
         val numberOperatorFallbackDigits = mutableListOf<Int>()
         var showNumberOperatorHintPanelCount = 0
@@ -824,6 +844,14 @@ class PhysicalT9KeyHandlerTest {
 
         override fun handleReturnKey() {
             handleReturnCount += 1
+        }
+        override fun commitChineseCodePreview(): Boolean {
+            commitChineseCodePreviewCount += 1
+            return true
+        }
+        override fun cycleChineseScheme(): Boolean {
+            cycleChineseSchemeCount += 1
+            return cycleChineseSchemeResult
         }
         override fun forwardChineseT9KeyShortPress(
             keyCode: Int,

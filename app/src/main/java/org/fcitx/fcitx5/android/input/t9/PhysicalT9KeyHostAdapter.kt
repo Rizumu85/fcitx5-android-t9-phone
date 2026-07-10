@@ -71,6 +71,8 @@ class PhysicalT9KeyHostAdapter(
         val showNumberOperatorHintPanel: () -> Unit,
         val commitLiteralStar: () -> Unit,
         val handleReturnKey: () -> Unit,
+        val commitChineseCodePreview: () -> Boolean,
+        val cycleChineseScheme: () -> Boolean,
         val forwardChineseT9KeyShortPress: (Int, PhysicalT9KeyHandler.KeyInput) -> Boolean,
         val forwardChineseT9SeparatorShortPress: () -> Boolean,
         val discardChineseCompositionForModeSwitch: () -> Unit
@@ -202,6 +204,12 @@ class PhysicalT9KeyHostAdapter(
 
     override fun handleReturnKey() =
         platform.handleReturnKey()
+
+    override fun commitChineseCodePreview(): Boolean =
+        platform.commitChineseCodePreview()
+
+    override fun cycleChineseScheme(): Boolean =
+        platform.cycleChineseScheme()
 
     override fun forwardChineseT9KeyShortPress(
         keyCode: Int,

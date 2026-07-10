@@ -37,7 +37,6 @@ import org.fcitx.fcitx5.android.input.preedit.PreeditUi
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidateLoadingState
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionTicket
 import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
-import org.fcitx.fcitx5.android.input.t9.ChineseT9Scheme
 import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateInteractionController
@@ -664,11 +663,8 @@ class CandidatesView(
         return t9CandidateInteractionController.commitPendingPunctuationShortcut(index)
     }
 
-    fun getT9PreviewCommitText(): String? {
+    fun getChineseT9CodeCommitText(): String? {
         if (!service.isChineseT9InputModeActive()) return null
-        // Return may commit a literal Pinyin preview, but Stroke and Zhuyin previews are input
-        // codes/readings whose Hanzi must still be chosen through the shared candidate surface.
-        if (service.getChineseT9Scheme() != ChineseT9Scheme.PINYIN) return null
         if (service.getT9CompositionKeyCount() <= 0) return null
         val shown = t9CandidateUiSnapshotPipeline.currentShownSnapshot?.paged ?: paged
         val snapshot = service.getChineseT9InputSnapshot(inputPanel)
@@ -681,12 +677,7 @@ class CandidatesView(
             .topReading
             ?.toString()
             .orEmpty()
-        val commitText = preview
-            .filter { it != ' ' && it != '\'' }
-            .trim()
-        return commitText.takeIf { text ->
-            text.isNotEmpty() && text.any { it in 'a'..'z' || it in 'A'..'Z' }
-        }
+        return service.normalizeChineseT9CodePreview(preview)
     }
 
     fun moveHighlightedT9Pinyin(delta: Int): Boolean {

@@ -35,6 +35,11 @@
     <string name="setup_channel">Setup Wizard</string>
     <string name="pinyin_dict">Pinyin Dictionaries</string>
     <string name="dictionary_management">Dictionary Management</string>
+    <string name="chinese_t9_schemes">Chinese T9 Schemes</string>
+    <string name="chinese_t9_pinyin">Pinyin T9</string>
+    <string name="chinese_t9_stroke">Stroke T9</string>
+    <string name="chinese_t9_zhuyin">Zhuyin T9</string>
+    <string name="chinese_t9_at_least_one">Keep at least one Chinese input scheme</string>
     <string name="reloading">Reloading</string>
     <string name="importing">Importing</string>
     <string name="import_error">Import Error</string>
