@@ -49,14 +49,14 @@ class MainFragment : PaddingPreferenceFragment() {
                     SettingsRoute.InputOptions
                 )
                 addDestinationPreference(
-                    R.string.keys_and_toolbar,
-                    R.drawable.ic_baseline_keyboard_24,
-                    SettingsRoute.KeysAndToolbar
-                )
-                addDestinationPreference(
                     R.string.appearance_and_candidates,
                     R.drawable.ic_baseline_palette_24,
                     SettingsRoute.AppearanceAndCandidates
+                )
+                addDestinationPreference(
+                    R.string.keys_and_toolbar,
+                    R.drawable.ic_baseline_keyboard_24,
+                    SettingsRoute.KeysAndToolbar
                 )
                 addDestinationPreference(
                     R.string.clipboard_and_symbols,
