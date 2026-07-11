@@ -102,6 +102,11 @@ class AdvancedSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
 
     override fun onPreferenceUiCreated(screen: PreferenceScreen) {
         val ctx = requireContext()
+        // Compatibility toggles belong to the Advanced hub. This destination owns only explicit
+        // repair and recovery operations so the same setting is never exposed in two places.
+        (0 until screen.preferenceCount)
+            .map(screen::getPreference)
+            .forEach(screen::removePreference)
         screen.addPreference(
             R.string.browse_user_data_dir,
             onClick = {

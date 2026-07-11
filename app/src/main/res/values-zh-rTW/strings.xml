@@ -10,6 +10,8 @@
     <string name="dictionary_and_learning">詞典與學習</string>
     <string name="input_feedback_tuning">輸入回饋調校</string>
     <string name="extensions_and_fcitx">擴充與 Fcitx</string>
+    <string name="diagnostics_and_compatibility">診斷與相容性</string>
+    <string name="repair_and_recovery">修復與還原</string>
     <string name="app_name_release">小企鵝輸入法</string>
     <string name="app_name_debug">小企鵝輸入法 (除錯)</string>
     <string name="save">儲存</string>

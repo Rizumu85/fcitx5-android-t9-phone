@@ -169,16 +169,43 @@ class AppearanceAndCandidatesSettingsFragment : GroupedManagedPreferenceFragment
     }
 }
 
-class AdvancedSettingsHubFragment : SettingsHubFragment() {
-    override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) = createHub {
-        addCategory(R.string.input_feedback_tuning) {
-            addDestination(
-                R.string.advanced,
-                R.drawable.ic_baseline_tune_24,
-                SettingsRoute.Advanced
-            )
+class AdvancedSettingsHubFragment : GroupedManagedPreferenceFragment() {
+    private val prefs = AppPrefs.getInstance()
+
+    private fun PreferenceCategory.addDestination(
+        @StringRes title: Int,
+        @DrawableRes icon: Int,
+        route: SettingsRoute
+    ) {
+        addPreference(title, icon = icon) {
+            navigateWithAnim(route)
         }
-        addCategory(R.string.extensions_and_fcitx) {
+    }
+
+    override fun groups() = listOf(
+        Group(
+            R.string.input_feedback_tuning,
+            prefs.keyboard,
+            setOf(
+                prefs.keyboard.hapticOnKeyUp.key,
+                prefs.keyboard.hapticOnRepeat.key,
+                prefs.keyboard.buttonPressVibrationMilliseconds.key,
+                prefs.keyboard.buttonLongPressVibrationMilliseconds.key,
+                prefs.keyboard.buttonPressVibrationAmplitude.key,
+                prefs.keyboard.buttonLongPressVibrationAmplitude.key
+            )
+        ),
+        Group(
+            R.string.diagnostics_and_compatibility,
+            prefs.advanced,
+            prefs.advanced.managedPreferences.keys
+        )
+    )
+
+    override fun onGroupedPreferenceUiCreated(screen: PreferenceScreen) {
+        screen.addPreference(PreferenceCategory(screen.context).apply {
+            setTitle(R.string.extensions_and_fcitx)
+            isIconSpaceReserved = false
             addDestination(
                 R.string.global_options,
                 R.drawable.ic_baseline_tune_24,
@@ -198,6 +225,20 @@ class AdvancedSettingsHubFragment : SettingsHubFragment() {
                 R.string.plugins,
                 R.drawable.ic_baseline_android_24,
                 SettingsRoute.Plugin
+            )
+        })
+        screen.findPreference<PreferenceCategory>(
+            groupKey(R.string.diagnostics_and_compatibility)
+        )?.apply {
+            addDestination(
+                R.string.developer,
+                R.drawable.ic_baseline_settings_24,
+                SettingsRoute.Developer
+            )
+            addDestination(
+                R.string.repair_and_recovery,
+                R.drawable.ic_baseline_settings_backup_restore_24,
+                SettingsRoute.Advanced
             )
         }
     }

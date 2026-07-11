@@ -39,6 +39,7 @@ abstract class GroupedManagedPreferenceFragment : PaddingPreferenceFragment() {
         preferenceScreen = preferenceManager.createPreferenceScreen(requireContext()).also { screen ->
             groups.groupBy(Group::title).forEach { (title, sectionGroups) ->
                 val category = PreferenceCategory(screen.context).apply {
+                    key = groupKey(title)
                     setTitle(title)
                     isIconSpaceReserved = false
                 }
@@ -77,4 +78,6 @@ abstract class GroupedManagedPreferenceFragment : PaddingPreferenceFragment() {
         evaluators.clear()
         super.onDestroy()
     }
+
+    protected fun groupKey(@StringRes title: Int) = "managed_group_$title"
 }

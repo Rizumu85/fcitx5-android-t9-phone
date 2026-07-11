@@ -10,6 +10,8 @@
     <string name="dictionary_and_learning">Dictionaries &amp; learning</string>
     <string name="input_feedback_tuning">Input feedback tuning</string>
     <string name="extensions_and_fcitx">Extensions &amp; Fcitx</string>
+    <string name="diagnostics_and_compatibility">Diagnostics &amp; compatibility</string>
+    <string name="repair_and_recovery">Repair &amp; recovery</string>
     <string name="app_name_release">Fcitx5</string>
     <string name="app_name_debug">Fcitx5 (Debug)</string>
     <string name="save">Save</string>
