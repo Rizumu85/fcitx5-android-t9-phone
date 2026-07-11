@@ -8,7 +8,6 @@ package org.fcitx.fcitx5.android.input.editing
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.ColorStateList
-import android.graphics.drawable.RippleDrawable
 import android.graphics.drawable.StateListDrawable
 import androidx.annotation.DrawableRes
 import org.fcitx.fcitx5.android.data.theme.Theme
@@ -18,7 +17,6 @@ import org.fcitx.fcitx5.android.input.keyboard.shadowedKeyBackgroundDrawable
 import org.fcitx.fcitx5.android.input.keyboard.insetRadiusDrawable
 import org.fcitx.fcitx5.android.utils.borderDrawable
 import org.fcitx.fcitx5.android.utils.pressHighlightDrawable
-import org.fcitx.fcitx5.android.utils.rippleDrawable
 import splitties.dimensions.dp
 import splitties.views.dsl.core.add
 import splitties.views.dsl.core.imageView
@@ -33,7 +31,6 @@ import kotlin.math.max
 class TextEditingButton(
     ctx: Context,
     private val theme: Theme,
-    private val rippled: Boolean,
     private val bordered: Boolean,
     private val radius: Float,
     private val altStyle: Boolean = false
@@ -54,24 +51,15 @@ class TextEditingButton(
                 bkgColor, theme.keyShadowColor,
                 radius, shadowWidth, hInset, vInset
             )
-            foreground = if (rippled) {
-                RippleDrawable(
-                    ColorStateList.valueOf(theme.keyPressHighlightColor), null,
-                    insetRadiusDrawable(hInset, vInset, radius)
+            foreground = StateListDrawable().apply {
+                addState(
+                    intArrayOf(android.R.attr.state_pressed),
+                    insetRadiusDrawable(hInset, vInset, radius, theme.keyPressHighlightColor)
                 )
-            } else {
-                StateListDrawable().apply {
-                    addState(
-                        intArrayOf(android.R.attr.state_pressed),
-                        insetRadiusDrawable(hInset, vInset, radius, theme.keyPressHighlightColor)
-                    )
-                }
             }
         } else {
             background = borderDrawable(lineWidth, theme.dividerColor)
-            foreground =
-                if (rippled) rippleDrawable(theme.keyPressHighlightColor)
-                else pressHighlightDrawable(theme.keyPressHighlightColor)
+            foreground = pressHighlightDrawable(theme.keyPressHighlightColor)
         }
     }
 

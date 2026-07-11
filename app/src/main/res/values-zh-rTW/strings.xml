@@ -137,7 +137,6 @@
     <string name="status_area_theme">皮膚主題</string>
     <string name="status_action">功能</string>
     <string name="rime_status_menu">詞庫切換</string>
-    <string name="key_ripple_effect">啟用按鍵水波紋特效</string>
     <string name="key_border">啟用按鍵邊框</string>
     <string name="brightness">亮度</string>
     <string name="key_radius">按鍵圓角半徑</string>

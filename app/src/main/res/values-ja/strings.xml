@@ -102,7 +102,6 @@
     <string name="reload_config">設定の再読み込み</string>
     <string name="input_method_options">インプットメソッドのオプション</string>
     <string name="theme">テーマ</string>
-    <string name="key_ripple_effect">キーの波紋効果を有効にする</string>
     <string name="key_border">キーの枠を有効にする</string>
     <string name="brightness">明るさ</string>
     <string name="key_radius">キーの角半径</string>

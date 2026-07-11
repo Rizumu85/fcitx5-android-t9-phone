@@ -9,12 +9,10 @@ import android.graphics.Typeface
 import androidx.annotation.DrawableRes
 import androidx.core.view.isVisible
 import org.fcitx.fcitx5.android.data.theme.Theme
-import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.InputUiFont
 import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView
 import org.fcitx.fcitx5.android.utils.alpha
 import org.fcitx.fcitx5.android.utils.pressHighlightDrawable
-import org.fcitx.fcitx5.android.utils.rippleDrawable
 import splitties.dimensions.dp
 import splitties.resources.drawable
 import splitties.views.dsl.constraintlayout.after
@@ -34,10 +32,6 @@ import splitties.views.gravityCenter
 import splitties.views.imageDrawable
 
 class PickerTabsUi(override val ctx: Context, val theme: Theme) : Ui {
-
-    companion object {
-        val keyRipple by ThemeManager.prefs.keyRippleEffect
-    }
 
     inner class TabUi : Ui {
         override val ctx = this@PickerTabsUi.ctx
@@ -59,11 +53,7 @@ class PickerTabsUi(override val ctx: Context, val theme: Theme) : Ui {
             add(icon, lParams {
                 gravity = gravityCenter
             })
-            if (keyRipple) {
-                background = rippleDrawable(theme.keyPressHighlightColor)
-            } else {
-                foreground = pressHighlightDrawable(theme.keyPressHighlightColor)
-            }
+            foreground = pressHighlightDrawable(theme.keyPressHighlightColor)
             setOnClickListener {
                 onTabClick(this@TabUi)
             }

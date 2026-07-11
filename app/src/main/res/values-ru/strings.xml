@@ -103,7 +103,6 @@
     <string name="reload_config">Перезагрузить конфигурацию</string>
     <string name="input_method_options">Параметры метода ввода</string>
     <string name="theme">Тема</string>
-    <string name="key_ripple_effect">Включить эффект пульсации клавиш</string>
     <string name="key_border">Включить границы клавиш</string>
     <string name="brightness">Яркость</string>
     <string name="key_radius">Радиус клавиш</string>

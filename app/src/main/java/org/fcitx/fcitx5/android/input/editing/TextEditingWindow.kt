@@ -19,6 +19,7 @@ import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView
 import org.fcitx.fcitx5.android.input.wm.InputWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
 import org.mechdancer.dependency.manager.must
+import splitties.dimensions.dp
 
 class TextEditingWindow : InputWindow.ExtendedInputWindow<TextEditingWindow>(),
     InputBroadcastReceiver {
@@ -29,7 +30,6 @@ class TextEditingWindow : InputWindow.ExtendedInputWindow<TextEditingWindow>(),
 
     private val hapticOnRepeat by AppPrefs.getInstance().keyboard.hapticOnRepeat
 
-    private val buttonRipple by ThemeManager.prefs.keyRippleEffect
     private val buttonBorder by ThemeManager.prefs.keyBorder
     private val buttonRadius by ThemeManager.prefs.textEditingButtonRadius
 
@@ -41,7 +41,7 @@ class TextEditingWindow : InputWindow.ExtendedInputWindow<TextEditingWindow>(),
     }
 
     private val ui by lazy {
-        TextEditingUi(context, theme, buttonRipple, buttonBorder, buttonRadius.toFloat()).apply {
+        TextEditingUi(context, theme, buttonBorder, context.dp(buttonRadius.toFloat())).apply {
             fun CustomGestureView.onClickWithRepeating(block: () -> Unit) {
                 setOnClickListener { block() }
                 repeatEnabled = true

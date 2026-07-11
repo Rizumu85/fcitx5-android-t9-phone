@@ -14,7 +14,6 @@ import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.InsetDrawable
-import android.graphics.drawable.RippleDrawable
 import android.graphics.drawable.StateListDrawable
 import android.util.TypedValue
 import android.view.View
@@ -57,7 +56,6 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
 
     val bordered: Boolean
     val borderStroke: Boolean
-    val rippled: Boolean
     val radius: Float
     val hMargin: Int
     val vMargin: Int
@@ -66,7 +64,6 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
         val prefs = ThemeManager.prefs
         bordered = prefs.keyBorder.getValue()
         borderStroke = prefs.keyBorderStroke.getValue()
-        rippled = prefs.keyRippleEffect.getValue()
         radius = dp(prefs.keyRadius.getValue().toFloat())
         val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         val hMarginPref =
@@ -151,13 +148,7 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
             appearanceView.foreground = null
             return
         }
-        appearanceView.foreground = if (rippled) {
-            RippleDrawable(
-                ColorStateList.valueOf(theme.keyPressHighlightColor), null,
-                // ripple should be masked with an opaque color
-                mask ?: highlightMaskDrawable(Color.WHITE)
-            )
-        } else if (bordered && borderStroke) {
+        appearanceView.foreground = if (bordered && borderStroke) {
             StateListDrawable().apply {
                 addState(
                     intArrayOf(android.R.attr.state_pressed),
@@ -231,7 +222,7 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
                 setupPressHighlight(
                     insetRadiusDrawable(
                         hInset, vInset, bkgRadius,
-                        if (rippled) Color.WHITE else theme.keyPressHighlightColor
+                        theme.keyPressHighlightColor
                     )
                 )
             }
@@ -245,7 +236,7 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
                 appearanceView.padding = 0
                 setupPressHighlight(
                     insetOvalDrawable(
-                        hInset, vInset, if (rippled) Color.WHITE else theme.keyPressHighlightColor
+                        hInset, vInset, theme.keyPressHighlightColor
                     )
                 )
             }

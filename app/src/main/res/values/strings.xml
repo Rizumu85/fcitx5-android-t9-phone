@@ -142,7 +142,6 @@
     <string name="status_area_theme">Theme</string>
     <string name="status_action">Action</string>
     <string name="rime_status_menu">Dictionary Switch</string>
-    <string name="key_ripple_effect">Enable key ripple effect</string>
     <string name="key_border">Enable key border</string>
     <string name="brightness">Brightness</string>
     <string name="key_radius">Key radius</string>

@@ -31,18 +31,17 @@ import splitties.views.dsl.core.lParams
 class TextEditingUi(
     override val ctx: Context,
     private val theme: Theme,
-    private val ripple: Boolean,
     private val border: Boolean,
     private val radius: Float
 ) : Ui {
 
     private fun textButton(@StringRes id: Int, altStyle: Boolean = false) =
-        TextEditingButton(ctx, theme, ripple, border, radius, altStyle).apply {
+        TextEditingButton(ctx, theme, border, radius, altStyle).apply {
             setText(id)
         }
 
     private fun iconButton(@DrawableRes icon: Int, altStyle: Boolean = false) =
-        TextEditingButton(ctx, theme, ripple, border, radius, altStyle).apply {
+        TextEditingButton(ctx, theme, border, radius, altStyle).apply {
             setIcon(icon)
         }
 
