@@ -149,14 +149,12 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         val showRedoButton = toolbarButton("show_toolbar_redo_button")
         val showTextEditingButton = toolbarButton("show_toolbar_text_editing_button")
         val showClipboardButton = toolbarButton("show_toolbar_clipboard_button")
-        val showHideKeyboardButton = toolbarButton("show_toolbar_hide_keyboard_button")
         val toolbarButtonPreferences = listOf(
             showVoiceInputButton,
             showUndoButton,
             showRedoButton,
             showTextEditingButton,
-            showClipboardButton,
-            showHideKeyboardButton
+            showClipboardButton
         )
         val toolbarButtonOrder = ManagedPreference.PString(
             sharedPreferences,

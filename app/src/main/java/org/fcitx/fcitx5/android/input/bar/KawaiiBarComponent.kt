@@ -252,7 +252,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     }
 
     private fun updateToolbarButtons() {
-        idleUi.setHideKeyboardButtonVisible(prefs.keyboard.showHideKeyboardButton.getValue())
+        idleUi.setHideKeyboardButtonVisible(true)
         idleUi.buttonsUi.setOptionalButtonsVisible(
             undo = prefs.keyboard.showUndoButton.getValue(),
             redo = prefs.keyboard.showRedoButton.getValue(),

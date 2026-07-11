@@ -45,7 +45,6 @@ class ToolbarButtonsDialog(
         }
     }.toMutableList()
 
-    private var hideVisible = prefs.showHideKeyboardButton.getValue()
     private val preview = LinearLayout(context).apply { gravity = Gravity.CENTER }
     private val adapter = Adapter()
 
@@ -79,10 +78,6 @@ class ToolbarButtonsDialog(
             setPadding(context.dp(16), context.dp(8), context.dp(16), context.dp(4))
             addView(preview, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, context.dp(56)))
             addView(recycler, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, context.dp(260)))
-            addView(fixedRow(R.string.hide_keyboard, R.drawable.ic_baseline_arrow_drop_down_24, hideVisible) {
-                hideVisible = it
-                renderPreview()
-            }, fullWidthRowParams())
         }
         renderPreview()
         AlertDialog.Builder(context)
@@ -92,19 +87,6 @@ class ToolbarButtonsDialog(
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
-
-    private fun fullWidthRowParams() = LinearLayout.LayoutParams(
-        ViewGroup.LayoutParams.MATCH_PARENT,
-        context.dp(52)
-    )
-
-    private fun fixedRow(
-        @StringRes label: Int,
-        @DrawableRes icon: Int,
-        checked: Boolean,
-        enabled: Boolean = true,
-        changed: (Boolean) -> Unit
-    ) = row(label, icon, checked, enabled, draggable = false, changed = changed)
 
     private fun row(
         @StringRes label: Int,
@@ -146,12 +128,11 @@ class ToolbarButtonsDialog(
         preview.removeAllViews()
         items.filter { it.visible }.forEach { preview.addView(iconView(it.icon)) }
         preview.addView(iconView(R.drawable.ic_baseline_more_horiz_24))
-        if (hideVisible) preview.addView(iconView(R.drawable.ic_baseline_arrow_drop_down_24))
+        preview.addView(iconView(R.drawable.ic_baseline_arrow_drop_down_24))
     }
 
     private fun save() {
         prefs.showVoiceInputButton.setValue(items.first { it.id == ToolbarButtonOrder.VoiceInput }.visible)
-        prefs.showHideKeyboardButton.setValue(hideVisible)
         prefs.showUndoButton.setValue(items.first { it.id == ToolbarButtonOrder.Undo }.visible)
         prefs.showRedoButton.setValue(items.first { it.id == ToolbarButtonOrder.Redo }.visible)
         prefs.showTextEditingButton.setValue(items.first { it.id == ToolbarButtonOrder.TextEditing }.visible)
