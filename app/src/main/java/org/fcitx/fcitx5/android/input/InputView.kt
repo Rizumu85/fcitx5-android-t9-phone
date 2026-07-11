@@ -241,25 +241,13 @@ class InputView(
     )
     private val keyboardPrefs = AppPrefs.getInstance().keyboard
 
-    private val keyboardHeightPercent = keyboardPrefs.keyboardHeightPercent
-    private val keyboardHeightPercentLandscape = keyboardPrefs.keyboardHeightPercentLandscape
     private val t9KeyboardHeightPercent = keyboardPrefs.t9KeyboardHeightPercent
     private val t9KeyboardHeightPercentLandscape = keyboardPrefs.t9KeyboardHeightPercentLandscape
     private var isT9KeyboardActive = false
-    private val keyboardSidePadding = keyboardPrefs.keyboardSidePadding
-    private val keyboardSidePaddingLandscape = keyboardPrefs.keyboardSidePaddingLandscape
-    private val keyboardBottomPadding = keyboardPrefs.keyboardBottomPadding
-    private val keyboardBottomPaddingLandscape = keyboardPrefs.keyboardBottomPaddingLandscape
 
     private val keyboardSizePrefs = listOf(
-        keyboardHeightPercent,
-        keyboardHeightPercentLandscape,
         t9KeyboardHeightPercent,
         t9KeyboardHeightPercentLandscape,
-        keyboardSidePadding,
-        keyboardSidePaddingLandscape,
-        keyboardBottomPadding,
-        keyboardBottomPaddingLandscape,
     )
 
     private val keyboardHeightPx: Int
@@ -275,31 +263,21 @@ class InputView(
         get() {
             val percent = when (resources.configuration.orientation) {
                 Configuration.ORIENTATION_LANDSCAPE ->
-                    if (isT9KeyboardActive) t9KeyboardHeightPercentLandscape
-                    else keyboardHeightPercentLandscape
+                    if (isT9KeyboardActive) t9KeyboardHeightPercentLandscape.getValue() else 45
                 else ->
-                    if (isT9KeyboardActive) t9KeyboardHeightPercent
-                    else keyboardHeightPercent
-            }.getValue()
+                    if (isT9KeyboardActive) t9KeyboardHeightPercent.getValue() else 40
+            }
             return resources.displayMetrics.heightPixels * percent / 100
         }
 
     private val keyboardSidePaddingPx: Int
         get() {
-            val value = when (resources.configuration.orientation) {
-                Configuration.ORIENTATION_LANDSCAPE -> keyboardSidePaddingLandscape
-                else -> keyboardSidePadding
-            }.getValue()
-            return dp(value)
+            return 0
         }
 
     private val keyboardBottomPaddingPx: Int
         get() {
-            val value = when (resources.configuration.orientation) {
-                Configuration.ORIENTATION_LANDSCAPE -> keyboardBottomPaddingLandscape
-                else -> keyboardBottomPadding
-            }.getValue()
-            return dp(value)
+            return 0
         }
 
     @Keep

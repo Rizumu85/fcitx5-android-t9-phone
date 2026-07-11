@@ -14,8 +14,6 @@ import org.fcitx.fcitx5.android.BuildConfig
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.InputFeedbacks.InputFeedbackMode
 import org.fcitx.fcitx5.android.input.InputUiFont
-import org.fcitx.fcitx5.android.input.keyboard.SpaceLongPressBehavior
-import org.fcitx.fcitx5.android.input.keyboard.SwipeSymbolDirection
 import org.fcitx.fcitx5.android.input.picker.PickerWindow
 import org.fcitx.fcitx5.android.input.popup.EmojiModifier
 import org.fcitx.fcitx5.android.input.t9.ChineseT9Scheme
@@ -140,7 +138,6 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             switch(R.string.toolbar_num_row_on_password, "toolbar_num_row_on_password", true)
         val passwordInputPreview =
             switch(R.string.password_input_preview, "password_input_preview", true)
-        val popupOnKeyPress = switch(R.string.popup_on_key_press, "popup_on_key_press", true)
         val inputUiFont = dynamicStringList(
             R.string.input_ui_font_family,
             "input_ui_font",
@@ -183,13 +180,6 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
                 idleLongZeroBehavior.getValue() == T9IdleLongZeroBehavior.VoiceInput
         }
 
-        val expandKeypressArea =
-            switch(R.string.expand_keypress_area, "expand_keypress_area", false)
-        val swipeSymbolDirection = enumList(
-            R.string.swipe_symbol_behavior,
-            "swipe_symbol_behavior",
-            SwipeSymbolDirection.Down
-        )
         val longPressDelay = int(
             R.string.keyboard_long_press_delay,
             "keyboard_long_press_delay",
@@ -199,13 +189,6 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             "ms",
             10
         )
-        val spaceKeyLongPressBehavior = enumList(
-            R.string.space_long_press_behavior,
-            "space_long_press_behavior",
-            SpaceLongPressBehavior.None
-        )
-        val spaceSwipeMoveCursor =
-            switch(R.string.space_swipe_move_cursor, "space_swipe_move_cursor", true)
         val smartEnglishT9 =
             switch(
                 R.string.smart_english_t9,
@@ -231,66 +214,6 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             )
             t9KeyboardHeightPercent = primary
             t9KeyboardHeightPercentLandscape = secondary
-        }
-
-        val keyboardHeightPercent: ManagedPreference.PInt
-        val keyboardHeightPercentLandscape: ManagedPreference.PInt
-
-        init {
-            val (primary, secondary) = twinInt(
-                R.string.keyboard_height,
-                R.string.portrait,
-                "keyboard_height_percent",
-                40,
-                R.string.landscape,
-                "keyboard_height_percent_landscape",
-                45,
-                10,
-                90,
-                "%"
-            )
-            keyboardHeightPercent = primary
-            keyboardHeightPercentLandscape = secondary
-        }
-
-        val keyboardSidePadding: ManagedPreference.PInt
-        val keyboardSidePaddingLandscape: ManagedPreference.PInt
-
-        init {
-            val (primary, secondary) = twinInt(
-                R.string.keyboard_side_padding,
-                R.string.portrait,
-                "keyboard_side_padding",
-                0,
-                R.string.landscape,
-                "keyboard_side_padding_landscape",
-                0,
-                0,
-                300,
-                "dp"
-            )
-            keyboardSidePadding = primary
-            keyboardSidePaddingLandscape = secondary
-        }
-
-        val keyboardBottomPadding: ManagedPreference.PInt
-        val keyboardBottomPaddingLandscape: ManagedPreference.PInt
-
-        init {
-            val (primary, secondary) = twinInt(
-                R.string.keyboard_bottom_padding,
-                R.string.portrait,
-                "keyboard_bottom_padding",
-                0,
-                R.string.landscape,
-                "keyboard_bottom_padding_landscape",
-                0,
-                0,
-                100,
-                "dp"
-            )
-            keyboardBottomPadding = primary
-            keyboardBottomPaddingLandscape = secondary
         }
 
     }

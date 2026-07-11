@@ -57,9 +57,6 @@ class CommonKeyActionListener :
 
     private var lastPickerType by AppPrefs.getInstance().internal.lastPickerType
 
-    private val kbdPrefs = AppPrefs.getInstance().keyboard
-
-    private val spaceKeyLongPressBehavior by kbdPrefs.spaceKeyLongPressBehavior
 
     private var backspaceSwipeState = Stopped
 
@@ -150,18 +147,7 @@ class CommonKeyActionListener :
                         windowManager.attachWindow(key)
                     }
                 }
-                is SpaceLongPressAction -> {
-                    when (spaceKeyLongPressBehavior) {
-                        SpaceLongPressBehavior.None -> {}
-                        SpaceLongPressBehavior.Enumerate -> service.postFcitxJob {
-                            enumerateIme()
-                        }
-                        SpaceLongPressBehavior.ToggleActivate -> service.postFcitxJob {
-                            toggleIme()
-                        }
-                        SpaceLongPressBehavior.ShowPicker -> showInputMethodPicker()
-                    }
-                }
+                is SpaceLongPressAction -> Unit
                 else -> {}
             }
         }

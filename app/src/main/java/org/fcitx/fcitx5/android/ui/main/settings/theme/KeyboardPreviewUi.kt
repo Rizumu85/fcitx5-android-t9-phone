@@ -16,7 +16,6 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
-import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
@@ -47,31 +46,8 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
     var intrinsicHeight: Int = -1
         private set
 
-    private val keyboardPrefs = AppPrefs.getInstance().keyboard
-    private val keyboardHeightPercent by keyboardPrefs.keyboardHeightPercent
-    private val keyboardHeightPercentLandscape by keyboardPrefs.keyboardHeightPercentLandscape
-    private val keyboardSidePadding by keyboardPrefs.keyboardSidePadding
-    private val keyboardSidePaddingLandscape by keyboardPrefs.keyboardSidePaddingLandscape
-    private val keyboardBottomPadding by keyboardPrefs.keyboardBottomPadding
-    private val keyboardBottomPaddingLandscape by keyboardPrefs.keyboardBottomPaddingLandscape
-
-    private val keyboardSidePaddingPx: Int
-        get() {
-            val value = when (ctx.resources.configuration.orientation) {
-                Configuration.ORIENTATION_LANDSCAPE -> keyboardSidePaddingLandscape
-                else -> keyboardSidePadding
-            }
-            return ctx.dp(value)
-        }
-
-    private val keyboardBottomPaddingPx: Int
-        get() {
-            val value = when (ctx.resources.configuration.orientation) {
-                Configuration.ORIENTATION_LANDSCAPE -> keyboardBottomPaddingLandscape
-                else -> keyboardBottomPadding
-            }
-            return ctx.dp(value)
-        }
+    private val keyboardSidePaddingPx = 0
+    private val keyboardBottomPaddingPx = 0
 
     private val navbarBackground = ThemeManager.prefs.navbarBackground
     private val keyBorder by ThemeManager.prefs.keyBorder
@@ -130,8 +106,8 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
         val w = displayMetrics.widthPixels
         val h = displayMetrics.heightPixels
         val hPercent = when (resources.configuration.orientation) {
-            Configuration.ORIENTATION_LANDSCAPE -> keyboardHeightPercentLandscape
-            else -> keyboardHeightPercent
+            Configuration.ORIENTATION_LANDSCAPE -> 45
+            else -> 40
         }
         return w to (h * hPercent / 100)
     }

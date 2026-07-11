@@ -12,7 +12,6 @@ import androidx.core.view.updateLayoutParams
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.FcitxKeyMapping
 import org.fcitx.fcitx5.android.core.KeySym
-import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.AutoScaleTextView
 import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView
@@ -74,7 +73,6 @@ class PickerPageUi(
 
     companion object {
         val BackspaceAction = SymAction(KeySym(FcitxKeyMapping.FcitxKey_BackSpace))
-        private var popupOnKeyPress by AppPrefs.getInstance().keyboard.popupOnKeyPress
     }
 
     var keyActionListener: KeyActionListener? = null
@@ -117,9 +115,8 @@ class PickerPageUi(
             onRepeatListener = action
             swipeEnabled = true
             onGestureListener = OnGestureListener { view, event ->
-                if (popupOnKeyPress) {
-                    view as KeyView
-                    when (event.type) {
+                view as KeyView
+                when (event.type) {
                         CustomGestureView.GestureType.Down -> {
                             view.updateBounds()
                             onPopupAction(
@@ -135,7 +132,6 @@ class PickerPageUi(
                             onPopupAction(PopupAction.DismissAction(view.id))
                         }
                         else -> {}
-                    }
                 }
                 false
             }
@@ -225,11 +221,6 @@ class PickerPageUi(
                     }
                     setOnLongClickListener { view ->
                         view as KeyView
-                        if (!popupOnKeyPress) {
-                            // in case "popup on keypress" is disabled, popup keyboard need to know
-                            // the actual bounds on press. see [^1] as well
-                            view.updateBounds()
-                        }
                         // TODO: maybe popup keyboard should just accept String as label?
                         onPopupAction(
                             PopupAction.ShowKeyboardAction(
@@ -245,21 +236,17 @@ class PickerPageUi(
                         view as KeyView
                         when (event.type) {
                             CustomGestureView.GestureType.Down -> {
-                                if (popupOnKeyPress) {
-                                    // [^1]: bounds is first calculated in KeyView's onLayout(), it
-                                    // not in screen viewport at the time of layout.
-                                    // eg. it's inside the next page of ViewPager
-                                    // so update bounds when it's pressed
-                                    view.updateBounds()
-                                    onPopupAction(
-                                        PopupAction.PreviewAction(
-                                            view.id,
-                                            label,
-                                            view.bounds,
-                                            textSize = density.textSize
-                                        )
+                                // Bounds are first calculated while off-screen ViewPager pages are
+                                // laid out, so refresh them at press time before showing a preview.
+                                view.updateBounds()
+                                onPopupAction(
+                                    PopupAction.PreviewAction(
+                                        view.id,
+                                        label,
+                                        view.bounds,
+                                        textSize = density.textSize
                                     )
-                                }
+                                )
                                 false
                             }
 
