@@ -79,9 +79,12 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
                 allowed
             }
         }
-        screen.addPreference(PreferenceCategory(screen.context).apply {
+        val dictionaryCategory = PreferenceCategory(screen.context).apply {
             setTitle(R.string.dictionary_and_learning)
             isIconSpaceReserved = false
+        }
+        screen.addPreference(dictionaryCategory)
+        dictionaryCategory.apply {
             addPreference(
                 androidx.preference.Preference(screen.context).apply {
                     setTitle(R.string.smart_english_learned_words)
@@ -104,7 +107,7 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
                     }
                 }
             )
-        })
+        }
     }
 }
 
@@ -203,9 +206,12 @@ class AdvancedSettingsHubFragment : GroupedManagedPreferenceFragment() {
     )
 
     override fun onGroupedPreferenceUiCreated(screen: PreferenceScreen) {
-        screen.addPreference(PreferenceCategory(screen.context).apply {
+        val extensionsCategory = PreferenceCategory(screen.context).apply {
             setTitle(R.string.extensions_and_fcitx)
             isIconSpaceReserved = false
+        }
+        screen.addPreference(extensionsCategory)
+        extensionsCategory.apply {
             addDestination(
                 R.string.global_options,
                 R.drawable.ic_baseline_tune_24,
@@ -226,7 +232,7 @@ class AdvancedSettingsHubFragment : GroupedManagedPreferenceFragment() {
                 R.drawable.ic_baseline_android_24,
                 SettingsRoute.Plugin
             )
-        })
+        }
         screen.findPreference<PreferenceCategory>(
             groupKey(R.string.diagnostics_and_compatibility)
         )?.apply {
