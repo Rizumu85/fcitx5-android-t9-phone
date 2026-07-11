@@ -6,6 +6,7 @@ package org.fcitx.fcitx5.android.ui.main.settings.im
 
 import android.os.Build
 import android.view.View
+import org.fcitx.fcitx5.android.core.FirstRunInputMethodPolicy
 import org.fcitx.fcitx5.android.core.InputMethodEntry
 import org.fcitx.fcitx5.android.core.SubtypeManager
 import org.fcitx.fcitx5.android.daemon.launchOnReady
@@ -18,10 +19,16 @@ import org.fcitx.fcitx5.android.utils.navigateWithAnim
 
 class InputMethodListFragment : ProgressFragment(), OnItemChangedListener<InputMethodEntry> {
 
+    private var availableInputMethodNames: Set<String> = emptySet()
+
     private fun updateIMState() {
         if (isInitialized) {
             fcitx.launchOnReady { f ->
-                f.setEnabledIme(ui.entries.map { it.uniqueName }.toTypedArray())
+                val enabled = FirstRunInputMethodPolicy.preserveInternalInputMethods(
+                    userSelection = ui.entries.map { it.uniqueName },
+                    available = availableInputMethodNames
+                )
+                f.setEnabledIme(enabled.toTypedArray())
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     SubtypeManager.syncWith(f.enabledIme())
                 }
@@ -32,8 +39,13 @@ class InputMethodListFragment : ProgressFragment(), OnItemChangedListener<InputM
     private lateinit var ui: BaseDynamicListUi<InputMethodEntry>
 
     override suspend fun initialize(): View {
-        val available = fcitx.runOnReady { availableIme().toSet() }
+        val allAvailable = fcitx.runOnReady { availableIme().toSet() }
+        availableInputMethodNames = allAvailable.mapTo(linkedSetOf()) { it.uniqueName }
+        val available = allAvailable.filterTo(linkedSetOf()) {
+            FirstRunInputMethodPolicy.isUserVisible(it.uniqueName)
+        }
         val initialEnabled = fcitx.runOnReady { enabledIme().toList() }
+            .filter { FirstRunInputMethodPolicy.isUserVisible(it.uniqueName) }
         ui = requireContext().DynamicListUi(
             mode = BaseDynamicListUi.Mode.ChooseOne {
                 (available - entries.toSet()).toTypedArray()

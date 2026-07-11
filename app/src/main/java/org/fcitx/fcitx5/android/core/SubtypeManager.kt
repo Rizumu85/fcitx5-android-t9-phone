@@ -17,8 +17,6 @@ object SubtypeManager {
 
     private const val MODE_KEYBOARD = "keyboard"
 
-    private const val IM_KEYBOARD = "keyboard-us"
-
     private val knownSubtypes: HashMap<String, InputMethodSubtype> = hashMapOf()
 
     fun subtypeOf(inputMethod: String): InputMethodSubtype? {
@@ -26,22 +24,27 @@ object SubtypeManager {
     }
 
     fun inputMethodOf(subtype: InputMethodSubtype): String {
-        return subtype.extraValue.ifEmpty { IM_KEYBOARD }
+        return subtype.extraValue.ifEmpty { FirstRunInputMethodPolicy.RIME }
     }
 
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     fun syncWith(inputMethods: Array<InputMethodEntry>) {
         knownSubtypes.clear()
-        val size = inputMethods.size
+        // Android should expose the app as one Chinese keyboard. The US keyboard remains an
+        // internal engine dependency for password fields and temporary full-keyboard sessions.
+        val userVisibleInputMethods = inputMethods.filter {
+            FirstRunInputMethodPolicy.isUserVisible(it.uniqueName)
+        }
+        val size = userVisibleInputMethods.size
         val subtypes = arrayOfNulls<InputMethodSubtype>(size)
         val hashCodes = IntArray(size)
-        inputMethods.forEachIndexed { i, im ->
+        userVisibleInputMethods.forEachIndexed { i, im ->
             val subtype = InputMethodSubtypeBuilder()
                 .setSubtypeId(im.uniqueName.hashCode())
                 .setSubtypeExtraValue(im.uniqueName)
                 .setSubtypeNameOverride(im.displayName)
                 .setSubtypeMode(MODE_KEYBOARD)
-                .setIsAsciiCapable(im.uniqueName == IM_KEYBOARD)
+                .setIsAsciiCapable(true)
                 .build()
             val hashCode = subtype.hashCode()
             subtypes[i] = subtype

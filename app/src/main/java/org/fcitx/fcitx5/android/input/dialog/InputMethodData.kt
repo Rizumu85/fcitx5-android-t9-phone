@@ -6,6 +6,7 @@ package org.fcitx.fcitx5.android.input.dialog
 
 import android.content.Context
 import org.fcitx.fcitx5.android.core.FcitxAPI
+import org.fcitx.fcitx5.android.core.FirstRunInputMethodPolicy
 import org.fcitx.fcitx5.android.utils.inputMethodManager
 
 data class InputMethodData(
@@ -16,6 +17,7 @@ data class InputMethodData(
     companion object {
         suspend fun resolve(fcitx: FcitxAPI, context: Context): List<InputMethodData> {
             val enabled = fcitx.enabledIme()
+                .filter { FirstRunInputMethodPolicy.isUserVisible(it.uniqueName) }
                 .map { InputMethodData(it.uniqueName, it.displayName, false) }
                 .toMutableList()
             enabled += context.inputMethodManager.enabledInputMethodList

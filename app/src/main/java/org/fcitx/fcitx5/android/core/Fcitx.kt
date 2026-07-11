@@ -446,8 +446,17 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
         }
 
         // will be called in fcitx main thread
-        private fun onFirstRun() {
-            Timber.i("onFirstRun")
+        private fun onFirstRun(): Boolean {
+            val available = availableInputMethods()
+                ?.mapTo(linkedSetOf()) { it.uniqueName }
+                ?: return false
+            val enabled = FirstRunInputMethodPolicy.initialEnabledInputMethods(available)
+                ?: return false
+            // Rime is the user-facing Chinese engine. The US keyboard stays enabled only as
+            // an implementation dependency for password and temporary full-keyboard sessions.
+            setEnabledInputMethods(enabled.toTypedArray())
+            Timber.i("Initialized first-run input methods: $enabled")
+            return true
         }
 
         /**
@@ -547,14 +556,17 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
 
     private var firstRun by AppPrefs.getInstance().internal.firstRun
 
-    private fun handleFirstRunReadyEvent(event: FcitxEvent<*>) {
-        if (event is FcitxEvent.ReadyEvent && firstRun) {
-            firstRun = false
-            // this method runs in same thread with `startupFcitx`
-            // block it will also block fcitx
-            onFirstRun()
-            unregisterFcitxEventHandler(::handleFcitxEvent)
-        }
+    private fun handleFirstRunEvent(event: FcitxEvent<*>) {
+        if (!firstRun) return
+        val engineCanBeConfigured = event is FcitxEvent.ReadyEvent ||
+            event is FcitxEvent.RimeAvailabilityEvent &&
+            event.data.state == FcitxEvent.RimeAvailabilityEvent.State.Ready
+        if (!engineCanBeConfigured) return
+        // This handler runs on the Fcitx thread. Completing only after Rime appears avoids
+        // persisting an English-only profile when deployment finishes after core readiness.
+        if (!onFirstRun()) return
+        firstRun = false
+        unregisterFcitxEventHandler(::handleFirstRunEvent)
     }
 
     private fun handleFcitxEvent(event: FcitxEvent<*>) {
@@ -607,7 +619,7 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
             return
         }
         if (firstRun) {
-            registerFcitxEventHandler(::handleFirstRunReadyEvent)
+            registerFcitxEventHandler(::handleFirstRunEvent)
         }
         registerFcitxEventHandler(::handleFcitxEvent)
         publishRimeLifecycleState(FcitxEvent.RimeAvailabilityEvent.State.Deploying)
