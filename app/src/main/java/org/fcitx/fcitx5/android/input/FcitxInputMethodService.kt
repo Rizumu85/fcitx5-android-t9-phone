@@ -1890,6 +1890,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             active = activeChineseT9Scheme,
             enabled = prefs.chineseT9.enabledSchemes()
         ) ?: return false
+        // Rime confirms the actual scheme asynchronously. Acknowledge the requested target now
+        // so long-* feels like long-#, while the space-bar label stays source-of-truth driven.
+        showModeIndicatorBadge(getString(target.compactLabelRes))
         // Rime already owns schema availability and activation. Reuse its cached menu action so
         // the quick path does not create a second schema state store or touch dictionary data.
         postFcitxJob {

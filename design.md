@@ -671,3 +671,11 @@ small installation state. The full installation Implementation remains the
 sole owner of descriptor decoding, hierarchy merge/diff, file copies, and the
 atomic completion record. Format 1 records deliberately miss the new digest
 and perform one full migration rather than receiving a compatibility fallback.
+
+Chinese Scheme Cycle keeps confirmed state and immediate feedback separate.
+The long-press command requests the next configured scheme and immediately
+shows that target through the existing transient mode indicator, matching the
+top-level T9 Mode Coordinator's feedback timing. It does not optimistically
+change `activeChineseT9Scheme` or the space-bar label. The later Rime
+input-method-change event remains authoritative, and a rejected action only
+clears the pending cycle request.

@@ -444,3 +444,10 @@ otherwise.
   completion cleanup on the target phone.
 - [x] Optimize only the largest measured Data Installation operation while
   preserving interrupted-install and plugin-update invalidation.
+
+## Long-Press Feedback And Installation-State Performance
+
+- [x] Acknowledge an idle long-`*` Chinese-scheme target at the same decision
+  point as long-`#`, while keeping confirmed Rime state authoritative.
+- [ ] Run focused Physical T9 and scheme-cycle tests, build/install debug, and
+  verify short/long `*` plus long `#` on the target phone.

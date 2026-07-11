@@ -995,3 +995,18 @@ remaining roughly 86-90 ms installation-state decode is now the largest part
 of this Module, but it is outside this bounded slice: descriptor decoding was
 the selected operation, and the fast path is already about 55% shorter without
 weakening interrupted-install or plugin-update invalidation.
+
+## Chinese Scheme Long-Press Feedback
+
+Idle long `*` and long `#` already use the same configured held-duration gate
+inside Physical T9 Key Flow. Their perceived timing differs after that shared
+decision: long `#` switches the top-level mode and publishes its indicator
+immediately, while long `*` waits for an asynchronous Rime action and the later
+input-method-change event before showing the target Chinese scheme. The key
+contract must remain shared; the scheme request should instead acknowledge its
+target visually at the decision point while the confirmed Rime event remains
+the only source of truth for the space-bar label and active scheme state.
+
+Success means both holds react at the same configured threshold, a failed Rime
+action cannot leave an optimistic scheme selected, and short `*`, composing
+long `*`, and long `#` retain their existing behavior.
