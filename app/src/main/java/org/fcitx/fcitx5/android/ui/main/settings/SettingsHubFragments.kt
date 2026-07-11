@@ -79,12 +79,9 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
                 allowed
             }
         }
-        val dictionaryCategory = PreferenceCategory(screen.context).apply {
-            setTitle(R.string.dictionary_and_learning)
-            isIconSpaceReserved = false
-        }
-        screen.addPreference(dictionaryCategory)
-        dictionaryCategory.apply {
+        screen.findPreference<PreferenceCategory>(
+            groupKey(R.string.smart_english_t9)
+        )?.apply {
             addPreference(
                 androidx.preference.Preference(screen.context).apply {
                     setTitle(R.string.smart_english_learned_words)

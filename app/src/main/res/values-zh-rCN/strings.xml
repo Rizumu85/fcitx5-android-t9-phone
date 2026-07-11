@@ -8,7 +8,6 @@
     <string name="clipboard_and_symbols">剪贴板与符号</string>
     <string name="app_information">应用信息</string>
     <string name="chinese_input">中文输入</string>
-    <string name="dictionary_and_learning">词典与学习</string>
     <string name="input_feedback_tuning">输入反馈调校</string>
     <string name="extensions_and_fcitx">扩展与 Fcitx</string>
     <string name="diagnostics_and_compatibility">诊断与兼容性</string>
@@ -245,10 +244,10 @@
     <string name="use_t9_keyboard_layout_summary">使用手机九键、候选栏和模式切换</string>
     <string name="smart_english_t9">联想英语</string>
     <string name="smart_english_t9_summary">根据数字键序列预测英文单词，并学习普通英文九键里实际输入的词</string>
-    <string name="smart_english_learned_words">联想英语学习词库</string>
+    <string name="smart_english_learned_words">已学习单词</string>
     <string name="smart_english_learned_words_summary">添加、编辑或删除普通英文九键输入时学到的词</string>
     <string name="smart_english_learned_word_hint">英文单词</string>
-    <string name="smart_english_learned_predictions">联想英语学习联想词</string>
+    <string name="smart_english_learned_predictions">下一词联想</string>
     <string name="smart_english_learned_predictions_summary">删除错误的下一词预测，或添加 good -> morning 这样的搭配</string>
     <string name="smart_english_learned_prediction_hint">previous -> next</string>
     <string name="search">搜索</string>

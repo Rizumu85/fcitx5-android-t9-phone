@@ -8,7 +8,6 @@
     <string name="clipboard_and_symbols">Clipboard &amp; symbols</string>
     <string name="app_information">App information</string>
     <string name="chinese_input">Chinese input</string>
-    <string name="dictionary_and_learning">Dictionaries &amp; learning</string>
     <string name="input_feedback_tuning">Input feedback tuning</string>
     <string name="extensions_and_fcitx">Extensions &amp; Fcitx</string>
     <string name="diagnostics_and_compatibility">Diagnostics &amp; compatibility</string>
@@ -245,10 +244,10 @@
     <string name="use_t9_keyboard_layout_summary">Use phone-style T9 keys, candidates, and mode switching</string>
     <string name="smart_english_t9">联想英语</string>
     <string name="smart_english_t9_summary">Predict English words from number-key sequences and learn selected words</string>
-    <string name="smart_english_learned_words">Predictive English learned words</string>
+    <string name="smart_english_learned_words">Learned words</string>
     <string name="smart_english_learned_words_summary">Add, edit, or delete words learned from normal English T9 typing</string>
     <string name="smart_english_learned_word_hint">English word</string>
-    <string name="smart_english_learned_predictions">Predictive English learned next words</string>
+    <string name="smart_english_learned_predictions">Next-word predictions</string>
     <string name="smart_english_learned_predictions_summary">Delete wrong next-word predictions or add your own pairs, such as good -> morning</string>
     <string name="smart_english_learned_prediction_hint">previous -> next</string>
     <string name="search">Search</string>
