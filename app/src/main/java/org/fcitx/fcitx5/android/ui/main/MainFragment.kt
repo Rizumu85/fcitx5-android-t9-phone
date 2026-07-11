@@ -42,68 +42,43 @@ class MainFragment : PaddingPreferenceFragment() {
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         preferenceScreen = preferenceManager.createPreferenceScreen(requireContext()).apply {
-            addCategory("Fcitx") {
+            addCategory(R.string.settings) {
                 addDestinationPreference(
-                    R.string.global_options,
-                    R.drawable.ic_baseline_tune_24,
-                    SettingsRoute.GlobalConfig
-                )
-                addDestinationPreference(
-                    R.string.input_methods,
+                    R.string.input_options,
                     R.drawable.ic_baseline_language_24,
-                    SettingsRoute.InputMethodList
+                    SettingsRoute.InputOptions
                 )
                 addDestinationPreference(
-                    R.string.chinese_t9_schemes,
-                    R.drawable.ic_baseline_dialpad_24,
-                    SettingsRoute.ChineseT9Schemes
-                )
-                addDestinationPreference(
-                    R.string.dictionary_management,
-                    R.drawable.ic_baseline_library_books_24,
-                    SettingsRoute.DictionaryManagement
-                )
-                addDestinationPreference(
-                    R.string.addons,
-                    R.drawable.ic_baseline_extension_24,
-                    SettingsRoute.AddonList
-                )
-            }
-            addCategory("Android") {
-                addDestinationPreference(
-                    R.string.theme,
-                    R.drawable.ic_baseline_palette_24,
-                    SettingsRoute.Theme
-                )
-                addDestinationPreference(
-                    R.string.virtual_keyboard,
+                    R.string.keys_and_toolbar,
                     R.drawable.ic_baseline_keyboard_24,
-                    SettingsRoute.VirtualKeyboard
+                    SettingsRoute.KeysAndToolbar
                 )
                 addDestinationPreference(
-                    R.string.candidates_window,
-                    R.drawable.ic_baseline_list_alt_24,
-                    SettingsRoute.CandidatesWindow
+                    R.string.appearance_and_candidates,
+                    R.drawable.ic_baseline_palette_24,
+                    SettingsRoute.AppearanceAndCandidates
                 )
                 addDestinationPreference(
-                    R.string.clipboard,
-                    R.drawable.ic_clipboard,
-                    SettingsRoute.Clipboard
-                )
-                addDestinationPreference(
-                    R.string.emoji_and_symbols,
-                    R.drawable.ic_baseline_emoji_symbols_24,
-                    SettingsRoute.Symbol
-                )
-                addDestinationPreference(
-                    R.string.plugins,
-                    R.drawable.ic_baseline_android_24,
-                    SettingsRoute.Plugin
+                    R.string.content_and_tools,
+                    R.drawable.ic_baseline_content_paste_24,
+                    SettingsRoute.ContentAndTools
                 )
                 addDestinationPreference(
                     R.string.advanced,
                     R.drawable.ic_baseline_more_horiz_24,
-                    SettingsRoute.Advanced
+                    SettingsRoute.AdvancedHub
+                )
+            }
+            addCategory(R.string.app_information) {
+                addDestinationPreference(
+                    R.string.license,
+                    R.drawable.ic_baseline_info_24,
+                    SettingsRoute.License
+                )
+                addDestinationPreference(
+                    R.string.about,
+                    R.drawable.ic_baseline_info_24,
+                    SettingsRoute.About
                 )
             }
         }

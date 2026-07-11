@@ -48,6 +48,21 @@ sealed class SettingsRoute : Parcelable {
     @Serializable
     data object Index : SettingsRoute()
 
+    @Serializable
+    data object InputOptions : SettingsRoute()
+
+    @Serializable
+    data object KeysAndToolbar : SettingsRoute()
+
+    @Serializable
+    data object AppearanceAndCandidates : SettingsRoute()
+
+    @Serializable
+    data object ContentAndTools : SettingsRoute()
+
+    @Serializable
+    data object AdvancedHub : SettingsRoute()
+
     /* ========== Fcitx ========== */
 
     @Serializable
@@ -202,6 +217,21 @@ sealed class SettingsRoute : Parcelable {
 
             fragment<MainFragment, Index> {
                 label = ctx.getString(R.string.app_name)
+            }
+            fragment<InputOptionsSettingsFragment, InputOptions> {
+                label = ctx.getString(R.string.input_options)
+            }
+            fragment<KeysAndToolbarSettingsFragment, KeysAndToolbar> {
+                label = ctx.getString(R.string.keys_and_toolbar)
+            }
+            fragment<AppearanceAndCandidatesSettingsFragment, AppearanceAndCandidates> {
+                label = ctx.getString(R.string.appearance_and_candidates)
+            }
+            fragment<ContentAndToolsSettingsFragment, ContentAndTools> {
+                label = ctx.getString(R.string.content_and_tools)
+            }
+            fragment<AdvancedSettingsHubFragment, AdvancedHub> {
+                label = ctx.getString(R.string.advanced)
             }
 
             /* ========== Fcitx ========== */

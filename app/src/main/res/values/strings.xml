@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="settings">Settings</string>
+    <string name="input_options">Input options</string>
+    <string name="keys_and_toolbar">Keys &amp; toolbar</string>
+    <string name="appearance_and_candidates">Appearance &amp; candidates</string>
+    <string name="content_and_tools">Content &amp; tools</string>
+    <string name="app_information">App information</string>
+    <string name="chinese_input">Chinese input</string>
+    <string name="dictionary_and_learning">Dictionaries &amp; learning</string>
+    <string name="input_feedback_tuning">Input feedback tuning</string>
+    <string name="extensions_and_fcitx">Extensions &amp; Fcitx</string>
     <string name="app_name_release">Fcitx5</string>
     <string name="app_name_debug">Fcitx5 (Debug)</string>
     <string name="save">Save</string>

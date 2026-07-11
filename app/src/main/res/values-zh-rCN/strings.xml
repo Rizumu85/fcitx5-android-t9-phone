@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="settings">设置</string>
+    <string name="input_options">输入方式</string>
+    <string name="keys_and_toolbar">按键与工具栏</string>
+    <string name="appearance_and_candidates">外观与候选</string>
+    <string name="content_and_tools">内容与工具</string>
+    <string name="app_information">应用信息</string>
+    <string name="chinese_input">中文输入</string>
+    <string name="dictionary_and_learning">词典与学习</string>
+    <string name="input_feedback_tuning">输入反馈调校</string>
+    <string name="extensions_and_fcitx">扩展与 Fcitx</string>
     <string name="app_name_release">小企鹅输入法</string>
     <string name="app_name_debug">小企鹅输入法 (调试)</string>
     <string name="save">保存</string>
