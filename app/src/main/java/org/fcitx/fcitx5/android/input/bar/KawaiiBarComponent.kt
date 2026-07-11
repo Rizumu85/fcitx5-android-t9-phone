@@ -232,6 +232,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                 redoButton.setOnClickListener {
                     service.sendCombinationKeyEvents(KeyEvent.KEYCODE_Z, ctrl = true, shift = true)
                 }
+                voiceInputButton.setOnClickListener(switchToVoiceInputCallback)
                 cursorMoveButton.setOnClickListener {
                     windowManager.attachWindow(TextEditingWindow())
                 }
@@ -252,15 +253,11 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     }
 
     private fun updateToolbarButtons() {
-        idleUi.setVoiceInputButton(
-            visible = prefs.keyboard.showVoiceInputButton.getValue() &&
-                isVoiceInputAllowedForEditor,
-            callback = switchToVoiceInputCallback
-        )
         idleUi.setHideKeyboardButtonVisible(prefs.keyboard.showHideKeyboardButton.getValue())
         idleUi.buttonsUi.setOptionalButtonsVisible(
             undo = prefs.keyboard.showUndoButton.getValue(),
             redo = prefs.keyboard.showRedoButton.getValue(),
+            voiceInput = prefs.keyboard.showVoiceInputButton.getValue() && isVoiceInputAllowedForEditor,
             textEditing = prefs.keyboard.showTextEditingButton.getValue(),
             clipboard = prefs.keyboard.showClipboardButton.getValue()
         )

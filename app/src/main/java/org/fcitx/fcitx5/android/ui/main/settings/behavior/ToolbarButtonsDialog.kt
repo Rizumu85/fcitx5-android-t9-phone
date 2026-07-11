@@ -39,12 +39,12 @@ class ToolbarButtonsDialog(
         when (id) {
             ToolbarButtonOrder.Undo -> Item(id, R.string.undo, R.drawable.ic_baseline_undo_24, prefs.showUndoButton.getValue())
             ToolbarButtonOrder.Redo -> Item(id, R.string.redo, R.drawable.ic_baseline_redo_24, prefs.showRedoButton.getValue())
+            ToolbarButtonOrder.VoiceInput -> Item(id, R.string.show_voice_input_button, R.drawable.ic_baseline_keyboard_voice_24, prefs.showVoiceInputButton.getValue())
             ToolbarButtonOrder.TextEditing -> Item(id, R.string.text_editing, R.drawable.ic_cursor_move, prefs.showTextEditingButton.getValue())
             ToolbarButtonOrder.Clipboard -> Item(id, R.string.clipboard, R.drawable.ic_clipboard, prefs.showClipboardButton.getValue())
         }
     }.toMutableList()
 
-    private var voiceVisible = prefs.showVoiceInputButton.getValue()
     private var hideVisible = prefs.showHideKeyboardButton.getValue()
     private val preview = LinearLayout(context).apply { gravity = Gravity.CENTER }
     private val adapter = Adapter()
@@ -78,16 +78,12 @@ class ToolbarButtonsDialog(
             orientation = LinearLayout.VERTICAL
             setPadding(context.dp(16), context.dp(8), context.dp(16), context.dp(4))
             addView(preview, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, context.dp(56)))
-            addView(fixedRow(R.string.show_voice_input_button, R.drawable.ic_baseline_keyboard_voice_24, voiceVisible) {
-                voiceVisible = it
-                renderPreview()
-            })
-            addView(recycler, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, context.dp(208)))
-            addView(fixedRow(R.string.status_area, R.drawable.ic_baseline_more_horiz_24, true, enabled = false) {})
+            addView(recycler, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, context.dp(260)))
+            addView(fixedRow(R.string.status_area, R.drawable.ic_baseline_more_horiz_24, true, enabled = false) {}, fullWidthRowParams())
             addView(fixedRow(R.string.hide_keyboard, R.drawable.ic_baseline_arrow_drop_down_24, hideVisible) {
                 hideVisible = it
                 renderPreview()
-            })
+            }, fullWidthRowParams())
         }
         renderPreview()
         AlertDialog.Builder(context)
@@ -97,6 +93,11 @@ class ToolbarButtonsDialog(
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
+
+    private fun fullWidthRowParams() = LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        context.dp(52)
+    )
 
     private fun fixedRow(
         @StringRes label: Int,
@@ -122,7 +123,7 @@ class ToolbarButtonsDialog(
             setOnCheckedChangeListener { _, value -> changed(value) }
         }
         addView(
-            iconView(if (draggable) R.drawable.ic_baseline_drag_handle_24 else 0),
+            iconView(if (draggable) R.drawable.ic_baseline_drag_indicator_24 else 0),
             LinearLayout.LayoutParams(context.dp(44), context.dp(44))
         )
         addView(iconView(icon), LinearLayout.LayoutParams(context.dp(36), context.dp(36)))
@@ -144,14 +145,13 @@ class ToolbarButtonsDialog(
 
     private fun renderPreview() {
         preview.removeAllViews()
-        if (voiceVisible) preview.addView(iconView(R.drawable.ic_baseline_keyboard_voice_24))
         items.filter { it.visible }.forEach { preview.addView(iconView(it.icon)) }
         preview.addView(iconView(R.drawable.ic_baseline_more_horiz_24))
         if (hideVisible) preview.addView(iconView(R.drawable.ic_baseline_arrow_drop_down_24))
     }
 
     private fun save() {
-        prefs.showVoiceInputButton.setValue(voiceVisible)
+        prefs.showVoiceInputButton.setValue(items.first { it.id == ToolbarButtonOrder.VoiceInput }.visible)
         prefs.showHideKeyboardButton.setValue(hideVisible)
         prefs.showUndoButton.setValue(items.first { it.id == ToolbarButtonOrder.Undo }.visible)
         prefs.showRedoButton.setValue(items.first { it.id == ToolbarButtonOrder.Redo }.visible)

@@ -7,6 +7,7 @@ package org.fcitx.fcitx5.android.input.bar
 enum class ToolbarButtonOrder(val storageId: String) {
     Undo("undo"),
     Redo("redo"),
+    VoiceInput("voice_input"),
     TextEditing("text_editing"),
     Clipboard("clipboard");
 
@@ -15,6 +16,11 @@ enum class ToolbarButtonOrder(val storageId: String) {
 
         fun decode(value: String): List<ToolbarButtonOrder> {
             val stored = value.split(',').mapNotNull { id -> entries.find { it.storageId == id } }
+            if (VoiceInput !in stored) {
+                val insertion = (stored.indexOf(Redo) + 1).coerceAtLeast(0)
+                return stored.toMutableList().apply { add(insertion, VoiceInput) } +
+                    entries.filterNot { it in stored || it == VoiceInput }
+            }
             return (stored + entries).distinct()
         }
 
