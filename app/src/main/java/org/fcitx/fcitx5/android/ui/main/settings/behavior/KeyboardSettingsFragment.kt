@@ -109,8 +109,6 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
             keyboardPrefs.hapticOnKeyPress.key,
             keyboardPrefs.soundOnKeyPress.key,
             keyboardPrefs.passwordInputPreview.key,
-            keyboardPrefs.preferredVoiceInput.key,
-            keyboardPrefs.longPressZeroVoiceInput.key,
             keyboardPrefs.t9KeyboardHeightPercent.key,
             "toolbar_buttons_manage",
             "key_sound_pack_manage"
@@ -131,13 +129,6 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
                 keyboardPrefs.hapticOnKeyPress.key,
                 keyboardPrefs.soundOnKeyPress.key,
                 "key_sound_pack_manage"
-            )
-        )
-        screen.groupPreferences(
-            R.string.voice_input,
-            listOf(
-                keyboardPrefs.preferredVoiceInput.key,
-                keyboardPrefs.longPressZeroVoiceInput.key
             )
         )
         screen.groupPreferences(

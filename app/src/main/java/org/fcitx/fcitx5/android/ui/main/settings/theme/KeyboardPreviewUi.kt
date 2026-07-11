@@ -103,7 +103,12 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
             private val pages = listOf(t9Preview, passwordPreview)
 
             override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
-                PreviewHolder(FrameLayout(parent.context))
+                PreviewHolder(FrameLayout(parent.context).apply {
+                    layoutParams = RecyclerView.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                })
 
             override fun getItemCount() = pages.size
 

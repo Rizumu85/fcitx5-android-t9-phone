@@ -57,6 +57,14 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
             R.string.smart_english_t9,
             prefs.keyboard,
             setOf(prefs.keyboard.smartEnglishT9.key)
+        ),
+        Group(
+            R.string.voice_input,
+            prefs.keyboard,
+            setOf(
+                prefs.keyboard.preferredVoiceInput.key,
+                prefs.keyboard.longPressZeroVoiceInput.key
+            )
         )
     )
 
