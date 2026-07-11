@@ -31,7 +31,12 @@ object StartupPerformanceTrace {
         ACTIVE_KEYBOARD_CREATE("active-keyboard-create"),
         ACTIVE_KEYBOARD_ATTACH("active-keyboard-attach"),
         INPUT_CHROME_CREATE("input-chrome-create"),
-        INPUT_TREE_ASSEMBLY("input-tree-assembly")
+        INPUT_TREE_ASSEMBLY("input-tree-assembly"),
+        DATA_MAIN_FINGERPRINT_LOAD("data-main-fingerprint-load"),
+        DATA_PLUGIN_DISCOVERY("data-plugin-discovery"),
+        DATA_MERGED_FINGERPRINT_LOAD("data-merged-fingerprint-load"),
+        DATA_INSTALLATION_STATE_LOAD("data-installation-state-load"),
+        DATA_COMPLETION("data-completion")
     }
 
     enum class Milestone(val traceName: String) {

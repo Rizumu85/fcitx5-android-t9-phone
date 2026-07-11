@@ -50,6 +50,7 @@ class DataDescriptorPlugin : Plugin<Project> {
         const val TASK = "generateDataDescriptor"
         const val CLEAN_TASK = "cleanDataDescriptor"
         const val FILE_NAME = "descriptor.json"
+        const val FINGERPRINT_FILE_NAME = "$FILE_NAME.sha256"
     }
 
     override fun apply(target: Project) {
@@ -59,11 +60,15 @@ class DataDescriptorPlugin : Plugin<Project> {
         target.tasks.register<DataDescriptorTask>(TASK) {
             inputDir.set(target.assetsDir)
             outputFile.set(target.assetsDir.resolve(FILE_NAME))
+            fingerprintFile.set(target.assetsDir.resolve(FINGERPRINT_FILE_NAME))
             excludes.set(extension.excludes)
             symlinks.set(extension.symlinks)
         }
         target.tasks.register<Delete>(CLEAN_TASK) {
-            delete(target.assetsDir.resolve(FILE_NAME))
+            delete(
+                target.assetsDir.resolve(FILE_NAME),
+                target.assetsDir.resolve(FINGERPRINT_FILE_NAME)
+            )
         }.also {
             target.cleanTask.dependsOn(it)
         }
@@ -91,21 +96,27 @@ class DataDescriptorPlugin : Plugin<Project> {
         @get:OutputFile
         abstract val outputFile: RegularFileProperty
 
+        @get:OutputFile
+        abstract val fingerprintFile: RegularFileProperty
+
         private val file by lazy { outputFile.get().asFile }
+        private val fingerprint by lazy { fingerprintFile.get().asFile }
 
         private fun serialize(files: Map<String, String>, symlinks: Map<String, String>) {
             if (symlinks.keys.intersect(files.keys).isNotEmpty())
                 throw IllegalArgumentException("Symlink target cannot be path in files")
+            val descriptorSha256 = Hashing.sha256()
+                .hashString(
+                    (files + symlinks).entries.joinToString { it.key + it.value },
+                    Charset.defaultCharset()
+                ).toString()
             val descriptor = DataDescriptor(
-                Hashing.sha256()
-                    .hashString(
-                        (files + symlinks).entries.joinToString { it.key + it.value },
-                        Charset.defaultCharset()
-                    ).toString(),
+                descriptorSha256,
                 files,
                 symlinks
             )
             file.writeText(json.encodeToString(descriptor))
+            fingerprint.writeText(descriptorSha256)
         }
 
         private fun deserialize(): Map<String, String> =
@@ -141,7 +152,7 @@ class DataDescriptorPlugin : Plugin<Project> {
                 else
                     listOf(parentFile) + parentFile.allParents()
             inputChanges.getFileChanges(inputDir).forEach { change ->
-                if (change.file.name == file.name)
+                if (change.file.name == file.name || change.file.name == fingerprint.name)
                     return@forEach
                 logger.log(LogLevel.DEBUG, "${change.changeType}: ${change.normalizedPath}")
                 val relativeFile = change.file.relativeTo(file.parentFile)

@@ -960,3 +960,38 @@ schema files. Granting the app's `ext_data_rw` group write permission and
 allowing one maintenance run removed the repeat: the next process reached Fcitx
 ready at 2246.50 ms and Rime ready at 2249.77 ms. The 3.27 ms gap does not
 justify moving user-editable Rime data away from external app storage.
+
+With input-view reflection and repeated Rime maintenance removed, unchanged
+`DataManager.sync()` remains a 242-304 ms startup stage. Its fast path still
+combines four different operations: APK descriptor read/JSON decode, plugin
+package discovery through PackageManager, installed merged-descriptor
+read/decode, and installation-state read/decode, followed by stale credential
+storage cleanup. The files are only about 21-25 KB, so file size alone cannot
+identify the cost; PackageManager IPC and first serialization class loading are
+plausible but must be measured separately before changing fingerprint trust.
+
+Target attribution measured 163.72 ms in the APK descriptor read/decode and
+68.60 ms in the installed merged-descriptor read/decode. Plugin discovery was
+5.14 ms, installation-state loading 11.66 ms, and completion cleanup 1.21 ms.
+The fast path therefore spends over 90% of its measured work materializing two
+complete file maps only to compare each descriptor's top-level identity.
+
+The safe optimization is a two-part fingerprint contract rather than trusting
+file existence. The build task emits the main descriptor identity as a tiny
+companion asset. The completed installation state records a SHA-256 digest of
+the exact merged-descriptor file bytes. An unchanged start reads the small
+identity, hashes the 25 KB installed file, validates plugin package identities,
+and restores plugin metadata without decoding either descriptor. A missing,
+malformed, stale-format, or digest-mismatched record still enters the complete
+descriptor merge and atomically replaces both descriptor and state.
+
+Target-device verification confirmed the intended migration and steady-state
+paths. The first format-2 launch performed one complete installation in
+272.84 ms and persisted both descriptor digests. The next two process-cold
+launches reused the completed fingerprint in 112.57 ms and 115.21 ms, down from
+the 253.92 ms attributed baseline. Main and merged descriptor work fell from
+163.72 ms and 68.60 ms to 7.42 ms and 5.48 ms in the first steady capture. The
+remaining roughly 86-90 ms installation-state decode is now the largest part
+of this Module, but it is outside this bounded slice: descriptor decoding was
+the selected operation, and the fast path is already about 55% shorter without
+weakening interrupted-install or plugin-update invalidation.

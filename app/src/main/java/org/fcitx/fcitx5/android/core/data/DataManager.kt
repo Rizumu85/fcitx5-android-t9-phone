@@ -14,6 +14,7 @@ import android.util.AtomicFile
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.fcitx.fcitx5.android.BuildConfig
+import org.fcitx.fcitx5.android.core.performance.StartupPerformanceTrace
 import org.fcitx.fcitx5.android.core.data.DataManager.dataDir
 import org.fcitx.fcitx5.android.utils.FileUtil
 import org.fcitx.fcitx5.android.utils.appContext
@@ -23,6 +24,7 @@ import org.xmlpull.v1.XmlPullParser
 import timber.log.Timber
 import java.io.File
 import java.io.FileNotFoundException
+import java.security.MessageDigest
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -78,6 +80,41 @@ object DataManager {
             .bufferedReader()
             .use { it.readText() }
             .let { deserializeDataDescriptor(it) }
+    }
+
+    private fun AssetManager.getDataDescriptorFingerprint(): SHA256? = runCatching {
+        open(BuildConfig.DATA_DESCRIPTOR_FINGERPRINT_NAME)
+            .bufferedReader()
+            .use { it.readText() }
+            .trim()
+            .takeIf { value ->
+                value.length == 64 && value.all { it in '0'..'9' || it in 'a'..'f' }
+            }
+            ?: error("Invalid data descriptor fingerprint")
+    }.getOrNull()
+
+    private fun File.contentSha256(): SHA256 {
+        val digest = MessageDigest.getInstance("SHA-256")
+        inputStream().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        return digest.digest().toLowerHex()
+    }
+
+    private fun ByteArray.contentSha256(): SHA256 =
+        MessageDigest.getInstance("SHA-256").digest(this).toLowerHex()
+
+    private fun ByteArray.toLowerHex(): String = buildString(size * 2) {
+        for (byte in this@toLowerHex) {
+            val value = byte.toInt() and 0xff
+            append(HEX_DIGITS[value ushr 4])
+            append(HEX_DIGITS[value and 0x0f])
+        }
     }
 
     private fun File.readAtomicText(): String =
@@ -253,27 +290,42 @@ object DataManager {
         val destDescriptorFile = File(dataDir, BuildConfig.DATA_DESCRIPTOR_NAME)
         val installationStateFile = File(dataDir, "${BuildConfig.DATA_DESCRIPTOR_NAME}.installed")
 
-        // load app's data descriptor
-        val mainDescriptor = appContext.assets.getDataDescriptor()
-        val pluginPackages = discoverPluginPackages()
+        val mainDescriptorSha256 = StartupPerformanceTrace.measure(
+            StartupPerformanceTrace.Stage.DATA_MAIN_FINGERPRINT_LOAD
+        ) {
+            appContext.assets.getDataDescriptorFingerprint()
+        }
+        val pluginPackages = StartupPerformanceTrace.measure(
+            StartupPerformanceTrace.Stage.DATA_PLUGIN_DISCOVERY
+        ) {
+            discoverPluginPackages()
+        }
 
-        // load last run's data descriptor
-        val oldDescriptor = destDescriptorFile
-            .runCatching { deserializeDataDescriptor(readAtomicText()) }
-            .getOrNull()
+        val mergedDescriptorFileSha256 = StartupPerformanceTrace.measure(
+            StartupPerformanceTrace.Stage.DATA_MERGED_FINGERPRINT_LOAD
+        ) {
+            destDescriptorFile.runCatching { contentSha256() }.getOrNull()
+        }
 
-        val completedState = installationStateFile
-            .runCatching { deserializeInstallationState(readAtomicText()) }
-            .getOrNull()
+        val completedState = StartupPerformanceTrace.measure(
+            StartupPerformanceTrace.Stage.DATA_INSTALLATION_STATE_LOAD
+        ) {
+            installationStateFile
+                .runCatching { deserializeInstallationState(readAtomicText()) }
+                .getOrNull()
+        }
 
-        if (oldDescriptor != null && completedState?.canReuse(
-                mainDescriptorSha256 = mainDescriptor.sha256,
-                mergedDescriptorSha256 = oldDescriptor.sha256,
+        if (mainDescriptorSha256 != null && mergedDescriptorFileSha256 != null &&
+            completedState?.canReuse(
+                mainDescriptorSha256 = mainDescriptorSha256,
+                mergedDescriptorFileSha256 = mergedDescriptorFileSha256,
                 pluginPackages = pluginPackages
             ) == true
         ) {
             loadedPlugins.addAll(completedState.restoredPlugins())
-            completeSync()
+            StartupPerformanceTrace.measure(StartupPerformanceTrace.Stage.DATA_COMPLETION) {
+                completeSync()
+            }
             Timber.i(
                 "Data installation fast path completed in %.2f ms",
                 (SystemClock.elapsedRealtimeNanos() - startedAtNanos) / 1_000_000.0
@@ -283,6 +335,11 @@ object DataManager {
 
         // Only a fully completed install may authorize the next cold-start fast path.
         AtomicFile(installationStateFile).delete()
+
+        val mainDescriptor = appContext.assets.getDataDescriptor()
+        val oldDescriptor = destDescriptorFile
+            .runCatching { deserializeDataDescriptor(readAtomicText()) }
+            .getOrNull()
 
         val (parsedDescriptors, failed) = detectPlugins(pluginPackages)
         failedPlugins.putAll(failed)
@@ -362,13 +419,17 @@ object DataManager {
             }
         }
         val mergedDescriptor = newHierarchy.downToDataDescriptor()
-        destDescriptorFile.writeAtomicText(serializeDataDescriptor(mergedDescriptor))
+        val serializedMergedDescriptor = serializeDataDescriptor(mergedDescriptor)
+        destDescriptorFile.writeAtomicText(serializedMergedDescriptor)
         if (failedPlugins.isEmpty()) {
             installationStateFile.writeAtomicText(
                 serializeInstallationState(
                     DataInstallationState.completed(
                         mainDescriptorSha256 = mainDescriptor.sha256,
                         mergedDescriptorSha256 = mergedDescriptor.sha256,
+                        mergedDescriptorFileSha256 = serializedMergedDescriptor
+                            .toByteArray()
+                            .contentSha256(),
                         pluginPackages = pluginPackages,
                         loadedPlugins = loadedPlugins
                     )
@@ -396,6 +457,8 @@ object DataManager {
                 .use { o -> i.copyTo(o) }
         }
     }
+
+    private const val HEX_DIGITS = "0123456789abcdef"
 
     fun deleteAndSync() {
         lock.withLock {

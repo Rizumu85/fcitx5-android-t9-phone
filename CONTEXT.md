@@ -407,3 +407,17 @@ the `InputWindow` bases apply the same rule to dynamic windows. `DynamicScope`
 continues to own dependency arrival and window lifecycle. This keeps picker and
 keyboard replacement dynamic while removing Kotlin generic reflection from the
 cold input-view path.
+
+### Data Installation Fingerprint
+
+The completed proof that native app/plugin data can be reused without parsing
+or rebuilding its complete file hierarchy. It combines the build-emitted main
+descriptor identity, an exact digest of the installed merged-descriptor file,
+canonical plugin package identities, and the loaded plugin metadata required by
+native startup.
+
+`DataInstallationState` owns this proof. The fast path may restore plugins only
+when every input matches; any missing state, old format, changed package,
+changed build identity, or descriptor-content mismatch enters the full Data
+Installation Module. The fingerprint does not replace the descriptor as the
+source of truth during a full install.

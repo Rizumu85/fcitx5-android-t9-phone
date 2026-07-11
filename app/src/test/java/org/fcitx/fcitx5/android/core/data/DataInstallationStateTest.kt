@@ -35,6 +35,7 @@ class DataInstallationStateTest {
         val state = DataInstallationState.completed(
             mainDescriptorSha256 = "main",
             mergedDescriptorSha256 = "merged",
+            mergedDescriptorFileSha256 = "merged-file",
             pluginPackages = listOf(pluginIdentity, duplicate),
             loadedPlugins = setOf(plugin)
         )
@@ -48,6 +49,7 @@ class DataInstallationStateTest {
         val state = DataInstallationState.completed(
             mainDescriptorSha256 = "main",
             mergedDescriptorSha256 = "merged",
+            mergedDescriptorFileSha256 = "merged-file",
             pluginPackages = listOf(pluginIdentity),
             loadedPlugins = setOf(plugin)
         )
@@ -55,7 +57,7 @@ class DataInstallationStateTest {
         assertTrue(
             state.canReuse(
                 mainDescriptorSha256 = "main",
-                mergedDescriptorSha256 = "merged",
+                mergedDescriptorFileSha256 = "merged-file",
                 pluginPackages = listOf(pluginIdentity)
             )
         )
@@ -66,16 +68,17 @@ class DataInstallationStateTest {
         val state = DataInstallationState.completed(
             mainDescriptorSha256 = "main",
             mergedDescriptorSha256 = "merged",
+            mergedDescriptorFileSha256 = "merged-file",
             pluginPackages = listOf(pluginIdentity),
             loadedPlugins = setOf(plugin)
         )
 
-        assertFalse(state.canReuse("new-main", "merged", listOf(pluginIdentity)))
-        assertFalse(state.canReuse("main", "new-merged", listOf(pluginIdentity)))
+        assertFalse(state.canReuse("new-main", "merged-file", listOf(pluginIdentity)))
+        assertFalse(state.canReuse("main", "new-merged-file", listOf(pluginIdentity)))
         assertFalse(
             state.canReuse(
                 "main",
-                "merged",
+                "merged-file",
                 listOf(pluginIdentity.copy(lastUpdateTime = 35L))
             )
         )
@@ -84,14 +87,15 @@ class DataInstallationStateTest {
     @Test
     fun oldStateFormatCannotBeReused() {
         val state = DataInstallationState(
-            formatVersion = 0,
+            formatVersion = 1,
             mainDescriptorSha256 = "main",
             mergedDescriptorSha256 = "merged",
+            mergedDescriptorFileSha256 = "merged-file",
             pluginPackages = listOf(pluginIdentity),
             loadedPlugins = listOf(InstalledPluginState.from(plugin))
         )
 
-        assertFalse(state.canReuse("main", "merged", listOf(pluginIdentity)))
+        assertFalse(state.canReuse("main", "merged-file", listOf(pluginIdentity)))
     }
 
     @Test
@@ -99,10 +103,11 @@ class DataInstallationStateTest {
         val state = DataInstallationState(
             mainDescriptorSha256 = "main",
             mergedDescriptorSha256 = "merged",
+            mergedDescriptorFileSha256 = "merged-file",
             pluginPackages = listOf(pluginIdentity),
             loadedPlugins = emptyList()
         )
 
-        assertFalse(state.canReuse("main", "merged", listOf(pluginIdentity)))
+        assertFalse(state.canReuse("main", "merged-file", listOf(pluginIdentity)))
     }
 }

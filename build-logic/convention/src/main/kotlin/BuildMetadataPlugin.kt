@@ -30,6 +30,11 @@ class BuildMetadataPlugin : Plugin<Project> {
                 buildConfigField("String", "BUILD_GIT_HASH", "\"${target.buildCommitHash}\"")
                 buildConfigField("long", "BUILD_TIME", target.buildTimestamp)
                 buildConfigField("String", "DATA_DESCRIPTOR_NAME", "\"${DataDescriptorPlugin.FILE_NAME}\"")
+                buildConfigField(
+                    "String",
+                    "DATA_DESCRIPTOR_FINGERPRINT_NAME",
+                    "\"${DataDescriptorPlugin.FINGERPRINT_FILE_NAME}\""
+                )
             }
         }
         target.extensions.configure<ApplicationAndroidComponentsExtension> {

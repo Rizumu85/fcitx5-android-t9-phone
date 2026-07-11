@@ -439,3 +439,8 @@ otherwise.
 - [x] Diagnose the remaining Rime-ready gap, repair shell-owned test data
   permissions, and verify that an unchanged deployment becomes ready with no
   repeated maintenance.
+- [x] Attribute the unchanged Data Installation fast path across descriptor
+  reads, PackageManager plugin discovery, installation-state loading, and
+  completion cleanup on the target phone.
+- [x] Optimize only the largest measured Data Installation operation while
+  preserving interrupted-install and plugin-update invalidation.

@@ -651,3 +651,23 @@ files to group-writable mode because Android exposes the app through the
 existing external app-data location so users can replace Rime configuration;
 the runtime does not relocate or copy compiled state to hide an unwritable
 source tree.
+
+The Data Installation Module remains fail-closed while its fast path is
+attributed. Named startup stages measure main descriptor loading, plugin package
+identity discovery, merged descriptor loading, installation-state loading, and
+completion cleanup inside the existing data-installation stage. No cached value
+is trusted or removed until the largest measured operation is known.
+
+`DataInstallationState` format 2 is the Data Installation Fingerprint Module.
+Its Interface validates four independent inputs: the build-emitted main
+descriptor identity, the exact installed merged-descriptor content digest,
+canonical plugin package identities, and restorable loaded-plugin metadata.
+The build task emits `descriptor.json.sha256` beside `descriptor.json` but
+excludes the companion from the described native hierarchy.
+
+The steady-state Adapter never decodes a `DataDescriptor`. It reads the tiny
+build fingerprint, hashes the installed descriptor stream, and decodes only the
+small installation state. The full installation Implementation remains the
+sole owner of descriptor decoding, hierarchy merge/diff, file copies, and the
+atomic completion record. Format 1 records deliberately miss the new digest
+and perform one full migration rather than receiving a compatibility fallback.

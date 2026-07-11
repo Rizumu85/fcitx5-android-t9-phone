@@ -52,18 +52,19 @@ data class DataInstallationState(
     val formatVersion: Int = CurrentFormatVersion,
     val mainDescriptorSha256: SHA256,
     val mergedDescriptorSha256: SHA256,
+    val mergedDescriptorFileSha256: SHA256 = "",
     val pluginPackages: List<PluginPackageIdentity>,
     val loadedPlugins: List<InstalledPluginState>
 ) {
     fun canReuse(
         mainDescriptorSha256: SHA256,
-        mergedDescriptorSha256: SHA256,
+        mergedDescriptorFileSha256: SHA256,
         pluginPackages: List<PluginPackageIdentity>
     ): Boolean {
         val canonicalPackages = pluginPackages.canonicalOrder()
         return formatVersion == CurrentFormatVersion &&
             this.mainDescriptorSha256 == mainDescriptorSha256 &&
-            this.mergedDescriptorSha256 == mergedDescriptorSha256 &&
+            this.mergedDescriptorFileSha256 == mergedDescriptorFileSha256 &&
             this.pluginPackages == canonicalPackages &&
             loadedPlugins.map { it.packageName } == canonicalPackages.map { it.packageName }
     }
@@ -72,16 +73,18 @@ data class DataInstallationState(
         loadedPlugins.mapTo(linkedSetOf()) { it.toDescriptor() }
 
     companion object {
-        const val CurrentFormatVersion = 1
+        const val CurrentFormatVersion = 2
 
         fun completed(
             mainDescriptorSha256: SHA256,
             mergedDescriptorSha256: SHA256,
+            mergedDescriptorFileSha256: SHA256,
             pluginPackages: List<PluginPackageIdentity>,
             loadedPlugins: Set<PluginDescriptor>
         ) = DataInstallationState(
             mainDescriptorSha256 = mainDescriptorSha256,
             mergedDescriptorSha256 = mergedDescriptorSha256,
+            mergedDescriptorFileSha256 = mergedDescriptorFileSha256,
             pluginPackages = pluginPackages.canonicalOrder(),
             loadedPlugins = loadedPlugins
                 .sortedBy { it.packageName }
