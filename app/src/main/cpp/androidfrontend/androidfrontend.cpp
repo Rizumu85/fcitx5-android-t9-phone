@@ -460,6 +460,9 @@ void AndroidFrontend::showToast(const std::string &s) {
 
 void AndroidFrontend::setCandidatePagingMode(const int mode) {
     pagingMode_ = mode;
+    // Device discovery can choose paging before Android binds an editor. Keep the policy for the
+    // first input context, but never dereference the not-yet-created context during IME startup.
+    if (!activeIC_) return;
     if (mode == 0) {
         activeIC_->updateCandidatesBulk();
     } else {
