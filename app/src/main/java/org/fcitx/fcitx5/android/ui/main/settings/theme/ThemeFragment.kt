@@ -10,6 +10,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
+import android.widget.FrameLayout
 import androidx.annotation.Keep
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -85,13 +86,22 @@ class ThemeFragment : Fragment() {
             )
         }.attach()
 
+        // The preview is transform-scaled, so its visual bounds cannot constrain
+        // siblings. Keep the tab's drawing bounds below the page hint instead of
+        // padding the tab itself, which still allowed the two views to paint over
+        // each other during a full redraw.
+        val tabContainer = FrameLayout(this).apply {
+            setPadding(0, dp(32), 0, 0)
+            addView(tabLayout, FrameLayout.LayoutParams(matchParent, wrapContent))
+        }
+
         val previewWrapper = constraintLayout {
             add(preview, lParams(wrapContent, wrapContent) {
                 topOfParent(dp(-52))
                 startOfParent()
                 endOfParent()
             })
-            add(tabLayout, lParams(matchParent, wrapContent) {
+            add(tabContainer, lParams(matchParent, wrapContent) {
                 centerHorizontally()
                 bottomOfParent()
             })

@@ -157,6 +157,9 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
 
         override fun onAttachedToWindow() {
             super.onAttachedToWindow()
+            // Build the hint after the first layout so the initial page advertises
+            // the swipe affordance before the user has interacted with the pager.
+            post { updatePageIndicator(previewPager.currentItem) }
             recalculateSize()
             onSizeMeasured?.invoke(intrinsicWidth, intrinsicHeight)
             ThemeManager.prefs.registerOnChangeListener(previewPreferenceListener)
