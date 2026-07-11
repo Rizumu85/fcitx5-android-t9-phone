@@ -419,7 +419,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (isChineseT9InputModeActive() || !inputDeviceMgr.isVirtualKeyboard) 1 else 0
 
     fun isChineseT9InputModeActive(): Boolean =
-        t9InputModeEnabled && currentT9Mode == T9InputMode.CHINESE
+        currentT9Mode == T9InputMode.CHINESE
 
     fun getChineseT9Scheme(): ChineseT9Scheme = activeChineseT9Scheme
 
@@ -430,7 +430,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private suspend fun FcitxAPI.enforceHalfWidthForT9() {
-        if (!t9InputModeEnabled) return
         val fullwidthAction = statusArea().firstOrNull {
             it.name == "fullwidth" &&
                 (it.icon == "fcitx-fullwidth-active" || it.isChecked)
@@ -445,7 +444,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
      * shrink-unresolved-suffix path (caller still forwards the backspace to fcitx/Rime).
      */
     suspend fun handleVirtualT9Backspace(fcitx: FcitxAPI): Boolean {
-        if (!t9InputModeEnabled || currentT9Mode != T9InputMode.CHINESE) return false
+        if (currentT9Mode != T9InputMode.CHINESE) return false
         if (shouldReopenLastResolvedSegment()) {
             val consumed = popLastResolvedSegment(fcitx)
             if (consumed) refreshT9UiOnMain()
@@ -539,9 +538,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var physicalKeySound = keyboardPrefs.physicalKeySound.getValue()
 
     @Volatile
-    private var t9InputModeEnabled = keyboardPrefs.useT9KeyboardLayout.getValue()
-
-    @Volatile
     private var physicalLongPressDelay = keyboardPrefs.longPressDelay.getValue()
 
     @Volatile
@@ -560,10 +556,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private val physicalKeySoundChangeListener =
         ManagedPreference.OnChangeListener<Boolean> { _, value ->
             physicalKeySound = value
-        }
-    private val t9InputModeEnabledChangeListener =
-        ManagedPreference.OnChangeListener<Boolean> { _, value ->
-            t9InputModeEnabled = value
         }
     private val smartEnglishT9ChangeListener =
         ManagedPreference.OnChangeListener<Boolean> { _, value ->
@@ -751,7 +743,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             passwordInputPreviewEnabledChangeListener
         )
         keyboardPrefs.physicalKeySound.registerOnChangeListener(physicalKeySoundChangeListener)
-        keyboardPrefs.useT9KeyboardLayout.registerOnChangeListener(t9InputModeEnabledChangeListener)
         keyboardPrefs.smartEnglishT9.registerOnChangeListener(smartEnglishT9ChangeListener)
         keyboardPrefs.longPressDelay.registerOnChangeListener(physicalLongPressDelayChangeListener)
         keyboardPrefs.idleLongZeroBehavior.registerOnChangeListener(
@@ -901,7 +892,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     private fun handleBackspaceKey() {
         invalidateNumberExpressionForInput()
-        if (t9InputModeEnabled && currentT9Mode == T9InputMode.CHINESE) {
+        if (currentT9Mode == T9InputMode.CHINESE) {
             chineseT9Composition.backspaceFromVirtualKey()
         }
         val lastSelection = selection.latest
@@ -1252,7 +1243,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     ): Boolean {
         if (deletingCollapsedSelection) return false
         if (physicalSelectionMode || physicalSelectionRangeActive) return false
-        if (!t9InputModeEnabled || inputDeviceMgr.isVirtualKeyboard) return false
+        if (inputDeviceMgr.isVirtualKeyboard) return false
         if (oldSelStart == oldSelEnd || newSelStart != newSelEnd) return false
 
         val now = SystemClock.uptimeMillis()
@@ -1624,23 +1615,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
         // When using virtual keyboard OR T9 input mode (physical T9 phone with on-screen control bar),
         // make the area of keyboardView touchable so it can receive tap events.
-        if (
-            inputDeviceMgr.isVirtualKeyboard ||
-            t9InputModeEnabled ||
-            inputView?.isTemporaryPasswordKeyboardVisible() == true
-        ) {
+        run {
             inputView?.keyboardView?.getLocationInWindow(inputViewLocation)
             outInsets.apply {
                 contentTopInsets = inputViewLocation[1]
                 visibleTopInsets = inputViewLocation[1]
-                touchableInsets = Insets.TOUCHABLE_INSETS_VISIBLE
-            }
-        } else {
-            val n = decorView.findViewById<View>(android.R.id.navigationBarBackground)?.height ?: 0
-            val h = decorView.height - n
-            outInsets.apply {
-                contentTopInsets = h
-                visibleTopInsets = h
                 touchableInsets = Insets.TOUCHABLE_INSETS_VISIBLE
             }
         }
@@ -2085,7 +2064,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         t9PunctuationCoordinator.moveSelection(index)
 
     private fun isSmartEnglishT9Active(): Boolean =
-        t9InputModeEnabled && currentT9Mode == T9InputMode.ENGLISH && smartEnglishModeController.enabled
+        currentT9Mode == T9InputMode.ENGLISH && smartEnglishModeController.enabled
 
     fun isSmartEnglishT9InputModeActive(): Boolean = isSmartEnglishT9Active()
 
@@ -2160,8 +2139,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun invalidateNumberExpressionForInput() {
-        if (t9InputModeEnabled &&
-            currentT9Mode == T9InputMode.NUMBER &&
+        if (currentT9Mode == T9InputMode.NUMBER &&
             numberModeControllerDelegate.isInitialized()
         ) {
             numberModeController.invalidatePendingEvaluation()
@@ -2185,7 +2163,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         cachedKeyEvents.put(timestamp, event)
         val sym = KeySym.fromKeyEvent(event)
         if (sym != null) {
-            if (t9InputModeEnabled && currentT9Mode == T9InputMode.CHINESE && event.action == KeyEvent.ACTION_DOWN) {
+            if (currentT9Mode == T9InputMode.CHINESE && event.action == KeyEvent.ACTION_DOWN) {
                 when (chineseT9Composition.handleForwardedKeyDown(event.keyCode)) {
                     ChineseT9CompositionLifecycle.ForwardedKeyAction.NONE -> Unit
                     ChineseT9CompositionLifecycle.ForwardedKeyAction.REFRESH_AFTER_ENGINE_CANDIDATES ->
@@ -2199,7 +2177,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             val send: suspend FcitxAPI.() -> Unit = {
                 sendKey(sym, states, event.scanCode, up, timestamp)
             }
-            if (t9InputModeEnabled && currentT9Mode == T9InputMode.CHINESE) {
+            if (currentT9Mode == T9InputMode.CHINESE) {
                 chineseT9EngineOperation.enqueue(send)
             } else {
                 postFcitxJob(send)
@@ -2242,7 +2220,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     /** Scheme-owned reading options for the compact top candidate row. */
     fun getT9ReadingCandidates(): List<String> =
-        if (t9InputModeEnabled && currentT9Mode == T9InputMode.CHINESE) {
+        if (currentT9Mode == T9InputMode.CHINESE) {
             chineseT9Composition.readingCandidates()
         } else {
             emptyList()
@@ -2272,7 +2250,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     /** Preedit for the shared T9 display row; null if there is nothing to show. */
     fun getT9PreeditDisplay(rawComposition: String? = null): FormattedText? {
-        if (!t9InputModeEnabled) return null
         return when (currentT9Mode) {
             T9InputMode.CHINESE -> chineseT9Composition.preeditDisplay(rawComposition)
             T9InputMode.ENGLISH -> {
@@ -2283,7 +2260,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     fun getT9PresentationState(key: ChineseT9PresentationSnapshotKey): T9PresentationState {
-        if (!t9InputModeEnabled || currentT9Mode != T9InputMode.CHINESE) {
+        if (currentT9Mode != T9InputMode.CHINESE) {
             return T9PresentationState(null, emptyList())
         }
         return chineseT9Composition.presentation(key)
@@ -2299,7 +2276,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         chineseT9Composition.shouldConsumeResolvedPrefixAfterCandidate(prefix, candidate)
 
     fun consumeT9ResolvedPinyinPrefix(prefix: String): Boolean {
-        if (!t9InputModeEnabled || currentT9Mode != T9InputMode.CHINESE) return false
+        if (currentT9Mode != T9InputMode.CHINESE) return false
         val rawPreedit = chineseT9Composition.consumeResolvedPrefix(prefix) ?: return false
         candidatesView?.prepareForT9CompositionReplay()
         inputView?.clearTransientState()
@@ -2361,7 +2338,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     fun consumeT9ReadingFromSelectedCandidate(candidate: FcitxEvent.Candidate): Boolean {
-        if (!t9InputModeEnabled || currentT9Mode != T9InputMode.CHINESE) return false
+        if (currentT9Mode != T9InputMode.CHINESE) return false
         if (!chineseT9Composition.consumeSelectedCandidateReading(candidate)) return false
         candidatesView?.refreshT9Ui()
         return true
@@ -2389,7 +2366,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun routeNumberTransientPanelKeyDown(
         input: PhysicalInputRouter.Input
     ): PhysicalInputRouter.Result? {
-        if (!t9InputModeEnabled || currentT9Mode != T9InputMode.NUMBER) return null
+        if (currentT9Mode != T9InputMode.NUMBER) return null
         // Repeats belong to the same held key; invalidating them would cancel the result that
         // the first long-press repeat just requested.
         if (input.event.action == KeyEvent.ACTION_DOWN && input.event.repeatCount == 0) {
@@ -2849,7 +2826,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (newSelStart != newSelEnd) return
         // do reset if composing is empty && input panel is not empty
         if (composing.isEmpty()) {
-            if (t9InputModeEnabled && currentT9Mode == T9InputMode.CHINESE) {
+            if (currentT9Mode == T9InputMode.CHINESE) {
                 clearT9CompositionState()
                 clearTransientInputUiState()
                 currentInputConnection?.finishComposingText()
@@ -3083,7 +3060,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             passwordInputPreviewEnabledChangeListener
         )
         keyboardPrefs.physicalKeySound.unregisterOnChangeListener(physicalKeySoundChangeListener)
-        keyboardPrefs.useT9KeyboardLayout.unregisterOnChangeListener(t9InputModeEnabledChangeListener)
         keyboardPrefs.smartEnglishT9.unregisterOnChangeListener(smartEnglishT9ChangeListener)
         keyboardPrefs.longPressDelay.unregisterOnChangeListener(physicalLongPressDelayChangeListener)
         keyboardPrefs.idleLongZeroBehavior.unregisterOnChangeListener(

@@ -245,7 +245,6 @@ class InputView(
     private val keyboardHeightPercentLandscape = keyboardPrefs.keyboardHeightPercentLandscape
     private val t9KeyboardHeightPercent = keyboardPrefs.t9KeyboardHeightPercent
     private val t9KeyboardHeightPercentLandscape = keyboardPrefs.t9KeyboardHeightPercentLandscape
-    private val useT9KeyboardLayout by keyboardPrefs.useT9KeyboardLayout
     private var isT9KeyboardActive = false
     private val keyboardSidePadding = keyboardPrefs.keyboardSidePadding
     private val keyboardSidePaddingLandscape = keyboardPrefs.keyboardSidePaddingLandscape
@@ -351,9 +350,9 @@ class InputView(
         windowManager.addLazyEssentialWindow(PickerWindow.Key.Emoticon, ::emoticonPicker)
 
         // 1. Initialize T9 state and set callbacks before attachWindow so onAttached → onLayoutChanged is ready
-        isT9KeyboardActive = useT9KeyboardLayout
+        isT9KeyboardActive = true
         keyboardWindow.onLayoutChanged = { layoutName ->
-            val shouldBeT9 = useT9KeyboardLayout && layoutName == T9Keyboard.Name
+            val shouldBeT9 = layoutName == T9Keyboard.Name
             if (isT9KeyboardActive != shouldBeT9) {
                 isT9KeyboardActive = shouldBeT9
                 updateKeyboardSize()
@@ -370,7 +369,7 @@ class InputView(
                 // 离开键盘窗口 → 用默认高度 40/45
                 isT9KeyboardActive = false
                 updateKeyboardSize()
-            } else if (newWindow === keyboardWindow && useT9KeyboardLayout && keyboardWindow.isCurrentLayoutT9()) {
+            } else if (newWindow === keyboardWindow && keyboardWindow.isCurrentLayoutT9()) {
                 // 回到键盘窗口 → 恢复 T9 高度 10/15
                 if (!isT9KeyboardActive) {
                     isT9KeyboardActive = true
@@ -532,7 +531,7 @@ class InputView(
         returnKeyDrawable.updateDrawableOnEditorInfo(info)
         windowManager.attachWindow(KeyboardWindow)
         // Re-entering an editor restores T9 geometry because detach clears the active callback.
-        if (useT9KeyboardLayout && keyboardWindow.isCurrentLayoutT9() && !isT9KeyboardActive) {
+        if (keyboardWindow.isCurrentLayoutT9() && !isT9KeyboardActive) {
             isT9KeyboardActive = true
             updateKeyboardSize()
         }

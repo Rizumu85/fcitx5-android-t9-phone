@@ -348,7 +348,6 @@ class T9CandidateUiStateBuilderTest {
         currentFocus: T9CandidateFocus = T9CandidateFocus.BOTTOM
     ): T9CandidateUiInputSnapshot =
         T9CandidateUiInputSnapshot(
-            t9InputModeEnabled = true,
             inputPanel = FcitxEvent.InputPanelEvent.Data(),
             rawPaged = rawPaged,
             orientation = FloatingCandidatesOrientation.Horizontal,

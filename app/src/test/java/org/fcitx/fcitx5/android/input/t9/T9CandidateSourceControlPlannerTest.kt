@@ -17,7 +17,6 @@ class T9CandidateSourceControlPlannerTest {
         assertEquals(
             T9CandidateSourceControlPlanner.Surface.CHINESE,
             T9CandidateSourceControlPlanner.surface(
-                t9InputModeEnabled = true,
                 chineseActive = true,
                 smartEnglishActive = true
             )
@@ -25,13 +24,12 @@ class T9CandidateSourceControlPlannerTest {
     }
 
     @Test
-    fun disabledT9UsesOtherSurface() {
+    fun inactiveInputsUseOtherSurface() {
         assertEquals(
             T9CandidateSourceControlPlanner.Surface.OTHER,
             T9CandidateSourceControlPlanner.surface(
-                t9InputModeEnabled = false,
-                chineseActive = true,
-                smartEnglishActive = true
+                chineseActive = false,
+                smartEnglishActive = false
             )
         )
     }

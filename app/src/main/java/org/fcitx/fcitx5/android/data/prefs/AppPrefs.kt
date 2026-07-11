@@ -210,18 +210,12 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         )
         val spaceSwipeMoveCursor =
             switch(R.string.space_swipe_move_cursor, "space_swipe_move_cursor", true)
-        // Historical key name kept for preference compatibility; semantically this enables
-        // the whole T9 input mode, not only the visual keyboard layout.
-        val useT9KeyboardLayout =
-            switch(R.string.use_t9_keyboard_layout, "use_t9_keyboard_layout", true)
         val smartEnglishT9 =
             switch(
                 R.string.smart_english_t9,
                 "smart_english_t9",
                 BuildConfig.PERFORMANCE_HARNESS
-            ) {
-                useT9KeyboardLayout.getValue()
-            }
+            )
 
         val t9KeyboardHeightPercent: ManagedPreference.PInt
         val t9KeyboardHeightPercentLandscape: ManagedPreference.PInt
@@ -238,7 +232,7 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
                 5,
                 50,
                 "%"
-            ) { useT9KeyboardLayout.getValue() }
+            )
             t9KeyboardHeightPercent = primary
             t9KeyboardHeightPercentLandscape = secondary
         }

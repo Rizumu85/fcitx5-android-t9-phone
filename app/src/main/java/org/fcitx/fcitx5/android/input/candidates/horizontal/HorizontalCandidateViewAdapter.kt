@@ -10,8 +10,6 @@ import android.view.ViewGroup
 import androidx.annotation.CallSuper
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.flexbox.FlexboxLayoutManager
-import org.fcitx.fcitx5.android.data.prefs.AppPrefs
-import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.candidates.CandidateItemUi
 import org.fcitx.fcitx5.android.input.candidates.CandidateViewHolder
@@ -25,20 +23,6 @@ open class HorizontalCandidateViewAdapter(val theme: Theme) :
 
     init {
         setHasStableIds(true)
-    }
-
-    private val t9InputModeEnabledPref = AppPrefs.getInstance().keyboard.useT9KeyboardLayout
-
-    @Volatile
-    private var t9InputModeEnabled = t9InputModeEnabledPref.getValue()
-
-    private val t9InputModeEnabledChangeListener =
-        ManagedPreference.OnChangeListener<Boolean> { _, value ->
-            t9InputModeEnabled = value
-        }
-
-    init {
-        t9InputModeEnabledPref.registerOnChangeListener(t9InputModeEnabledChangeListener)
     }
 
     var candidates: Array<String> = arrayOf()
@@ -75,7 +59,6 @@ open class HorizontalCandidateViewAdapter(val theme: Theme) :
      * For Chinese characters, we extract just the first characters before the space.
      */
     private fun stripComment(text: String): String {
-        if (!t9InputModeEnabled) return text
         // Find the first space that separates text from comment
         val spaceIndex = text.indexOf(' ')
         return if (spaceIndex > 0) text.substring(0, spaceIndex) else text

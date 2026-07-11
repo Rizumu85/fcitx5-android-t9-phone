@@ -7,12 +7,8 @@ package org.fcitx.fcitx5.android.input
 
 import android.text.InputType
 import android.view.KeyEvent
-import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
-import org.fcitx.fcitx5.android.data.prefs.AppPrefs
-import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
-import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesMode
 import org.fcitx.fcitx5.android.utils.isTypeNull
 
 class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
@@ -20,64 +16,30 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
     private var inputView: InputView? = null
     private var candidatesView: CandidatesView? = null
 
-    private val prefs = AppPrefs.getInstance()
-
-    @Volatile
-    private var t9InputModeEnabled = prefs.keyboard.useT9KeyboardLayout.getValue()
-
-    @Volatile
-    private var candidatesViewMode = prefs.candidates.mode.getValue()
-
-    private val t9InputModeEnabledChangeListener =
-        ManagedPreference.OnChangeListener<Boolean> { _, value ->
-            t9InputModeEnabled = value
-        }
-
-    private val candidatesViewModeChangeListener =
-        ManagedPreference.OnChangeListener<FloatingCandidatesMode> { _, value ->
-            candidatesViewMode = value
-        }
-
-    init {
-        prefs.keyboard.useT9KeyboardLayout.registerOnChangeListener(
-            t9InputModeEnabledChangeListener
-        )
-        prefs.candidates.mode.registerOnChangeListener(candidatesViewModeChangeListener)
-    }
-
-    private fun setupInputViewEvents(isVirtual: Boolean) {
+    private fun setupInputViewEvents() {
         val iv = inputView ?: return
         if (isDialerField) {
             iv.handleEvents = false
             iv.visibility = View.GONE
             return
         }
-        // Enable InputView interaction when using virtual keyboard
-        // OR when T9 input mode is enabled for physical keyboard users.
-        val enableInputView = isVirtual || t9InputModeEnabled
-        iv.handleEvents = enableInputView
-        iv.visibility = if (enableInputView) View.VISIBLE else View.GONE
+        iv.handleEvents = true
+        iv.visibility = View.VISIBLE
     }
 
-    private fun setupCandidatesViewEvents(isVirtual: Boolean) {
+    private fun setupCandidatesViewEvents() {
         val cv = candidatesView ?: return
         if (isDialerField) {
             cv.handleEvents = false
             cv.visibility = View.GONE
             return
         }
-        val useFloatingCandidates = !isVirtual || t9InputModeEnabled
-        cv.handleEvents = useFloatingCandidates
-        // hide CandidatesView when entering virtual keyboard mode,
-        // but preserve the visibility when entering physical keyboard mode (in case it's empty)
-        if (!useFloatingCandidates) {
-            cv.visibility = View.GONE
-        }
+        cv.handleEvents = true
     }
 
-    private fun setupViewEvents(isVirtual: Boolean) {
-        setupInputViewEvents(isVirtual)
-        setupCandidatesViewEvents(isVirtual)
+    private fun setupViewEvents() {
+        setupInputViewEvents()
+        setupCandidatesViewEvents()
     }
 
     var isVirtualKeyboard = true
@@ -86,7 +48,7 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
                 return
             }
             field = value
-            setupViewEvents(value)
+            setupViewEvents()
             // fire change AFTER updating InputView(s),
             // make the view(s) ready for incoming events during `onChange`
             onChange(value)
@@ -94,12 +56,12 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
 
     fun setInputView(inputView: InputView) {
         this.inputView = inputView
-        setupInputViewEvents(this.isVirtualKeyboard)
+        setupInputViewEvents()
     }
 
     fun setCandidatesView(candidatesView: CandidatesView) {
         this.candidatesView = candidatesView
-        setupCandidatesViewEvents(this.isVirtualKeyboard)
+        setupCandidatesViewEvents()
     }
 
     private var startedInputView = false
@@ -117,7 +79,7 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
         isNullInputType = attribute.isTypeNull()
         isDialerField = isPhoneDialer(attribute)
         startedInputSession = !isDialerField && !isNullInputType
-        setupViewEvents(isVirtualKeyboard)
+        setupViewEvents()
     }
 
     /**
@@ -132,18 +94,14 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
             startedInputView = false
             startedInputSession = false
             isNullInputType = info.isTypeNull()
-            setupViewEvents(isVirtualKeyboard)
+            setupViewEvents()
             service.requestHideSelf(0)
             return false
         }
         startedInputView = true
         startedInputSession = true
         isNullInputType = info.isTypeNull()
-        isVirtualKeyboard = if (t9InputModeEnabled) false else when (candidatesViewMode) {
-            FloatingCandidatesMode.SystemDefault -> service.superEvaluateInputViewShown()
-            FloatingCandidatesMode.InputDevice -> isVirtualKeyboard
-            FloatingCandidatesMode.Disabled -> true
-        }
+        isVirtualKeyboard = false
         return isVirtualKeyboard
     }
 
@@ -179,32 +137,15 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
     }
 
     private fun evaluateOnKeyDownInner(service: FcitxInputMethodService) {
-        isVirtualKeyboard = if (t9InputModeEnabled) false else when (candidatesViewMode) {
-            FloatingCandidatesMode.SystemDefault -> service.superEvaluateInputViewShown()
-            FloatingCandidatesMode.InputDevice -> false
-            FloatingCandidatesMode.Disabled -> true
-        }
+        isVirtualKeyboard = false
     }
 
     fun evaluateOnViewClicked(service: FcitxInputMethodService) {
         if (!startedInputView) return
-        if (t9InputModeEnabled) return
-        isVirtualKeyboard = when (candidatesViewMode) {
-            FloatingCandidatesMode.SystemDefault -> service.superEvaluateInputViewShown()
-            else -> true
-        }
     }
 
     fun evaluateOnUpdateEditorToolType(toolType: Int, service: FcitxInputMethodService) {
         if (!startedInputView) return
-        if (t9InputModeEnabled) return
-        isVirtualKeyboard = when (candidatesViewMode) {
-            FloatingCandidatesMode.SystemDefault -> service.superEvaluateInputViewShown()
-            FloatingCandidatesMode.InputDevice ->
-                // switch to virtual keyboard on touch screen events, otherwise preserve current mode
-                if (toolType == MotionEvent.TOOL_TYPE_FINGER || toolType == MotionEvent.TOOL_TYPE_STYLUS) true else isVirtualKeyboard
-            FloatingCandidatesMode.Disabled -> true
-        }
     }
 
     /**
@@ -217,12 +158,12 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
 
     fun onFinishInputView() {
         startedInputView = false
-        setupViewEvents(isVirtualKeyboard)
+        setupViewEvents()
     }
 
     fun onFinishInput() {
         startedInputSession = false
         isDialerField = false
-        setupViewEvents(isVirtualKeyboard)
+        setupViewEvents()
     }
 }

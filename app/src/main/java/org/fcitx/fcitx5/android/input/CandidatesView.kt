@@ -26,7 +26,6 @@ import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.daemon.FcitxConnection
 import org.fcitx.fcitx5.android.daemon.launchOnReady
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
-import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrientation
 import org.fcitx.fcitx5.android.input.candidates.floating.PagedCandidatesUi
@@ -93,18 +92,6 @@ class CandidatesView(
     private val candidateItemSpacing by candidatesPrefs.candidateItemSpacing
     private val t9TopBottomRowRatioPercent by candidatesPrefs.t9TopBottomRowRatioPercent
     private val t9HanziCharacterBudget by candidatesPrefs.t9HanziCharacterBudget
-
-    @Volatile
-    private var t9InputModeEnabled = prefs.keyboard.useT9KeyboardLayout.getValue()
-
-    private val t9InputModeEnabledChangeListener =
-        ManagedPreference.OnChangeListener<Boolean> { _, value ->
-            t9InputModeEnabled = value
-        }
-
-    init {
-        prefs.keyboard.useT9KeyboardLayout.registerOnChangeListener(t9InputModeEnabledChangeListener)
-    }
 
     private var inputPanel = FcitxEvent.InputPanelEvent.Data()
     private var paged = FcitxEvent.PagedCandidateEvent.Data.Empty
@@ -815,8 +802,7 @@ class CandidatesView(
 
     private fun buildT9CandidateUiState(): T9CandidateUiSnapshot? {
         val chineseT9Active = service.isChineseT9InputModeActive()
-        val smartEnglishActive = t9InputModeEnabled &&
-            !chineseT9Active &&
+        val smartEnglishActive = !chineseT9Active &&
             service.isSmartEnglishT9InputModeActive()
         val smartEnglishSnapshot = if (smartEnglishActive) {
             service.getSmartEnglishT9Snapshot()
@@ -827,7 +813,6 @@ class CandidatesView(
         // pipeline decides from a stable picture instead of interleaving getters with UI rules.
         return t9CandidateUiSnapshotPipeline.build(
             T9CandidateUiInputSnapshot(
-                t9InputModeEnabled = t9InputModeEnabled,
                 inputPanel = inputPanel,
                 rawPaged = paged,
                 orientation = orientation,
@@ -900,10 +885,10 @@ class CandidatesView(
     }
 
     private fun requestT9BulkFilteredCandidatesIfNeeded(
-        t9InputModeEnabled: Boolean,
+        chineseT9Active: Boolean,
         prefixes: List<String>
     ) {
-        if (!t9InputModeEnabled) {
+        if (!chineseT9Active) {
             resetT9BulkFilterState()
             return
         }

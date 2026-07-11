@@ -11,7 +11,6 @@ import org.fcitx.fcitx5.android.core.TextFormatFlag
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrientation
 
 data class T9CandidateUiInputSnapshot(
-    val t9InputModeEnabled: Boolean,
     val inputPanel: FcitxEvent.InputPanelEvent.Data,
     val rawPaged: FcitxEvent.PagedCandidateEvent.Data,
     val orientation: FloatingCandidatesOrientation,
@@ -109,9 +108,8 @@ class T9CandidateUiStateBuilder(
     fun build(input: T9CandidateUiInputSnapshot): T9CandidateUiSnapshot? =
         T9ResponsivenessTrace.measure("CandidatesView.updateUi.buildState") {
             val surface = T9CandidateSourceControlPlanner.surface(
-                t9InputModeEnabled = input.t9InputModeEnabled,
                 chineseActive = input.chineseT9Active,
-                smartEnglishActive = if (input.t9InputModeEnabled && !input.chineseT9Active) {
+                smartEnglishActive = if (!input.chineseT9Active) {
                     input.smartEnglishActive
                 } else {
                     false

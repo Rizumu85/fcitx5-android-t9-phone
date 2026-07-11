@@ -60,13 +60,12 @@ object T9CandidateSourceControlPlanner {
     }
 
     fun surface(
-        t9InputModeEnabled: Boolean,
         chineseActive: Boolean,
         smartEnglishActive: Boolean
     ): Surface =
         when {
-            t9InputModeEnabled && chineseActive -> Surface.CHINESE
-            t9InputModeEnabled && !chineseActive && smartEnglishActive -> Surface.SMART_ENGLISH
+            chineseActive -> Surface.CHINESE
+            smartEnglishActive -> Surface.SMART_ENGLISH
             else -> Surface.OTHER
         }
 

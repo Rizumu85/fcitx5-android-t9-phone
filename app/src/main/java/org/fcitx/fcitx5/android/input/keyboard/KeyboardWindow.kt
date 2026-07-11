@@ -126,8 +126,7 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
         rootView.apply {
             add(keyboardView, lParams(matchParent, matchParent))
         }
-        val initialLayout = if (useT9KeyboardLayout) T9Keyboard.Name else TextKeyboard.Name
-        attachLayout(initialLayout)
+        attachLayout(T9Keyboard.Name)
         updatePasswordPeekViews()
         return rootView
     }
@@ -191,14 +190,12 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
 
     fun switchLayout(
         to: String,
-        remember: Boolean = true,
-        allowTextKeyboardInT9Mode: Boolean = false
+        remember: Boolean = true
     ) {
-        val defaultMainKeyboard = if (useT9KeyboardLayout) T9Keyboard.Name else TextKeyboard.Name
         val requestedTarget = when {
             to.isNotEmpty() -> to
             supportsLayout(lastSymbolType) -> lastSymbolType
-            else -> defaultMainKeyboard
+            else -> T9Keyboard.Name
         }
         val target = if (temporaryTextKeyboard && requestedTarget == TextKeyboard.Name) {
             TemporaryFullKeyboard.Name
@@ -218,7 +215,7 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
             bar.onPasswordModeExited()
             restoreInputMethodBeforeTemporary()
         }
-        val resolvedTarget = if (target == TextKeyboard.Name && useT9KeyboardLayout && !allowTextKeyboardInT9Mode) {
+        val resolvedTarget = if (target == TextKeyboard.Name) {
             T9Keyboard.Name
         } else {
             target
@@ -243,7 +240,6 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
         }
     }
 
-    private val useT9KeyboardLayout by AppPrefs.getInstance().keyboard.useT9KeyboardLayout
     private enum class TemporaryTextKeyboardSource {
         Manual,
         AutomaticPassword
@@ -367,13 +363,7 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
             bar.onPasswordModeExited()
             restoreInputMethodBeforeTemporary(restoreCapabilityFlags)
         }
-        val targetLayout = if (enabled) {
-            TemporaryFullKeyboard.Name
-        } else if (useT9KeyboardLayout) {
-            T9Keyboard.Name
-        } else {
-            TextKeyboard.Name
-        }
+        val targetLayout = if (enabled) TemporaryFullKeyboard.Name else T9Keyboard.Name
         switchLayout(
             targetLayout,
             remember = false
@@ -552,11 +542,7 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
         val targetLayout = when (info.inputType and InputType.TYPE_MASK_CLASS) {
             InputType.TYPE_CLASS_NUMBER -> NumberKeyboard.Name
             InputType.TYPE_CLASS_PHONE -> NumberKeyboard.Name
-            else -> if (useT9KeyboardLayout) {
-                T9Keyboard.Name
-            } else {
-                TextKeyboard.Name
-            }
+            else -> T9Keyboard.Name
         }
         switchLayout(targetLayout, remember = false)
     }
