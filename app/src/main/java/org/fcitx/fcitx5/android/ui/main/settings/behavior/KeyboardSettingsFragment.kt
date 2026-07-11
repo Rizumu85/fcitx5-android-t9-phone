@@ -17,6 +17,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.RadioButton
 import android.widget.ScrollView
+import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -55,7 +56,6 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
     private var pendingPackUri: Uri? = null
     private var pendingPackFileName = ""
     private var packPreference: Preference? = null
-    private var importPreference: Preference? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -101,32 +101,7 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
             }
         }
         packPreference = managePreference
-        val importPreference = Preference(context).apply {
-            key = "key_sound_pack_import"
-            isIconSpaceReserved = false
-            isSingleLineTitle = false
-            setTitle(R.string.key_sound_pack_import)
-            setSummary(R.string.key_sound_pack_import_summary)
-            setOnPreferenceClickListener {
-                soundPackLauncher.launch("*/*")
-                true
-            }
-        }
-        this.importPreference = importPreference
-        val previewPreference = Preference(context).apply {
-            key = "key_sound_preview"
-            isIconSpaceReserved = false
-            isSingleLineTitle = false
-            setTitle(R.string.key_sound_preview)
-            setSummary(R.string.key_sound_preview_summary)
-            setOnPreferenceClickListener {
-                showKeySoundPreviewDialog()
-                true
-            }
-        }
-        screen.addAfter(keyboardPrefs.soundOnKeyPressVolume.key, managePreference)
-        screen.addAfter(managePreference.key, importPreference)
-        screen.addAfter(importPreference.key, previewPreference)
+        screen.addAfter(keyboardPrefs.soundOnKeyPress.key, managePreference)
 
         val productSettingKeys = setOf(
             keyboardPrefs.hapticOnKeyPress.key,
@@ -139,9 +114,7 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
             keyboardPrefs.longPressDelay.key,
             keyboardPrefs.t9KeyboardHeightPercent.key,
             "toolbar_buttons_manage",
-            "key_sound_pack_manage",
-            "key_sound_pack_import",
-            "key_sound_preview"
+            "key_sound_pack_manage"
         )
         // The product settings page exposes physical T9 controls only. Full-keyboard geometry and
         // gesture preferences are implementation details of temporary fallback keyboards.
@@ -248,6 +221,33 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
                 LinearLayout(context).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(0, context.dp(8), 0, context.dp(8))
+                    addView(context.soundVolumeControl())
+                    addView(TextView(context).apply {
+                        setText(R.string.key_sound_preview)
+                        textAppearance = context.resolveThemeAttribute(android.R.attr.textAppearanceListItem)
+                        setPaddingRelative(context.dp(24), context.dp(14), context.dp(24), context.dp(4))
+                    })
+                    addView(
+                        context.previewRow(
+                            R.string.key_sound_preview_standard,
+                            R.drawable.ic_baseline_keyboard_24,
+                            InputFeedbacks.SoundEffect.Standard
+                        )
+                    )
+                    addView(
+                        context.previewRow(
+                            R.string.key_sound_preview_space,
+                            R.drawable.ic_baseline_space_bar_24,
+                            InputFeedbacks.SoundEffect.SpaceBar
+                        )
+                    )
+                    addView(
+                        context.previewRow(
+                            R.string.key_sound_preview_delete,
+                            R.drawable.ic_baseline_backspace_24,
+                            InputFeedbacks.SoundEffect.Delete
+                        )
+                    )
                     UserKeySoundPack.listPacks(context).forEach { pack ->
                         addView(
                             context.soundPackRow(
@@ -326,42 +326,41 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
 
     private fun refreshKeySoundPackSummaries(context: Context) {
         packPreference?.summary = UserKeySoundPack.displayNameOrDefault(context)
-        importPreference?.setSummary(R.string.key_sound_pack_import_summary)
     }
 
-    private fun showKeySoundPreviewDialog() {
-        val context = requireContext()
-        val content = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, context.dp(8), 0, context.dp(4))
-            addView(
-                context.previewRow(
-                    R.string.key_sound_preview_standard,
-                    R.drawable.ic_baseline_keyboard_24,
-                    InputFeedbacks.SoundEffect.Standard
-                )
-            )
-            addView(
-                context.previewRow(
-                    R.string.key_sound_preview_space,
-                    R.drawable.ic_baseline_space_bar_24,
-                    InputFeedbacks.SoundEffect.SpaceBar
-                )
-            )
-            addView(
-                context.previewRow(
-                    R.string.key_sound_preview_delete,
-                    R.drawable.ic_baseline_backspace_24,
-                    InputFeedbacks.SoundEffect.Delete
-                )
-            )
+    private fun Context.soundVolumeControl() = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPaddingRelative(dp(24), dp(8), dp(24), dp(8))
+        val value = TextView(context)
+        fun updateLabel(progress: Int) {
+            value.text = if (progress == 0) {
+                getString(R.string.system_default)
+            } else {
+                "$progress%"
+            }
         }
+        addView(TextView(context).apply {
+            setText(R.string.button_sound_volume)
+            textAppearance = context.resolveThemeAttribute(android.R.attr.textAppearanceListItem)
+        })
+        addView(value)
+        addView(SeekBar(context).apply {
+            max = 100
+            progress = keyboardPrefs.soundOnKeyPressVolume.getValue()
+            updateLabel(progress)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    updateLabel(progress)
+                    if (fromUser) {
+                        keyboardPrefs.soundOnKeyPressVolume.setValue(progress)
+                        InputFeedbacks.syncSystemPrefs()
+                    }
+                }
 
-        AlertDialog.Builder(context)
-            .setTitle(R.string.key_sound_preview)
-            .setView(content)
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        })
     }
 
     private fun Context.soundPackRow(
