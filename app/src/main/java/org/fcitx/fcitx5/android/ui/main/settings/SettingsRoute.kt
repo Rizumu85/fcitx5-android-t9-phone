@@ -221,7 +221,7 @@ sealed class SettingsRoute : Parcelable {
             fragment<InputOptionsSettingsFragment, InputOptions> {
                 label = ctx.getString(R.string.input_options)
             }
-            fragment<KeysAndToolbarSettingsFragment, KeysAndToolbar> {
+            fragment<KeyboardSettingsFragment, KeysAndToolbar> {
                 label = ctx.getString(R.string.keys_and_toolbar)
             }
             fragment<AppearanceAndCandidatesSettingsFragment, AppearanceAndCandidates> {

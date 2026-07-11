@@ -127,7 +127,31 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
         screen.addAfter(keyboardPrefs.soundOnKeyPressVolume.key, managePreference)
         screen.addAfter(managePreference.key, importPreference)
         screen.addAfter(importPreference.key, previewPreference)
+
+        val productSettingKeys = setOf(
+            keyboardPrefs.hapticOnKeyPress.key,
+            keyboardPrefs.soundOnKeyPress.key,
+            keyboardPrefs.physicalKeySound.key,
+            keyboardPrefs.toolbarNumRowOnPassword.key,
+            keyboardPrefs.passwordInputPreview.key,
+            keyboardPrefs.idleLongZeroBehavior.key,
+            keyboardPrefs.preferredVoiceInput.key,
+            keyboardPrefs.longPressDelay.key,
+            keyboardPrefs.t9KeyboardHeightPercent.key,
+            "toolbar_buttons_manage",
+            "key_sound_pack_manage",
+            "key_sound_pack_import",
+            "key_sound_preview"
+        )
+        // The product settings page exposes physical T9 controls only. Full-keyboard geometry and
+        // gesture preferences are implementation details of temporary fallback keyboards.
+        screen.preferences()
+            .filterNot { it.key in productSettingKeys }
+            .forEach(screen::removePreference)
     }
+
+    private fun PreferenceScreen.preferences(): List<Preference> =
+        (0 until preferenceCount).map(::getPreference)
 
     private fun showToolbarButtonsDialog() {
         val context = requireContext()

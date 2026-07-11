@@ -134,18 +134,6 @@ class ContentAndToolsSettingsFragment : GroupedManagedPreferenceFragment() {
 
 }
 
-class KeysAndToolbarSettingsFragment : SettingsHubFragment() {
-    override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) = createHub {
-        addCategory(R.string.keys_and_toolbar) {
-            addDestination(
-                R.string.virtual_keyboard,
-                R.drawable.ic_baseline_keyboard_24,
-                SettingsRoute.VirtualKeyboard
-            )
-        }
-    }
-}
-
 class AppearanceAndCandidatesSettingsFragment : SettingsHubFragment() {
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) = createHub {
         addCategory(R.string.appearance_and_candidates) {
