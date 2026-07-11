@@ -14,10 +14,6 @@ import org.fcitx.fcitx5.android.BuildConfig
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.InputFeedbacks.InputFeedbackMode
 import org.fcitx.fcitx5.android.input.InputUiFont
-import org.fcitx.fcitx5.android.input.candidates.expanded.ExpandedCandidateStyle
-import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesMode
-import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrientation
-import org.fcitx.fcitx5.android.input.candidates.horizontal.HorizontalCandidateMode
 import org.fcitx.fcitx5.android.input.keyboard.SpaceLongPressBehavior
 import org.fcitx.fcitx5.android.input.keyboard.SwipeSymbolDirection
 import org.fcitx.fcitx5.android.input.picker.PickerWindow
@@ -297,106 +293,15 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             keyboardBottomPaddingLandscape = secondary
         }
 
-        val horizontalCandidateStyle = enumList(
-            R.string.horizontal_candidate_style,
-            "horizontal_candidate_style",
-            HorizontalCandidateMode.AutoFillWidth
-        )
-        val expandedCandidateStyle = enumList(
-            R.string.expanded_candidate_style,
-            "expanded_candidate_style",
-            ExpandedCandidateStyle.Grid
-        )
-
-        val expandedCandidateGridSpanCount: ManagedPreference.PInt
-        val expandedCandidateGridSpanCountLandscape: ManagedPreference.PInt
-
-        init {
-            val (primary, secondary) = twinInt(
-                R.string.expanded_candidate_grid_span_count,
-                R.string.portrait,
-                "expanded_candidate_grid_span_count_portrait",
-                6,
-                R.string.landscape,
-                "expanded_candidate_grid_span_count_landscape",
-                8,
-                4,
-                12,
-            )
-            expandedCandidateGridSpanCount = primary
-            expandedCandidateGridSpanCountLandscape = secondary
-        }
-
     }
 
     inner class Candidates :
         ManagedPreferenceCategory(R.string.candidates_window, sharedPreferences) {
-        val mode = enumList(
-            R.string.show_candidates_window,
-            "show_candidates_window",
-            FloatingCandidatesMode.InputDevice
-        )
-
-        val orientation = enumList(
-            R.string.candidates_orientation,
-            "candidates_window_orientation",
-            FloatingCandidatesOrientation.Automatic
-        )
-
-        val windowMinWidth = int(
-            R.string.candidates_window_min_width,
-            "candidates_window_min_width",
-            400,
-            200,
-            640,
-            "dp",
-            10
-        )
-
-        val windowPadding =
-            int(R.string.candidates_window_padding, "candidates_window_padding", 4, 0, 32, "dp")
-
         val fontSize =
             int(R.string.candidates_font_size, "candidates_window_font_size", 18, 4, 64, "sp")
 
-        val showPaginationArrows =
-            switch(R.string.candidates_show_pagination_arrows, "candidates_show_pagination_arrows", false)
-
-        val windowRadius =
-            int(R.string.candidates_window_radius, "candidates_window_radius", 4, 0, 48, "dp")
-
-        val horizontalMargin =
-            int(R.string.candidates_horizontal_margin, "candidates_horizontal_margin", 8, 0, 48, "dp")
-        val bubbleGap =
-            int(R.string.candidates_bubble_gap, "candidates_bubble_gap", 4, 0, 24, "dp")
-        val candidateItemSpacing =
-            int(R.string.candidates_item_spacing, "candidates_item_spacing", 4, 0, 16, "dp")
-        /** T9 compact top rows as percentage of the lower Hanzi candidate row height (50–90%). */
-        val t9TopBottomRowRatioPercent =
-            int(R.string.candidates_t9_top_bottom_row_ratio, "candidates_small_row_percent", 82, 50, 90, "%")
-
         val t9HanziCharacterBudget =
             int(R.string.candidates_t9_hanzi_character_budget, "candidates_t9_hanzi_character_budget", 10, 4, 24)
-
-        val itemPaddingVertical: ManagedPreference.PInt
-        val itemPaddingHorizontal: ManagedPreference.PInt
-
-        init {
-            val (primary, secondary) = twinInt(
-                R.string.candidates_padding,
-                R.string.vertical,
-                "candidates_item_padding_vertical",
-                0,
-                R.string.horizontal,
-                "candidates_item_padding_horizontal",
-                2,
-                0,
-                64,
-                "dp"
-            )
-            itemPaddingVertical = primary
-            itemPaddingHorizontal = secondary
-        }
     }
 
     inner class Clipboard : ManagedPreferenceCategory(R.string.clipboard, sharedPreferences) {

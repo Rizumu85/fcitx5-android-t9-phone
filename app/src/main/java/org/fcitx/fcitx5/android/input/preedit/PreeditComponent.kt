@@ -6,9 +6,7 @@ package org.fcitx.fcitx5.android.input.preedit
 
 import android.view.View
 import org.fcitx.fcitx5.android.core.FcitxEvent
-import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.theme.Theme
-import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesMode
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.broadcast.InputBroadcastReceiver
 import org.fcitx.fcitx5.android.input.dependency.ConcreteUniqueComponent
@@ -42,13 +40,8 @@ class PreeditComponent : ConcreteUniqueComponent<PreeditComponent>(), Dependent,
     }
 
     override fun onInputPanelUpdate(data: FcitxEvent.InputPanelEvent.Data) {
-        ui.update(data)
-        // When floating candidates window is on, its first row already shows preedit (e.g. pinyin);
-        // hide this bar to avoid duplicate input info (e.g. digits) above the keyboard.
-        val candidatesMode = AppPrefs.getInstance().candidates.mode.getValue()
-        ui.root.visibility = when {
-            candidatesMode == FloatingCandidatesMode.Disabled -> if (ui.visible) View.VISIBLE else View.INVISIBLE
-            else -> View.GONE
-        }
+        // T9's floating surface owns preedit presentation; rendering a second bar duplicates input
+        // state and can produce a stale frame while the candidate snapshot is being replaced.
+        ui.root.visibility = View.GONE
     }
 }

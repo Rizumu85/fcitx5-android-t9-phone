@@ -24,7 +24,6 @@ import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.daemon.launchOnReady
 import org.fcitx.fcitx5.android.data.InputFeedbacks
-import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.input.bar.ExpandButtonStateMachine.BooleanKey.ExpandedCandidatesEmpty
 import org.fcitx.fcitx5.android.input.bar.ExpandButtonStateMachine.TransitionEvent.ExpandedCandidatesUpdated
 import org.fcitx.fcitx5.android.input.bar.KawaiiBarComponent
@@ -54,15 +53,9 @@ class HorizontalCandidateComponent :
     private val theme by manager.theme()
     private val bar: KawaiiBarComponent by manager.must()
 
-    private val fillStyle by AppPrefs.getInstance().keyboard.horizontalCandidateStyle
-    private val maxSpanCountPref by lazy {
-        AppPrefs.getInstance().keyboard.run {
-            if (context.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT)
-                expandedCandidateGridSpanCount
-            else
-                expandedCandidateGridSpanCountLandscape
-        }
-    }
+    private val fillStyle = HorizontalCandidateMode.AutoFillWidth
+    private val configuredMaxSpanCount: Int
+        get() = if (context.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) 6 else 8
 
     private var layoutMinWidth = 0
     private var layoutFlexGrow = 1f
@@ -162,7 +155,7 @@ class HorizontalCandidateComponent :
             override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
                 super.onSizeChanged(w, h, oldw, oldh)
                 if (fillStyle == AutoFillWidth) {
-                    val maxSpanCount = maxSpanCountPref.getValue()
+                    val maxSpanCount = configuredMaxSpanCount
                     layoutMinWidth = w / maxSpanCount - dividerDrawable.intrinsicWidth
                 }
             }
@@ -182,7 +175,7 @@ class HorizontalCandidateComponent :
         }
         val candidates = data.candidates
         val total = data.total
-        val maxSpanCount = maxSpanCountPref.getValue()
+        val maxSpanCount = configuredMaxSpanCount
         when (fillStyle) {
             NeverFillWidth -> {
                 layoutMinWidth = 0

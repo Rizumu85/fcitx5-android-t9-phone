@@ -80,18 +80,22 @@ class CandidatesView(
 
     private val prefs = AppPrefs.getInstance()
     private val candidatesPrefs = prefs.candidates
-    private val orientation by candidatesPrefs.orientation
-    private val windowMinWidth by candidatesPrefs.windowMinWidth
-    private val windowPadding by candidatesPrefs.windowPadding
-    private val windowRadius by candidatesPrefs.windowRadius
     private val fontSize by candidatesPrefs.fontSize
-    private val itemPaddingVertical by candidatesPrefs.itemPaddingVertical
-    private val itemPaddingHorizontal by candidatesPrefs.itemPaddingHorizontal
-    private val horizontalMargin by candidatesPrefs.horizontalMargin
-    private val bubbleGap by candidatesPrefs.bubbleGap
-    private val candidateItemSpacing by candidatesPrefs.candidateItemSpacing
-    private val t9TopBottomRowRatioPercent by candidatesPrefs.t9TopBottomRowRatioPercent
     private val t9HanziCharacterBudget by candidatesPrefs.t9HanziCharacterBudget
+
+    // Candidate geometry is a single tested product contract. Keeping these values together avoids
+    // unsupported preference combinations that can clip focused labels or destabilize bubble width.
+    private val orientation = FloatingCandidatesOrientation.Automatic
+    private val windowMinWidth = 400
+    private val windowPadding = 4
+    private val windowRadius = 4
+    private val itemPaddingVertical = 0
+    private val itemPaddingHorizontal = 2
+    private val horizontalMargin = 8
+    private val bubbleGap = 4
+    private val candidateItemSpacing = 4
+    private val t9TopBottomRowRatioPercent = 82
+    private val showPaginationArrows = false
 
     private var inputPanel = FcitxEvent.InputPanelEvent.Data()
     private var paged = FcitxEvent.PagedCandidateEvent.Data.Empty
@@ -267,7 +271,6 @@ class CandidatesView(
     private val chineseT9EngineOperation = ChineseT9EngineOperation(
         submit = { block -> service.postFcitxJob(block) }
     )
-    private val showPaginationArrows by candidatesPrefs.showPaginationArrows
     private val candidatesUi = PagedCandidatesUi(
         ctx, theme, setupTextViewCandidates,
         showPaginationArrows,
