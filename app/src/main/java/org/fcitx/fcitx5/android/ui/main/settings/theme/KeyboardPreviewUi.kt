@@ -203,14 +203,6 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
             width = intrinsicWidth
             height = intrinsicHeight
         }
-        t9Preview.updateLayoutParams<FrameLayout.LayoutParams> {
-            width = intrinsicWidth
-            height = intrinsicHeight
-        }
-        passwordPreview.updateLayoutParams<FrameLayout.LayoutParams> {
-            width = intrinsicWidth
-            height = intrinsicHeight
-        }
     }
 
     fun setBackground(drawable: Drawable) {
