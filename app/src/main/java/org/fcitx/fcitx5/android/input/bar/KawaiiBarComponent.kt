@@ -109,6 +109,12 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         ManagedPreference.OnChangeListener<Boolean> { _, _ ->
             service.lifecycleScope.launch { updateToolbarButtons() }
         }
+    private val onToolbarButtonOrderUpdateListener =
+        ManagedPreference.OnChangeListener<String> { _, value ->
+            service.lifecycleScope.launch {
+                idleUi.buttonsUi.setButtonOrder(ToolbarButtonOrder.decode(value))
+            }
+        }
 
     private fun evalIdleUiState(fromUser: Boolean = false) {
         val newState = when {
@@ -371,6 +377,10 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         toolbarButtonPreferences.forEach {
             it.registerOnChangeListener(onToolbarButtonPreferenceUpdateListener)
         }
+        prefs.keyboard.toolbarButtonOrder.registerOnChangeListener(onToolbarButtonOrderUpdateListener)
+        idleUi.buttonsUi.setButtonOrder(
+            ToolbarButtonOrder.decode(prefs.keyboard.toolbarButtonOrder.getValue())
+        )
         updateToolbarButtons()
     }
 

@@ -13,6 +13,7 @@ import com.google.android.flexbox.JustifyContent
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.bar.ui.ToolButton
+import org.fcitx.fcitx5.android.input.bar.ToolbarButtonOrder
 import splitties.dimensions.dp
 import splitties.views.dsl.core.Ui
 import splitties.views.dsl.core.view
@@ -47,6 +48,19 @@ class ButtonsBarUi(override val ctx: Context, private val theme: Theme) : Ui {
 
     val moreButton = toolButton(R.drawable.ic_baseline_more_horiz_24).apply {
         contentDescription = ctx.getString(R.string.status_area)
+    }
+
+    fun setButtonOrder(order: List<ToolbarButtonOrder>) {
+        val buttons = mapOf(
+            ToolbarButtonOrder.Undo to undoButton,
+            ToolbarButtonOrder.Redo to redoButton,
+            ToolbarButtonOrder.TextEditing to cursorMoveButton,
+            ToolbarButtonOrder.Clipboard to clipboardButton
+        )
+        order.forEachIndexed { index, id ->
+            root.removeView(buttons.getValue(id))
+            root.addView(buttons.getValue(id), index)
+        }
     }
 
     fun setOptionalButtonsVisible(

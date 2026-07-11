@@ -127,49 +127,7 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
         (0 until preferenceCount).map(::getPreference)
 
     private fun showToolbarButtonsDialog() {
-        val context = requireContext()
-        val options = listOf(
-            R.string.show_voice_input_button to keyboardPrefs.showVoiceInputButton,
-            R.string.undo to keyboardPrefs.showUndoButton,
-            R.string.redo to keyboardPrefs.showRedoButton,
-            R.string.text_editing to keyboardPrefs.showTextEditingButton,
-            R.string.clipboard to keyboardPrefs.showClipboardButton,
-            R.string.hide_keyboard to keyboardPrefs.showHideKeyboardButton
-        )
-        val checkBoxes = options.map { (label, preference) ->
-            CheckBox(context).apply {
-                setText(label)
-                isChecked = preference.getValue()
-                setPaddingRelative(context.dp(20), context.dp(6), context.dp(20), context.dp(6))
-            }
-        }
-        val content = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, context.dp(8), 0, context.dp(4))
-            checkBoxes.forEach(::addView)
-            addView(
-                CheckBox(context).apply {
-                    setText(R.string.status_area)
-                    isChecked = true
-                    isEnabled = false
-                    setPaddingRelative(context.dp(20), context.dp(6), context.dp(20), context.dp(6))
-                }
-            )
-        }
-        val scrollableContent = ScrollView(context).apply {
-            addView(content)
-        }
-
-        AlertDialog.Builder(context)
-            .setTitle(R.string.toolbar_buttons)
-            .setView(scrollableContent)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                options.zip(checkBoxes).forEach { (option, checkBox) ->
-                    option.second.setValue(checkBox.isChecked)
-                }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        ToolbarButtonsDialog(requireContext(), keyboardPrefs).show()
     }
 
     private fun showImportNameDialog(defaultName: String) {

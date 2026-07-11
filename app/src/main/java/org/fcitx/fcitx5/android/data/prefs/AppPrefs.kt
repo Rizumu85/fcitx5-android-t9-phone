@@ -14,6 +14,7 @@ import org.fcitx.fcitx5.android.BuildConfig
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.InputFeedbacks.InputFeedbackMode
 import org.fcitx.fcitx5.android.input.InputUiFont
+import org.fcitx.fcitx5.android.input.bar.ToolbarButtonOrder
 import org.fcitx.fcitx5.android.input.picker.PickerWindow
 import org.fcitx.fcitx5.android.input.popup.EmojiModifier
 import org.fcitx.fcitx5.android.input.t9.ChineseT9Scheme
@@ -167,6 +168,11 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             showClipboardButton,
             showHideKeyboardButton
         )
+        val toolbarButtonOrder = ManagedPreference.PString(
+            sharedPreferences,
+            "toolbar_button_order",
+            ToolbarButtonOrder.encode(ToolbarButtonOrder.default)
+        ).also { it.register() }
 
         val idleLongZeroBehavior = enumList(
             R.string.t9_idle_long_zero_behavior,
