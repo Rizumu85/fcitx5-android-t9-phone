@@ -129,6 +129,8 @@ internal class PhysicalT9CommandExecutor(
                 host.handleReturnKey()
             PhysicalT9KeyFlow.Command.SwitchToNextMode ->
                 host.switchToNextMode()
+            PhysicalT9KeyFlow.Command.SwitchToVoiceInput ->
+                host.switchToVoiceInput()
             PhysicalT9KeyFlow.Command.DiscardChineseCompositionForModeSwitch ->
                 host.discardChineseCompositionForModeSwitch()
             is PhysicalT9KeyFlow.Command.CommitNumberOperatorForKey ->

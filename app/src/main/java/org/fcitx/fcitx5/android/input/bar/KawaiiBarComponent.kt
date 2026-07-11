@@ -14,7 +14,6 @@ import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InlineSuggestion
 import android.view.inputmethod.InlineSuggestionsResponse
-import android.view.inputmethod.InputMethodSubtype
 import android.widget.FrameLayout
 import android.widget.ViewAnimator
 import android.widget.inline.InlineContentView
@@ -35,6 +34,7 @@ import org.fcitx.fcitx5.android.data.clipboard.db.ClipboardEntry
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
+import org.fcitx.fcitx5.android.input.VoiceInputEditorPolicy
 import org.fcitx.fcitx5.android.input.bar.ExpandButtonStateMachine.State.ClickToAttachWindow
 import org.fcitx.fcitx5.android.input.bar.ExpandButtonStateMachine.State.ClickToDetachWindow
 import org.fcitx.fcitx5.android.input.bar.ExpandButtonStateMachine.State.Hidden
@@ -67,7 +67,6 @@ import org.fcitx.fcitx5.android.input.inputPanelTopCornerRadiusPx
 import org.fcitx.fcitx5.android.input.wm.InputWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
 import org.fcitx.fcitx5.android.utils.AppUtil
-import org.fcitx.fcitx5.android.utils.InputMethodUtil
 import org.mechdancer.dependency.DynamicScope
 import org.mechdancer.dependency.manager.must
 import splitties.bitflags.hasFlag
@@ -103,10 +102,8 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     private val clipboardItemTimeout = prefs.clipboard.clipboardItemTimeout
     private val clipboardMaskSensitive by prefs.clipboard.clipboardMaskSensitive
     private val expandedCandidateStyle by prefs.keyboard.expandedCandidateStyle
-    private val expandToolbarByDefault by prefs.keyboard.expandToolbarByDefault
     private val toolbarNumRowOnPassword by prefs.keyboard.toolbarNumRowOnPassword
-    private val showVoiceInputButton by prefs.keyboard.showVoiceInputButton
-    private val preferredVoiceInput by prefs.keyboard.preferredVoiceInput
+    private val toolbarButtonPreferences = prefs.keyboard.toolbarButtonPreferences
 
     private var clipboardTimeoutJob: Job? = null
 
@@ -116,7 +113,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     private var isKeyboardLayoutNumber: Boolean = false
     private var isPasswordKeyboardLayout: Boolean = false
     private var isKeyboardWindowAttached: Boolean = true
-    private var isToolbarManuallyToggled: Boolean = false
+    private var isVoiceInputAllowedForEditor: Boolean = true
 
     private enum class NumberRowState { Auto, ForceShow, ForceHide }
 
@@ -165,6 +162,12 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
             }
         }
 
+    @Keep
+    private val onToolbarButtonPreferenceUpdateListener =
+        ManagedPreference.OnChangeListener<Boolean> { _, _ ->
+            service.lifecycleScope.launch { updateToolbarButtons() }
+        }
+
     private fun launchClipboardTimeoutJob() {
         clipboardTimeoutJob?.cancel()
         val timeout = clipboardItemTimeout.getValue() * 1000L
@@ -174,6 +177,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
             delay(timeout)
             isClipboardFresh = false
             clipboardTimeoutJob = null
+            evalIdleUiState()
         }
     }
 
@@ -184,14 +188,6 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
             isClipboardFresh -> IdleUi.State.Clipboard
             isInlineSuggestionPresent -> IdleUi.State.InlineSuggestion
             isCapabilityFlagsPassword && isKeyboardWindowAttached && !isKeyboardLayoutNumber && numberRowState != NumberRowState.ForceHide -> IdleUi.State.NumberRow
-            /**
-             * state matrix:
-             *                               expandToolbarByDefault
-             *                          |   \   |    true |   false
-             * isToolbarManuallyToggled |  true |   Empty | Toolbar
-             *                          | false | Toolbar |   Empty
-             */
-            expandToolbarByDefault == isToolbarManuallyToggled -> IdleUi.State.Empty
             else -> IdleUi.State.Toolbar
         }
         if (newState == idleUi.currentState) return
@@ -268,35 +264,31 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         } else false
     }
 
-    private var voiceInputSubtype: Pair<String, InputMethodSubtype>? = null
-
     private val switchToVoiceInputCallback = View.OnClickListener {
-        val (id, subtype) = voiceInputSubtype ?: return@OnClickListener
-        InputMethodUtil.switchInputMethod(service, id, subtype)
+        service.switchToVoiceInput()
+    }
+
+    private val showToolbarCallback = View.OnClickListener {
+        when (idleUi.currentState) {
+            IdleUi.State.Clipboard -> {
+                isClipboardFresh = false
+                clipboardTimeoutJob?.cancel()
+                clipboardTimeoutJob = null
+            }
+            IdleUi.State.InlineSuggestion -> {
+                isInlineSuggestionPresent = false
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    idleUi.inlineSuggestionsBar.clear()
+                }
+            }
+            else -> Unit
+        }
+        evalIdleUiState(fromUser = true)
     }
 
     private val idleUi: IdleUi by lazy {
         IdleUi(context, theme, popup, commonKeyActionListener).apply {
-            menuButton.setOnClickListener {
-                when (idleUi.currentState) {
-                    IdleUi.State.Empty -> {
-                        isToolbarManuallyToggled = !expandToolbarByDefault
-                        evalIdleUiState(fromUser = true)
-                    }
-                    IdleUi.State.Toolbar -> {
-                        isToolbarManuallyToggled = expandToolbarByDefault
-                        evalIdleUiState(fromUser = true)
-                    }
-                    else -> {
-                        isToolbarManuallyToggled = !expandToolbarByDefault
-                        idleUi.updateState(IdleUi.State.Toolbar, fromUser = true)
-                    }
-                }
-                // reset timeout timer (if present) when user switch layout
-                if (clipboardTimeoutJob != null) {
-                    launchClipboardTimeoutJob()
-                }
-            }
+            setShowToolbarCallback(showToolbarCallback)
             hideKeyboardButton.apply {
                 setOnClickListener(hideKeyboardCallback)
                 swipeEnabled = true
@@ -345,6 +337,21 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                 }
             }
         }
+    }
+
+    private fun updateToolbarButtons() {
+        idleUi.setVoiceInputButton(
+            visible = prefs.keyboard.showVoiceInputButton.getValue() &&
+                isVoiceInputAllowedForEditor,
+            callback = switchToVoiceInputCallback
+        )
+        idleUi.setHideKeyboardButtonVisible(prefs.keyboard.showHideKeyboardButton.getValue())
+        idleUi.buttonsUi.setOptionalButtonsVisible(
+            undo = prefs.keyboard.showUndoButton.getValue(),
+            redo = prefs.keyboard.showRedoButton.getValue(),
+            textEditing = prefs.keyboard.showTextEditingButton.getValue(),
+            clipboard = prefs.keyboard.showClipboardButton.getValue()
+        )
     }
 
     private val candidateUi by lazy {
@@ -470,32 +477,27 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         ClipboardManager.addOnUpdateListener(onClipboardUpdateListener)
         clipboardSuggestion.registerOnChangeListener(onClipboardSuggestionUpdateListener)
         clipboardItemTimeout.registerOnChangeListener(onClipboardTimeoutUpdateListener)
+        toolbarButtonPreferences.forEach {
+            it.registerOnChangeListener(onToolbarButtonPreferenceUpdateListener)
+        }
+        updateToolbarButtons()
     }
 
     override fun onStartInput(info: EditorInfo, capFlags: CapabilityFlags, restarting: Boolean) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            idleUi.privateMode(info.imeOptions.hasFlag(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING))
-        }
+        val privateMode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            info.imeOptions.hasFlag(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING)
+        idleUi.privateMode(privateMode)
         isCapabilityFlagsPassword = toolbarNumRowOnPassword && capFlags.has(CapabilityFlag.Password)
-        // Always reset manual toolbar toggle when starting input, so that
-        // the "expand toolbar by default" preference consistently controls
-        // the initial state for each new input session.
+        isVoiceInputAllowedForEditor = VoiceInputEditorPolicy.allows(info, capFlags)
         if (!restarting || !capFlags.has(CapabilityFlag.Password)) {
             isPasswordKeyboardLayout = false
         }
-        isToolbarManuallyToggled = false
         isInlineSuggestionPresent = false
         numberRowState = NumberRowState.Auto
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             idleUi.inlineSuggestionsBar.clear()
         }
-        voiceInputSubtype = InputMethodUtil.findVoiceSubtype(preferredVoiceInput)
-        val shouldShowVoiceInput =
-            showVoiceInputButton && voiceInputSubtype != null && !capFlags.has(CapabilityFlag.Password)
-        idleUi.setHideKeyboardIsVoiceInput(
-            shouldShowVoiceInput,
-            if (shouldShowVoiceInput) switchToVoiceInputCallback else hideKeyboardCallback
-        )
+        updateToolbarButtons()
         evalIdleUiState()
     }
 

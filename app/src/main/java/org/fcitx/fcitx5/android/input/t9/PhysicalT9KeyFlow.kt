@@ -20,7 +20,8 @@ class PhysicalT9KeyFlow {
         val hasBottomCandidateRow: Boolean,
         val candidateFocus: PhysicalT9KeyHandler.CandidateFocus,
         val heldPastLongPressDelay: Boolean,
-        val chineseScheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN
+        val chineseScheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN,
+        val idleLongZeroVoiceEnabled: Boolean = false
     )
 
     data class Decision(
@@ -88,6 +89,7 @@ class PhysicalT9KeyFlow {
         object CycleEnglishCase : Command()
         object HandleReturnKey : Command()
         object SwitchToNextMode : Command()
+        object SwitchToVoiceInput : Command()
         object DiscardChineseCompositionForModeSwitch : Command()
         data class CommitNumberOperatorForKey(
             val keyCode: Int,

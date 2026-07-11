@@ -25,6 +25,7 @@ import org.fcitx.fcitx5.android.input.picker.PickerWindow
 import org.fcitx.fcitx5.android.input.popup.EmojiModifier
 import org.fcitx.fcitx5.android.input.t9.ChineseT9Scheme
 import org.fcitx.fcitx5.android.input.t9.ChineseT9OutputScript
+import org.fcitx.fcitx5.android.input.t9.T9IdleLongZeroBehavior
 import org.fcitx.fcitx5.android.utils.DeviceUtil
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.vibrator
@@ -142,8 +143,6 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         }
         val focusChangeResetKeyboard =
             switch(R.string.reset_keyboard_on_focus_change, "reset_keyboard_on_focus_change", true)
-        val expandToolbarByDefault =
-            switch(R.string.expand_toolbar_by_default, "expand_toolbar_by_default", true)
         val inlineSuggestions = switch(R.string.inline_suggestions, "inline_suggestions", true)
         val toolbarNumRowOnPassword =
             switch(R.string.toolbar_num_row_on_password, "toolbar_num_row_on_password", true)
@@ -163,11 +162,39 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             R.string.input_ui_font_summary
         )
 
-        val showVoiceInputButton =
-            switch(R.string.show_voice_input_button, "show_voice_input_button", false)
+        private fun toolbarButton(
+            key: String,
+            defaultValue: Boolean = true
+        ) = ManagedPreference.PBool(sharedPreferences, key, defaultValue).also { it.register() }
+
+        // Toolbar membership is edited as one product setting, while separate booleans let the
+        // live IME update one slot without parsing or rewriting a serialized collection.
+        val showVoiceInputButton = toolbarButton("show_voice_input_button")
+        val showUndoButton = toolbarButton("show_toolbar_undo_button")
+        val showRedoButton = toolbarButton("show_toolbar_redo_button")
+        val showTextEditingButton = toolbarButton("show_toolbar_text_editing_button")
+        val showClipboardButton = toolbarButton("show_toolbar_clipboard_button")
+        val showHideKeyboardButton = toolbarButton("show_toolbar_hide_keyboard_button")
+        val toolbarButtonPreferences = listOf(
+            showVoiceInputButton,
+            showUndoButton,
+            showRedoButton,
+            showTextEditingButton,
+            showClipboardButton,
+            showHideKeyboardButton
+        )
+
+        val idleLongZeroBehavior = enumList(
+            R.string.t9_idle_long_zero_behavior,
+            "t9_idle_long_zero_behavior",
+            T9IdleLongZeroBehavior.LiteralZero
+        )
         val preferredVoiceInput = voiceInputPreference(
             R.string.preferred_voice_input, "preferred_voice_input", ""
-        ) { showVoiceInputButton.getValue() }
+        ) {
+            showVoiceInputButton.getValue() ||
+                idleLongZeroBehavior.getValue() == T9IdleLongZeroBehavior.VoiceInput
+        }
 
         val expandKeypressArea =
             switch(R.string.expand_keypress_area, "expand_keypress_area", false)

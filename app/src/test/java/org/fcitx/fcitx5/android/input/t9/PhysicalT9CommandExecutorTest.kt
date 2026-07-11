@@ -136,6 +136,18 @@ class PhysicalT9CommandExecutorTest {
         assertEquals(listOf("cycleChineseScheme"), multiSchemeHost.calls)
     }
 
+    @Test
+    fun voiceCommandDelegatesWithoutTextFallback() {
+        val host = RecordingHost()
+
+        PhysicalT9CommandExecutor(host).execute(
+            listOf(PhysicalT9KeyFlow.Command.SwitchToVoiceInput),
+            input()
+        )
+
+        assertEquals(listOf("switchToVoiceInput"), host.calls)
+    }
+
     private fun input(): PhysicalT9KeyHandler.KeyInput =
         PhysicalT9KeyHandler.KeyInput(
             keyCode = KeyEvent.KEYCODE_0,
@@ -159,6 +171,7 @@ class PhysicalT9CommandExecutorTest {
         override val hasBottomCandidateRow: Boolean = false,
         override val candidateFocus: PhysicalT9KeyHandler.CandidateFocus =
             PhysicalT9KeyHandler.CandidateFocus.BOTTOM,
+        override val idleLongZeroVoiceEnabled: Boolean = false,
         private val commitPendingPunctuationShortcutResult: Boolean = false,
         private val commitPendingPunctuationResult: Boolean = false,
         private val commitSmartEnglishCandidateResult: Boolean = false,
@@ -204,6 +217,9 @@ class PhysicalT9CommandExecutorTest {
         }
         override fun switchToNextMode() {
             calls += "switchToNextMode"
+        }
+        override fun switchToVoiceInput() {
+            calls += "switchToVoiceInput"
         }
         override fun commitText(text: String) {
             calls += "commitText:$text"

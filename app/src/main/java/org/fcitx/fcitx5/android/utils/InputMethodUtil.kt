@@ -16,6 +16,14 @@ import org.fcitx.fcitx5.android.input.FcitxInputMethodService
 
 object InputMethodUtil {
 
+    data class VoiceInputTarget(
+        val inputMethod: InputMethodInfo,
+        val subtype: InputMethodSubtype?
+    ) {
+        val id: String
+            get() = inputMethod.id
+    }
+
     @JvmField
     val serviceName: String = FcitxInputMethodService::class.java.name
 
@@ -46,48 +54,68 @@ object InputMethodUtil {
 
     fun showPicker() = appContext.inputMethodManager.showInputMethodPicker()
 
-    fun listVoiceInputMethods(): List<Pair<InputMethodInfo, InputMethodSubtype>> {
-        return appContext.inputMethodManager.enabledInputMethodList
-            .mapNotNull { info ->
-                info.firstVoiceSubtype()?.let { info to it }
-            }
+    private fun enabledExternalInputMethods(): List<InputMethodInfo> =
+        appContext.inputMethodManager.enabledInputMethodList.filterNot {
+            // Formal and debug builds can be enabled together. The concrete service class keeps
+            // either build from ever being offered as its own voice target.
+            it.serviceName == serviceName
+        }
+
+    private fun InputMethodInfo.voiceIdentity(): String = buildString {
+        append(id)
+        append(' ')
+        append(packageName)
+        append(' ')
+        append(serviceName)
+        append(' ')
+        append(runCatching { loadLabel(appContext.packageManager) }.getOrNull())
     }
 
-    /**
-     * Find input method with `"voice"` subtype, preferring one with [id]
-     */
-    fun findVoiceSubtype(id: String): Pair<String, InputMethodSubtype>? {
-        val inputMethods = appContext.inputMethodManager.enabledInputMethodList
-        if (inputMethods.isEmpty()) return null
-        var firstId: String? = null
-        var firstSubtype: InputMethodSubtype? = null
-        inputMethods.forEach {
-            val voiceSubtype = it.firstVoiceSubtype() ?: return@forEach
-            if (it.id == id) {
-                return id to voiceSubtype
+    fun listVoiceInputMethods(): List<VoiceInputTarget> =
+        enabledExternalInputMethods()
+            .map { VoiceInputTarget(it, it.firstVoiceSubtype()) }
+            .filter { target ->
+                target.subtype != null || hasVoiceInputIdentityHint(target.inputMethod.voiceIdentity())
             }
-            if (firstId == null) {
-                firstId = it.id
-                firstSubtype = voiceSubtype
+            .sortedBy { it.subtype == null }
+
+    /** Resolve an enabled preferred target before automatic voice-IME discovery. */
+    fun findVoiceInputTarget(id: String): VoiceInputTarget? {
+        val enabled = enabledExternalInputMethods()
+        if (id.isNotEmpty()) {
+            enabled.firstOrNull { it.id == id }?.let {
+                // An explicit preference is authoritative. This also supports standalone voice
+                // IMEs that publish no subtype metadata.
+                return VoiceInputTarget(it, it.firstVoiceSubtype())
             }
         }
-        if (firstId != null && firstSubtype != null) {
-            return firstId to firstSubtype
-        }
-        return null
+        return listVoiceInputMethods().firstOrNull()
     }
 
     fun switchInputMethod(
         service: FcitxInputMethodService,
         id: String,
-        subtype: InputMethodSubtype
-    ) {
+        subtype: InputMethodSubtype?
+    ): Boolean = runCatching {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            service.switchInputMethod(id, subtype)
+            if (subtype == null) service.switchInputMethod(id)
+            else service.switchInputMethod(id, subtype)
         } else {
+            val token = service.window.window?.attributes?.token ?: return false
             @Suppress("DEPRECATION")
-            appContext.inputMethodManager
-                .setInputMethodAndSubtype(service.window.window!!.attributes.token, id, subtype)
+            if (subtype == null) {
+                appContext.inputMethodManager.setInputMethod(token, id)
+            } else {
+                appContext.inputMethodManager.setInputMethodAndSubtype(token, id, subtype)
+            }
         }
+    }.isSuccess
+
+    fun switchToVoiceInput(
+        service: FcitxInputMethodService,
+        preferredId: String
+    ): Boolean {
+        val target = findVoiceInputTarget(preferredId) ?: return false
+        return switchInputMethod(service, target.id, target.subtype)
     }
 }

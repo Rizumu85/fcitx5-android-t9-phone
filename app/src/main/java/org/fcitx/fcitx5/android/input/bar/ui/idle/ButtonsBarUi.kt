@@ -5,6 +5,7 @@
 package org.fcitx.fcitx5.android.input.bar.ui.idle
 
 import android.content.Context
+import android.view.View
 import androidx.annotation.DrawableRes
 import com.google.android.flexbox.AlignItems
 import com.google.android.flexbox.FlexboxLayout
@@ -48,4 +49,15 @@ class ButtonsBarUi(override val ctx: Context, private val theme: Theme) : Ui {
         contentDescription = ctx.getString(R.string.status_area)
     }
 
+    fun setOptionalButtonsVisible(
+        undo: Boolean,
+        redo: Boolean,
+        textEditing: Boolean,
+        clipboard: Boolean
+    ) {
+        undoButton.visibility = if (undo) View.VISIBLE else View.GONE
+        redoButton.visibility = if (redo) View.VISIBLE else View.GONE
+        cursorMoveButton.visibility = if (textEditing) View.VISIBLE else View.GONE
+        clipboardButton.visibility = if (clipboard) View.VISIBLE else View.GONE
+    }
 }

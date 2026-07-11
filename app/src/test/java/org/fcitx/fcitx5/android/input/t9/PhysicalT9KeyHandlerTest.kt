@@ -783,6 +783,7 @@ class PhysicalT9KeyHandlerTest {
         override var hasBottomCandidateRow: Boolean = false,
         override var candidateFocus: PhysicalT9KeyHandler.CandidateFocus =
             PhysicalT9KeyHandler.CandidateFocus.BOTTOM,
+        override var idleLongZeroVoiceEnabled: Boolean = false,
         private val commitHighlightedBottomCandidateResult: Boolean = false,
         private val smartEnglishShortcutResult: Boolean = false,
         private val commitSmartEnglishCandidateResult: Boolean = true,
@@ -809,6 +810,7 @@ class PhysicalT9KeyHandlerTest {
         var showNumberOperatorHintPanelCount = 0
         var commitLiteralStarCount = 0
         var switchToNextModeCount = 0
+        var switchToVoiceInputCount = 0
         var commitPendingPunctuationCount = 0
         var cancelPendingPunctuationCount = 0
         val pendingPunctuationShortcutKeys = mutableListOf<Int>()
@@ -857,6 +859,9 @@ class PhysicalT9KeyHandlerTest {
         }
         override fun switchToNextMode() {
             switchToNextModeCount += 1
+        }
+        override fun switchToVoiceInput() {
+            switchToVoiceInputCount += 1
         }
 
         override fun commitText(text: String) {

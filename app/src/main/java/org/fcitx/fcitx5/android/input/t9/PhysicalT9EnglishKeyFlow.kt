@@ -132,6 +132,10 @@ internal class PhysicalT9EnglishKeyFlow(
                         state.hasSmartEnglishCandidates -> listOf(
                             Command.CommitSmartEnglishShortcut(input.keyCode)
                         )
+                        state.idleLongZeroVoiceEnabled &&
+                            !state.hasSmartEnglishDigits &&
+                            !state.hasMultiTapPendingChar &&
+                            !state.hasBottomCandidateRow -> listOf(Command.SwitchToVoiceInput)
                         else -> listOf(
                             Command.CancelMultiTapChar,
                             Command.CommitText("0")
@@ -172,10 +176,16 @@ internal class PhysicalT9EnglishKeyFlow(
                 setDigitLongPressFlag(input.keyCode, true)
                 Decision(
                     handled = true,
-                    commands = listOf(
-                        Command.CancelMultiTapChar,
-                        Command.CommitText("0")
-                    )
+                    commands = if (
+                        state.idleLongZeroVoiceEnabled && !state.hasMultiTapPendingChar
+                    ) {
+                        listOf(Command.SwitchToVoiceInput)
+                    } else {
+                        listOf(
+                            Command.CancelMultiTapChar,
+                            Command.CommitText("0")
+                        )
+                    }
                 )
             } else {
                 Decision(handled = true)

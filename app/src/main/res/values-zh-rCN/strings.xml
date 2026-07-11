@@ -361,12 +361,12 @@
     <string name="browse_user_data_dir">浏览用户数据目录</string>
     <string name="haptic_on_repeat">重复按键时的振动反馈</string>
     <string name="redo">重做</string>
-    <string name="status_area">状态区域</string>
+    <string name="status_area">快捷设置</string>
     <string name="expand_candidates_list">展开候选词列表</string>
     <string name="hide_candidates_list">隐藏</string>
     <string name="switch_to_voice_input">切换到语音输入</string>
     <string name="hide_keyboard">隐藏键盘</string>
-    <string name="private_mode">隐私模式（点击以切换工具栏）</string>
+    <string name="private_mode">隐私模式</string>
     <string name="hide_toolbar">隐藏工具栏</string>
     <string name="expand_toolbar">展开工具栏</string>
     <string name="back_to_keyboard">返回键盘</string>
@@ -391,4 +391,10 @@
     <string name="hide_unsupported_emojis">隐藏不支持的表情</string>
     <string name="key_border_stroke">启用按键边框描边</string>
     <string name="preferred_voice_input">首选语音输入</string>
+    <string name="toolbar_buttons">工具栏按钮</string>
+    <string name="toolbar_buttons_summary">选择要显示的按钮；快捷设置始终显示</string>
+    <string name="t9_idle_long_zero_behavior">空闲长按 0</string>
+    <string name="t9_idle_long_zero_literal">输入数字 0</string>
+    <string name="t9_idle_long_zero_voice">语音输入</string>
+    <string name="voice_input_not_available">请先在系统设置中启用语音输入法</string>
 </resources>

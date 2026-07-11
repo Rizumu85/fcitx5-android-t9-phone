@@ -26,6 +26,7 @@ class PhysicalT9KeyHostAdapter(
         val hasTopReadingCandidates: () -> Boolean,
         val hasBottomCandidateRow: () -> Boolean,
         val candidateFocus: () -> T9CandidateFocus,
+        val idleLongZeroVoiceEnabled: () -> Boolean = { false },
         val keyHeldPastLongPressDelay: (PhysicalT9KeyHandler.KeyInput) -> Boolean,
         val chineseScheme: () -> ChineseT9Scheme = { ChineseT9Scheme.PINYIN }
     )
@@ -66,6 +67,7 @@ class PhysicalT9KeyHostAdapter(
 
     data class PlatformActions(
         val switchToNextMode: () -> Unit,
+        val switchToVoiceInput: () -> Unit,
         val commitText: (String) -> Unit,
         val commitNumberOperatorForKey: (keyCode: Int, fallbackDigit: Int) -> Boolean,
         val showNumberOperatorHintPanel: () -> Unit,
@@ -124,6 +126,9 @@ class PhysicalT9KeyHostAdapter(
             T9CandidateFocus.BOTTOM -> PhysicalT9KeyHandler.CandidateFocus.BOTTOM
         }
 
+    override val idleLongZeroVoiceEnabled: Boolean
+        get() = state.idleLongZeroVoiceEnabled()
+
     override fun keyHeldPastLongPressDelay(input: PhysicalT9KeyHandler.KeyInput): Boolean =
         state.keyHeldPastLongPressDelay(input)
 
@@ -156,6 +161,9 @@ class PhysicalT9KeyHostAdapter(
 
     override fun switchToNextMode() =
         platform.switchToNextMode()
+
+    override fun switchToVoiceInput() =
+        platform.switchToVoiceInput()
 
     override fun commitText(text: String) =
         platform.commitText(text)

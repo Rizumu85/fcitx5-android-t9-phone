@@ -152,6 +152,84 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
+    fun smartEnglishIdleLongZeroCanSwitchToVoiceInput() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN),
+            state(idleLongZeroVoiceEnabled = true)
+        )
+
+        val repeat = flow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(
+                idleLongZeroVoiceEnabled = true,
+                heldPastLongPressDelay = true
+            )
+        )
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_UP),
+            state(idleLongZeroVoiceEnabled = true)
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.SwitchToVoiceInput), repeat?.commands)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), up?.commands)
+    }
+
+    @Test
+    fun smartEnglishCandidateKeepsLongZeroShortcutAheadOfVoiceInput() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN),
+            state(hasSmartEnglishCandidates = true, idleLongZeroVoiceEnabled = true)
+        )
+
+        val repeat = flow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(
+                hasSmartEnglishCandidates = true,
+                idleLongZeroVoiceEnabled = true,
+                heldPastLongPressDelay = true
+            )
+        )
+
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.CommitSmartEnglishShortcut(KeyEvent.KEYCODE_0)),
+            repeat?.commands
+        )
+    }
+
+    @Test
+    fun simpleEnglishPendingMultiTapKeepsLiteralLongZeroBehavior() {
+        val flow = PhysicalT9KeyFlow()
+        flow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN),
+            state(
+                isSmartEnglishActive = false,
+                hasMultiTapPendingChar = true,
+                idleLongZeroVoiceEnabled = true
+            )
+        )
+
+        val repeat = flow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(
+                isSmartEnglishActive = false,
+                hasMultiTapPendingChar = true,
+                idleLongZeroVoiceEnabled = true,
+                heldPastLongPressDelay = true
+            )
+        )
+
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.CancelMultiTapChar,
+                PhysicalT9KeyFlow.Command.CommitText("0")
+            ),
+            repeat?.commands
+        )
+    }
+
+    @Test
     fun smartEnglishNavigationConsumesKeyUpThroughFlow() {
         val flow = PhysicalT9KeyFlow()
 
@@ -1425,6 +1503,23 @@ class PhysicalT9KeyFlowTest {
         assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), longUp?.commands)
     }
 
+    @Test
+    fun chineseIdleLongZeroCanSwitchToVoiceInputWithoutTakingCandidateShortcut() {
+        val flow = PhysicalT9KeyFlow()
+        val idleState = state(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            idleLongZeroVoiceEnabled = true
+        )
+        flow.handle(input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN), idleState)
+
+        val repeat = flow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            idleState.copy(heldPastLongPressDelay = true)
+        )
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.SwitchToVoiceInput), repeat?.commands)
+    }
+
     private fun input(
         keyCode: Int,
         action: Int,
@@ -1452,7 +1547,8 @@ class PhysicalT9KeyFlowTest {
         candidateFocus: PhysicalT9KeyHandler.CandidateFocus =
             PhysicalT9KeyHandler.CandidateFocus.BOTTOM,
         heldPastLongPressDelay: Boolean = false,
-        chineseScheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN
+        chineseScheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN,
+        idleLongZeroVoiceEnabled: Boolean = false
     ): PhysicalT9KeyFlow.State =
         PhysicalT9KeyFlow.State(
             mode = mode,
@@ -1467,6 +1563,7 @@ class PhysicalT9KeyFlowTest {
             hasBottomCandidateRow = hasBottomCandidateRow,
             candidateFocus = candidateFocus,
             heldPastLongPressDelay = heldPastLongPressDelay,
-            chineseScheme = chineseScheme
+            chineseScheme = chineseScheme,
+            idleLongZeroVoiceEnabled = idleLongZeroVoiceEnabled
         )
 }

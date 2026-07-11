@@ -72,6 +72,7 @@ class PhysicalT9KeyHandler(
         val hasTopReadingCandidates: Boolean
         val hasBottomCandidateRow: Boolean
         val candidateFocus: CandidateFocus
+        val idleLongZeroVoiceEnabled: Boolean
 
         fun keyHeldPastLongPressDelay(input: KeyInput): Boolean
         fun commitPendingPunctuationShortcut(keyCode: Int): Boolean
@@ -84,6 +85,7 @@ class PhysicalT9KeyHandler(
         fun commitChineseCandidateAndShowPunctuation()
         fun togglePendingPunctuationSet(): Boolean
         fun switchToNextMode()
+        fun switchToVoiceInput()
         fun commitText(text: String)
         fun commitNumberOperatorForKey(keyCode: Int, fallbackDigit: Int): Boolean
         fun showNumberOperatorHintPanel()
@@ -131,6 +133,7 @@ class PhysicalT9KeyHandler(
             hasTopReadingCandidates = host::hasTopReadingCandidates,
             hasBottomCandidateRow = host::hasBottomCandidateRow,
             candidateFocus = host::candidateFocus,
+            idleLongZeroVoiceEnabled = host::idleLongZeroVoiceEnabled,
             heldPastLongPressDelay = host::keyHeldPastLongPressDelay
         )
     )

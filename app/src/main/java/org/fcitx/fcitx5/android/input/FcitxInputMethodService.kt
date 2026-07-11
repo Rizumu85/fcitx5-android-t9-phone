@@ -35,6 +35,7 @@ import android.view.inputmethod.InputMethodSubtype
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 import android.widget.FrameLayout
+import android.widget.Toast
 import android.widget.inline.InlinePresentationSpec
 import androidx.annotation.Keep
 import androidx.annotation.RequiresApi
@@ -103,6 +104,7 @@ import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocusController
 import org.fcitx.fcitx5.android.input.t9.T9CandidateShortcutCommitter
 import org.fcitx.fcitx5.android.input.t9.T9InputMode
+import org.fcitx.fcitx5.android.input.t9.T9IdleLongZeroBehavior
 import org.fcitx.fcitx5.android.input.t9.T9ModeCoordinator
 import org.fcitx.fcitx5.android.input.t9.T9MultiTapCoordinator
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
@@ -188,6 +190,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             hasTopReadingCandidates = { getT9ReadingCandidates().isNotEmpty() },
             hasBottomCandidateRow = { candidatesView?.hasT9BottomCandidateRow() == true },
             candidateFocus = ::getT9CandidateFocus,
+            idleLongZeroVoiceEnabled = ::isIdleLongZeroVoiceEnabled,
             keyHeldPastLongPressDelay = { input ->
                 input.repeatCount > 0 &&
                     input.eventTime - input.downTime >= physicalLongPressDelay.toLong()
@@ -243,6 +246,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         ),
         platform = PhysicalT9KeyHostAdapter.PlatformActions(
             switchToNextMode = ::switchToNextT9Mode,
+            switchToVoiceInput = { switchToVoiceInput() },
             commitText = ::commitText,
             commitNumberOperatorForKey = { keyCode, fallbackDigit ->
                 val operator = numberModeController.operatorForKey(keyCode) ?: DIGIT_TEXTS[fallbackDigit]
@@ -270,6 +274,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 ?: T9ResponsivenessTrace.discardInput(traceId)
         }
     )
+
+    fun switchToVoiceInput() {
+        if (!voiceInputAllowedForEditor) return
+        if (
+            !InputMethodUtil.switchToVoiceInput(
+                this,
+                keyboardPrefs.preferredVoiceInput.getValue()
+            )
+        ) {
+            Toast.makeText(this, R.string.voice_input_not_available, Toast.LENGTH_SHORT).show()
+        }
+    }
 
     private fun isTemporaryPasswordKeyboardVisible(): Boolean =
         inputView?.isTemporaryPasswordKeyboardVisible() == true
@@ -532,6 +548,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var physicalLongPressDelay = keyboardPrefs.longPressDelay.getValue()
 
     @Volatile
+    private var idleLongZeroBehavior = keyboardPrefs.idleLongZeroBehavior.getValue()
+
+    @Volatile
+    private var voiceInputAllowedForEditor = true
+
+    @Volatile
     private var ignoreSystemCursor = prefs.advanced.ignoreSystemCursor.getValue()
 
     private val inlineSuggestionsChangeListener =
@@ -558,6 +580,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         ManagedPreference.OnChangeListener<Int> { _, value ->
             physicalLongPressDelay = value
         }
+    private val idleLongZeroBehaviorChangeListener =
+        ManagedPreference.OnChangeListener<T9IdleLongZeroBehavior> { _, value ->
+            idleLongZeroBehavior = value
+        }
     private val ignoreSystemCursorChangeListener =
         ManagedPreference.OnChangeListener<Boolean> { _, value ->
             ignoreSystemCursor = value
@@ -567,6 +593,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             T9ResponsivenessTrace.configure(enabled = value)
             StartupPerformanceTrace.configure(enabled = value)
         }
+
+    private fun isIdleLongZeroVoiceEnabled(): Boolean =
+        idleLongZeroBehavior == T9IdleLongZeroBehavior.VoiceInput &&
+            voiceInputAllowedForEditor
+
+    private fun updateVoiceInputEditorPolicy(info: EditorInfo, flags: CapabilityFlags) {
+        voiceInputAllowedForEditor = VoiceInputEditorPolicy.allows(info, flags)
+    }
     private val chineseT9OutputScriptPrefs = ChineseT9Scheme.entries
         .map(prefs.chineseT9::outputScriptPreference)
         .toTypedArray()
@@ -728,6 +762,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         keyboardPrefs.useT9KeyboardLayout.registerOnChangeListener(t9InputModeEnabledChangeListener)
         keyboardPrefs.smartEnglishT9.registerOnChangeListener(smartEnglishT9ChangeListener)
         keyboardPrefs.longPressDelay.registerOnChangeListener(physicalLongPressDelayChangeListener)
+        keyboardPrefs.idleLongZeroBehavior.registerOnChangeListener(
+            idleLongZeroBehaviorChangeListener
+        )
         prefs.advanced.ignoreSystemCursor.registerOnChangeListener(ignoreSystemCursorChangeListener)
         prefs.internal.t9ResponsivenessTrace.registerOnChangeListener(t9ResponsivenessTraceChangeListener)
         chineseT9OutputScriptPrefs.forEach {
@@ -2659,6 +2696,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             flags
         }
         capabilityFlags = flags
+        updateVoiceInputEditorPolicy(attribute, flags)
         // EditorInfo may change between onStartInput and onStartInputView
         inputDeviceMgr.notifyOnStartInput(attribute)
         Timber.d(
@@ -2690,6 +2728,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         Timber.d("onStartInputView: restarting=$restarting")
         capabilityFlags = CapabilityFlags.fromEditorInfo(info)
+        updateVoiceInputEditorPolicy(info, capabilityFlags)
         postFcitxJob {
             focus(true)
         }
@@ -3056,6 +3095,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         keyboardPrefs.useT9KeyboardLayout.unregisterOnChangeListener(t9InputModeEnabledChangeListener)
         keyboardPrefs.smartEnglishT9.unregisterOnChangeListener(smartEnglishT9ChangeListener)
         keyboardPrefs.longPressDelay.unregisterOnChangeListener(physicalLongPressDelayChangeListener)
+        keyboardPrefs.idleLongZeroBehavior.unregisterOnChangeListener(
+            idleLongZeroBehaviorChangeListener
+        )
         prefs.advanced.ignoreSystemCursor.unregisterOnChangeListener(ignoreSystemCursorChangeListener)
         prefs.internal.t9ResponsivenessTrace.unregisterOnChangeListener(t9ResponsivenessTraceChangeListener)
         chineseT9OutputScriptPrefs.forEach {

@@ -297,7 +297,7 @@
     <string name="hide_candidates_list">Скрыть список кандидатов</string>
     <string name="switch_to_voice_input">Переключиться на голосовой ввод</string>
     <string name="hide_keyboard">Скрыть клавиатуру</string>
-    <string name="private_mode">Приватный режим (нажмите, чтобы переключить панель инструментов)</string>
+    <string name="private_mode">Приватный режим</string>
     <string name="hide_toolbar">Скрыть панель инструментов</string>
     <string name="expand_toolbar">Развернуть панель инструментов</string>
     <string name="back_to_keyboard">Вернуться к клавиатуре</string>

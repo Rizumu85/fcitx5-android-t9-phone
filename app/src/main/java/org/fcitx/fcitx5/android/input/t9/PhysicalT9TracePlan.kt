@@ -59,6 +59,7 @@ internal object PhysicalT9TracePlanner {
                 it is PhysicalT9KeyFlow.Command.SwitchToNextMode ||
                     it is PhysicalT9KeyFlow.Command.CycleChineseSchemeOrCommitLiteralStar
             } -> "MODE"
+            commands.any { it is PhysicalT9KeyFlow.Command.SwitchToVoiceInput } -> "VOICE"
             commands.any { it is PhysicalT9KeyFlow.Command.HandleReturnKey } -> "RETURN"
             commands.any {
                 it is PhysicalT9KeyFlow.Command.CommitNumberOperatorForKey ||

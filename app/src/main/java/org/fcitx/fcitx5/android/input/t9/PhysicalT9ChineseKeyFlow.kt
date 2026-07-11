@@ -209,7 +209,17 @@ internal class PhysicalT9ChineseKeyFlow(
             input = input,
             state = state,
             longPressWhenComposing = listOf(Command.CommitHanziShortcut(input.keyCode)),
-            longPressWhenIdle = listOf(Command.CommitText("0")),
+            longPressWhenIdle = listOf(
+                if (
+                    state.idleLongZeroVoiceEnabled &&
+                    !state.hasChineseComposition &&
+                    !state.hasBottomCandidateRow
+                ) {
+                    Command.SwitchToVoiceInput
+                } else {
+                    Command.CommitText("0")
+                }
+            ),
             shortPressIdleFallsThrough = false
         )
         KeyEvent.ACTION_UP -> {

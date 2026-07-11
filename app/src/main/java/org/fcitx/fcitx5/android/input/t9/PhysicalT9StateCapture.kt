@@ -21,6 +21,7 @@ internal class PhysicalT9StateCapture(
         val hasTopReadingCandidates: () -> Boolean,
         val hasBottomCandidateRow: () -> Boolean,
         val candidateFocus: () -> PhysicalT9KeyHandler.CandidateFocus,
+        val idleLongZeroVoiceEnabled: () -> Boolean = { false },
         val heldPastLongPressDelay: (PhysicalT9KeyHandler.KeyInput) -> Boolean
     )
 
@@ -47,7 +48,8 @@ internal class PhysicalT9StateCapture(
             hasBottomCandidateRow = source.hasBottomCandidateRow(),
             candidateFocus = source.candidateFocus(),
             heldPastLongPressDelay = source.heldPastLongPressDelay(input),
-            chineseScheme = source.chineseScheme()
+            chineseScheme = source.chineseScheme(),
+            idleLongZeroVoiceEnabled = source.idleLongZeroVoiceEnabled()
         )
 
     private fun captureEnglish(input: PhysicalT9KeyHandler.KeyInput): PhysicalT9KeyFlow.State {
@@ -70,7 +72,8 @@ internal class PhysicalT9StateCapture(
             } else {
                 PhysicalT9KeyHandler.CandidateFocus.BOTTOM
             },
-            heldPastLongPressDelay = source.heldPastLongPressDelay(input)
+            heldPastLongPressDelay = source.heldPastLongPressDelay(input),
+            idleLongZeroVoiceEnabled = source.idleLongZeroVoiceEnabled()
         )
     }
 

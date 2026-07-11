@@ -348,12 +348,12 @@
     <string name="browse_user_data_dir">瀏覽用户資料目錄</string>
     <string name="haptic_on_repeat">重複按鍵時的觸覺回饋</string>
     <string name="redo">重做</string>
-    <string name="status_area">狀態區</string>
+    <string name="status_area">快捷設定</string>
     <string name="expand_candidates_list">展開選字列表</string>
     <string name="hide_candidates_list">隱藏選字列表</string>
     <string name="switch_to_voice_input">切換到語音輸入</string>
     <string name="hide_keyboard">隱藏鍵盤</string>
-    <string name="private_mode">隱私模式（點擊以切換工具欄）</string>
+    <string name="private_mode">隱私模式</string>
     <string name="hide_toolbar">隱藏工具列</string>
     <string name="expand_toolbar">展開工具列</string>
     <string name="back_to_keyboard">返回鍵盤</string>
@@ -377,4 +377,10 @@
     <string name="emoji_skin_tone_type_6">🏿 深膚色 (Type-6)</string>
     <string name="hide_unsupported_emojis">隱藏不支援的表情</string>
     <string name="preferred_voice_input">首選語音輸入</string>
+    <string name="toolbar_buttons">工具列按鈕</string>
+    <string name="toolbar_buttons_summary">選擇要顯示的按鈕；快捷設定一律顯示</string>
+    <string name="t9_idle_long_zero_behavior">閒置長按 0</string>
+    <string name="t9_idle_long_zero_literal">輸入數字 0</string>
+    <string name="t9_idle_long_zero_voice">語音輸入</string>
+    <string name="voice_input_not_available">請先在系統設定中啟用語音輸入法</string>
 </resources>

@@ -72,6 +72,7 @@ class PhysicalT9KeyHostAdapterTest {
         appendSmartEnglishDigit: (Int) -> Unit = {},
         moveFocus: (T9CandidateFocus) -> Unit = {},
         commitText: (String) -> Unit = {},
+        switchToVoiceInput: () -> Unit = {},
         discardChineseCompositionForModeSwitch: () -> Unit = {}
     ): PhysicalT9KeyHostAdapter =
         PhysicalT9KeyHostAdapter(
@@ -123,6 +124,7 @@ class PhysicalT9KeyHostAdapterTest {
             ),
             platform = PhysicalT9KeyHostAdapter.PlatformActions(
                 switchToNextMode = {},
+                switchToVoiceInput = switchToVoiceInput,
                 commitText = commitText,
                 commitNumberOperatorForKey = { _, _ -> false },
                 showNumberOperatorHintPanel = {},

@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -74,6 +75,20 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
 
     override fun onPreferenceUiCreated(screen: PreferenceScreen) {
         val context = screen.context
+        screen.addPreference(
+            Preference(context).apply {
+                key = "toolbar_buttons_manage"
+                order = -1
+                isIconSpaceReserved = false
+                isSingleLineTitle = false
+                setTitle(R.string.toolbar_buttons)
+                setSummary(R.string.toolbar_buttons_summary)
+                setOnPreferenceClickListener {
+                    showToolbarButtonsDialog()
+                    true
+                }
+            }
+        )
         val managePreference = Preference(context).apply {
             key = "key_sound_pack_manage"
             isIconSpaceReserved = false
@@ -112,6 +127,52 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
         screen.addAfter(keyboardPrefs.soundOnKeyPressVolume.key, managePreference)
         screen.addAfter(managePreference.key, importPreference)
         screen.addAfter(importPreference.key, previewPreference)
+    }
+
+    private fun showToolbarButtonsDialog() {
+        val context = requireContext()
+        val options = listOf(
+            R.string.show_voice_input_button to keyboardPrefs.showVoiceInputButton,
+            R.string.undo to keyboardPrefs.showUndoButton,
+            R.string.redo to keyboardPrefs.showRedoButton,
+            R.string.text_editing to keyboardPrefs.showTextEditingButton,
+            R.string.clipboard to keyboardPrefs.showClipboardButton,
+            R.string.hide_keyboard to keyboardPrefs.showHideKeyboardButton
+        )
+        val checkBoxes = options.map { (label, preference) ->
+            CheckBox(context).apply {
+                setText(label)
+                isChecked = preference.getValue()
+                setPaddingRelative(context.dp(20), context.dp(6), context.dp(20), context.dp(6))
+            }
+        }
+        val content = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, context.dp(8), 0, context.dp(4))
+            checkBoxes.forEach(::addView)
+            addView(
+                CheckBox(context).apply {
+                    setText(R.string.status_area)
+                    isChecked = true
+                    isEnabled = false
+                    setPaddingRelative(context.dp(20), context.dp(6), context.dp(20), context.dp(6))
+                }
+            )
+        }
+        val scrollableContent = ScrollView(context).apply {
+            addView(content)
+        }
+
+        AlertDialog.Builder(context)
+            .setTitle(R.string.toolbar_buttons)
+            .setView(scrollableContent)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                options.zip(checkBoxes).forEach { (option, checkBox) ->
+                    option.second.setValue(checkBox.isChecked)
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun showImportNameDialog(defaultName: String) {

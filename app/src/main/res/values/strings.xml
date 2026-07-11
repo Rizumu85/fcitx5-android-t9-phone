@@ -361,12 +361,12 @@
     <string name="browse_user_data_dir">Browse user data directory</string>
     <string name="haptic_on_repeat">Haptic feedback on key repeat</string>
     <string name="redo">Redo</string>
-    <string name="status_area">Status area</string>
+    <string name="status_area">Quick settings</string>
     <string name="expand_candidates_list">Expand candidates list</string>
     <string name="hide_candidates_list">Hide candidates list</string>
     <string name="switch_to_voice_input">Switch to voice input</string>
     <string name="hide_keyboard">Hide keyboard</string>
-    <string name="private_mode">Private mode (tap to toggle toolbar)</string>
+    <string name="private_mode">Private mode</string>
     <string name="hide_toolbar">Hide toolbar</string>
     <string name="expand_toolbar">Expand toolbar</string>
     <string name="back_to_keyboard">Back to keyboard</string>
@@ -391,4 +391,10 @@
     <string name="hide_unsupported_emojis">Hide unsupported Emojis</string>
     <string name="key_border_stroke">Enable stroke for key border</string>
     <string name="preferred_voice_input">Preferred voice input</string>
+    <string name="toolbar_buttons">Toolbar buttons</string>
+    <string name="toolbar_buttons_summary">Choose optional buttons. Quick settings is always shown.</string>
+    <string name="t9_idle_long_zero_behavior">Idle long-press 0</string>
+    <string name="t9_idle_long_zero_literal">Input 0</string>
+    <string name="t9_idle_long_zero_voice">Voice input</string>
+    <string name="voice_input_not_available">Enable a voice input method in Android settings first</string>
 </resources>

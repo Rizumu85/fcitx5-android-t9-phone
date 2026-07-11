@@ -129,12 +129,12 @@ abstract class ManagedPreferenceUi<T : Preference>(
             setDefaultValue(defaultValue)
             setTitle(this@VoiceInputList.title)
             setDialogTitle(this@VoiceInputList.title)
-            val voiceInputMethods = InputMethodUtil.listVoiceInputMethods()
-            entryValues = arrayOf("", *voiceInputMethods.map { it.first.id }.toTypedArray())
-            entries = arrayOf(
-                context.getString(R.string.system_default),
-                *voiceInputMethods.map { it.first.loadLabel(context.packageManager) }.toTypedArray()
-            )
+            refreshVoiceInputMethods(context)
+            setOnPreferenceClickListener {
+                // Android can enable a voice IME while this settings screen remains alive.
+                refreshVoiceInputMethods(context)
+                false
+            }
             // shows "(Not Available)" if selected id is not present
             summaryProvider = Preference.SummaryProvider<ListPreference> { preference ->
                 if (preference.entryValues.includes(preference.value)) {
@@ -143,6 +143,17 @@ abstract class ManagedPreferenceUi<T : Preference>(
                     context.getString(R.string._not_available_)
                 }
             }
+        }
+
+        private fun ListPreference.refreshVoiceInputMethods(context: Context) {
+            val voiceInputMethods = InputMethodUtil.listVoiceInputMethods()
+            entryValues = arrayOf("", *voiceInputMethods.map { it.id }.toTypedArray())
+            entries = arrayOf(
+                context.getString(R.string.system_default),
+                *voiceInputMethods.map {
+                    it.inputMethod.loadLabel(context.packageManager)
+                }.toTypedArray()
+            )
         }
     }
 
