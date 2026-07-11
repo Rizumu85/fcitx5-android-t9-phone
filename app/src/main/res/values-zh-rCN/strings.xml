@@ -4,6 +4,10 @@
     <string name="settings">设置</string>
     <string name="input_options">输入方式</string>
     <string name="keys_and_toolbar">按键与工具栏</string>
+    <string name="toolbar">工具栏</string>
+    <string name="key_feedback">按键反馈</string>
+    <string name="voice_input">语音输入</string>
+    <string name="keyboard_layout">键盘</string>
     <string name="appearance_and_candidates">外观与候选</string>
     <string name="clipboard_and_symbols">剪贴板与符号</string>
     <string name="app_information">应用信息</string>
@@ -89,7 +93,7 @@
     <string name="delete">删除</string>
     <string name="clipboard">剪贴板</string>
     <string name="keyboard_height">键盘高度</string>
-    <string name="t9_keyboard_height">九键高度（屏幕占比）</string>
+    <string name="t9_keyboard_height">常驻键盘高度</string>
     <string name="virtual_keyboard">虚拟键盘</string>
     <string name="clipboard_suggestion_timeout">剪贴板提示超时</string>
     <string name="version">版本</string>

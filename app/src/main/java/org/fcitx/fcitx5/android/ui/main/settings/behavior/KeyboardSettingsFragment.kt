@@ -27,6 +27,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.Preference
+import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -118,6 +119,47 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
         screen.preferences()
             .filterNot { it.key in productSettingKeys }
             .forEach(screen::removePreference)
+
+        screen.groupPreferences(
+            R.string.toolbar,
+            listOf("toolbar_buttons_manage")
+        )
+        screen.groupPreferences(
+            R.string.key_feedback,
+            listOf(
+                keyboardPrefs.hapticOnKeyPress.key,
+                keyboardPrefs.soundOnKeyPress.key,
+                "key_sound_pack_manage"
+            )
+        )
+        screen.groupPreferences(
+            R.string.voice_input,
+            listOf(
+                keyboardPrefs.preferredVoiceInput.key,
+                keyboardPrefs.longPressZeroVoiceInput.key
+            )
+        )
+        screen.groupPreferences(
+            R.string.keyboard_layout,
+            listOf(
+                keyboardPrefs.passwordInputPreview.key,
+                keyboardPrefs.t9KeyboardHeightPercent.key
+            )
+        )
+    }
+
+    private fun PreferenceScreen.groupPreferences(@StringRes title: Int, keys: List<String>) {
+        val preferences = keys.mapNotNull(::findPreference)
+        if (preferences.isEmpty()) return
+        val category = PreferenceCategory(context).apply {
+            setTitle(title)
+            isIconSpaceReserved = false
+        }
+        addPreference(category)
+        preferences.forEach { preference ->
+            removePreference(preference)
+            category.addPreference(preference)
+        }
     }
 
     private fun PreferenceScreen.preferences(): List<Preference> =

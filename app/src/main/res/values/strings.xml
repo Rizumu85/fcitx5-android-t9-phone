@@ -4,6 +4,10 @@
     <string name="settings">Settings</string>
     <string name="input_options">Input options</string>
     <string name="keys_and_toolbar">Keys &amp; toolbar</string>
+    <string name="toolbar">Toolbar</string>
+    <string name="key_feedback">Key feedback</string>
+    <string name="voice_input">Voice input</string>
+    <string name="keyboard_layout">Keyboard</string>
     <string name="appearance_and_candidates">Appearance &amp; candidates</string>
     <string name="clipboard_and_symbols">Clipboard &amp; symbols</string>
     <string name="app_information">App information</string>
@@ -89,7 +93,7 @@
     <string name="delete">Delete</string>
     <string name="clipboard">Clipboard</string>
     <string name="keyboard_height">Keyboard height</string>
-    <string name="t9_keyboard_height">Nine-key height (% of screen)</string>
+    <string name="t9_keyboard_height">Primary keyboard height</string>
     <string name="virtual_keyboard">Virtual Keyboard</string>
     <string name="clipboard_suggestion_timeout">Clipboard suggestion timeout</string>
     <string name="version">Version</string>
