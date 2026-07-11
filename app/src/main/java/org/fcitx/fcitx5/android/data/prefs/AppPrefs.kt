@@ -141,9 +141,6 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         ) {
             soundOnKeyPress.getValue() != InputFeedbackMode.Disabled
         }
-        val focusChangeResetKeyboard =
-            switch(R.string.reset_keyboard_on_focus_change, "reset_keyboard_on_focus_change", true)
-        val inlineSuggestions = switch(R.string.inline_suggestions, "inline_suggestions", true)
         val toolbarNumRowOnPassword =
             switch(R.string.toolbar_num_row_on_password, "toolbar_num_row_on_password", true)
         val passwordInputPreview =

@@ -241,8 +241,6 @@ class InputView(
     )
     private val keyboardPrefs = AppPrefs.getInstance().keyboard
 
-    private val focusChangeResetKeyboard by keyboardPrefs.focusChangeResetKeyboard
-
     private val keyboardHeightPercent = keyboardPrefs.keyboardHeightPercent
     private val keyboardHeightPercentLandscape = keyboardPrefs.keyboardHeightPercentLandscape
     private val t9KeyboardHeightPercent = keyboardPrefs.t9KeyboardHeightPercent
@@ -532,13 +530,11 @@ class InputView(
     fun startInput(info: EditorInfo, capFlags: CapabilityFlags, restarting: Boolean = false) {
         broadcaster.onStartInput(info, capFlags, restarting)
         returnKeyDrawable.updateDrawableOnEditorInfo(info)
-        if (focusChangeResetKeyboard || !restarting) {
-            windowManager.attachWindow(KeyboardWindow)
-            // 重新进入时恢复 T9 高度（回调可能在 onDetachedFromWindow 被清空）
-            if (useT9KeyboardLayout && keyboardWindow.isCurrentLayoutT9() && !isT9KeyboardActive) {
-                isT9KeyboardActive = true
-                updateKeyboardSize()
-            }
+        windowManager.attachWindow(KeyboardWindow)
+        // Re-entering an editor restores T9 geometry because detach clears the active callback.
+        if (useT9KeyboardLayout && keyboardWindow.isCurrentLayoutT9() && !isT9KeyboardActive) {
+            isT9KeyboardActive = true
+            updateKeyboardSize()
         }
     }
 

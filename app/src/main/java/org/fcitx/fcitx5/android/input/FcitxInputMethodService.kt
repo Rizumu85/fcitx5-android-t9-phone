@@ -533,9 +533,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private val keyboardPrefs = prefs.keyboard
 
     @Volatile
-    private var inlineSuggestions = keyboardPrefs.inlineSuggestions.getValue()
-
-    @Volatile
     private var passwordInputPreviewEnabled = keyboardPrefs.passwordInputPreview.getValue()
 
     @Volatile
@@ -556,10 +553,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     @Volatile
     private var ignoreSystemCursor = prefs.advanced.ignoreSystemCursor.getValue()
 
-    private val inlineSuggestionsChangeListener =
-        ManagedPreference.OnChangeListener<Boolean> { _, value ->
-            inlineSuggestions = value
-        }
     private val passwordInputPreviewEnabledChangeListener =
         ManagedPreference.OnChangeListener<Boolean> { _, value ->
             passwordInputPreviewEnabled = value
@@ -754,7 +747,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         recreateInputViewPrefs.forEach {
             it.registerOnChangeListener(recreateInputViewListener)
         }
-        keyboardPrefs.inlineSuggestions.registerOnChangeListener(inlineSuggestionsChangeListener)
         keyboardPrefs.passwordInputPreview.registerOnChangeListener(
             passwordInputPreviewEnabledChangeListener
         )
@@ -2970,8 +2962,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     @SuppressLint("RestrictedApi")
     @RequiresApi(Build.VERSION_CODES.R)
     override fun onCreateInlineSuggestionsRequest(uiExtras: Bundle): InlineSuggestionsRequest? {
-        // ignore inline suggestion when disabled by user || using physical keyboard with floating candidates view
-        if (!inlineSuggestions || !inputDeviceMgr.isVirtualKeyboard) return null
+        // Inline suggestions belong to temporary virtual-keyboard sessions, never the physical T9 surface.
+        if (!inputDeviceMgr.isVirtualKeyboard) return null
         val theme = ThemeManager.activeTheme
         val chipDrawable =
             if (theme.isDark) R.drawable.bkg_inline_suggestion_dark else R.drawable.bkg_inline_suggestion_light
@@ -3027,7 +3019,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     @RequiresApi(Build.VERSION_CODES.R)
     override fun onInlineSuggestionsResponse(response: InlineSuggestionsResponse): Boolean {
-        if (!inlineSuggestions || !inputDeviceMgr.isVirtualKeyboard) return false
+        if (!inputDeviceMgr.isVirtualKeyboard) return false
         return inputView?.handleInlineSuggestions(response) == true
     }
 
@@ -3087,7 +3079,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         recreateInputViewPrefs.forEach {
             it.unregisterOnChangeListener(recreateInputViewListener)
         }
-        keyboardPrefs.inlineSuggestions.unregisterOnChangeListener(inlineSuggestionsChangeListener)
         keyboardPrefs.passwordInputPreview.unregisterOnChangeListener(
             passwordInputPreviewEnabledChangeListener
         )
