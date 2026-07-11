@@ -87,76 +87,116 @@ class FcitxApplication : Application() {
         val applicationCreateStage = StartupPerformanceTrace.beginStage(
             StartupPerformanceTrace.Stage.APPLICATION_CREATE
         )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !userManager.isUserUnlocked) {
-            isDirectBootMode = true
-            registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_UNLOCKED))
+        StartupPerformanceTrace.measure(
+            StartupPerformanceTrace.Stage.APPLICATION_DIRECT_BOOT
+        ) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !userManager.isUserUnlocked) {
+                isDirectBootMode = true
+                registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_UNLOCKED))
+            }
         }
         val ctx = directBootAwareContext
 
-        if (!BuildConfig.DEBUG) {
-            Thread.setDefaultUncaughtExceptionHandler { _, e ->
-                val crashTime = System.currentTimeMillis()
-                val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(ctx)
-                val lastCrashTimePrefKey = "last_crash_time"
-                val lastCrashTime = sharedPreferences.getLong(lastCrashTimePrefKey, -1L)
-                // make sure it was written to persistent storage
-                sharedPreferences.edit(commit = true) {
-                    putLong(lastCrashTimePrefKey, crashTime)
-                }
-                if (crashTime - lastCrashTime <= 10_000L) {
-                    // continuous crashes within 10 seconds, maybe in a crash loop. just bail
+        StartupPerformanceTrace.measure(
+            StartupPerformanceTrace.Stage.APPLICATION_CRASH_HANDLER
+        ) {
+            if (!BuildConfig.DEBUG) {
+                Thread.setDefaultUncaughtExceptionHandler { _, e ->
+                    val crashTime = System.currentTimeMillis()
+                    val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(ctx)
+                    val lastCrashTimePrefKey = "last_crash_time"
+                    val lastCrashTime = sharedPreferences.getLong(lastCrashTimePrefKey, -1L)
+                    // make sure it was written to persistent storage
+                    sharedPreferences.edit(commit = true) {
+                        putLong(lastCrashTimePrefKey, crashTime)
+                    }
+                    if (crashTime - lastCrashTime <= 10_000L) {
+                        // continuous crashes within 10 seconds, maybe in a crash loop. just bail
+                        exitProcess(10)
+                    }
+                    startActivity<LogActivity> {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        putExtra(LogActivity.FROM_CRASH, true)
+                        // avoid transaction overflow
+                        val truncated = e.stackTraceToString().let {
+                            if (it.length > MAX_STACKTRACE_SIZE)
+                                it.take(MAX_STACKTRACE_SIZE) + "<truncated>"
+                            else
+                                it
+                        }
+                        putExtra(LogActivity.CRASH_STACK_TRACE, truncated)
+                    }
                     exitProcess(10)
                 }
-                startActivity<LogActivity> {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    putExtra(LogActivity.FROM_CRASH, true)
-                    // avoid transaction overflow
-                    val truncated = e.stackTraceToString().let {
-                        if (it.length > MAX_STACKTRACE_SIZE)
-                            it.take(MAX_STACKTRACE_SIZE) + "<truncated>"
-                        else
-                            it
-                    }
-                    putExtra(LogActivity.CRASH_STACK_TRACE, truncated)
-                }
-                exitProcess(10)
             }
         }
 
-        instance = this
-        // we don't have AppPrefs available yet
-        val sharedPrefs = PreferenceManager.getDefaultSharedPreferences(ctx)
-        Timber.setupForest(verbose = sharedPrefs.getBoolean("verbose_log", false))
+        StartupPerformanceTrace.measure(
+            StartupPerformanceTrace.Stage.APPLICATION_PREFS_LOGGING
+        ) {
+            instance = this
+            // we don't have AppPrefs available yet
+            val sharedPrefs = PreferenceManager.getDefaultSharedPreferences(ctx)
+            Timber.setupForest(verbose = sharedPrefs.getBoolean("verbose_log", false))
 
-        Timber.d("isDirectBootMode=$isDirectBootMode")
+            Timber.d("isDirectBootMode=$isDirectBootMode")
 
-        AppPrefs.init(sharedPrefs)
-        StartupPerformanceTrace.configure(
-            AppPrefs.getInstance().internal.t9ResponsivenessTrace.getValue()
-        )
-        // record last pid for crash logs
-        AppPrefs.getInstance().internal.pid.apply {
-            val currentPid = Process.myPid()
-            lastPid = getValue()
-            Timber.d("Last pid is $lastPid. Set it to current pid: $currentPid")
-            setValue(currentPid)
+            AppPrefs.init(sharedPrefs)
+            StartupPerformanceTrace.configure(
+                AppPrefs.getInstance().internal.t9ResponsivenessTrace.getValue()
+            )
+            // record last pid for crash logs
+            AppPrefs.getInstance().internal.pid.apply {
+                val currentPid = Process.myPid()
+                lastPid = getValue()
+                Timber.d("Last pid is $lastPid. Set it to current pid: $currentPid")
+                setValue(currentPid)
+            }
         }
-        ClipboardManager.init(ctx)
-        ThemeManager.init(resources.configuration)
-        Locales.onLocaleChange(resources.configuration)
-        registerReceiver(shutdownReceiver, IntentFilter(Intent.ACTION_SHUTDOWN))
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !isDirectBootMode) {
-            AppPrefs.getInstance().syncToDeviceEncryptedStorage()
-            ThemeManager.syncToDeviceEncryptedStorage()
+        StartupPerformanceTrace.measure(
+            StartupPerformanceTrace.Stage.APPLICATION_RUNTIME_MANAGERS
+        ) {
+            StartupPerformanceTrace.measure(
+                StartupPerformanceTrace.Stage.APPLICATION_CLIPBOARD_INIT
+            ) {
+                ClipboardManager.init(ctx)
+            }
+            StartupPerformanceTrace.measure(
+                StartupPerformanceTrace.Stage.APPLICATION_THEME_INIT
+            ) {
+                ThemeManager.init(resources.configuration)
+            }
+            StartupPerformanceTrace.measure(
+                StartupPerformanceTrace.Stage.APPLICATION_LOCALES_INIT
+            ) {
+                Locales.onLocaleChange(resources.configuration)
+            }
         }
-        ContextCompat.registerReceiver(
-            this,
-            restartFcitxInstanceReceiver,
-            IntentFilter(ACTION_RESTART_FCITX_INSTANCE),
-            PERMISSION_TEST_INPUT_METHOD,
-            null,
-            ContextCompat.RECEIVER_EXPORTED
-        )
+        StartupPerformanceTrace.measure(
+            StartupPerformanceTrace.Stage.APPLICATION_RECEIVER_REGISTRATION
+        ) {
+            registerReceiver(shutdownReceiver, IntentFilter(Intent.ACTION_SHUTDOWN))
+        }
+        StartupPerformanceTrace.measure(
+            StartupPerformanceTrace.Stage.APPLICATION_DEVICE_STORAGE_SYNC
+        ) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !isDirectBootMode) {
+                AppPrefs.getInstance().syncToDeviceEncryptedStorage()
+                ThemeManager.syncToDeviceEncryptedStorage()
+            }
+        }
+        StartupPerformanceTrace.measure(
+            StartupPerformanceTrace.Stage.APPLICATION_RESTART_RECEIVER
+        ) {
+            ContextCompat.registerReceiver(
+                this,
+                restartFcitxInstanceReceiver,
+                IntentFilter(ACTION_RESTART_FCITX_INSTANCE),
+                PERMISSION_TEST_INPUT_METHOD,
+                null,
+                ContextCompat.RECEIVER_EXPORTED
+            )
+        }
         StartupPerformanceTrace.endStage(applicationCreateStage)
         StartupPerformanceTrace.mark(StartupPerformanceTrace.Milestone.APPLICATION_CREATED)
     }

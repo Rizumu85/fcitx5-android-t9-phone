@@ -96,8 +96,14 @@ class InputView(
         return super.dispatchKeyEventPreIme(event)
     }
 
+    private val auxiliarySurfacesCreateStage = StartupPerformanceTrace.beginStage(
+        StartupPerformanceTrace.Stage.INPUT_AUXILIARY_SURFACES_CREATE
+    )
     private val keyBorder by ThemeManager.prefs.keyBorder
 
+    private val chromePrimitivesCreateStage = StartupPerformanceTrace.beginStage(
+        StartupPerformanceTrace.Stage.INPUT_CHROME_PRIMITIVES_CREATE
+    )
     private val customBackground = imageView {
         scaleType = ImageView.ScaleType.CENTER_CROP
     }
@@ -116,8 +122,29 @@ class InputView(
         // bottomMargin as WindowInsets (Navigation Bar) offset
         setOnClickListener(placeholderOnClickListener)
     }
-    private val selectionActionPanel = SelectionActionPanel(context, theme)
-    private val numberOperatorPanel = NumberOperatorPanel(context, theme)
+    private val chromePrimitivesCreated =
+        StartupPerformanceTrace.endStage(chromePrimitivesCreateStage)
+    private val selectionActionPanel = lazy(LazyThreadSafetyMode.NONE) {
+        StartupPerformanceTrace.measure(
+            StartupPerformanceTrace.Stage.INPUT_SELECTION_PANEL_CREATE
+        ) {
+            // Selection hints are absent during ordinary typing. Attach them on first use so
+            // every IME cold start does not pay for six hidden views and their font setup.
+            SelectionActionPanel(context, theme).also { it.addTo(this) }
+        }
+    }
+    private val numberOperatorPanel = lazy(LazyThreadSafetyMode.NONE) {
+        StartupPerformanceTrace.measure(
+            StartupPerformanceTrace.Stage.INPUT_NUMBER_PANEL_CREATE
+        ) {
+            // Number operators are an explicit secondary surface. Defer their 26-cell tree
+            // until the user requests it instead of constructing it for Chinese/English input.
+            NumberOperatorPanel(context, theme).also { it.addTo(this) }
+        }
+    }
+    private val passwordPreviewCreateStage = StartupPerformanceTrace.beginStage(
+        StartupPerformanceTrace.Stage.INPUT_PASSWORD_PREVIEW_CREATE
+    )
     private var passwordInputPreviewValue = ""
     private var passwordInputPreviewCursor = 0
     private var passwordInputPreviewCursorVisible = true
@@ -163,7 +190,14 @@ class InputView(
             FrameLayout.LayoutParams(matchParent, dp(30), Gravity.CENTER)
         )
     }
+    private val passwordPreviewCreated =
+        StartupPerformanceTrace.endStage(passwordPreviewCreateStage)
+    private val auxiliarySurfacesCreated =
+        StartupPerformanceTrace.endStage(auxiliarySurfacesCreateStage)
 
+    private val componentsCreateStage = StartupPerformanceTrace.beginStage(
+        StartupPerformanceTrace.Stage.INPUT_COMPONENTS_CREATE
+    )
     private val scope = DynamicScope()
     private val themedContext = context.withTheme(R.style.Theme_InputViewTheme)
     private val broadcaster = InputBroadcaster()
@@ -177,6 +211,7 @@ class InputView(
     private val kawaiiBar = KawaiiBarComponent()
     private val horizontalCandidate = HorizontalCandidateComponent()
     private val keyboardWindow = KeyboardWindow()
+    private val componentsCreated = StartupPerformanceTrace.endStage(componentsCreateStage)
 
     private fun setupScope() {
         StartupPerformanceTrace.measure(StartupPerformanceTrace.Stage.INPUT_SCOPE_REGISTRATION) {
@@ -201,6 +236,9 @@ class InputView(
         }
     }
 
+    private val preferenceBindingsStage = StartupPerformanceTrace.beginStage(
+        StartupPerformanceTrace.Stage.INPUT_PREFERENCE_BINDINGS
+    )
     private val keyboardPrefs = AppPrefs.getInstance().keyboard
 
     private val focusChangeResetKeyboard by keyboardPrefs.focusChangeResetKeyboard
@@ -288,6 +326,9 @@ class InputView(
         passwordInputPreviewText.invalidateOutline()
         kawaiiBar.updateTopCornerRadius()
     }
+
+    private val preferenceBindingsCreated =
+        StartupPerformanceTrace.endStage(preferenceBindingsStage)
 
     init {
         // MUST call before any operation
@@ -408,9 +449,6 @@ class InputView(
                 centerVertically()
                 centerHorizontally()
             })
-            selectionActionPanel.addTo(this)
-            numberOperatorPanel.addTo(this)
-
             // 4. updateKeyboardSize() after all add() so layoutParams exist (avoids NPE / wrong height)
             updateInputPanelTopCornerRadius()
             updatePasswordPeekChrome()
@@ -624,27 +662,33 @@ class InputView(
     }
 
     fun showSelectionActionHints() {
-        selectionActionPanel.show()
+        selectionActionPanel.value.show()
     }
 
     fun hideSelectionActionHints() {
-        selectionActionPanel.hide()
+        if (selectionActionPanel.isInitialized()) {
+            selectionActionPanel.value.hide()
+        }
     }
 
     fun showNumberOperatorHints() {
-        numberOperatorPanel.showOperators()
+        numberOperatorPanel.value.showOperators()
     }
 
     fun hideNumberOperatorHints() {
-        numberOperatorPanel.hideOperators()
+        if (numberOperatorPanel.isInitialized()) {
+            numberOperatorPanel.value.hideOperators()
+        }
     }
 
     fun showNumberEqualsChoice(prefix: String, result: String) {
-        numberOperatorPanel.showEqualsChoice(prefix, result)
+        numberOperatorPanel.value.showEqualsChoice(prefix, result)
     }
 
     fun hideNumberEqualsChoice() {
-        numberOperatorPanel.hideEqualsChoice()
+        if (numberOperatorPanel.isInitialized()) {
+            numberOperatorPanel.value.hideEqualsChoice()
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.R)

@@ -29,8 +29,18 @@ import timber.log.Timber
 
 object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
     CoroutineScope by CoroutineScope(SupervisorJob() + Dispatchers.Default) {
-    private lateinit var clbDb: ClipboardDatabase
-    private lateinit var clbDao: ClipboardDao
+    private lateinit var databaseContext: Context
+    private val clbDb by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        // Clipboard persistence is not needed to draw the first keyboard frame. The first
+        // background count/cleanup operation opens Room, while immediate clipboard listening
+        // remains registered synchronously in init().
+        Room.databaseBuilder(databaseContext, ClipboardDatabase::class.java, "clbdb")
+            .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
+            .build()
+    }
+    private val clbDao: ClipboardDao by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        clbDb.clipboardDao()
+    }
 
     fun interface OnClipboardUpdateListener {
         fun onUpdate(entry: ClipboardEntry)
@@ -85,12 +95,7 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
     }
 
     fun init(context: Context) {
-        clbDb = Room
-            .databaseBuilder(context, ClipboardDatabase::class.java, "clbdb")
-            // allow wipe the database instead of crashing when downgrade
-            .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
-            .build()
-        clbDao = clbDb.clipboardDao()
+        databaseContext = context.applicationContext
         enabledListener.onChange(enabledPref.key, enabledPref.getValue())
         enabledPref.registerOnChangeListener(enabledListener)
         limitListener.onChange(limitPref.key, limitPref.getValue())
