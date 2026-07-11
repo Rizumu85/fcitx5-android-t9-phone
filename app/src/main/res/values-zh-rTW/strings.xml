@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="clipboard_retention_days">剪貼簿歷史保留時間</string>
     <string name="settings">設定</string>
     <string name="input_options">輸入方式</string>
     <string name="keys_and_toolbar">按鍵與工具列</string>

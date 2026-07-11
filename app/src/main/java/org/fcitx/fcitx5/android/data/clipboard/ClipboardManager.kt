@@ -81,9 +81,15 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
     }
 
     private val limitPref = AppPrefs.getInstance().clipboard.clipboardHistoryLimit
+    private val retentionDaysPref = AppPrefs.getInstance().clipboard.clipboardRetentionDays
 
     @Keep
     private val limitListener = ManagedPreference.OnChangeListener<Int> { _, _ ->
+        launch { removeOutdated() }
+    }
+
+    @Keep
+    private val retentionDaysListener = ManagedPreference.OnChangeListener<Int> { _, _ ->
         launch { removeOutdated() }
     }
 
@@ -100,6 +106,7 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
         enabledPref.registerOnChangeListener(enabledListener)
         limitListener.onChange(limitPref.key, limitPref.getValue())
         limitPref.registerOnChangeListener(limitListener)
+        retentionDaysPref.registerOnChangeListener(retentionDaysListener)
         launch { updateItemCount() }
     }
 
@@ -199,6 +206,11 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
     }
 
     private suspend fun removeOutdated() {
+        val retentionDays = retentionDaysPref.getValue()
+        if (retentionDays >= 0) {
+            val cutoff = System.currentTimeMillis() - retentionDays * MILLIS_PER_DAY
+            clbDao.markUnpinnedAsDeletedEarlierThan(cutoff)
+        }
         val limit = limitPref.getValue()
         val unpinned = clbDao.getAllUnpinned()
         if (unpinned.size > limit) {
@@ -210,5 +222,7 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
             clbDao.markUnpinnedAsDeletedEarlierThan(last?.timestamp ?: System.currentTimeMillis())
         }
     }
+
+    private const val MILLIS_PER_DAY = 24L * 60L * 60L * 1000L
 
 }

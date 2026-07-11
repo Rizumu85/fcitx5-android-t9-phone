@@ -118,7 +118,7 @@ class ContentAndToolsSettingsFragment : GroupedManagedPreferenceFragment() {
             setOf(
                 prefs.clipboard.clipboardListening.key,
                 prefs.clipboard.clipboardHistoryLimit.key,
-                prefs.clipboard.clipboardItemTimeout.key,
+                prefs.clipboard.clipboardRetentionDays.key,
                 prefs.clipboard.clipboardMaskSensitive.key
             )
         ),

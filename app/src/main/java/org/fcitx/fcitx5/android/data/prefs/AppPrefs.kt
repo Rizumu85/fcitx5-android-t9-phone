@@ -311,19 +311,13 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             "clipboard_limit",
             10,
         ) { clipboardListening.getValue() }
-        val clipboardSuggestion = switch(
-            R.string.clipboard_suggestion, "clipboard_suggestion", true
-        ) { clipboardListening.getValue() }
-        val clipboardItemTimeout = int(
-            R.string.clipboard_suggestion_timeout,
-            "clipboard_item_timeout",
+        val clipboardRetentionDays = int(
+            R.string.clipboard_retention_days,
+            "clipboard_retention_days",
             30,
             -1,
-            Int.MAX_VALUE,
-            "s"
-        ) { clipboardListening.getValue() && clipboardSuggestion.getValue() }
-        val clipboardReturnAfterPaste = switch(
-            R.string.clipboard_return_after_paste, "clipboard_return_after_paste", false
+            365,
+            "d"
         ) { clipboardListening.getValue() }
         val clipboardMaskSensitive = switch(
             R.string.clipboard_mask_sensitive, "clipboard_mask_sensitive", true
