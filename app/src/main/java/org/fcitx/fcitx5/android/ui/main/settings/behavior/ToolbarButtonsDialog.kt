@@ -79,7 +79,6 @@ class ToolbarButtonsDialog(
             setPadding(context.dp(16), context.dp(8), context.dp(16), context.dp(4))
             addView(preview, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, context.dp(56)))
             addView(recycler, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, context.dp(260)))
-            addView(fixedRow(R.string.status_area, R.drawable.ic_baseline_more_horiz_24, true, enabled = false) {}, fullWidthRowParams())
             addView(fixedRow(R.string.hide_keyboard, R.drawable.ic_baseline_arrow_drop_down_24, hideVisible) {
                 hideVisible = it
                 renderPreview()
