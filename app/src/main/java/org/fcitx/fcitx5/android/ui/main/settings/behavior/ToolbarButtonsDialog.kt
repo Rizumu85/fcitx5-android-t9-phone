@@ -166,7 +166,12 @@ class ToolbarButtonsDialog(
         var startDrag: (RecyclerView.ViewHolder) -> Unit = {}
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder = Holder(
-            row(0, 0, false, enabled = true, draggable = true) {}
+            row(0, 0, false, enabled = true, draggable = true) {}.apply {
+                layoutParams = RecyclerView.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    context.dp(52)
+                )
+            }
         )
 
         override fun getItemCount() = items.size

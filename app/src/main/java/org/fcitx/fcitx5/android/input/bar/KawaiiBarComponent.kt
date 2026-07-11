@@ -90,7 +90,6 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
 
     private val prefs = AppPrefs.getInstance()
 
-    private val toolbarNumRowOnPassword by prefs.keyboard.toolbarNumRowOnPassword
     private val toolbarButtonPreferences = prefs.keyboard.toolbarButtonPreferences
 
     private var isInlineSuggestionPresent: Boolean = false
@@ -385,7 +384,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         val privateMode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             info.imeOptions.hasFlag(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING)
         idleUi.privateMode(privateMode)
-        isCapabilityFlagsPassword = toolbarNumRowOnPassword && capFlags.has(CapabilityFlag.Password)
+        isCapabilityFlagsPassword = capFlags.has(CapabilityFlag.Password)
         isVoiceInputAllowedForEditor = VoiceInputEditorPolicy.allows(info, capFlags)
         if (!restarting || !capFlags.has(CapabilityFlag.Password)) {
             isPasswordKeyboardLayout = false

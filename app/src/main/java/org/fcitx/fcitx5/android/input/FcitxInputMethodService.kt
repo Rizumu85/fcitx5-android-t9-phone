@@ -104,7 +104,6 @@ import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocusController
 import org.fcitx.fcitx5.android.input.t9.T9CandidateShortcutCommitter
 import org.fcitx.fcitx5.android.input.t9.T9InputMode
-import org.fcitx.fcitx5.android.input.t9.T9IdleLongZeroBehavior
 import org.fcitx.fcitx5.android.input.t9.T9ModeCoordinator
 import org.fcitx.fcitx5.android.input.t9.T9MultiTapCoordinator
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
@@ -535,13 +534,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var passwordInputPreviewEnabled = keyboardPrefs.passwordInputPreview.getValue()
 
     @Volatile
-    private var physicalKeySound = keyboardPrefs.physicalKeySound.getValue()
-
-    @Volatile
     private var physicalLongPressDelay = keyboardPrefs.longPressDelay.getValue()
 
     @Volatile
-    private var idleLongZeroBehavior = keyboardPrefs.idleLongZeroBehavior.getValue()
+    private var longPressZeroVoiceInput = keyboardPrefs.longPressZeroVoiceInput.getValue()
 
     @Volatile
     private var voiceInputAllowedForEditor = true
@@ -553,10 +549,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         ManagedPreference.OnChangeListener<Boolean> { _, value ->
             passwordInputPreviewEnabled = value
         }
-    private val physicalKeySoundChangeListener =
-        ManagedPreference.OnChangeListener<Boolean> { _, value ->
-            physicalKeySound = value
-        }
     private val smartEnglishT9ChangeListener =
         ManagedPreference.OnChangeListener<Boolean> { _, value ->
             smartEnglishModeController.onPreferenceChanged(value)
@@ -565,9 +557,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         ManagedPreference.OnChangeListener<Int> { _, value ->
             physicalLongPressDelay = value
         }
-    private val idleLongZeroBehaviorChangeListener =
-        ManagedPreference.OnChangeListener<T9IdleLongZeroBehavior> { _, value ->
-            idleLongZeroBehavior = value
+    private val longPressZeroVoiceInputChangeListener =
+        ManagedPreference.OnChangeListener<Boolean> { _, value ->
+            longPressZeroVoiceInput = value
         }
     private val ignoreSystemCursorChangeListener =
         ManagedPreference.OnChangeListener<Boolean> { _, value ->
@@ -580,7 +572,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
 
     private fun isIdleLongZeroVoiceEnabled(): Boolean =
-        idleLongZeroBehavior == T9IdleLongZeroBehavior.VoiceInput &&
+        longPressZeroVoiceInput &&
             voiceInputAllowedForEditor
 
     private fun updateVoiceInputEditorPolicy(info: EditorInfo, flags: CapabilityFlags) {
@@ -741,11 +733,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         keyboardPrefs.passwordInputPreview.registerOnChangeListener(
             passwordInputPreviewEnabledChangeListener
         )
-        keyboardPrefs.physicalKeySound.registerOnChangeListener(physicalKeySoundChangeListener)
         keyboardPrefs.smartEnglishT9.registerOnChangeListener(smartEnglishT9ChangeListener)
         keyboardPrefs.longPressDelay.registerOnChangeListener(physicalLongPressDelayChangeListener)
-        keyboardPrefs.idleLongZeroBehavior.registerOnChangeListener(
-            idleLongZeroBehaviorChangeListener
+        keyboardPrefs.longPressZeroVoiceInput.registerOnChangeListener(
+            longPressZeroVoiceInputChangeListener
         )
         prefs.advanced.ignoreSystemCursor.registerOnChangeListener(ignoreSystemCursorChangeListener)
         prefs.internal.t9ResponsivenessTrace.registerOnChangeListener(t9ResponsivenessTraceChangeListener)
@@ -2349,7 +2340,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun playPhysicalKeySound(keyCode: Int, event: KeyEvent) {
-        if (!physicalKeySound) return
         if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount != 0) return
         val effect = when (keyCode) {
             KeyEvent.KEYCODE_DEL, KeyEvent.KEYCODE_BACK,
@@ -3058,11 +3048,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         keyboardPrefs.passwordInputPreview.unregisterOnChangeListener(
             passwordInputPreviewEnabledChangeListener
         )
-        keyboardPrefs.physicalKeySound.unregisterOnChangeListener(physicalKeySoundChangeListener)
         keyboardPrefs.smartEnglishT9.unregisterOnChangeListener(smartEnglishT9ChangeListener)
         keyboardPrefs.longPressDelay.unregisterOnChangeListener(physicalLongPressDelayChangeListener)
-        keyboardPrefs.idleLongZeroBehavior.unregisterOnChangeListener(
-            idleLongZeroBehaviorChangeListener
+        keyboardPrefs.longPressZeroVoiceInput.unregisterOnChangeListener(
+            longPressZeroVoiceInputChangeListener
         )
         prefs.advanced.ignoreSystemCursor.unregisterOnChangeListener(ignoreSystemCursorChangeListener)
         prefs.internal.t9ResponsivenessTrace.unregisterOnChangeListener(t9ResponsivenessTraceChangeListener)

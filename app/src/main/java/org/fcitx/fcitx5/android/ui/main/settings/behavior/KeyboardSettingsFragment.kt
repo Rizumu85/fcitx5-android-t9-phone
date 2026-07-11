@@ -106,12 +106,9 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
         val productSettingKeys = setOf(
             keyboardPrefs.hapticOnKeyPress.key,
             keyboardPrefs.soundOnKeyPress.key,
-            keyboardPrefs.physicalKeySound.key,
-            keyboardPrefs.toolbarNumRowOnPassword.key,
             keyboardPrefs.passwordInputPreview.key,
-            keyboardPrefs.idleLongZeroBehavior.key,
             keyboardPrefs.preferredVoiceInput.key,
-            keyboardPrefs.longPressDelay.key,
+            keyboardPrefs.longPressZeroVoiceInput.key,
             keyboardPrefs.t9KeyboardHeightPercent.key,
             "toolbar_buttons_manage",
             "key_sound_pack_manage"

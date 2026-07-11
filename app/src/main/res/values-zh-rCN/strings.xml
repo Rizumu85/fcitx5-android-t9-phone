@@ -89,7 +89,7 @@
     <string name="delete">删除</string>
     <string name="clipboard">剪贴板</string>
     <string name="keyboard_height">键盘高度</string>
-    <string name="t9_keyboard_height">九键键盘高度</string>
+    <string name="t9_keyboard_height">九键高度（屏幕占比）</string>
     <string name="virtual_keyboard">虚拟键盘</string>
     <string name="clipboard_suggestion_timeout">剪贴板提示超时</string>
     <string name="version">版本</string>
@@ -284,11 +284,11 @@
     <string name="whether_reset_switch_preference">是否要将此设置重置为默认值？</string>
     <string name="enabled">启用</string>
     <string name="following_system_settings">跟随系统设置</string>
-    <string name="button_sound">按键音</string>
+    <string name="button_sound">按键时音效</string>
     <string name="button_sound_volume">按键音音量</string>
     <string name="key_sound_pack_import">导入按键音包</string>
     <string name="key_sound_pack_import_summary">导入百度输入法 Android .bds 皮肤里的按键音</string>
-    <string name="key_sound_pack_select">按键音包</string>
+    <string name="key_sound_pack_select">自定义按键音</string>
     <string name="key_sound_pack_android_default">内置默认按键音</string>
     <string name="key_sound_pack_import_message">修改这个按键音包的本地名称。</string>
     <string name="key_sound_pack_name_hint">音包名称</string>
@@ -403,9 +403,9 @@
     <string name="hide_unsupported_emojis">隐藏不支持的表情</string>
     <string name="key_border_stroke">启用按键边框描边</string>
     <string name="preferred_voice_input">首选语音输入</string>
-    <string name="toolbar_buttons">工具栏按钮</string>
+    <string name="toolbar_buttons">工具栏设置</string>
     <string name="toolbar_buttons_summary">选择并调整工具栏按钮顺序</string>
-    <string name="t9_idle_long_zero_behavior">空闲时长按 0</string>
+    <string name="t9_idle_long_zero_behavior">长按 0 语音输入</string>
     <string name="t9_idle_long_zero_literal">输入数字 0</string>
     <string name="t9_idle_long_zero_voice">语音输入</string>
     <string name="voice_input_not_available">请先在系统设置中启用语音输入法</string>

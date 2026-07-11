@@ -88,7 +88,7 @@
     <string name="delete">刪除</string>
     <string name="clipboard">剪貼簿</string>
     <string name="keyboard_height">鍵盤高度</string>
-    <string name="t9_keyboard_height">九鍵鍵盤高度</string>
+    <string name="t9_keyboard_height">九鍵高度（螢幕占比）</string>
     <string name="virtual_keyboard">虛擬鍵盤</string>
     <string name="clipboard_suggestion_timeout">剪貼簿項目逾時</string>
     <string name="version">版本</string>
@@ -278,11 +278,11 @@
     <string name="whether_reset_switch_preference">是否要將此偏好設定重設為預設選項？</string>
     <string name="enabled">啟用</string>
     <string name="following_system_settings">跟隨系統設定</string>
-    <string name="button_sound">按鍵音</string>
+    <string name="button_sound">按鍵時音效</string>
     <string name="button_sound_volume">按鍵音音量</string>
     <string name="key_sound_pack_import">匯入按鍵音包</string>
     <string name="key_sound_pack_import_summary">匯入百度輸入法 Android .bds 皮膚裡的按鍵音</string>
-    <string name="key_sound_pack_select">按鍵音包</string>
+    <string name="key_sound_pack_select">自訂按鍵音</string>
     <string name="key_sound_pack_android_default">內建預設按鍵音</string>
     <string name="key_sound_pack_import_message">修改這個按鍵音包的本機名稱。</string>
     <string name="key_sound_pack_name_hint">音包名稱</string>
@@ -396,9 +396,9 @@
     <string name="emoji_skin_tone_type_6">🏿 深膚色 (Type-6)</string>
     <string name="hide_unsupported_emojis">隱藏不支援的表情</string>
     <string name="preferred_voice_input">首選語音輸入</string>
-    <string name="toolbar_buttons">工具列按鈕</string>
+    <string name="toolbar_buttons">工具列設定</string>
     <string name="toolbar_buttons_summary">選擇並調整工具列按鈕順序</string>
-    <string name="t9_idle_long_zero_behavior">閒置時長按 0</string>
+    <string name="t9_idle_long_zero_behavior">長按 0 語音輸入</string>
     <string name="t9_idle_long_zero_literal">輸入數字 0</string>
     <string name="t9_idle_long_zero_voice">語音輸入</string>
     <string name="voice_input_not_available">請先在系統設定中啟用語音輸入法</string>

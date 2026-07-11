@@ -19,7 +19,6 @@ import org.fcitx.fcitx5.android.input.picker.PickerWindow
 import org.fcitx.fcitx5.android.input.popup.EmojiModifier
 import org.fcitx.fcitx5.android.input.t9.ChineseT9Scheme
 import org.fcitx.fcitx5.android.input.t9.ChineseT9OutputScript
-import org.fcitx.fcitx5.android.input.t9.T9IdleLongZeroBehavior
 import org.fcitx.fcitx5.android.utils.DeviceUtil
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.vibrator
@@ -128,15 +127,6 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         ) {
             soundOnKeyPress.getValue() != InputFeedbackMode.Disabled
         }
-        val physicalKeySound = switch(
-            R.string.physical_key_sound,
-            "physical_key_sound",
-            true
-        ) {
-            soundOnKeyPress.getValue() != InputFeedbackMode.Disabled
-        }
-        val toolbarNumRowOnPassword =
-            switch(R.string.toolbar_num_row_on_password, "toolbar_num_row_on_password", true)
         val passwordInputPreview =
             switch(R.string.password_input_preview, "password_input_preview", true)
         val inputUiFont = dynamicStringList(
@@ -174,17 +164,17 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             ToolbarButtonOrder.encode(ToolbarButtonOrder.default)
         ).also { it.register() }
 
-        val idleLongZeroBehavior = enumList(
-            R.string.t9_idle_long_zero_behavior,
-            "t9_idle_long_zero_behavior",
-            T9IdleLongZeroBehavior.LiteralZero
-        )
         val preferredVoiceInput = voiceInputPreference(
             R.string.preferred_voice_input, "preferred_voice_input", ""
         ) {
             showVoiceInputButton.getValue() ||
-                idleLongZeroBehavior.getValue() == T9IdleLongZeroBehavior.VoiceInput
+                longPressZeroVoiceInput.getValue()
         }
+        val longPressZeroVoiceInput = switch(
+            R.string.t9_idle_long_zero_behavior,
+            "long_press_zero_voice_input",
+            true
+        )
 
         val longPressDelay = int(
             R.string.keyboard_long_press_delay,
