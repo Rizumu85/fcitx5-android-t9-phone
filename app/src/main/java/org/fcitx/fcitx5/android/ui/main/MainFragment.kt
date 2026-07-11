@@ -59,9 +59,9 @@ class MainFragment : PaddingPreferenceFragment() {
                     SettingsRoute.AppearanceAndCandidates
                 )
                 addDestinationPreference(
-                    R.string.content_and_tools,
+                    R.string.clipboard_and_symbols,
                     R.drawable.ic_baseline_content_paste_24,
-                    SettingsRoute.ContentAndTools
+                    SettingsRoute.ClipboardAndSymbols
                 )
                 addDestinationPreference(
                     R.string.advanced,
@@ -70,11 +70,6 @@ class MainFragment : PaddingPreferenceFragment() {
                 )
             }
             addCategory(R.string.app_information) {
-                addDestinationPreference(
-                    R.string.license,
-                    R.drawable.ic_baseline_info_24,
-                    SettingsRoute.License
-                )
                 addDestinationPreference(
                     R.string.about,
                     R.drawable.ic_baseline_info_24,

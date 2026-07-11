@@ -111,7 +111,7 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
     }
 }
 
-class ContentAndToolsSettingsFragment : GroupedManagedPreferenceFragment() {
+class ClipboardAndSymbolsSettingsFragment : GroupedManagedPreferenceFragment() {
     private val prefs = AppPrefs.getInstance()
 
     override fun groups() = listOf(

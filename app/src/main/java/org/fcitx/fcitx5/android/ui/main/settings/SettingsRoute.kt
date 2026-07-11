@@ -55,7 +55,7 @@ sealed class SettingsRoute : Parcelable {
     data object AppearanceAndCandidates : SettingsRoute()
 
     @Serializable
-    data object ContentAndTools : SettingsRoute()
+    data object ClipboardAndSymbols : SettingsRoute()
 
     @Serializable
     data object AdvancedHub : SettingsRoute()
@@ -206,8 +206,8 @@ sealed class SettingsRoute : Parcelable {
             fragment<AppearanceAndCandidatesSettingsFragment, AppearanceAndCandidates> {
                 label = ctx.getString(R.string.appearance_and_candidates)
             }
-            fragment<ContentAndToolsSettingsFragment, ContentAndTools> {
-                label = ctx.getString(R.string.content_and_tools)
+            fragment<ClipboardAndSymbolsSettingsFragment, ClipboardAndSymbols> {
+                label = ctx.getString(R.string.clipboard_and_symbols)
             }
             fragment<AdvancedSettingsHubFragment, AdvancedHub> {
                 label = ctx.getString(R.string.advanced)
