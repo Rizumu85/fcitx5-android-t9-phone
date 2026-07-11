@@ -404,7 +404,7 @@
     <string name="key_border_stroke">启用按键边框描边</string>
     <string name="preferred_voice_input">首选语音输入</string>
     <string name="toolbar_buttons">工具栏按钮</string>
-    <string name="toolbar_buttons_summary">选择要显示的按钮；快捷设置始终显示</string>
+    <string name="toolbar_buttons_summary">选择并调整工具栏按钮顺序</string>
     <string name="t9_idle_long_zero_behavior">空闲时长按 0</string>
     <string name="t9_idle_long_zero_literal">输入数字 0</string>
     <string name="t9_idle_long_zero_voice">语音输入</string>

@@ -397,7 +397,7 @@
     <string name="hide_unsupported_emojis">隱藏不支援的表情</string>
     <string name="preferred_voice_input">首選語音輸入</string>
     <string name="toolbar_buttons">工具列按鈕</string>
-    <string name="toolbar_buttons_summary">選擇要顯示的按鈕；快捷設定一律顯示</string>
+    <string name="toolbar_buttons_summary">選擇並調整工具列按鈕順序</string>
     <string name="t9_idle_long_zero_behavior">閒置時長按 0</string>
     <string name="t9_idle_long_zero_literal">輸入數字 0</string>
     <string name="t9_idle_long_zero_voice">語音輸入</string>

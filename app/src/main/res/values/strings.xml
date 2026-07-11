@@ -404,7 +404,7 @@
     <string name="key_border_stroke">Enable stroke for key border</string>
     <string name="preferred_voice_input">Preferred voice input</string>
     <string name="toolbar_buttons">Toolbar buttons</string>
-    <string name="toolbar_buttons_summary">Choose optional buttons. Quick settings is always shown.</string>
+    <string name="toolbar_buttons_summary">Choose and reorder toolbar buttons.</string>
     <string name="t9_idle_long_zero_behavior">Long-press 0 while idle</string>
     <string name="t9_idle_long_zero_literal">Input 0</string>
     <string name="t9_idle_long_zero_voice">Voice input</string>
