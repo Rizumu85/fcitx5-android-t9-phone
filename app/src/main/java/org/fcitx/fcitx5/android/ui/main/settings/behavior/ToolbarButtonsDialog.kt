@@ -121,7 +121,10 @@ class ToolbarButtonsDialog(
             isEnabled = enabled
             setOnCheckedChangeListener { _, value -> changed(value) }
         }
-        addView(checkBox, LinearLayout.LayoutParams(context.dp(48), context.dp(48)))
+        addView(
+            iconView(if (draggable) R.drawable.ic_baseline_drag_handle_24 else 0),
+            LinearLayout.LayoutParams(context.dp(44), context.dp(44))
+        )
         addView(iconView(icon), LinearLayout.LayoutParams(context.dp(36), context.dp(36)))
         addView(TextView(context).apply {
             if (label != 0) setText(label)
@@ -129,7 +132,7 @@ class ToolbarButtonsDialog(
             textSize = 16f
             setPadding(context.dp(8), 0, context.dp(8), 0)
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        if (draggable) addView(iconView(R.drawable.ic_baseline_drag_handle_24), LinearLayout.LayoutParams(context.dp(44), context.dp(44)))
+        addView(checkBox, LinearLayout.LayoutParams(context.dp(48), context.dp(48)))
         setOnClickListener { if (enabled) checkBox.isChecked = !checkBox.isChecked }
     }
 
@@ -170,10 +173,10 @@ class ToolbarButtonsDialog(
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
             val item = items[position]
-            val checkBox = holder.row.getChildAt(0) as CheckBox
+            val handle = holder.row.getChildAt(0)
             val icon = holder.row.getChildAt(1) as ImageView
             val label = holder.row.getChildAt(2) as TextView
-            val handle = holder.row.getChildAt(3)
+            val checkBox = holder.row.getChildAt(3) as CheckBox
             checkBox.setOnCheckedChangeListener(null)
             checkBox.isChecked = item.visible
             checkBox.setOnCheckedChangeListener { _, value -> item.visible = value; renderPreview() }
