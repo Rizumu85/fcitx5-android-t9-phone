@@ -344,6 +344,7 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
     fun syncToDeviceEncryptedStorage() {
         val ctx = appContext.createDeviceProtectedStorageContext()
         val sp = PreferenceManager.getDefaultSharedPreferences(ctx)
+        SettingsPreferenceMigration.migrate(sp)
         sp.edit {
             listOf(
                 internal.verboseLog,
@@ -378,6 +379,7 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         fun init(sharedPreferences: SharedPreferences) {
             if (instance != null)
                 return
+            SettingsPreferenceMigration.migrate(sharedPreferences)
             instance = AppPrefs(sharedPreferences)
             sharedPreferences.registerOnSharedPreferenceChangeListener(getInstance().onSharedPreferenceChangeListener)
         }
