@@ -134,16 +134,38 @@ class ContentAndToolsSettingsFragment : GroupedManagedPreferenceFragment() {
 
 }
 
-class AppearanceAndCandidatesSettingsFragment : SettingsHubFragment() {
-    override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) = createHub {
-        addCategory(R.string.appearance_and_candidates) {
-            addDestination(R.string.theme, R.drawable.ic_baseline_palette_24, SettingsRoute.Theme)
-            addDestination(
-                R.string.candidates_window,
-                R.drawable.ic_baseline_list_alt_24,
-                SettingsRoute.CandidatesWindow
+class AppearanceAndCandidatesSettingsFragment : GroupedManagedPreferenceFragment() {
+    private val prefs = AppPrefs.getInstance()
+
+    override fun groups() = listOf(
+        Group(
+            R.string.candidates_window,
+            prefs.keyboard,
+            setOf(prefs.keyboard.inputUiFont.key)
+        ),
+        Group(
+            R.string.candidates_window,
+            prefs.candidates,
+            setOf(
+                prefs.candidates.fontSize.key,
+                prefs.candidates.t9HanziCharacterBudget.key
             )
-        }
+        )
+    )
+
+    override fun onGroupedPreferenceUiCreated(screen: PreferenceScreen) {
+        screen.addPreference(
+            androidx.preference.Preference(screen.context).apply {
+                order = Int.MIN_VALUE
+                setTitle(R.string.theme)
+                setIcon(R.drawable.ic_baseline_palette_24)
+                isSingleLineTitle = false
+                setOnPreferenceClickListener {
+                    navigateWithAnim(SettingsRoute.Theme)
+                    true
+                }
+            }
+        )
     }
 }
 

@@ -37,27 +37,29 @@ abstract class GroupedManagedPreferenceFragment : PaddingPreferenceFragment() {
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         val groups = groups()
         preferenceScreen = preferenceManager.createPreferenceScreen(requireContext()).also { screen ->
-            groups.forEach { group ->
+            groups.groupBy(Group::title).forEach { (title, sectionGroups) ->
                 val category = PreferenceCategory(screen.context).apply {
-                    setTitle(group.title)
+                    setTitle(title)
                     isIconSpaceReserved = false
                 }
                 screen.addPreference(category)
-                group.provider.managedPreferencesUi
-                    .asSequence()
-                    .filter { it.key in group.keys }
-                    .forEach { ui ->
-                        category.addPreference(ui.createUi(screen.context).apply {
-                            isEnabled = ui.isEnabled()
-                        })
-                    }
-                evaluators += ManagedPreferenceVisibilityEvaluator(group.provider) { changes ->
-                    changes.forEach { (key, enabled) ->
-                        if (key in group.keys) {
-                            screen.findPreference<Preference>(key)?.isEnabled = enabled
+                sectionGroups.forEach { group ->
+                    group.provider.managedPreferencesUi
+                        .asSequence()
+                        .filter { it.key in group.keys }
+                        .forEach { ui ->
+                            category.addPreference(ui.createUi(screen.context).apply {
+                                isEnabled = ui.isEnabled()
+                            })
                         }
-                    }
-                }.also { it.evaluateVisibility() }
+                    evaluators += ManagedPreferenceVisibilityEvaluator(group.provider) { changes ->
+                        changes.forEach { (key, enabled) ->
+                            if (key in group.keys) {
+                                screen.findPreference<Preference>(key)?.isEnabled = enabled
+                            }
+                        }
+                    }.also { it.evaluateVisibility() }
+                }
             }
             onGroupedPreferenceUiCreated(screen)
         }
