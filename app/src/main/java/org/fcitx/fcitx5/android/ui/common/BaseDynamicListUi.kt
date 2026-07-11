@@ -26,8 +26,10 @@ import arrow.core.identity
 import com.google.android.material.behavior.HideViewOnScrollBehavior
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.snackbar.Snackbar
+import com.google.android.material.textfield.TextInputLayout
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.utils.onPositiveButtonClick
+import org.fcitx.fcitx5.android.utils.materialTextInput
 import org.fcitx.fcitx5.android.utils.str
 import splitties.dimensions.dp
 import splitties.resources.drawable
@@ -120,14 +122,20 @@ abstract class BaseDynamicListUi<T>(
      */
     private var suspendUndo = false
 
-    private val searchBox = editText {
+    private val searchInput = materialTextInput { editText ->
         visibility = View.GONE
-        isSingleLine = true
-        setPadding(dp(16), 0, dp(16), 0)
-        addTextChangedListener {
-            setFilterQuery(it?.toString().orEmpty())
+        boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
+        startIconDrawable = drawable(R.drawable.ic_baseline_search_24)
+        endIconMode = TextInputLayout.END_ICON_CLEAR_TEXT
+        editText.apply {
+            isSingleLine = true
+            addTextChangedListener {
+                setFilterQuery(it?.toString().orEmpty())
+            }
         }
     }
+    private val searchContainer = searchInput.first
+    private val searchBox = searchInput.second
 
     init {
         initEditButton = when (mode) {
@@ -287,8 +295,8 @@ abstract class BaseDynamicListUi<T>(
     }
 
     fun enableSearch(hintText: String) {
-        searchBox.hint = hintText
-        searchBox.visibility = View.VISIBLE
+        searchContainer.hint = hintText
+        searchContainer.visibility = View.VISIBLE
     }
 
     fun addTouchCallback(
@@ -311,7 +319,10 @@ abstract class BaseDynamicListUi<T>(
     override val root = coordinatorLayout {
         backgroundColor = styledColor(android.R.attr.colorBackground)
         add(verticalLayout {
-            add(searchBox, LinearLayout.LayoutParams(matchParent, wrapContent))
+            add(searchContainer, LinearLayout.LayoutParams(matchParent, wrapContent).apply {
+                margin = dp(16)
+                bottomMargin = dp(8)
+            })
             add(recyclerView, LinearLayout.LayoutParams(matchParent, 0, 1f))
         }, defaultLParams {
             height = matchParent
