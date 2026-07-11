@@ -228,7 +228,11 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
         refreshEntries(actions)
     }
 
-    override fun onCreateView() = view
+    override fun onCreateView() = view.also {
+        // The cached status snapshot is maintained by Fcitx events. Rendering it before attach
+        // keeps local quick actions usable even while the engine queue is busy.
+        refreshEntries(fcitx.cachedState.statusAreaActions)
+    }
 
     private val editorInfoButton by lazy {
         ToolButton(context, R.drawable.ic_baseline_info_24, theme).apply {
@@ -255,14 +259,7 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
 
     override fun onCreateBarExtension() = barExtension
 
-    override fun onAttached() {
-        fcitx.launchOnReady {
-            val data = it.statusArea()
-            service.lifecycleScope.launch {
-                onStatusAreaUpdate(data)
-            }
-        }
-    }
+    override fun onAttached() {}
 
     override fun onDetached() {}
 }
