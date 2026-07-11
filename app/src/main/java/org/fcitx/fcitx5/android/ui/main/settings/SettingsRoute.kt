@@ -26,12 +26,9 @@ import org.fcitx.fcitx5.android.ui.main.PluginFragment
 import org.fcitx.fcitx5.android.ui.main.settings.addon.AddonConfigFragment
 import org.fcitx.fcitx5.android.ui.main.settings.addon.AddonListFragment
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.AdvancedSettingsFragment
-import org.fcitx.fcitx5.android.ui.main.settings.behavior.CandidatesSettingsFragment
-import org.fcitx.fcitx5.android.ui.main.settings.behavior.ClipboardSettingsFragment
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.KeyboardSettingsFragment
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.SmartEnglishLearnedPredictionsFragment
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.SmartEnglishLearnedWordsFragment
-import org.fcitx.fcitx5.android.ui.main.settings.behavior.SymbolSettingsFragment
 import org.fcitx.fcitx5.android.ui.main.settings.global.GlobalConfigFragment
 import org.fcitx.fcitx5.android.ui.main.settings.im.InputMethodConfigFragment
 import org.fcitx.fcitx5.android.ui.main.settings.im.InputMethodListFragment
@@ -75,12 +72,6 @@ sealed class SettingsRoute : Parcelable {
     data class InputMethodConfig(val name: String, val uniqueName: String) : SettingsRoute()
 
     @Serializable
-    data object DictionaryManagement : SettingsRoute()
-
-    @Serializable
-    data object ChineseT9Schemes : SettingsRoute()
-
-    @Serializable
     data object AddonList : SettingsRoute()
 
     @Serializable
@@ -90,18 +81,6 @@ sealed class SettingsRoute : Parcelable {
 
     @Serializable
     data object Theme : SettingsRoute()
-
-    @Serializable
-    data object VirtualKeyboard : SettingsRoute()
-
-    @Serializable
-    data object CandidatesWindow : SettingsRoute()
-
-    @Serializable
-    data object Clipboard : SettingsRoute()
-
-    @Serializable
-    data object Symbol : SettingsRoute()
 
     @Serializable
     data object Plugin : SettingsRoute()
@@ -241,12 +220,6 @@ sealed class SettingsRoute : Parcelable {
                 label = ctx.getString(R.string.input_methods)
             }
             fragment<InputMethodConfigFragment, InputMethodConfig>()
-            fragment<DictionaryManagementFragment, DictionaryManagement> {
-                label = ctx.getString(R.string.dictionary_management)
-            }
-            fragment<ChineseT9SchemeSettingsFragment, ChineseT9Schemes> {
-                label = ctx.getString(R.string.chinese_t9_schemes)
-            }
             fragment<AddonListFragment, AddonList> {
                 label = ctx.getString(R.string.addons)
             }
@@ -256,18 +229,6 @@ sealed class SettingsRoute : Parcelable {
 
             fragment<ThemeFragment, Theme> {
                 label = ctx.getString(R.string.theme)
-            }
-            fragment<KeyboardSettingsFragment, VirtualKeyboard> {
-                label = ctx.getString(R.string.virtual_keyboard)
-            }
-            fragment<CandidatesSettingsFragment, CandidatesWindow> {
-                label = ctx.getString(R.string.candidates_window)
-            }
-            fragment<ClipboardSettingsFragment, Clipboard> {
-                label = ctx.getString(R.string.clipboard)
-            }
-            fragment<SymbolSettingsFragment, Symbol> {
-                label = ctx.getString(R.string.emoji_and_symbols)
             }
             fragment<PluginFragment, Plugin> {
                 label = ctx.getString(R.string.plugins)
