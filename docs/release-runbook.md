@@ -30,6 +30,9 @@ Use these files for different purposes:
    - Put regressions, behavior corrections, and stability work under `Fixes`.
    - Keep the install-package explanation versioned and concrete, including the
      exact APK names for `armeabi-v7a` and `arm64-v8a`.
+   - Always include a `Rime Version Mapping` section with the exact Rime plugin
+     version and the exact `rime-ice-t9-phone` release tag. State clearly whether
+     users must update and redeploy the configuration package.
 
 3. Keep Baidu text practical.
    - Update both Markdown and plain-text files.
@@ -181,6 +184,7 @@ git push origin master --tags
 
 - [ ] `README.md` contains only stable feature/user-manual updates.
 - [ ] `release-notes-vX.Y.Z.md` contains version-specific new features and fixes.
+- [ ] Release notes state the matching Rime plugin version and `rime-ice-t9-phone` tag.
 - [ ] Baidu root readme Markdown and text are updated.
 - [ ] `release-baidu/vX.Y.Z/` readme Markdown and text match the release.
 - [ ] `Versions.kt` and `gradle.properties` use the new version.

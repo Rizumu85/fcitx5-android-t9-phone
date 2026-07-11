@@ -26,4 +26,9 @@
 - 64 位：`org.fcitx.fcitx5.android-4.3.0-arm64-v8a-release.apk` 与 `org.fcitx.fcitx5.android.plugin.rime-4.3.0-arm64-v8a-release.apk`
 - 32 位：`org.fcitx.fcitx5.android-4.3.0-armeabi-v7a-release.apk` 与 `org.fcitx.fcitx5.android.plugin.rime-4.3.0-armeabi-v7a-release.apk`
 
-九键 Rime 配置仍使用 `rime-ice-t9-phone-main.zip`。升级时请同时更新输入法本体和 Rime 插件。
+## Rime 版本对应关系
+
+- Rime 插件：`4.3.0`，必须与输入法本体一起更新。
+- 九键 Rime 配置：[rime-ice-t9-phone v3.0.0](https://github.com/Rizumu85/rime-ice-t9-phone/releases/tag/v3.0.0)，下载 `rime-ice-t9-phone-main.zip`。
+
+从旧版本升级时，请同时更新输入法本体、Rime 插件和上述九键 Rime 配置，覆盖配置后执行【重新部署】。
