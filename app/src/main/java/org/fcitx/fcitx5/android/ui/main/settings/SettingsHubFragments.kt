@@ -6,12 +6,15 @@
 package org.fcitx.fcitx5.android.ui.main.settings
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceScreen
 import org.fcitx.fcitx5.android.R
+import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.ui.common.PaddingPreferenceFragment
+import org.fcitx.fcitx5.android.ui.main.modified.MySwitchPreference
 import org.fcitx.fcitx5.android.utils.addCategory
 import org.fcitx.fcitx5.android.utils.addPreference
 import org.fcitx.fcitx5.android.utils.navigateWithAnim
@@ -32,23 +35,103 @@ abstract class SettingsHubFragment : PaddingPreferenceFragment() {
     }
 }
 
-class InputOptionsSettingsFragment : SettingsHubFragment() {
-    override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) = createHub {
-        addCategory(R.string.chinese_input) {
-            addDestination(
-                R.string.chinese_t9_schemes,
-                R.drawable.ic_baseline_dialpad_24,
-                SettingsRoute.ChineseT9Schemes
+class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
+    private val prefs = AppPrefs.getInstance()
+
+    override fun groups() = listOf(
+        Group(
+            R.string.chinese_input,
+            prefs.chineseT9,
+            setOf(
+                prefs.chineseT9.pinyin.key,
+                prefs.chineseT9.pinyinOutputScript.key,
+                prefs.chineseT9.stroke.key,
+                prefs.chineseT9.strokeOutputScript.key,
+                prefs.chineseT9.zhuyin.key,
+                prefs.chineseT9.zhuyinOutputScript.key
             )
+        ),
+        Group(
+            R.string.smart_english_t9,
+            prefs.keyboard,
+            setOf(prefs.keyboard.smartEnglishT9.key)
+        )
+    )
+
+    override fun onGroupedPreferenceUiCreated(screen: PreferenceScreen) {
+        val schemeSwitches = listOfNotNull(
+            screen.findPreference<MySwitchPreference>(prefs.chineseT9.pinyin.key),
+            screen.findPreference<MySwitchPreference>(prefs.chineseT9.stroke.key),
+            screen.findPreference<MySwitchPreference>(prefs.chineseT9.zhuyin.key)
+        )
+        schemeSwitches.forEach { preference ->
+            preference.setOnPreferenceChangeListener { _, newValue ->
+                val allowed = newValue != false || schemeSwitches.any { other ->
+                    other !== preference && other.isChecked
+                }
+                if (!allowed) {
+                    Toast.makeText(
+                        requireContext(),
+                        R.string.chinese_t9_at_least_one,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                allowed
+            }
         }
-        addCategory(R.string.dictionary_and_learning) {
-            addDestination(
-                R.string.dictionary_management,
-                R.drawable.ic_baseline_library_books_24,
-                SettingsRoute.DictionaryManagement
+        screen.addPreference(PreferenceCategory(screen.context).apply {
+            setTitle(R.string.dictionary_and_learning)
+            isIconSpaceReserved = false
+            addPreference(
+                androidx.preference.Preference(screen.context).apply {
+                    setTitle(R.string.smart_english_learned_words)
+                    setSummary(R.string.smart_english_learned_words_summary)
+                    isIconSpaceReserved = false
+                    setOnPreferenceClickListener {
+                        navigateWithAnim(SettingsRoute.SmartEnglishLearnedWords)
+                        true
+                    }
+                }
             )
-        }
+            addPreference(
+                androidx.preference.Preference(screen.context).apply {
+                    setTitle(R.string.smart_english_learned_predictions)
+                    setSummary(R.string.smart_english_learned_predictions_summary)
+                    isIconSpaceReserved = false
+                    setOnPreferenceClickListener {
+                        navigateWithAnim(SettingsRoute.SmartEnglishLearnedPredictions)
+                        true
+                    }
+                }
+            )
+        })
     }
+}
+
+class ContentAndToolsSettingsFragment : GroupedManagedPreferenceFragment() {
+    private val prefs = AppPrefs.getInstance()
+
+    override fun groups() = listOf(
+        Group(
+            R.string.clipboard,
+            prefs.clipboard,
+            setOf(
+                prefs.clipboard.clipboardListening.key,
+                prefs.clipboard.clipboardHistoryLimit.key,
+                prefs.clipboard.clipboardItemTimeout.key,
+                prefs.clipboard.clipboardMaskSensitive.key
+            )
+        ),
+        Group(
+            R.string.emoji_and_symbols,
+            prefs.symbols,
+            setOf(
+                prefs.symbols.hideUnsupportedEmojis.key,
+                prefs.symbols.defaultEmojiSkinTone.key
+            )
+        )
+    )
+
 }
 
 class KeysAndToolbarSettingsFragment : SettingsHubFragment() {
@@ -71,19 +154,6 @@ class AppearanceAndCandidatesSettingsFragment : SettingsHubFragment() {
                 R.string.candidates_window,
                 R.drawable.ic_baseline_list_alt_24,
                 SettingsRoute.CandidatesWindow
-            )
-        }
-    }
-}
-
-class ContentAndToolsSettingsFragment : SettingsHubFragment() {
-    override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) = createHub {
-        addCategory(R.string.content_and_tools) {
-            addDestination(R.string.clipboard, R.drawable.ic_clipboard, SettingsRoute.Clipboard)
-            addDestination(
-                R.string.emoji_and_symbols,
-                R.drawable.ic_baseline_emoji_symbols_24,
-                SettingsRoute.Symbol
             )
         }
     }
