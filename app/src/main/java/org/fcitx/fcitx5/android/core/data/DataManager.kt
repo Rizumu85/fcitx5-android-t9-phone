@@ -58,14 +58,6 @@ object DataManager {
         return json.encodeToString(descriptor)
     }
 
-    private fun deserializeInstallationState(raw: String): DataInstallationState {
-        return json.decodeFromString<DataInstallationState>(raw)
-    }
-
-    private fun serializeInstallationState(state: DataInstallationState): String {
-        return json.encodeToString(state)
-    }
-
     // If Android version supports direct boot, we put the hierarchy in device encrypted storage
     // instead of credential encrypted storage so that data can be accessed before user unlock
     val dataDir: File = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -120,17 +112,22 @@ object DataManager {
     private fun File.readAtomicText(): String =
         AtomicFile(this).openRead().bufferedReader().use { it.readText() }
 
-    private fun File.writeAtomicText(value: String) {
+    private fun File.readAtomicBytes(): ByteArray =
+        AtomicFile(this).openRead().use { it.readBytes() }
+
+    private fun File.writeAtomicBytes(value: ByteArray) {
         val atomicFile = AtomicFile(this)
         val stream = atomicFile.startWrite()
         try {
-            stream.write(value.toByteArray())
+            stream.write(value)
             atomicFile.finishWrite(stream)
         } catch (error: Throwable) {
             atomicFile.failWrite(stream)
             throw error
         }
     }
+
+    private fun File.writeAtomicText(value: String) = writeAtomicBytes(value.toByteArray())
 
     private val loadedPlugins = mutableSetOf<PluginDescriptor>()
     private val failedPlugins = mutableMapOf<String, PluginLoadFailed>()
@@ -310,9 +307,16 @@ object DataManager {
         val completedState = StartupPerformanceTrace.measure(
             StartupPerformanceTrace.Stage.DATA_INSTALLATION_STATE_LOAD
         ) {
-            installationStateFile
-                .runCatching { deserializeInstallationState(readAtomicText()) }
-                .getOrNull()
+            val rawState = StartupPerformanceTrace.measure(
+                StartupPerformanceTrace.Stage.DATA_INSTALLATION_STATE_READ
+            ) {
+                installationStateFile.runCatching { readAtomicBytes() }.getOrNull()
+            }
+            StartupPerformanceTrace.measure(
+                StartupPerformanceTrace.Stage.DATA_INSTALLATION_STATE_DECODE
+            ) {
+                rawState?.let(DataInstallationStateCodec::decode)
+            }
         }
 
         if (mainDescriptorSha256 != null && mergedDescriptorFileSha256 != null &&
@@ -422,11 +426,10 @@ object DataManager {
         val serializedMergedDescriptor = serializeDataDescriptor(mergedDescriptor)
         destDescriptorFile.writeAtomicText(serializedMergedDescriptor)
         if (failedPlugins.isEmpty()) {
-            installationStateFile.writeAtomicText(
-                serializeInstallationState(
+            installationStateFile.writeAtomicBytes(
+                DataInstallationStateCodec.encode(
                     DataInstallationState.completed(
                         mainDescriptorSha256 = mainDescriptor.sha256,
-                        mergedDescriptorSha256 = mergedDescriptor.sha256,
                         mergedDescriptorFileSha256 = serializedMergedDescriptor
                             .toByteArray()
                             .contentSha256(),

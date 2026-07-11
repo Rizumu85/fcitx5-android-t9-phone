@@ -1010,3 +1010,30 @@ the only source of truth for the space-bar label and active scheme state.
 Success means both holds react at the same configured threshold, a failed Rime
 action cannot leave an optimistic scheme selected, and short `*`, composing
 long `*`, and long `#` retain their existing behavior.
+
+## Installation-State Decode Attribution
+
+After descriptor fingerprinting, installation-state loading is consistently
+the largest Data Installation fast-path stage at roughly 86-90 ms for a file
+under 1 KB. The current stage combines AtomicFile input with first-use Kotlinx
+JSON decoding, so the next change must first split byte reading from decoding.
+Only if decoding is dominant should persistence move to a smaller codec; file
+I/O should not be redesigned from a combined timer.
+
+The split target-device capture measured 5.13 ms for AtomicFile byte reading
+and 86.21 ms for Kotlinx JSON decoding, so decode accounts for about 94% of the
+91.87 ms state-loading stage. The state is private, versioned app data rather
+than a user-edited document. A compact bounded binary codec can therefore avoid
+loading the JSON serialization stack on every unchanged process start while
+retaining an explicit format header, exact fields, corruption rejection, and a
+one-time full-install migration from format 2.
+
+The format-3 migration performed one expected complete installation in
+351.09 ms and wrote a 447-byte state record. Steady process-cold captures then
+loaded state in 18.83 ms and 15.82 ms, with decode at 10.99 ms and 10.47 ms.
+The complete Data Installation fast path fell to 50.27 ms and 37.16 ms from the
+109.92 ms pre-change capture. One additional 219.75 ms sample was dominated by
+an isolated 185.35 ms merged-descriptor hash, while binary state decode stayed
+at 7.59 ms; that sample does not implicate the selected codec operation. The
+new typical path is about 54-66% shorter for this slice and 80-85% shorter than
+the original 253.92 ms descriptor-decoding baseline.

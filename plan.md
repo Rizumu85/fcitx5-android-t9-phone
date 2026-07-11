@@ -451,3 +451,9 @@ otherwise.
   point as long-`#`, while keeping confirmed Rime state authoritative.
 - [ ] Run focused Physical T9 and scheme-cycle tests, build/install debug, and
   verify short/long `*` plus long `#` on the target phone.
+- [x] Split installation-state byte reading from decoding and capture a new
+  process-cold target-device trace before choosing the optimization.
+- [x] Optimize only the measured dominant state-loading operation while
+  preserving atomic completion, corruption recovery, and plugin invalidation.
+- [x] Run focused tests, migrate the target device once, compare steady-state
+  traces, then commit and push the performance slice.

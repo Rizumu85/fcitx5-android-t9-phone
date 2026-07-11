@@ -36,6 +36,8 @@ object StartupPerformanceTrace {
         DATA_PLUGIN_DISCOVERY("data-plugin-discovery"),
         DATA_MERGED_FINGERPRINT_LOAD("data-merged-fingerprint-load"),
         DATA_INSTALLATION_STATE_LOAD("data-installation-state-load"),
+        DATA_INSTALLATION_STATE_READ("data-installation-state-read"),
+        DATA_INSTALLATION_STATE_DECODE("data-installation-state-decode"),
         DATA_COMPLETION("data-completion")
     }
 

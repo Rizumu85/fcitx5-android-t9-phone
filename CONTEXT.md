@@ -421,3 +421,10 @@ when every input matches; any missing state, old format, changed package,
 changed build identity, or descriptor-content mismatch enters the full Data
 Installation Module. The fingerprint does not replace the descriptor as the
 source of truth during a full install.
+
+### Installation State Codec
+
+The private, versioned persistence representation of a Data Installation
+Fingerprint. It rejects invalid or old records instead of interpreting partial
+state, and it is written atomically only after a complete data installation.
+Its layout is not a user-editable configuration format.

@@ -658,19 +658,19 @@ identity discovery, merged descriptor loading, installation-state loading, and
 completion cleanup inside the existing data-installation stage. No cached value
 is trusted or removed until the largest measured operation is known.
 
-`DataInstallationState` format 2 is the Data Installation Fingerprint Module.
-Its Interface validates four independent inputs: the build-emitted main
-descriptor identity, the exact installed merged-descriptor content digest,
-canonical plugin package identities, and restorable loaded-plugin metadata.
-The build task emits `descriptor.json.sha256` beside `descriptor.json` but
-excludes the companion from the described native hierarchy.
+The Data Installation Fingerprint Module validates four independent inputs:
+the build-emitted main descriptor identity, the exact installed
+merged-descriptor content digest, canonical plugin package identities, and
+restorable loaded-plugin metadata. The build task emits
+`descriptor.json.sha256` beside `descriptor.json` but excludes the companion
+from the described native hierarchy.
 
 The steady-state Adapter never decodes a `DataDescriptor`. It reads the tiny
 build fingerprint, hashes the installed descriptor stream, and decodes only the
 small installation state. The full installation Implementation remains the
 sole owner of descriptor decoding, hierarchy merge/diff, file copies, and the
-atomic completion record. Format 1 records deliberately miss the new digest
-and perform one full migration rather than receiving a compatibility fallback.
+atomic completion record. Earlier JSON records perform one full migration
+rather than receiving a compatibility fallback.
 
 Chinese Scheme Cycle keeps confirmed state and immediate feedback separate.
 The long-press command requests the next configured scheme and immediately
@@ -679,3 +679,19 @@ top-level T9 Mode Coordinator's feedback timing. It does not optimistically
 change `activeChineseT9Scheme` or the space-bar label. The later Rime
 input-method-change event remains authoritative, and a rejected action only
 clears the pending cycle request.
+
+The Startup Performance Transaction splits installation-state byte reading
+from decoding. Measurement selected decoding, so `DataInstallationStateCodec`
+becomes the private persistence Module behind the fingerprint Interface. Format
+3 uses a fixed magic value, explicit version, bounded record counts, and
+length-prefixed strings plus a payload checksum. Decode returns no state for
+malformed, corrupt, truncated, oversized, trailing, or old-format data; Data
+Installation then takes its existing complete path and atomically publishes a
+fresh record last.
+
+The proof itself no longer carries serialization-only version state or the
+unused logical merged-descriptor identity. Its runtime Interface contains only
+the build descriptor identity, exact installed descriptor-file digest,
+canonical plugin package identities, and restorable plugin metadata. The JSON
+codec remains only for full `DataDescriptor` work and is not initialized by an
+unchanged fast path.

@@ -5,16 +5,12 @@
 
 package org.fcitx.fcitx5.android.core.data
 
-import kotlinx.serialization.Serializable
-
-@Serializable
 data class PluginPackageIdentity(
     val packageName: String,
     val versionCode: Long,
     val lastUpdateTime: Long
 )
 
-@Serializable
 data class InstalledPluginState(
     val packageName: String,
     val apiVersion: String,
@@ -47,12 +43,9 @@ data class InstalledPluginState(
     }
 }
 
-@Serializable
 data class DataInstallationState(
-    val formatVersion: Int = CurrentFormatVersion,
     val mainDescriptorSha256: SHA256,
-    val mergedDescriptorSha256: SHA256,
-    val mergedDescriptorFileSha256: SHA256 = "",
+    val mergedDescriptorFileSha256: SHA256,
     val pluginPackages: List<PluginPackageIdentity>,
     val loadedPlugins: List<InstalledPluginState>
 ) {
@@ -62,8 +55,7 @@ data class DataInstallationState(
         pluginPackages: List<PluginPackageIdentity>
     ): Boolean {
         val canonicalPackages = pluginPackages.canonicalOrder()
-        return formatVersion == CurrentFormatVersion &&
-            this.mainDescriptorSha256 == mainDescriptorSha256 &&
+        return this.mainDescriptorSha256 == mainDescriptorSha256 &&
             this.mergedDescriptorFileSha256 == mergedDescriptorFileSha256 &&
             this.pluginPackages == canonicalPackages &&
             loadedPlugins.map { it.packageName } == canonicalPackages.map { it.packageName }
@@ -73,17 +65,13 @@ data class DataInstallationState(
         loadedPlugins.mapTo(linkedSetOf()) { it.toDescriptor() }
 
     companion object {
-        const val CurrentFormatVersion = 2
-
         fun completed(
             mainDescriptorSha256: SHA256,
-            mergedDescriptorSha256: SHA256,
             mergedDescriptorFileSha256: SHA256,
             pluginPackages: List<PluginPackageIdentity>,
             loadedPlugins: Set<PluginDescriptor>
         ) = DataInstallationState(
             mainDescriptorSha256 = mainDescriptorSha256,
-            mergedDescriptorSha256 = mergedDescriptorSha256,
             mergedDescriptorFileSha256 = mergedDescriptorFileSha256,
             pluginPackages = pluginPackages.canonicalOrder(),
             loadedPlugins = loadedPlugins
