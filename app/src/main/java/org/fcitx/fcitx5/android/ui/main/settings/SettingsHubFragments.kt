@@ -237,11 +237,6 @@ class AdvancedSettingsHubFragment : GroupedManagedPreferenceFragment() {
             groupKey(R.string.diagnostics_and_compatibility)
         )?.apply {
             addDestination(
-                R.string.developer,
-                R.drawable.ic_baseline_settings_24,
-                SettingsRoute.Developer
-            )
-            addDestination(
                 R.string.repair_and_recovery,
                 R.drawable.ic_baseline_settings_backup_restore_24,
                 SettingsRoute.Advanced
