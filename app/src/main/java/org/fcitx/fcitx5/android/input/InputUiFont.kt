@@ -22,15 +22,10 @@ object InputUiFont {
     private const val FontFilePrefix = "font-file:"
     private const val CustomFontsDirName = "fonts"
     private const val PublicFontsDirName = "Fonts"
-    private const val SourceAppFonts = "app fonts"
-    private const val SourcePublicFonts = "public Fonts"
 
     private val fontExtensions = setOf("ttf", "otf", "ttc")
 
-    private data class FontFileEntry(
-        val file: File,
-        val source: String
-    )
+    private data class FontFileEntry(val file: File)
 
     @Volatile
     private var cachedTypefaceValue: String? = null
@@ -88,11 +83,8 @@ object InputUiFont {
             .resolve(CustomFontsDirName)
             .also { it.mkdirs() }
         val publicFontsDir = Environment.getExternalStorageDirectory().resolve(PublicFontsDirName)
-        return listOf(
-            appFontsDir to SourceAppFonts,
-            publicFontsDir to SourcePublicFonts
-        )
-            .flatMap { (dir, source) -> fontFilesIn(dir).map { FontFileEntry(it, source) } }
+        return listOf(appFontsDir, publicFontsDir)
+            .flatMap { dir -> fontFilesIn(dir).map(::FontFileEntry) }
             .sortedBy { it.file.name.lowercase() }
     }
 
@@ -105,7 +97,8 @@ object InputUiFont {
     }
 
     private fun fontLabel(entry: FontFileEntry): String {
-        return "${entry.file.nameWithoutExtension} (${entry.source})"
+        val name = entry.file.nameWithoutExtension
+        return if (name.length <= 32) name else "${name.take(31)}…"
     }
 
     private fun fontFileValue(file: File): String {

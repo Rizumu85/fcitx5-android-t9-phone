@@ -261,7 +261,9 @@
     <string name="horizontal_candidate_auto_fill">Fill width on demand</string>
     <string name="horizontal_candidate_always_fill">Always fill width</string>
     <string name="inline_suggestions">Show inline autofill suggestions</string>
-    <string name="input_ui_font_family">Input UI font</string>
+    <string name="input_ui_font_family">Custom font</string>
+    <string name="open_fonts_folder">Open fonts folder</string>
+    <string name="appearance">Appearance</string>
     <string name="input_ui_font_summary">Put .ttf, .otf, or .ttc files in the app data fonts folder.</string>
     <string name="delete_all_except_pinned">Delete all items except pinned ones?</string>
     <string name="num_items_deleted">%1$d item(s) deleted</string>
@@ -361,7 +363,7 @@
     <string name="automatic">Automatic</string>
     <string name="horizontal">Horizontal</string>
     <string name="vertical">Vertical</string>
-    <string name="candidates_font_size">Candidate word font size</string>
+    <string name="candidates_font_size">Candidate text size</string>
     <string name="candidates_padding">Candidate word padding</string>
     <string name="candidates_window_min_width">Candidate window minimum width</string>
     <string name="candidates_window_padding">Candidate window padding</string>

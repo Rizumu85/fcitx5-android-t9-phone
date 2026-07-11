@@ -46,7 +46,12 @@ fun buildPrimaryStorageIntent(path: String = ""): Intent {
     return Intent(Intent.ACTION_VIEW, uri)
 }
 
-fun buildDocumentsProviderIntent(): Intent {
-    val uri = DocumentsContract.buildRootUri("${BuildConfig.APPLICATION_ID}.provider", "files")
+fun buildDocumentsProviderIntent(path: String = ""): Intent {
+    val authority = "${BuildConfig.APPLICATION_ID}.provider"
+    val uri = if (path.isBlank()) {
+        DocumentsContract.buildRootUri(authority, "files")
+    } else {
+        DocumentsContract.buildDocumentUri(authority, "/files/${path.trim('/')}")
+    }
     return Intent(Intent.ACTION_VIEW, uri)
 }

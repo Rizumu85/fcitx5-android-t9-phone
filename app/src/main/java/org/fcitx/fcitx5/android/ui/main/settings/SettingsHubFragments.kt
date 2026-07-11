@@ -17,7 +17,9 @@ import org.fcitx.fcitx5.android.ui.common.PaddingPreferenceFragment
 import org.fcitx.fcitx5.android.ui.main.modified.MySwitchPreference
 import org.fcitx.fcitx5.android.utils.addCategory
 import org.fcitx.fcitx5.android.utils.addPreference
+import org.fcitx.fcitx5.android.utils.buildDocumentsProviderIntent
 import org.fcitx.fcitx5.android.utils.navigateWithAnim
+import org.fcitx.fcitx5.android.utils.toast
 
 abstract class SettingsHubFragment : PaddingPreferenceFragment() {
     protected fun PreferenceCategory.addDestination(
@@ -139,7 +141,7 @@ class AppearanceAndCandidatesSettingsFragment : GroupedManagedPreferenceFragment
 
     override fun groups() = listOf(
         Group(
-            R.string.candidates_window,
+            R.string.appearance,
             prefs.keyboard,
             setOf(prefs.keyboard.inputUiFont.key)
         ),
@@ -154,14 +156,33 @@ class AppearanceAndCandidatesSettingsFragment : GroupedManagedPreferenceFragment
     )
 
     override fun onGroupedPreferenceUiCreated(screen: PreferenceScreen) {
-        screen.addPreference(
+        val appearance = screen.findPreference<PreferenceCategory>(groupKey(R.string.appearance))
+            ?: return
+        appearance.addPreference(
             androidx.preference.Preference(screen.context).apply {
-                order = Int.MIN_VALUE
+                key = "appearance_theme"
+                order = -2
                 setTitle(R.string.theme)
                 setIcon(R.drawable.ic_baseline_palette_24)
                 isSingleLineTitle = false
                 setOnPreferenceClickListener {
                     navigateWithAnim(SettingsRoute.Theme)
+                    true
+                }
+            }
+        )
+        appearance.addPreference(
+            androidx.preference.Preference(screen.context).apply {
+                key = "open_fonts_folder"
+                order = 2
+                setTitle(R.string.open_fonts_folder)
+                isIconSpaceReserved = false
+                setOnPreferenceClickListener {
+                    try {
+                        screen.context.startActivity(buildDocumentsProviderIntent("fonts"))
+                    } catch (e: Exception) {
+                        screen.context.toast(e)
+                    }
                     true
                 }
             }
