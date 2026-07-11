@@ -171,8 +171,8 @@ class PhysicalT9KeyFlowTest {
             state(idleLongZeroVoiceEnabled = true)
         )
 
-        assertEquals(listOf(PhysicalT9KeyFlow.Command.SwitchToVoiceInput), repeat?.commands)
-        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), up?.commands)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), repeat?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.SwitchToVoiceInput), up?.commands)
     }
 
     @Test
@@ -1516,8 +1516,13 @@ class PhysicalT9KeyFlowTest {
             input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN, repeatCount = 1),
             idleState.copy(heldPastLongPressDelay = true)
         )
+        val up = flow.handle(
+            input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_UP),
+            idleState
+        )
 
-        assertEquals(listOf(PhysicalT9KeyFlow.Command.SwitchToVoiceInput), repeat?.commands)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), repeat?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.SwitchToVoiceInput), up?.commands)
     }
 
     private fun input(

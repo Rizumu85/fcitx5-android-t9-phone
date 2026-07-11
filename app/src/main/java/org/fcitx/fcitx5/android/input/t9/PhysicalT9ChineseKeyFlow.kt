@@ -205,30 +205,39 @@ internal class PhysicalT9ChineseKeyFlow(
         state: State,
         supportsTopReading: Boolean
     ): Decision? = when (input.action) {
-        KeyEvent.ACTION_DOWN -> handleChineseShortcutDigitDown(
-            input = input,
-            state = state,
-            longPressWhenComposing = listOf(Command.CommitHanziShortcut(input.keyCode)),
-            longPressWhenIdle = listOf(
-                if (
-                    state.idleLongZeroVoiceEnabled &&
-                    !state.hasChineseComposition &&
-                    !state.hasBottomCandidateRow
-                ) {
-                    Command.SwitchToVoiceInput
-                } else {
-                    Command.CommitText("0")
-                }
-            ),
-            shortPressIdleFallsThrough = false
-        )
+        KeyEvent.ACTION_DOWN -> {
+            if (input.repeatCount == 0) {
+                session.clearDeferredVoiceInput(input.keyCode)
+            }
+            if (
+                input.repeatCount > 0 &&
+                !isDigitLongPressFlagSet(input.keyCode) &&
+                state.heldPastLongPressDelay &&
+                state.idleLongZeroVoiceEnabled &&
+                !state.hasChineseComposition &&
+                !state.hasBottomCandidateRow
+            ) {
+                setDigitLongPressFlag(input.keyCode, true)
+                session.deferVoiceInputUntilKeyUp(input.keyCode)
+                Decision(handled = true)
+            } else {
+                handleChineseShortcutDigitDown(
+                    input = input,
+                    state = state,
+                    longPressWhenComposing = listOf(Command.CommitHanziShortcut(input.keyCode)),
+                    longPressWhenIdle = listOf(Command.CommitText("0")),
+                    shortPressIdleFallsThrough = false
+                )
+            }
+        }
         KeyEvent.ACTION_UP -> {
             val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
+            val switchToVoice = session.consumeDeferredVoiceInput(input.keyCode)
             setDigitLongPressFlag(input.keyCode, false)
             if (!wasLongPress && state.chineseComposing && state.compositionKeyCount == 0) null else Decision(
                 handled = true,
                 commands = when {
-                    wasLongPress -> emptyList()
+                    wasLongPress -> if (switchToVoice) listOf(Command.SwitchToVoiceInput) else emptyList()
                     state.compositionKeyCount > 0 -> listOf(
                         when {
                             supportsTopReading &&

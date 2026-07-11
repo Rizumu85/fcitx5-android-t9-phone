@@ -15,6 +15,7 @@ internal class PhysicalT9KeyFlowSession {
     var poundLongPressTriggered: Boolean = false
     var pendingSmartEnglishDigitKeyCode: Int? = null
     var pendingSmartEnglishDigit: Int = -1
+    private var deferredVoiceInputKeyCode: Int? = null
 
     fun resetSmartEnglishPendingDigit() {
         pendingSmartEnglishDigitKeyCode = null
@@ -28,5 +29,19 @@ internal class PhysicalT9KeyFlowSession {
         if (keyCode in keyLongPressFlags.indices) {
             keyLongPressFlags[keyCode] = value
         }
+    }
+
+    fun deferVoiceInputUntilKeyUp(keyCode: Int) {
+        deferredVoiceInputKeyCode = keyCode
+    }
+
+    fun consumeDeferredVoiceInput(keyCode: Int): Boolean {
+        if (deferredVoiceInputKeyCode != keyCode) return false
+        deferredVoiceInputKeyCode = null
+        return true
+    }
+
+    fun clearDeferredVoiceInput(keyCode: Int) {
+        if (deferredVoiceInputKeyCode == keyCode) deferredVoiceInputKeyCode = null
     }
 }

@@ -117,6 +117,7 @@ internal class PhysicalT9EnglishKeyFlow(
         KeyEvent.ACTION_DOWN -> {
             if (input.repeatCount == 0) {
                 setDigitLongPressFlag(input.keyCode, false)
+                session.clearDeferredVoiceInput(input.keyCode)
                 Decision(handled = true)
             } else if (!isDigitLongPressFlagSet(input.keyCode) && state.heldPastLongPressDelay) {
                 setDigitLongPressFlag(input.keyCode, true)
@@ -135,7 +136,10 @@ internal class PhysicalT9EnglishKeyFlow(
                         state.idleLongZeroVoiceEnabled &&
                             !state.hasSmartEnglishDigits &&
                             !state.hasMultiTapPendingChar &&
-                            !state.hasBottomCandidateRow -> listOf(Command.SwitchToVoiceInput)
+                            !state.hasBottomCandidateRow -> {
+                            session.deferVoiceInputUntilKeyUp(input.keyCode)
+                            emptyList()
+                        }
                         else -> listOf(
                             Command.CancelMultiTapChar,
                             Command.CommitText("0")
@@ -148,11 +152,12 @@ internal class PhysicalT9EnglishKeyFlow(
         }
         KeyEvent.ACTION_UP -> {
             val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
+            val switchToVoice = session.consumeDeferredVoiceInput(input.keyCode)
             setDigitLongPressFlag(input.keyCode, false)
             Decision(
                 handled = true,
                 commands = if (wasLongPress) {
-                    emptyList()
+                    if (switchToVoice) listOf(Command.SwitchToVoiceInput) else emptyList()
                 } else {
                     listOf(
                         Command.CommitEnglishPendingOrSpace,
@@ -171,6 +176,7 @@ internal class PhysicalT9EnglishKeyFlow(
         KeyEvent.ACTION_DOWN -> {
             if (input.repeatCount == 0) {
                 setDigitLongPressFlag(input.keyCode, false)
+                session.clearDeferredVoiceInput(input.keyCode)
                 Decision(handled = true)
             } else if (!isDigitLongPressFlagSet(input.keyCode) && state.heldPastLongPressDelay) {
                 setDigitLongPressFlag(input.keyCode, true)
@@ -179,7 +185,8 @@ internal class PhysicalT9EnglishKeyFlow(
                     commands = if (
                         state.idleLongZeroVoiceEnabled && !state.hasMultiTapPendingChar
                     ) {
-                        listOf(Command.SwitchToVoiceInput)
+                        session.deferVoiceInputUntilKeyUp(input.keyCode)
+                        emptyList()
                     } else {
                         listOf(
                             Command.CancelMultiTapChar,
@@ -193,11 +200,12 @@ internal class PhysicalT9EnglishKeyFlow(
         }
         KeyEvent.ACTION_UP -> {
             val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
+            val switchToVoice = session.consumeDeferredVoiceInput(input.keyCode)
             setDigitLongPressFlag(input.keyCode, false)
             Decision(
                 handled = true,
                 commands = if (wasLongPress) {
-                    emptyList()
+                    if (switchToVoice) listOf(Command.SwitchToVoiceInput) else emptyList()
                 } else {
                     listOf(
                         Command.CommitEnglishPendingOrSpace,
