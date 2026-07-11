@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Bundle
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.CheckBox
@@ -365,7 +366,8 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
                 textAppearance = resolveThemeAttribute(android.R.attr.textAppearanceListItem)
                 setTextColor(styledColor(android.R.attr.textColorPrimary))
                 text = pack.name
-                maxLines = 2
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
             },
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         )
