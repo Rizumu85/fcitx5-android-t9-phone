@@ -60,6 +60,10 @@ Long-press and key-pairing state belongs to `PhysicalT9KeyFlowSession`. Device
 events are classified by held duration and repeat state; new rules must not
 reintroduce service-side repeat fallbacks.
 
+Idle long `0` may be configured for voice in Pinyin/Stroke and English, but only
+when no composition, punctuation, multi-tap character, or shortcut candidate
+owns the key. Zhuyin and number mode keep their scheme-specific `0` behavior.
+
 ## Chinese Composition And Rime
 
 `ChineseT9CompositionCoordinator` is the service-facing interface for Pinyin,
@@ -141,6 +145,21 @@ The accepted bubble visuals are product behavior. New candidate mechanisms join
 before the snapshot seam rather than creating another renderer or view-owned
 pager.
 
+## Voice And Toolbar
+
+The idle KawaiiBar is always expanded. Voice occupies the former leading toggle
+slot; temporary clipboard or inline-suggestion content changes that slot to a
+Back action so the toolbar remains reachable. Voice, undo, redo, text editing,
+clipboard, and hide-keyboard actions are independently configurable. Quick
+Settings is fixed and cannot be removed.
+
+Voice selection is an enabled IME target with an optional subtype. Explicit
+preferences support standalone voice IMEs without subtype metadata; automatic
+selection prefers declared voice subtypes and conservative voice-service
+identity hints. Target resolution happens when invoked, and unavailable targets
+show feedback instead of failing silently. The full contract is recorded in
+`docs/adr/0002-voice-input-and-toolbar-contract.md`.
+
 ## Startup And Performance
 
 `T9ResponsivenessTrace` measures one physical input through decision, effect,
@@ -152,6 +171,9 @@ use concrete runtime classes for dependency identity, avoiding generic
 reflection during first view construction. Hidden selection/number panels and
 the clipboard Room database are initialized on first use rather than every IME
 start.
+
+Quick Settings renders from `FcitxCachedState.statusAreaActions` before attach;
+opening the window never waits for a new serialized engine query.
 
 `DataInstallationState` and `DataInstallationStateCodec` provide the bounded,
 atomic native-data fast path. Any version, descriptor, plugin, checksum, or
