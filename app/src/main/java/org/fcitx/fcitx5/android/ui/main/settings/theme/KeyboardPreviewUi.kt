@@ -144,7 +144,9 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
     private val pageIndicator = LinearLayout(ctx).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER
-        setPadding(dp(6), dp(2), dp(6), dp(2))
+        // Use the existing indicator strip for spacing so neither orientation
+        // changes the viewport or clips the paging hint.
+        setPadding(dp(6), dp(8), dp(6), 0)
         contentDescription = "T9 and password previews"
     }
 
