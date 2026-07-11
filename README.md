@@ -6,21 +6,17 @@
 
 1. 从本项目的 [Releases](https://github.com/Rizumu85/fcitx5-android-t9-phone/releases) 下载与手机架构对应的输入法本体和 Rime 插件 APK。
 2. 从 [rime-ice-t9-phone Releases](https://github.com/Rizumu85/rime-ice-t9-phone/releases) 下载九键 Rime 配置压缩包。
-3. 安装两个 APK，并按 App 引导启用输入法。
-4. 在输入法设置中确认：
-   - 【插件】已检测到 Rime 插件；
-   - 【附加组件】已勾选中州韵；
-   - 【输入法】已添加中州韵。
-5. 打开文本框，在输入法上方点【⋯】->【词库切换】->【重新部署】。这一步会创建 Rime 数据目录。
-6. 解压配置包，将其中所有文件和文件夹复制到：
+3. 安装两个 APK，并按 App 引导启用输入法。首次启动会自动选择 Rime，无需再手动添加中州韵，也无需删除 English 或拼音输入法。
+4. 打开文本框，在输入法上方点【⋯】->【词库切换】->【重新部署】。这一步会创建 Rime 数据目录。
+5. 解压配置包，将其中所有文件和文件夹复制到：
 
    ```text
    Android/data/org.fcitx.fcitx5.android/files/data/rime
    ```
 
-7. 再次打开【词库切换】，选择【同步】，完成后选择【拼音九键】。
+6. 再次打开【词库切换】，选择【同步】，完成后选择【拼音】。
 
-如果找不到【词库切换】，请重新检查插件、中州韵附加组件和输入法是否均已启用。
+如果找不到【词库切换】，先确认 Rime 插件已经安装；再到【高级】中检查插件、附加组件和输入法状态。
 
 ![Rime 数据目录](https://github.com/user-attachments/assets/5763a980-c058-4f96-9ece-ff0492fd5059)
 
