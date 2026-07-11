@@ -9,10 +9,13 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -41,6 +44,7 @@ import splitties.views.dsl.core.horizontalMargin
 import splitties.views.dsl.core.imageView
 import splitties.views.dsl.core.lParams
 import splitties.views.dsl.core.view
+import splitties.views.dsl.core.wrapContent
 import splitties.views.imageDrawable
 
 class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
@@ -74,6 +78,7 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
 
     private val barHeight = ctx.dp(40)
     private val fakeKawaiiBar = view(::View)
+    private var previewTheme = theme
 
     private var keyboardWidth = -1
     private var keyboardHeight = -1
@@ -124,11 +129,30 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
         }
     }
 
+    private val pageIndicator = LinearLayout(ctx).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER
+        setPadding(dp(6), dp(2), dp(6), dp(2))
+        contentDescription = "T9 and password previews"
+    }
+
+    private val pageCallback = object : ViewPager2.OnPageChangeCallback() {
+        override fun onPageSelected(position: Int) {
+            updatePageIndicator(position)
+            if (this@KeyboardPreviewUi::fakeT9Keyboard.isInitialized) {
+                recalculateSize()
+            }
+        }
+    }
+
     private class PreviewHolder(val container: FrameLayout) : RecyclerView.ViewHolder(container)
 
     override val root = object : FrameLayout(ctx) {
         init {
             add(previewPager, lParams())
+            add(pageIndicator, FrameLayout.LayoutParams(wrapContent, dp(16)).apply {
+                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            })
         }
 
         override fun onAttachedToWindow() {
@@ -165,16 +189,19 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
     }
 
     init {
-        val (w, h) = keyboardWindowSize()
+        previewPager.registerOnPageChangeCallback(pageCallback)
+        updatePageIndicator(0)
+        val (w, _) = keyboardWindowSize()
         keyboardWidth = w
-        keyboardHeight = h
+        keyboardHeight = pageKeyboardHeight(0)
         setTheme(theme)
+        recalculateSize()
     }
 
     fun recalculateSize() {
-        val (w, h) = keyboardWindowSize()
+        val (w, _) = keyboardWindowSize()
         keyboardWidth = w
-        keyboardHeight = h
+        keyboardHeight = pageKeyboardHeight(previewPager.currentItem)
         fakeT9Keyboard.updateLayoutParams<ConstraintLayout.LayoutParams> {
             height = t9KeyboardHeight
             horizontalMargin = keyboardSidePaddingPx
@@ -208,6 +235,43 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
             width = intrinsicWidth
             height = intrinsicHeight
         }
+        pageIndicator.updateLayoutParams<FrameLayout.LayoutParams> {
+            topMargin = intrinsicHeight
+        }
+        if (root.isAttachedToWindow) {
+            root.requestLayout()
+        }
+    }
+
+    private fun pageKeyboardHeight(position: Int): Int = if (position == 0) {
+        t9KeyboardHeight
+    } else {
+        passwordKeyboardHeight
+    }
+
+    private fun updatePageIndicator(selected: Int) {
+        pageIndicator.removeAllViews()
+        repeat(2) { index ->
+            pageIndicator.addView(View(ctx).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    val color = previewTheme.keyTextColor
+                    setColor(Color.argb(
+                        if (index == selected) 255 else 96,
+                        Color.red(color),
+                        Color.green(color),
+                        Color.blue(color)
+                    ))
+                }
+                contentDescription = if (index == 0) "T9 preview" else "Password preview"
+            }, LinearLayout.LayoutParams(
+                ctx.dp(if (index == selected) 8 else 6),
+                ctx.dp(if (index == selected) 8 else 6)
+            ).apply {
+                leftMargin = ctx.dp(3)
+                rightMargin = ctx.dp(3)
+            })
+        }
     }
 
     fun setBackground(drawable: Drawable) {
@@ -216,6 +280,7 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
     }
 
     fun setTheme(theme: Theme, background: Drawable? = null) {
+        previewTheme = theme
         setBackground(background ?: theme.backgroundDrawable(keyBorder))
         if (this::fakeT9Keyboard.isInitialized) {
             fakeT9Keyboard.onDetach()
@@ -250,5 +315,8 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
                 centerHorizontally(keyboardSidePaddingPx)
             })
         }
+        // Keep each keyboard on its own page so the default T9 preview keeps its
+        // aspect ratio; the fixed indicator advertises the swipe to the second page.
+        updatePageIndicator(previewPager.currentItem)
     }
 }
