@@ -22,12 +22,17 @@ class ButtonsBarUi(override val ctx: Context, private val theme: Theme) : Ui {
 
     override val root = view(::FlexboxLayout) {
         alignItems = AlignItems.CENTER
-        justifyContent = JustifyContent.SPACE_AROUND
+        // Toolbar actions form one ordered control group; distributing them across
+        // the full row made related actions such as undo and redo feel disconnected.
+        justifyContent = JustifyContent.CENTER
     }
 
     private fun toolButton(@DrawableRes icon: Int) = ToolButton(ctx, icon, theme).also {
         val size = ctx.dp(40)
-        root.addView(it, FlexboxLayout.LayoutParams(size, size))
+        root.addView(it, FlexboxLayout.LayoutParams(size, size).apply {
+            leftMargin = ctx.dp(4)
+            rightMargin = ctx.dp(4)
+        })
     }
 
     val undoButton = toolButton(R.drawable.ic_baseline_undo_24).apply {
