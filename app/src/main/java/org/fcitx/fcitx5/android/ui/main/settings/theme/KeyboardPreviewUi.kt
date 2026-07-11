@@ -45,6 +45,7 @@ import splitties.views.dsl.core.add
 import splitties.views.dsl.core.horizontalMargin
 import splitties.views.dsl.core.imageView
 import splitties.views.dsl.core.lParams
+import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.view
 import splitties.views.dsl.core.wrapContent
 import splitties.views.imageDrawable
@@ -90,14 +91,21 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
     private lateinit var fakePasswordKeyboard: TemporaryFullKeyboard
     private lateinit var fakePasswordNumberRow: NumberRow
 
-    private val t9Preview = constraintLayout {
+    private val t9Content = constraintLayout {
         add(t9Background, lParams {
             centerInParent()
         })
         add(fakeKawaiiBar, lParams(height = dp(40)) {
             topOfParent()
             centerHorizontally()
-            verticalChainStyle = ConstraintLayout.LayoutParams.CHAIN_PACKED
+        })
+    }
+
+    private val t9Preview = FrameLayout(ctx).apply {
+        // The compact T9 preview belongs next to the paging hint, while the shared
+        // viewport keeps page switching stable.
+        addView(t9Content, FrameLayout.LayoutParams(matchParent, wrapContent).apply {
+            gravity = Gravity.BOTTOM
         })
     }
 
@@ -210,6 +218,10 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
             height = t9KeyboardHeight
             horizontalMargin = keyboardSidePaddingPx
         }
+        t9Content.updateLayoutParams<FrameLayout.LayoutParams> {
+            height = barHeight + t9KeyboardHeight
+            gravity = Gravity.BOTTOM
+        }
         fakePasswordKeyboard.updateLayoutParams<ConstraintLayout.LayoutParams> {
             height = passwordKeyboardHeight
             horizontalMargin = keyboardSidePaddingPx
@@ -284,7 +296,7 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
             fakeT9Keyboard.onDetach()
             fakePasswordNumberRow.onDetach()
             fakePasswordKeyboard.onDetach()
-            t9Preview.removeView(fakeT9Keyboard)
+            t9Content.removeView(fakeT9Keyboard)
             passwordPreview.removeView(fakePasswordNumberRow)
             passwordPreview.removeView(fakePasswordKeyboard)
         }
@@ -298,7 +310,7 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
         fakePasswordNumberRow = NumberRow(ctx, theme).also {
             it.onAttach()
         }
-        t9Preview.apply {
+        t9Content.apply {
             add(fakeT9Keyboard, lParams(matchConstraints, t9KeyboardHeight) {
                 below(fakeKawaiiBar)
                 bottomOfParent()
