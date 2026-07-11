@@ -18,7 +18,6 @@ import org.fcitx.fcitx5.android.input.candidates.expanded.ExpandedCandidateStyle
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesMode
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrientation
 import org.fcitx.fcitx5.android.input.candidates.horizontal.HorizontalCandidateMode
-import org.fcitx.fcitx5.android.input.keyboard.LangSwitchBehavior
 import org.fcitx.fcitx5.android.input.keyboard.SpaceLongPressBehavior
 import org.fcitx.fcitx5.android.input.keyboard.SwipeSymbolDirection
 import org.fcitx.fcitx5.android.input.picker.PickerWindow
@@ -146,11 +145,6 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         val passwordInputPreview =
             switch(R.string.password_input_preview, "password_input_preview", true)
         val popupOnKeyPress = switch(R.string.popup_on_key_press, "popup_on_key_press", true)
-        val keepLettersUppercase = switch(
-            R.string.keep_keyboard_letters_uppercase,
-            "keep_keyboard_letters_uppercase",
-            false
-        )
         val inputUiFont = dynamicStringList(
             R.string.input_ui_font_family,
             "input_ui_font",
@@ -216,13 +210,6 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         )
         val spaceSwipeMoveCursor =
             switch(R.string.space_swipe_move_cursor, "space_swipe_move_cursor", true)
-        val showLangSwitchKey =
-            switch(R.string.show_lang_switch_key, "show_lang_switch_key", true)
-        val langSwitchKeyBehavior = enumList(
-            R.string.lang_switch_key_behavior,
-            "lang_switch_key_behavior",
-            LangSwitchBehavior.T9ModeSwitch
-        ) { showLangSwitchKey.getValue() }
         // Historical key name kept for preference compatibility; semantically this enables
         // the whole T9 input mode, not only the visual keyboard layout.
         val useT9KeyboardLayout =
