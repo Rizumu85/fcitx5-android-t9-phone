@@ -116,6 +116,18 @@ object UserKeySoundPack {
             requireNotNull(input) { context.getString(R.string.key_sound_pack_open_failed) }
             input.readAllBytesCompat()
         }
+        importPackBytes(context, sanitizedName, packBytes).getOrThrow()
+    }
+
+    internal fun importPackBytes(
+        context: Context,
+        name: String,
+        packBytes: ByteArray
+    ): Result<Unit> = runCatching {
+        val sanitizedName = name.trim()
+        require(sanitizedName.isNotEmpty()) {
+            context.getString(R.string.key_sound_pack_name_empty)
+        }
         rejectEncryptedPack(context, packBytes)
         val samples = extractSamples(context, packBytes)
 

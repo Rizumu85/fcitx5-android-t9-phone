@@ -166,6 +166,17 @@
     <string name="popup_on_key_press">Popup on key press</string>
     <string name="disable_animation">Disable animation</string>
     <string name="import_from_file">Import from file…</string>
+    <string name="import_baidu_skin">Import Baidu skin…</string>
+    <string name="baidu_skin_default_name">Imported Baidu skin</string>
+    <string name="baidu_skin_light_suffix"> (Light)</string>
+    <string name="baidu_skin_dark_suffix"> (Dark)</string>
+    <string name="baidu_skin_imported_title">Baidu skin imported</string>
+    <string name="baidu_skin_imported_message">Created themes: %1$s\n\n%2$s\n\nThe app keeps its own T9 layout and applies compatible backgrounds, colors, and key sounds. Baidu-specific layouts, baked key labels, animations, handwriting, and 26-key assets are ignored.</string>
+    <string name="baidu_skin_sounds_imported">Compatible key sounds were imported and selected.</string>
+    <string name="baidu_skin_sounds_skipped">No complete compatible key sound set was found.</string>
+    <string name="baidu_skin_wrong_file">Please choose an Android .bds skin.</string>
+    <string name="baidu_skin_encrypted">This skin encrypts its visual assets. It cannot be converted without an author-provided password or an unencrypted copy.</string>
+    <string name="baidu_skin_invalid">This Baidu skin could not be converted.</string>
     <string name="duplicate_builtin_theme">Duplicate builtin theme…</string>
     <string name="exception_logcat_created">Logcat process is already created</string>
     <string name="exception_quickphrase_parse">Failed to parse quick phrase line: %1$s</string>

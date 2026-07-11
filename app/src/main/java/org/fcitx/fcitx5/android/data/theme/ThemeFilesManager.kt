@@ -2,6 +2,9 @@ package org.fcitx.fcitx5.android.data.theme
 
 import kotlinx.serialization.json.Json
 import org.fcitx.fcitx5.android.R
+import org.fcitx.fcitx5.android.data.UserKeySoundPack
+import org.fcitx.fcitx5.android.data.theme.bds.BdsArchive
+import org.fcitx.fcitx5.android.data.theme.bds.BdsSkinConverter
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.errorRuntime
 import org.fcitx.fcitx5.android.utils.extract
@@ -17,6 +20,11 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 object ThemeFilesManager {
+
+    data class BaiduSkinImportResult(
+        val themes: List<Theme.Custom>,
+        val importedKeySounds: Boolean
+    )
 
     private val dir = File(appContext.getExternalFilesDir(null), "theme").also { it.mkdirs() }
 
@@ -160,5 +168,80 @@ object ThemeFilesManager {
                 }
             }
         }
+
+    fun importBaiduSkin(
+        src: InputStream,
+        fallbackName: String
+    ): Result<BaiduSkinImportResult> = runCatching {
+        val sourceBytes = src.use { it.readBytes() }
+        val archive = BdsArchive.read(sourceBytes)
+        val converted = BdsSkinConverter.convert(archive, fallbackName)
+        val createdFiles = mutableListOf<File>()
+        val createdThemes = mutableListOf<Theme.Custom>()
+        try {
+            val themes = converted.map { variant ->
+                val suffix = when {
+                    converted.size == 1 -> ""
+                    variant.isDark -> appContext.getString(R.string.baidu_skin_dark_suffix)
+                    else -> appContext.getString(R.string.baidu_skin_light_suffix)
+                }
+                val themeName = uniqueThemeName(variant.sourceName + suffix)
+                val id = UUID.randomUUID().toString()
+                val cropped = File(dir, "$id-bds-panel.png")
+                val source = File(dir, "$id-bds-source.png")
+                cropped.writeBytes(variant.panelPng)
+                source.writeBytes(variant.panelPng)
+                createdFiles += cropped
+                createdFiles += source
+
+                val base = if (variant.isDark) ThemePreset.PixelDark else ThemePreset.PixelLight
+                val palette = variant.palette
+                base.deriveCustomNoBackground(themeName).copy(
+                    backgroundImage = Theme.Custom.CustomBackground(
+                        croppedFilePath = cropped.path,
+                        srcFilePath = source.path,
+                        brightness = 100,
+                        cropRect = null
+                    ),
+                    backgroundColor = palette.background,
+                    barColor = palette.bar,
+                    keyboardColor = palette.background,
+                    keyBackgroundColor = palette.key,
+                    keyTextColor = palette.text,
+                    candidateTextColor = palette.text,
+                    candidateLabelColor = palette.text,
+                    altKeyBackgroundColor = palette.key,
+                    altKeyTextColor = palette.text,
+                    accentKeyBackgroundColor = palette.accent,
+                    popupBackgroundColor = palette.bar,
+                    popupTextColor = palette.text,
+                    spaceBarColor = palette.key,
+                    clipboardEntryColor = palette.key,
+                    genericActiveBackgroundColor = palette.accent
+                ).also { theme ->
+                    saveThemeFiles(theme)
+                    createdThemes += theme
+                }
+            }
+            val importedSounds = UserKeySoundPack.importPackBytes(
+                appContext,
+                converted.first().sourceName,
+                sourceBytes
+            ).isSuccess
+            BaiduSkinImportResult(themes, importedSounds)
+        } catch (error: Throwable) {
+            createdThemes.forEach { themeFile(it).delete() }
+            createdFiles.forEach(File::delete)
+            throw error
+        }
+    }
+
+    private fun uniqueThemeName(requested: String): String {
+        val base = requested.trim().ifEmpty { appContext.getString(R.string.baidu_skin_default_name) }
+        if (ThemeManager.getTheme(base) == null) return base
+        var suffix = 2
+        while (ThemeManager.getTheme("$base ($suffix)") != null) suffix++
+        return "$base ($suffix)"
+    }
 
 }

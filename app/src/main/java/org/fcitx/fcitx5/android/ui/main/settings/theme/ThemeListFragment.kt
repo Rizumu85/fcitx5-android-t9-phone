@@ -22,6 +22,7 @@ import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.data.theme.ThemeFilesManager
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
+import org.fcitx.fcitx5.android.data.theme.bds.BdsArchive
 import org.fcitx.fcitx5.android.ui.common.withLoadingDialog
 import org.fcitx.fcitx5.android.utils.applyNavBarInsetsBottomPadding
 import org.fcitx.fcitx5.android.utils.importErrorDialog
@@ -29,12 +30,15 @@ import org.fcitx.fcitx5.android.utils.queryFileName
 import org.fcitx.fcitx5.android.utils.toast
 import splitties.resources.styledDrawable
 import java.util.UUID
+import java.util.zip.ZipException
 
 class ThemeListFragment : Fragment() {
 
     private lateinit var imageLauncher: ActivityResultLauncher<Theme.Custom?>
 
     private lateinit var importLauncher: ActivityResultLauncher<String>
+
+    private lateinit var baiduSkinLauncher: ActivityResultLauncher<Array<String>>
 
     private lateinit var exportLauncher: ActivityResultLauncher<String>
 
@@ -111,6 +115,59 @@ class ThemeListFragment : Fragment() {
                     }
                 }
             }
+        baiduSkinLauncher =
+            registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                if (uri == null) return@registerForActivityResult
+                val ctx = requireContext()
+                val cr = ctx.contentResolver
+                lifecycleScope.withLoadingDialog(ctx) {
+                    withContext(NonCancellable + Dispatchers.IO) {
+                        val fileName = cr.queryFileName(uri).orEmpty()
+                        if (!fileName.endsWith(".bds", ignoreCase = true)) {
+                            ctx.importErrorDialog(R.string.baidu_skin_wrong_file)
+                            return@withContext
+                        }
+                        try {
+                            val fallbackName = fileName.substringBeforeLast('.').trim()
+                            val result = cr.openInputStream(uri).use { input ->
+                                requireNotNull(input)
+                                ThemeFilesManager.importBaiduSkin(input, fallbackName).getOrThrow()
+                            }
+                            ThemeManager.refreshThemes()
+                            withContext(Dispatchers.Main) {
+                                result.themes.asReversed().forEach(themeListAdapter::prependTheme)
+                                val sounds = getString(
+                                    if (result.importedKeySounds) {
+                                        R.string.baidu_skin_sounds_imported
+                                    } else {
+                                        R.string.baidu_skin_sounds_skipped
+                                    }
+                                )
+                                AlertDialog.Builder(ctx)
+                                    .setTitle(R.string.baidu_skin_imported_title)
+                                    .setMessage(
+                                        getString(
+                                            R.string.baidu_skin_imported_message,
+                                            result.themes.joinToString { it.name },
+                                            sounds
+                                        )
+                                    )
+                                    .setPositiveButton(android.R.string.ok, null)
+                                    .show()
+                            }
+                        } catch (error: Exception) {
+                            if (error is ZipException && error.message == BdsArchive.ENCRYPTED_MESSAGE) {
+                                ctx.importErrorDialog(R.string.baidu_skin_encrypted)
+                            } else {
+                                ctx.importErrorDialog(
+                                    error.localizedMessage?.takeIf { it.isNotBlank() }
+                                        ?: getString(R.string.baidu_skin_invalid)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         exportLauncher =
             registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
                 if (uri == null) return@registerForActivityResult
@@ -169,6 +226,7 @@ class ThemeListFragment : Fragment() {
         val actions = arrayOf(
             getString(R.string.choose_image),
             getString(R.string.import_from_file),
+            getString(R.string.import_baidu_skin),
             getString(R.string.duplicate_builtin_theme)
         )
         AlertDialog.Builder(ctx)
@@ -178,7 +236,10 @@ class ThemeListFragment : Fragment() {
                 when (i) {
                     0 -> imageLauncher.launch(null)
                     1 -> importLauncher.launch("application/zip")
-                    2 -> {
+                    2 -> baiduSkinLauncher.launch(
+                        arrayOf("application/zip", "application/octet-stream", "*/*")
+                    )
+                    3 -> {
                         val view = ResponsiveThemeListView(ctx).apply {
                             // force AlertDialog's customPanel to grow
                             minimumHeight = Int.MAX_VALUE
