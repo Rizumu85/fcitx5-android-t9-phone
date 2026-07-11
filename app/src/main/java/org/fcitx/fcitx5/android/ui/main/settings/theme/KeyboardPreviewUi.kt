@@ -22,6 +22,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
+import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreferenceProvider
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
@@ -29,6 +30,9 @@ import org.fcitx.fcitx5.android.data.theme.ThemePrefs.NavbarBackground
 import org.fcitx.fcitx5.android.input.keyboard.T9Keyboard
 import org.fcitx.fcitx5.android.input.keyboard.TemporaryFullKeyboard
 import org.fcitx.fcitx5.android.input.bar.ui.idle.NumberRow
+import org.fcitx.fcitx5.android.input.clipboard.ClipboardEntryUi
+import org.fcitx.fcitx5.android.input.editing.TextEditingUi
+import org.fcitx.fcitx5.android.input.TopRoundedClipLayout
 import org.fcitx.fcitx5.android.utils.navbarFrameHeight
 import splitties.dimensions.dp
 import splitties.views.backgroundColor
@@ -36,7 +40,6 @@ import splitties.views.dsl.constraintlayout.below
 import splitties.views.dsl.constraintlayout.bottomOfParent
 import splitties.views.dsl.constraintlayout.centerHorizontally
 import splitties.views.dsl.constraintlayout.centerInParent
-import splitties.views.dsl.constraintlayout.constraintLayout
 import splitties.views.dsl.constraintlayout.lParams
 import splitties.views.dsl.constraintlayout.matchConstraints
 import splitties.views.dsl.constraintlayout.topOfParent
@@ -91,7 +94,7 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
     private lateinit var fakePasswordKeyboard: TemporaryFullKeyboard
     private lateinit var fakePasswordNumberRow: NumberRow
 
-    private val t9Content = constraintLayout {
+    private val t9Content = TopRoundedClipLayout(ctx).apply {
         add(t9Background, lParams {
             centerInParent()
         })
@@ -109,16 +112,23 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
         })
     }
 
-    private val passwordPreview = constraintLayout {
+    private val passwordPreview = TopRoundedClipLayout(ctx).apply {
         add(passwordBackground, lParams {
             centerInParent()
         })
     }
 
+    private val textEditingPreview = TopRoundedClipLayout(ctx)
+    private val clipboardPreview = TopRoundedClipLayout(ctx)
+    private val previewPages = listOf(
+        t9Preview,
+        passwordPreview,
+        textEditingPreview,
+        clipboardPreview
+    )
+
     private val previewPager = ViewPager2(ctx).apply {
         adapter = object : RecyclerView.Adapter<PreviewHolder>() {
-            private val pages = listOf(t9Preview, passwordPreview)
-
             override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
                 PreviewHolder(FrameLayout(parent.context).apply {
                     layoutParams = RecyclerView.LayoutParams(
@@ -127,10 +137,10 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
                     )
                 })
 
-            override fun getItemCount() = pages.size
+            override fun getItemCount() = previewPages.size
 
             override fun onBindViewHolder(holder: PreviewHolder, position: Int) {
-                val page = pages[position]
+                val page = previewPages[position]
                 (page.parent as? ViewGroup)?.removeView(page)
                 holder.container.removeAllViews()
                 holder.container.addView(page, FrameLayout.LayoutParams(
@@ -263,7 +273,13 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
 
     private fun updatePageIndicator(selected: Int) {
         pageIndicator.removeAllViews()
-        repeat(2) { index ->
+        val descriptions = arrayOf(
+            "T9 preview",
+            "Password preview",
+            "Text editing preview",
+            "Clipboard preview"
+        )
+        repeat(previewPages.size) { index ->
             pageIndicator.addView(View(ctx).apply {
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
@@ -275,7 +291,7 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
                         Color.blue(color)
                     ))
                 }
-                contentDescription = if (index == 0) "T9 preview" else "Password preview"
+                contentDescription = descriptions[index]
             }, LinearLayout.LayoutParams(
                 ctx.dp(if (index == selected) 8 else 6),
                 ctx.dp(if (index == selected) 8 else 6)
@@ -289,6 +305,51 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
     fun setBackground(drawable: Drawable) {
         t9Background.imageDrawable = drawable
         passwordBackground.imageDrawable = drawable
+    }
+
+    private fun rebuildAuxiliaryPreviews(theme: Theme) {
+        val prefs = ThemeManager.prefs
+        val panelRadius = ctx.dp(prefs.inputPanelTopRadius.getValue())
+        listOf(t9Content, passwordPreview, textEditingPreview, clipboardPreview).forEach {
+            it.topCornerRadiusPx = panelRadius
+        }
+
+        textEditingPreview.apply {
+            removeAllViews()
+            background = theme.backgroundDrawable(keyBorder)
+            val editingUi = TextEditingUi(
+                ctx,
+                theme,
+                keyBorder,
+                ctx.dp(prefs.textEditingButtonRadius.getValue().toFloat())
+            )
+            addView(
+                editingUi.root,
+                ConstraintLayout.LayoutParams(matchParent, matchParent)
+            )
+        }
+
+        clipboardPreview.apply {
+            removeAllViews()
+            background = theme.backgroundDrawable(keyBorder)
+            val radius = ctx.dp(prefs.clipboardEntryRadius.getValue().toFloat())
+            val entries = LinearLayout(ctx).apply {
+                orientation = LinearLayout.VERTICAL
+                listOf(
+                    R.string.clipboard to true,
+                    android.R.string.copy to false,
+                    android.R.string.paste to false
+                ).forEach { (textRes, pinned) ->
+                    val entryUi = ClipboardEntryUi(ctx, theme, radius).apply {
+                        setEntry(ctx.getString(textRes), pinned)
+                    }
+                    addView(entryUi.root, LinearLayout.LayoutParams(matchParent, 0, 1f).apply {
+                        setMargins(dp(12), dp(5), dp(12), dp(5))
+                    })
+                }
+            }
+            addView(entries, ConstraintLayout.LayoutParams(matchParent, matchParent))
+        }
     }
 
     fun setTheme(theme: Theme, background: Drawable? = null) {
@@ -328,6 +389,7 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
                 centerHorizontally(keyboardSidePaddingPx)
             })
         }
+        rebuildAuxiliaryPreviews(theme)
         // Both pages keep the password preview's stable viewport height; the T9
         // controls are centered inside it so paging never shifts the surrounding UI.
         updatePageIndicator(previewPager.currentItem)
