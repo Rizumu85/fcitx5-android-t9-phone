@@ -20,7 +20,8 @@ import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.data.theme.ThemePrefs.NavbarBackground
-import org.fcitx.fcitx5.android.input.keyboard.TextKeyboard
+import org.fcitx.fcitx5.android.input.keyboard.T9Keyboard
+import org.fcitx.fcitx5.android.input.keyboard.TemporaryFullKeyboard
 import org.fcitx.fcitx5.android.utils.navbarFrameHeight
 import splitties.dimensions.dp
 import splitties.views.backgroundColor
@@ -65,7 +66,10 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
 
     private var keyboardWidth = -1
     private var keyboardHeight = -1
-    private lateinit var fakeKeyboardWindow: TextKeyboard
+    private var t9KeyboardHeight = -1
+    private var passwordKeyboardHeight = -1
+    private lateinit var fakeT9Keyboard: T9Keyboard
+    private lateinit var fakePasswordKeyboard: TemporaryFullKeyboard
 
     private val fakeInputView = constraintLayout {
         add(bkg, lParams {
@@ -100,31 +104,37 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
 
     var onSizeMeasured: ((Int, Int) -> Unit)? = null
 
-    private fun keyboardWindowAspectRatio(): Pair<Int, Int> {
+    private fun keyboardWindowSize(): Pair<Int, Int> {
         val resources = ctx.resources
         val displayMetrics = resources.displayMetrics
         val w = displayMetrics.widthPixels
-        val h = displayMetrics.heightPixels
-        val hPercent = when (resources.configuration.orientation) {
-            Configuration.ORIENTATION_LANDSCAPE -> 45
-            else -> 40
+        val displayHeight = displayMetrics.heightPixels
+        val (t9Percent, passwordPercent) = when (resources.configuration.orientation) {
+            Configuration.ORIENTATION_LANDSCAPE -> 15 to 45
+            else -> 10 to 40
         }
-        return w to (h * hPercent / 100)
+        t9KeyboardHeight = displayHeight * t9Percent / 100
+        passwordKeyboardHeight = displayHeight * passwordPercent / 100
+        return w to (t9KeyboardHeight + passwordKeyboardHeight)
     }
 
     init {
-        val (w, h) = keyboardWindowAspectRatio()
+        val (w, h) = keyboardWindowSize()
         keyboardWidth = w
         keyboardHeight = h
         setTheme(theme)
     }
 
     fun recalculateSize() {
-        val (w, h) = keyboardWindowAspectRatio()
+        val (w, h) = keyboardWindowSize()
         keyboardWidth = w
         keyboardHeight = h
-        fakeKeyboardWindow.updateLayoutParams<ConstraintLayout.LayoutParams> {
-            height = keyboardHeight
+        fakeT9Keyboard.updateLayoutParams<ConstraintLayout.LayoutParams> {
+            height = t9KeyboardHeight
+            horizontalMargin = keyboardSidePaddingPx
+        }
+        fakePasswordKeyboard.updateLayoutParams<ConstraintLayout.LayoutParams> {
+            height = passwordKeyboardHeight
             horizontalMargin = keyboardSidePaddingPx
         }
         intrinsicWidth = keyboardWidth
@@ -157,16 +167,26 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
 
     fun setTheme(theme: Theme, background: Drawable? = null) {
         setBackground(background ?: theme.backgroundDrawable(keyBorder))
-        if (this::fakeKeyboardWindow.isInitialized) {
-            fakeInputView.removeView(fakeKeyboardWindow)
+        if (this::fakeT9Keyboard.isInitialized) {
+            fakeT9Keyboard.onDetach()
+            fakePasswordKeyboard.onDetach()
+            fakeInputView.removeView(fakeT9Keyboard)
+            fakeInputView.removeView(fakePasswordKeyboard)
         }
         fakeKawaiiBar.backgroundColor = if (keyBorder) Color.TRANSPARENT else theme.barColor
-        fakeKeyboardWindow = TextKeyboard(ctx, theme).also {
+        fakeT9Keyboard = T9Keyboard(ctx, theme).also {
+            it.onAttach()
+        }
+        fakePasswordKeyboard = TemporaryFullKeyboard(ctx, theme).also {
             it.onAttach()
         }
         fakeInputView.apply {
-            add(fakeKeyboardWindow, lParams(matchConstraints, keyboardHeight) {
+            add(fakeT9Keyboard, lParams(matchConstraints, t9KeyboardHeight) {
                 below(fakeKawaiiBar)
+                centerHorizontally(keyboardSidePaddingPx)
+            })
+            add(fakePasswordKeyboard, lParams(matchConstraints, passwordKeyboardHeight) {
+                below(fakeT9Keyboard)
                 centerHorizontally(keyboardSidePaddingPx)
             })
         }
