@@ -10,18 +10,22 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.Drawable
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
-import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
+import androidx.recyclerview.widget.RecyclerView
+import androidx.viewpager2.widget.ViewPager2
+import org.fcitx.fcitx5.android.data.prefs.ManagedPreferenceProvider
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.data.theme.ThemePrefs.NavbarBackground
 import org.fcitx.fcitx5.android.input.keyboard.T9Keyboard
 import org.fcitx.fcitx5.android.input.keyboard.TemporaryFullKeyboard
+import org.fcitx.fcitx5.android.input.bar.ui.idle.NumberRow
 import org.fcitx.fcitx5.android.utils.navbarFrameHeight
 import splitties.dimensions.dp
 import splitties.views.backgroundColor
@@ -53,11 +57,18 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
     private val navbarBackground = ThemeManager.prefs.navbarBackground
     private val keyBorder by ThemeManager.prefs.keyBorder
 
-    private val navbarBkgChangeListener = ManagedPreference.OnChangeListener<Any> { _, _ ->
-        recalculateSize()
-    }
+    private val previewPreferenceListener: ManagedPreferenceProvider.OnChangeListener =
+        ManagedPreferenceProvider.OnChangeListener {
+        root.post {
+            setTheme(ThemeManager.activeTheme)
+            recalculateSize()
+        }
+        }
 
-    private val bkg = imageView {
+    private val t9Background = imageView {
+        scaleType = ImageView.ScaleType.CENTER_CROP
+    }
+    private val passwordBackground = imageView {
         scaleType = ImageView.ScaleType.CENTER_CROP
     }
 
@@ -70,9 +81,10 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
     private var passwordKeyboardHeight = -1
     private lateinit var fakeT9Keyboard: T9Keyboard
     private lateinit var fakePasswordKeyboard: TemporaryFullKeyboard
+    private lateinit var fakePasswordNumberRow: NumberRow
 
-    private val fakeInputView = constraintLayout {
-        add(bkg, lParams {
+    private val t9Preview = constraintLayout {
+        add(t9Background, lParams {
             centerInParent()
         })
         add(fakeKawaiiBar, lParams(height = dp(40)) {
@@ -80,16 +92,45 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
         })
     }
 
+    private val passwordPreview = constraintLayout {
+        add(passwordBackground, lParams {
+            centerInParent()
+        })
+    }
+
+    private val previewPager = ViewPager2(ctx).apply {
+        adapter = object : RecyclerView.Adapter<PreviewHolder>() {
+            private val pages = listOf(t9Preview, passwordPreview)
+
+            override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
+                PreviewHolder(FrameLayout(parent.context))
+
+            override fun getItemCount() = pages.size
+
+            override fun onBindViewHolder(holder: PreviewHolder, position: Int) {
+                val page = pages[position]
+                (page.parent as? ViewGroup)?.removeView(page)
+                holder.container.removeAllViews()
+                holder.container.addView(page, FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                ))
+            }
+        }
+    }
+
+    private class PreviewHolder(val container: FrameLayout) : RecyclerView.ViewHolder(container)
+
     override val root = object : FrameLayout(ctx) {
         init {
-            add(fakeInputView, lParams())
+            add(previewPager, lParams())
         }
 
         override fun onAttachedToWindow() {
             super.onAttachedToWindow()
             recalculateSize()
             onSizeMeasured?.invoke(intrinsicWidth, intrinsicHeight)
-            navbarBackground.registerOnChangeListener(navbarBkgChangeListener)
+            ThemeManager.prefs.registerOnChangeListener(previewPreferenceListener)
         }
 
         override fun onConfigurationChanged(newConfig: Configuration?) {
@@ -97,7 +138,7 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
         }
 
         override fun onDetachedFromWindow() {
-            navbarBackground.unregisterOnChangeListener(navbarBkgChangeListener)
+            ThemeManager.prefs.unregisterOnChangeListener(previewPreferenceListener)
             super.onDetachedFromWindow()
         }
     }
@@ -115,7 +156,7 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
         }
         t9KeyboardHeight = displayHeight * t9Percent / 100
         passwordKeyboardHeight = displayHeight * passwordPercent / 100
-        return w to (t9KeyboardHeight + passwordKeyboardHeight)
+        return w to maxOf(t9KeyboardHeight, passwordKeyboardHeight)
     }
 
     init {
@@ -137,6 +178,9 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
             height = passwordKeyboardHeight
             horizontalMargin = keyboardSidePaddingPx
         }
+        fakePasswordNumberRow.updateLayoutParams<ConstraintLayout.LayoutParams> {
+            height = barHeight
+        }
         intrinsicWidth = keyboardWidth
         // KawaiiBar height + WindowManager view height
         intrinsicHeight = barHeight + keyboardHeight
@@ -155,23 +199,34 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
                 }
             }
         }
-        fakeInputView.updateLayoutParams<FrameLayout.LayoutParams> {
+        previewPager.updateLayoutParams<FrameLayout.LayoutParams> {
+            width = intrinsicWidth
+            height = intrinsicHeight
+        }
+        t9Preview.updateLayoutParams<FrameLayout.LayoutParams> {
+            width = intrinsicWidth
+            height = intrinsicHeight
+        }
+        passwordPreview.updateLayoutParams<FrameLayout.LayoutParams> {
             width = intrinsicWidth
             height = intrinsicHeight
         }
     }
 
     fun setBackground(drawable: Drawable) {
-        bkg.imageDrawable = drawable
+        t9Background.imageDrawable = drawable
+        passwordBackground.imageDrawable = drawable
     }
 
     fun setTheme(theme: Theme, background: Drawable? = null) {
         setBackground(background ?: theme.backgroundDrawable(keyBorder))
         if (this::fakeT9Keyboard.isInitialized) {
             fakeT9Keyboard.onDetach()
+            fakePasswordNumberRow.onDetach()
             fakePasswordKeyboard.onDetach()
-            fakeInputView.removeView(fakeT9Keyboard)
-            fakeInputView.removeView(fakePasswordKeyboard)
+            t9Preview.removeView(fakeT9Keyboard)
+            passwordPreview.removeView(fakePasswordNumberRow)
+            passwordPreview.removeView(fakePasswordKeyboard)
         }
         fakeKawaiiBar.backgroundColor = if (keyBorder) Color.TRANSPARENT else theme.barColor
         fakeT9Keyboard = T9Keyboard(ctx, theme).also {
@@ -180,13 +235,21 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
         fakePasswordKeyboard = TemporaryFullKeyboard(ctx, theme).also {
             it.onAttach()
         }
-        fakeInputView.apply {
+        fakePasswordNumberRow = NumberRow(ctx, theme).also {
+            it.onAttach()
+        }
+        t9Preview.apply {
             add(fakeT9Keyboard, lParams(matchConstraints, t9KeyboardHeight) {
                 below(fakeKawaiiBar)
                 centerHorizontally(keyboardSidePaddingPx)
             })
+        }
+        passwordPreview.apply {
+            add(fakePasswordNumberRow, lParams(matchConstraints, barHeight) {
+                centerHorizontally()
+            })
             add(fakePasswordKeyboard, lParams(matchConstraints, passwordKeyboardHeight) {
-                below(fakeT9Keyboard)
+                below(fakePasswordNumberRow)
                 centerHorizontally(keyboardSidePaddingPx)
             })
         }
