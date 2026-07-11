@@ -124,7 +124,7 @@ class ToolbarButtonsDialog(
         addView(checkBox, LinearLayout.LayoutParams(context.dp(48), context.dp(48)))
         addView(iconView(icon), LinearLayout.LayoutParams(context.dp(36), context.dp(36)))
         addView(TextView(context).apply {
-            setText(label)
+            if (label != 0) setText(label)
             isEnabled = enabled
             textSize = 16f
             setPadding(context.dp(8), 0, context.dp(8), 0)
@@ -134,7 +134,7 @@ class ToolbarButtonsDialog(
     }
 
     private fun iconView(@DrawableRes icon: Int) = ImageView(context).apply {
-        setImageResource(icon)
+        if (icon != 0) setImageResource(icon)
         setPadding(context.dp(8), context.dp(8), context.dp(8), context.dp(8))
         imageTintList = ContextCompat.getColorStateList(context, android.R.color.darker_gray)
     }
