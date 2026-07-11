@@ -35,6 +35,11 @@ object ChineseT9SchemeCycle {
 }
 
 class ChineseT9SchemeCycleSession {
+    enum class ActivationPresentation {
+        SHOW_CONFIRMATION,
+        KEEP_REQUEST_ACKNOWLEDGEMENT
+    }
+
     private var requested: ChineseT9Scheme? = null
 
     fun requestNext(
@@ -46,8 +51,10 @@ class ChineseT9SchemeCycleSession {
         return target
     }
 
-    fun observeActive(scheme: ChineseT9Scheme) {
-        if (requested == scheme) requested = null
+    fun observeActive(scheme: ChineseT9Scheme): ActivationPresentation {
+        val pending = requested ?: return ActivationPresentation.SHOW_CONFIRMATION
+        if (pending == scheme) requested = null
+        return ActivationPresentation.KEEP_REQUEST_ACKNOWLEDGEMENT
     }
 
     fun reject(target: ChineseT9Scheme) {

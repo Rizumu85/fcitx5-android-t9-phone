@@ -1011,6 +1011,20 @@ Success means both holds react at the same configured threshold, a failed Rime
 action cannot leave an optimistic scheme selected, and short `*`, composing
 long `*`, and long `#` retain their existing behavior.
 
+The first immediate-feedback implementation exposed a second presentation
+owner. `cycleChineseT9Scheme()` starts the transient indicator at the hold
+threshold, then `activateChineseT9Scheme()` starts the same animation again when
+Rime confirms the request. `TransientModeIndicatorOverlay.show()` deliberately
+resets alpha and scale to their animation origins on every call, so the second
+call appears as a brief flash and shrink even though the label is unchanged.
+
+The fix belongs in Chinese Scheme Cycle Session rather than in the generic
+overlay. A requested target has already been presented; its confirmation must
+update authoritative scheme and space-bar state without replaying the
+indicator. During rapid cycles, intermediate confirmations must likewise not
+replace the newer requested target. Unrequested scheme changes must retain the
+normal confirmation indicator.
+
 ## Installation-State Decode Attribution
 
 After descriptor fingerprinting, installation-state loading is consistently

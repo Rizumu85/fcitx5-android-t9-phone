@@ -90,6 +90,53 @@ class ChineseT9SchemeCycleTest {
         )
     }
 
+    @Test
+    fun acknowledgedRequestDoesNotReplayConfirmationIndicator() {
+        val session = ChineseT9SchemeCycleSession()
+        session.requestNext(ChineseT9Scheme.PINYIN, ChineseT9Scheme.entries)
+
+        assertEquals(
+            ChineseT9SchemeCycleSession.ActivationPresentation.KEEP_REQUEST_ACKNOWLEDGEMENT,
+            session.observeActive(ChineseT9Scheme.STROKE)
+        )
+        assertEquals(
+            ChineseT9SchemeCycleSession.ActivationPresentation.SHOW_CONFIRMATION,
+            session.observeActive(ChineseT9Scheme.PINYIN)
+        )
+    }
+
+    @Test
+    fun rapidIntermediateActivationsDoNotReplaceNewerRequestIndicator() {
+        val session = ChineseT9SchemeCycleSession()
+        session.requestNext(ChineseT9Scheme.PINYIN, ChineseT9Scheme.entries)
+        session.requestNext(ChineseT9Scheme.PINYIN, ChineseT9Scheme.entries)
+
+        assertEquals(
+            ChineseT9SchemeCycleSession.ActivationPresentation.KEEP_REQUEST_ACKNOWLEDGEMENT,
+            session.observeActive(ChineseT9Scheme.STROKE)
+        )
+        assertEquals(
+            ChineseT9SchemeCycleSession.ActivationPresentation.KEEP_REQUEST_ACKNOWLEDGEMENT,
+            session.observeActive(ChineseT9Scheme.ZHUYIN)
+        )
+        assertEquals(
+            ChineseT9SchemeCycleSession.ActivationPresentation.SHOW_CONFIRMATION,
+            session.observeActive(ChineseT9Scheme.PINYIN)
+        )
+    }
+
+    @Test
+    fun rejectedRequestDoesNotSuppressNextExternalActivation() {
+        val session = ChineseT9SchemeCycleSession()
+        val target = session.requestNext(ChineseT9Scheme.PINYIN, ChineseT9Scheme.entries)!!
+        session.reject(target)
+
+        assertEquals(
+            ChineseT9SchemeCycleSession.ActivationPresentation.SHOW_CONFIRMATION,
+            session.observeActive(ChineseT9Scheme.ZHUYIN)
+        )
+    }
+
     private fun schemeMenu(vararg actions: Action): Action = action(
         id = 1,
         name = "fcitx-rime-im",

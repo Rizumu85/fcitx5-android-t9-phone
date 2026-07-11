@@ -680,6 +680,14 @@ change `activeChineseT9Scheme` or the space-bar label. The later Rime
 input-method-change event remains authoritative, and a rejected action only
 clears the pending cycle request.
 
+Chinese Scheme Cycle Session also owns presentation acknowledgement. Observing
+an activation while a cycle target is pending suppresses the confirmation
+indicator because the request was already shown at the long-press decision. A
+matching activation clears the pending target; an intermediate activation from
+rapid requests keeps the newer target pending. An activation with no pending
+request remains externally initiated and shows the normal indicator. The
+generic overlay animation is unchanged.
+
 The Startup Performance Transaction splits installation-state byte reading
 from decoding. Measurement selected decoding, so `DataInstallationStateCodec`
 becomes the private persistence Module behind the fingerprint Interface. Format

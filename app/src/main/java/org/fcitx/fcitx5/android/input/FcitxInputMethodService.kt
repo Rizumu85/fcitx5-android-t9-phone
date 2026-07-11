@@ -1853,7 +1853,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         // fcitx-thread round trip merely to classify the already-active Chinese scheme.
         activeChineseT9SubModeIdentity = identity
         activeChineseT9Scheme = next
-        chineseT9SchemeCycle.observeActive(next)
+        val activationPresentation = chineseT9SchemeCycle.observeActive(next)
         chineseT9Composition.activateScheme(
             next = next,
             forceReset = previousIdentity != null
@@ -1865,7 +1865,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (currentT9Mode == T9InputMode.CHINESE) {
             val label = getString(next.compactLabelRes)
             onT9ModeChanged?.invoke(label)
-            showModeIndicatorBadge(label)
+            if (activationPresentation ==
+                ChineseT9SchemeCycleSession.ActivationPresentation.SHOW_CONFIRMATION
+            ) {
+                showModeIndicatorBadge(label)
+            }
         }
     }
 

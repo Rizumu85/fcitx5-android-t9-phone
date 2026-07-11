@@ -449,11 +449,17 @@ otherwise.
 
 - [x] Acknowledge an idle long-`*` Chinese-scheme target at the same decision
   point as long-`#`, while keeping confirmed Rime state authoritative.
-- [ ] Run focused Physical T9 and scheme-cycle tests, build/install debug, and
-  verify short/long `*` plus long `#` on the target phone.
+- [x] Run focused Physical T9 and scheme-cycle tests, then build and install
+  the debug APK on the target phone.
 - [x] Split installation-state byte reading from decoding and capture a new
   process-cold target-device trace before choosing the optimization.
 - [x] Optimize only the measured dominant state-loading operation while
   preserving atomic completion, corruption recovery, and plugin invalidation.
 - [x] Run focused tests, migrate the target device once, compare steady-state
   traces, then commit and push the performance slice.
+- [x] Make Chinese Scheme Cycle Session suppress duplicate and superseded Rime
+  confirmation indicators without suppressing external scheme changes.
+- [x] Add focused request/confirmation/rapid-cycle regression coverage, build
+  and install debug, then leave the physical hold feel ready for user retest.
+- [ ] Confirm on the physical keypad that long-`*` now has one continuous
+  indicator animation and feels consistent with long-`#`.
