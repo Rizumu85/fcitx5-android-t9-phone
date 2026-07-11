@@ -166,7 +166,7 @@
     <string name="baidu_skin_light_suffix">（亮色）</string>
     <string name="baidu_skin_dark_suffix">（暗色）</string>
     <string name="baidu_skin_imported_title">百度皮膚已匯入</string>
-    <string name="baidu_skin_imported_message">已建立主題：%1$s\n\n%2$s\n\n應用程式會保留自己的九鍵配置，只採用相容的背景、顏色和按鍵音。百度專屬配置、寫死在素材裡的按鍵文字、動畫、手寫和 26 鍵素材不會匯入。</string>
+    <string name="baidu_skin_imported_message">已建立主題：%1$s\n\n%2$s\n\n應用程式會保留自己的九鍵配置，同時適配相容的面板背景、按鍵素材、按下狀態、功能鍵圖示、顏色和按鍵音。不相容的百度動畫、手寫及配置尺寸不會匯入。</string>
     <string name="baidu_skin_sounds_imported">相容的按鍵音已匯入並選取。</string>
     <string name="baidu_skin_sounds_skipped">沒有找到完整且相容的按鍵音。</string>
     <string name="baidu_skin_wrong_file">請選擇 Android .bds 皮膚檔案。</string>

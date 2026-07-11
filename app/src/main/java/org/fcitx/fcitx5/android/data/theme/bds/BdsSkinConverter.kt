@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Rect
+import org.fcitx.fcitx5.android.data.theme.BaiduSkinKey
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
 
@@ -24,7 +25,15 @@ internal object BdsSkinConverter {
         val sourceName: String,
         val isDark: Boolean,
         val panelPng: ByteArray,
-        val palette: Palette
+        val palette: Palette,
+        val keyVisuals: Map<String, KeyVisual>
+    )
+
+    data class KeyVisual(
+        val normalBackground: ByteArray,
+        val pressedBackground: ByteArray?,
+        val normalForeground: ByteArray?,
+        val pressedForeground: ByteArray?
     )
 
     fun convert(archive: BdsArchive, fallbackName: String): List<Variant> {
@@ -77,11 +86,13 @@ internal object BdsSkinConverter {
         val accentFromKey = accentKeyImage.averageColorAndRecycle()
         val accent = stylesheetAccent(css) ?: accentFromKey ?: text
         val bar = candidateImage.averageColorAndRecycle() ?: background
+        val keyVisuals = extractKeyVisuals(archive, css, layoutRoot, resourceRoot)
         return Variant(
             sourceName = name,
             isDark = root == "dark" || isDark(background),
             panelPng = panel.toPng(),
-            palette = Palette(background, bar, key, text, accent)
+            palette = Palette(background, bar, key, text, accent),
+            keyVisuals = keyVisuals
         )
     }
 
@@ -99,9 +110,10 @@ internal object BdsSkinConverter {
         archive: BdsArchive,
         css: BdsDocument,
         resourceRoot: String,
-        styleId: String
+        styleId: String,
+        property: String = "NM_IMG"
     ): Bitmap? {
-        val imageRef = css["STYLE${styleId.trim()}", "NM_IMG"] ?: return null
+        val imageRef = css["STYLE${styleId.trim()}", property] ?: return null
         val parts = imageRef.split(',').map(String::trim)
         val atlasName = parts.getOrNull(0)?.takeIf { it.isNotEmpty() } ?: return null
         val tileIndex = parts.getOrNull(1)?.toIntOrNull() ?: 1
@@ -123,6 +135,101 @@ internal object BdsSkinConverter {
         if (bounded.width() <= 0 || bounded.height() <= 0) return atlas
         return Bitmap.createBitmap(atlas, bounded.left, bounded.top, bounded.width(), bounded.height())
             .also { if (it !== atlas) atlas.recycle() }
+    }
+
+    private fun extractKeyVisuals(
+        archive: BdsArchive,
+        css: BdsDocument,
+        layoutRoot: String,
+        resourceRoot: String
+    ): Map<String, KeyVisual> {
+        val result = linkedMapOf<String, KeyVisual>()
+        val layouts = listOfNotNull(
+            archive.document("$layoutRoot/en_26.ini"),
+            archive.document("$layoutRoot/py_9.ini"),
+            archive.document("$layoutRoot/num_9.ini")
+        )
+        layouts.forEach { layout ->
+            for (index in 1..64) {
+                val section = "KEY$index"
+                val center = layout[section, "CENTER"]?.trim()?.trim('\'', '"') ?: continue
+                val key = semanticKey(center) ?: continue
+                if (key in result) continue
+                extractKeyVisual(archive, css, resourceRoot, layout, section)?.let {
+                    result[key] = if (key == BaiduSkinKey.GenericFunction) {
+                        it.copy(normalForeground = null, pressedForeground = null)
+                    } else {
+                        it
+                    }
+                }
+            }
+        }
+        result.entries.firstOrNull { it.key.startsWith("letter_") }?.value?.let {
+            result.putIfAbsent(BaiduSkinKey.Generic, it.copy(
+                normalForeground = null,
+                pressedForeground = null
+            ))
+        }
+        result[BaiduSkinKey.Symbol]?.let {
+            result.putIfAbsent(BaiduSkinKey.GenericFunction, it.copy(
+                normalForeground = null,
+                pressedForeground = null
+            ))
+        }
+        return result
+    }
+
+    private fun semanticKey(center: String): String? {
+        val normalized = center.lowercase()
+        if (normalized.length == 1 && normalized[0] in 'a'..'z') {
+            return BaiduSkinKey.letter(normalized)
+        }
+        if (normalized.length == 1 && normalized[0].isDigit()) {
+            return BaiduSkinKey.number(normalized)
+        }
+        return when (normalized.uppercase()) {
+            "F1" -> BaiduSkinKey.Symbol
+            "F6" -> BaiduSkinKey.GenericFunction
+            "F15", "F16" -> BaiduSkinKey.Language
+            "F38" -> BaiduSkinKey.Space
+            "F36" -> BaiduSkinKey.Backspace
+            "F39" -> BaiduSkinKey.Return
+            "F11" -> BaiduSkinKey.Caps
+            else -> null
+        }
+    }
+
+    private fun extractKeyVisual(
+        archive: BdsArchive,
+        css: BdsDocument,
+        resourceRoot: String,
+        layout: BdsDocument,
+        section: String
+    ): KeyVisual? {
+        val backgroundStyle = layout[section, "BACK_STYLE"] ?: return null
+        val normalBackground = resolveStyleImage(
+            archive, css, resourceRoot, backgroundStyle, "NM_IMG"
+        ) ?: return null
+        val pressedBackground = resolveStyleImage(
+            archive, css, resourceRoot, backgroundStyle, "HL_IMG"
+        )
+        val foregroundStyles = layout[section, "FORE_STYLE"]
+            ?.split(',')
+            ?.map(String::trim)
+            ?.filter(String::isNotEmpty)
+            .orEmpty()
+        val normalForeground = foregroundStyles.asReversed().firstNotNullOfOrNull { style ->
+            resolveStyleImage(archive, css, resourceRoot, style, "NM_IMG")
+        }
+        val pressedForeground = foregroundStyles.asReversed().firstNotNullOfOrNull { style ->
+            resolveStyleImage(archive, css, resourceRoot, style, "HL_IMG")
+        }
+        return KeyVisual(
+            normalBackground = normalBackground.toPng(),
+            pressedBackground = pressedBackground?.toPng(),
+            normalForeground = normalForeground?.toPng(),
+            pressedForeground = pressedForeground?.toPng()
+        )
     }
 
     private fun parseRect(value: String): Rect? {

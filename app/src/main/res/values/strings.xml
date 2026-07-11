@@ -171,7 +171,7 @@
     <string name="baidu_skin_light_suffix"> (Light)</string>
     <string name="baidu_skin_dark_suffix"> (Dark)</string>
     <string name="baidu_skin_imported_title">Baidu skin imported</string>
-    <string name="baidu_skin_imported_message">Created themes: %1$s\n\n%2$s\n\nThe app keeps its own T9 layout and applies compatible backgrounds, colors, and key sounds. Baidu-specific layouts, baked key labels, animations, handwriting, and 26-key assets are ignored.</string>
+    <string name="baidu_skin_imported_message">Created themes: %1$s\n\n%2$s\n\nThe app keeps its own T9 layout while adapting compatible panel backgrounds, key artwork, pressed states, function-key icons, colors, and key sounds. Unsupported Baidu animations, handwriting, and layout geometry are ignored.</string>
     <string name="baidu_skin_sounds_imported">Compatible key sounds were imported and selected.</string>
     <string name="baidu_skin_sounds_skipped">No complete compatible key sound set was found.</string>
     <string name="baidu_skin_wrong_file">Please choose an Android .bds skin.</string>

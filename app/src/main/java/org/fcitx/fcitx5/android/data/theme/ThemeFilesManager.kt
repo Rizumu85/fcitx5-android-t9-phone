@@ -47,6 +47,7 @@ object ThemeFilesManager {
             File(it.croppedFilePath).delete()
             File(it.srcFilePath).delete()
         }
+        theme.baiduSkin?.let { File(it.assetDirectoryPath).deleteRecursively() }
     }
 
     fun listThemes(): MutableList<Theme.Custom> {
@@ -68,6 +69,10 @@ object ThemeFilesManager {
                         return@decode null
                     }
                 }
+                if (theme.baiduSkin?.isUsable() == false) {
+                    Timber.w("Cannot find Baidu skin assets for theme ${theme.name}")
+                    return@decode null
+                }
                 // Update the saved file if migration happens
                 if (migrated) {
                     saveThemeFiles(theme)
@@ -83,16 +88,19 @@ object ThemeFilesManager {
         runCatching {
             ZipOutputStream(dest.buffered()).use { zipStream ->
                 // we don't export the internal path of images
-                val tweakedTheme = theme.backgroundImage?.let {
-                    theme.copy(
-                        backgroundImage = theme.backgroundImage.copy(
-                            croppedFilePath = theme.backgroundImage.croppedFilePath
+                val tweakedTheme = theme.copy(
+                    backgroundImage = theme.backgroundImage?.let {
+                        it.copy(
+                            croppedFilePath = it.croppedFilePath
                                 .substringAfterLast('/'),
-                            srcFilePath = theme.backgroundImage.srcFilePath
+                            srcFilePath = it.srcFilePath
                                 .substringAfterLast('/'),
                         )
-                    )
-                } ?: theme
+                    },
+                    baiduSkin = theme.baiduSkin?.let {
+                        it.copy(assetDirectoryPath = File(it.assetDirectoryPath).name)
+                    }
+                )
                 if (tweakedTheme.backgroundImage != null) {
                     requireNotNull(theme.backgroundImage)
                     // write cropped image
@@ -103,6 +111,16 @@ object ThemeFilesManager {
                     zipStream.putNextEntry(ZipEntry(tweakedTheme.backgroundImage.srcFilePath))
                     File(theme.backgroundImage.srcFilePath).inputStream()
                         .use { it.copyTo(zipStream) }
+                }
+                theme.baiduSkin?.let { skin ->
+                    val sourceDir = File(skin.assetDirectoryPath)
+                    val exportedDir = File(tweakedTheme.baiduSkin!!.assetDirectoryPath)
+                    sourceDir.walkTopDown().filter(File::isFile).forEach { file ->
+                        val relative = file.relativeTo(sourceDir).invariantSeparatorsPath
+                        zipStream.putNextEntry(ZipEntry("${exportedDir.name}/$relative"))
+                        file.inputStream().use { it.copyTo(zipStream) }
+                        zipStream.closeEntry()
+                    }
                 }
                 // write json
                 zipStream.putNextEntry(ZipEntry("${tweakedTheme.name}.json"))
@@ -133,7 +151,7 @@ object ThemeFilesManager {
                         errorRuntime(R.string.exception_theme_name_clash)
                     val oldTheme = ThemeManager.getTheme(decoded.name) as? Theme.Custom
                     val newCreated = oldTheme == null
-                    val newTheme = if (decoded.backgroundImage != null) {
+                    var newTheme = if (decoded.backgroundImage != null) {
                         val srcFile = File(dir, decoded.backgroundImage.srcFilePath)
                         val oldSrcFile = oldTheme?.backgroundImage?.srcFilePath?.let { File(it) }
                         val srcFileNameMatches = oldSrcFile?.name == srcFile.name
@@ -163,6 +181,19 @@ object ThemeFilesManager {
                     } else {
                         decoded
                     }
+                    decoded.baiduSkin?.let { importedSkin ->
+                        val sourceDir = extracted.find {
+                            it.isDirectory && it.name == File(importedSkin.assetDirectoryPath).name
+                        } ?: error("Missing Baidu skin assets")
+                        val targetDir = File(dir, sourceDir.name)
+                        val oldDir = oldTheme?.baiduSkin?.assetDirectoryPath?.let(::File)
+                        val sameDirectory = oldDir?.name == targetDir.name
+                        sourceDir.copyRecursively(targetDir, overwrite = sameDirectory)
+                        if (!sameDirectory) oldDir?.deleteRecursively()
+                        newTheme = newTheme.copy(
+                            baiduSkin = importedSkin.copy(assetDirectoryPath = targetDir.path)
+                        )
+                    }
                     saveThemeFiles(newTheme)
                     Triple(newCreated, newTheme, migrated)
                 }
@@ -189,10 +220,26 @@ object ThemeFilesManager {
                 val id = UUID.randomUUID().toString()
                 val cropped = File(dir, "$id-bds-panel.png")
                 val source = File(dir, "$id-bds-source.png")
+                val assetDirectory = File(dir, "$id-bds-assets").apply { mkdirs() }
                 cropped.writeBytes(variant.panelPng)
                 source.writeBytes(variant.panelPng)
                 createdFiles += cropped
                 createdFiles += source
+                createdFiles += assetDirectory
+                val keyVisuals = variant.keyVisuals.mapValues { (key, visual) ->
+                    val prefix = key.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+                    fun write(suffix: String, bytes: ByteArray?): String? = bytes?.let {
+                        val name = "$prefix-$suffix.png"
+                        File(assetDirectory, name).writeBytes(it)
+                        name
+                    }
+                    Theme.Custom.BaiduSkin.KeyVisual(
+                        normalBackground = checkNotNull(write("background", visual.normalBackground)),
+                        pressedBackground = write("background-pressed", visual.pressedBackground),
+                        normalForeground = write("foreground", visual.normalForeground),
+                        pressedForeground = write("foreground-pressed", visual.pressedForeground)
+                    )
+                }
 
                 val base = if (variant.isDark) ThemePreset.PixelDark else ThemePreset.PixelLight
                 val palette = variant.palette
@@ -202,6 +249,10 @@ object ThemeFilesManager {
                         srcFilePath = source.path,
                         brightness = 100,
                         cropRect = null
+                    ),
+                    baiduSkin = Theme.Custom.BaiduSkin(
+                        assetDirectoryPath = assetDirectory.path,
+                        keys = keyVisuals
                     ),
                     backgroundColor = palette.background,
                     barColor = palette.bar,
@@ -231,7 +282,7 @@ object ThemeFilesManager {
             BaiduSkinImportResult(themes, importedSounds)
         } catch (error: Throwable) {
             createdThemes.forEach { themeFile(it).delete() }
-            createdFiles.forEach(File::delete)
+            createdFiles.forEach(File::deleteRecursively)
             throw error
         }
     }
