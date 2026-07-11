@@ -100,7 +100,7 @@ abstract class ManagedPreferenceUi<T : Preference>(
                 }
                 val summaryRes = this@DynamicStringList.summary
                 if (summaryRes != null) {
-                    "$selected\n${context.getString(summaryRes)}"
+                    "$selected\n\n${context.getString(summaryRes)}"
                 } else {
                     selected
                 }

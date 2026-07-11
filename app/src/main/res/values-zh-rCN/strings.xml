@@ -258,7 +258,7 @@
     <string name="horizontal_candidate_always_fill">总是填充宽度</string>
     <string name="inline_suggestions">显示内嵌自动填充建议</string>
     <string name="input_ui_font_family">输入法界面字体</string>
-    <string name="input_ui_font_summary">把 .ttf、.otf 或 .ttc 文件放进应用数据的 fonts 文件夹。Android 允许时也会扫描公共存储的 Fonts 文件夹。</string>
+    <string name="input_ui_font_summary">把 .ttf、.otf 或 .ttc 文件放进应用数据的 fonts 文件夹。</string>
     <string name="delete_all_except_pinned">要删除所有未置顶条目吗？</string>
     <string name="num_items_deleted">已删除 %1$d 项</string>
     <string name="delete_theme">删除主题</string>

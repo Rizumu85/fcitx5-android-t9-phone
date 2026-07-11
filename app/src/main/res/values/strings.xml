@@ -258,7 +258,7 @@
     <string name="horizontal_candidate_always_fill">Always fill width</string>
     <string name="inline_suggestions">Show inline autofill suggestions</string>
     <string name="input_ui_font_family">Input UI font</string>
-    <string name="input_ui_font_summary">Put .ttf, .otf, or .ttc files in the app data fonts folder. The public storage Fonts folder is also scanned when Android allows it.</string>
+    <string name="input_ui_font_summary">Put .ttf, .otf, or .ttc files in the app data fonts folder.</string>
     <string name="delete_all_except_pinned">Delete all items except pinned ones?</string>
     <string name="num_items_deleted">%1$d item(s) deleted</string>
     <string name="delete_theme">Delete Theme</string>
