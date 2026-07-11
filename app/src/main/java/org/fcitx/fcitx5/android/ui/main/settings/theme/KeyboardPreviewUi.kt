@@ -33,11 +33,13 @@ import org.fcitx.fcitx5.android.utils.navbarFrameHeight
 import splitties.dimensions.dp
 import splitties.views.backgroundColor
 import splitties.views.dsl.constraintlayout.below
+import splitties.views.dsl.constraintlayout.bottomOfParent
 import splitties.views.dsl.constraintlayout.centerHorizontally
 import splitties.views.dsl.constraintlayout.centerInParent
 import splitties.views.dsl.constraintlayout.constraintLayout
 import splitties.views.dsl.constraintlayout.lParams
 import splitties.views.dsl.constraintlayout.matchConstraints
+import splitties.views.dsl.constraintlayout.topOfParent
 import splitties.views.dsl.core.Ui
 import splitties.views.dsl.core.add
 import splitties.views.dsl.core.horizontalMargin
@@ -93,7 +95,9 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
             centerInParent()
         })
         add(fakeKawaiiBar, lParams(height = dp(40)) {
+            topOfParent()
             centerHorizontally()
+            verticalChainStyle = ConstraintLayout.LayoutParams.CHAIN_PACKED
         })
     }
 
@@ -139,9 +143,6 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
     private val pageCallback = object : ViewPager2.OnPageChangeCallback() {
         override fun onPageSelected(position: Int) {
             updatePageIndicator(position)
-            if (this@KeyboardPreviewUi::fakeT9Keyboard.isInitialized) {
-                recalculateSize()
-            }
         }
     }
 
@@ -194,17 +195,17 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
     init {
         previewPager.registerOnPageChangeCallback(pageCallback)
         updatePageIndicator(0)
-        val (w, _) = keyboardWindowSize()
+        val (w, h) = keyboardWindowSize()
         keyboardWidth = w
-        keyboardHeight = pageKeyboardHeight(0)
+        keyboardHeight = h
         setTheme(theme)
         recalculateSize()
     }
 
     fun recalculateSize() {
-        val (w, _) = keyboardWindowSize()
+        val (w, h) = keyboardWindowSize()
         keyboardWidth = w
-        keyboardHeight = pageKeyboardHeight(previewPager.currentItem)
+        keyboardHeight = h
         fakeT9Keyboard.updateLayoutParams<ConstraintLayout.LayoutParams> {
             height = t9KeyboardHeight
             horizontalMargin = keyboardSidePaddingPx
@@ -244,12 +245,6 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
         if (root.isAttachedToWindow) {
             root.requestLayout()
         }
-    }
-
-    private fun pageKeyboardHeight(position: Int): Int = if (position == 0) {
-        t9KeyboardHeight
-    } else {
-        passwordKeyboardHeight
     }
 
     private fun updatePageIndicator(selected: Int) {
@@ -306,6 +301,7 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
         t9Preview.apply {
             add(fakeT9Keyboard, lParams(matchConstraints, t9KeyboardHeight) {
                 below(fakeKawaiiBar)
+                bottomOfParent()
                 centerHorizontally(keyboardSidePaddingPx)
             })
         }
@@ -318,8 +314,8 @@ class KeyboardPreviewUi(override val ctx: Context, val theme: Theme) : Ui {
                 centerHorizontally(keyboardSidePaddingPx)
             })
         }
-        // Keep each keyboard on its own page so the default T9 preview keeps its
-        // aspect ratio; the fixed indicator advertises the swipe to the second page.
+        // Both pages keep the password preview's stable viewport height; the T9
+        // controls are centered inside it so paging never shifts the surrounding UI.
         updatePageIndicator(previewPager.currentItem)
     }
 }
