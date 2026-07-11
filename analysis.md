@@ -1,5 +1,39 @@
 # Analysis
 
+## Performance Harness Rime Fidelity
+
+The first release-like profile pass installed the isolated Rime engine plugin,
+but it did not seed the maintained `rime-ice-t9-phone` user configuration into
+the isolated app package. A fresh package therefore deployed the plugin's
+built-in Luna Pinyin data and reported `朙月拼音`. Stock Stroke happened to be
+available, which made the setup look partly correct, but `t9_zhuyin` was absent
+and the critical journey could not complete its scheme cycle.
+
+The performance target must exercise the same configuration boundary as the
+real app rather than treating "Rime is ready" as sufficient. Its deterministic
+setup now requires three independent facts: the isolated engine plugin is
+installed, a clean committed revision of the sibling `rime-ice-t9-phone`
+repository is copied after `pm clear`, and the active Rime schema is the
+maintained `t9` scheme before collection begins. The device-side configuration
+archive may be cached by Git revision, but every isolated target package must
+receive a fresh copy after its data reset.
+
+Success criteria:
+
+- setup fails before measurement if the companion repository is missing,
+  dirty, or lacks `t9`, `t9_stroke`, or `t9_zhuyin`;
+- the harness readiness marker cannot be satisfied by Luna Pinyin or full
+  `rime_ice` Pinyin;
+- the critical journey confirms Pinyin, Stroke, Zhuyin, then Pinyin through
+  actual Rime schema actions;
+- neither the user's formal app nor debug app data is read or modified.
+
+The corrected API-34 run met that boundary. Startup emitted
+`Rime ready: schema=拼音九键`, and the critical journey observed the real
+`PINYIN -> STROKE -> ZHUYIN -> PINYIN` schema sequence before exercising
+English and number modes. The earlier `朙月拼音` result is therefore retained
+as a fixture failure, not counted as profile evidence.
+
 ## Current Task: Scheme-Aware `1` and `*` Roles
 
 The punctuation key cannot remain globally assigned to `1`. Future Stroke
@@ -1051,3 +1085,50 @@ an isolated 185.35 ms merged-descriptor hash, while binary state decode stayed
 at 7.59 ms; that sample does not implicate the selected codec operation. The
 new typical path is about 54-66% shorter for this slice and 80-85% shorter than
 the original 253.92 ms descriptor-decoding baseline.
+
+## Release Performance Harness And Startup Results
+
+The earlier debug capture reached the first input-surface frame at 2223.81 ms,
+but it also showed ART compiling hot T9 methods during startup. That made it an
+attribution signal rather than production evidence. The release-derived harness
+now measures isolated, profileable packages on the API-34 target and drives both
+profile generation and Macrobenchmark through the same physical-key journeys.
+Performance variants use compile-time defaults for all three Chinese schemes
+and Smart English; no exported runtime control receiver was added.
+
+Five process-cold Macrobenchmark iterations compared no compilation with the
+generated Baseline Profile. Median stage costs changed as follows:
+
+| Stage | No compilation | Baseline Profile | Change |
+| --- | ---: | ---: | ---: |
+| Application create | 26.24 ms | 24.28 ms | -7.5% |
+| InputView construction | 129.65 ms | 74.64 ms | -42.4% |
+| InputView create | 108.90 ms | 51.99 ms | -52.3% |
+| Active keyboard create | 23.84 ms | 12.73 ms | -46.6% |
+| Active keyboard attach | 47.44 ms | 23.90 ms | -49.6% |
+| Data installation | 8.95 ms | 7.19 ms | -19.7% |
+| Native Fcitx startup | 315.91 ms | 337.13 ms | +6.7% |
+
+The native result is noisy and is not treated as an improvement. The profile's
+clear benefit is in managed startup and input-view construction. Independently
+of compilation mode, deferring the normally invisible selection and number
+panels reduced the auxiliary-surface median from the earlier 38.65 ms capture to
+5.92 ms, and both panel-creation counts remained zero during ordinary startup.
+Their first-use paths were verified on the target phone. Clipboard startup now
+retains only the manager shell; its Room database and DAO are created on first
+clipboard access rather than every IME process start.
+
+Fresh warm physical-key traces completed 20 generations per input path with no
+replacement. Pinyin first-key input measured average 53.10 ms, p50 49.39 ms,
+and p95 77.84 ms; Stroke measured 38.34/35.42/49.04 ms; Zhuyin measured
+37.38/36.87/48.10 ms. Four repeated `43556` Smart English sequences measured
+23.38/21.68/34.94 ms. Pinyin snapshot and render stages averaged 8.94 ms and
+8.76 ms, close to the prior warm result, so candidate rendering was deliberately
+left unchanged. The phone logged unrelated `com.android.nfc` ANRs during these
+runs; no Fcitx process crash or replaced input generation occurred.
+
+Profile generation produced 9,753 Baseline Profile rules and 7,891 Startup
+Profile rules. The signed, minified production APK verifies with the existing
+release certificate and contains compiled `assets/dexopt/baseline.prof` and
+`baseline.profm` entries. This closes the release-like evidence gap without
+claiming that profile compilation can optimize native Rime/Fcitx execution.

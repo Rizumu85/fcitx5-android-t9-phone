@@ -461,5 +461,32 @@ otherwise.
   confirmation indicators without suppressing external scheme changes.
 - [x] Add focused request/confirmation/rapid-cycle regression coverage, build
   and install debug, then leave the physical hold feel ready for user retest.
-- [ ] Confirm on the physical keypad that long-`*` now has one continuous
+- [x] Confirm on the physical keypad that long-`*` now has one continuous
   indicator animation and feels consistent with long-`#`.
+
+## Release Performance Harness And Startup Completion
+
+- [x] Add an isolated release-derived performance target, test editor host, and
+  one `ImePerformanceDriver` for IME setup, restoration, and paced physical keys.
+- [x] Seed the isolated package from a clean committed `rime-ice-t9-phone`
+  runtime archive after every package reset, cache transport by revision, and
+  reject missing T9 schemas before measurement.
+- [x] Require the maintained `t9` schema for performance readiness and prove
+  that the Pinyin/Stroke/Zhuyin cycle uses real Rime actions rather than the
+  plugin's built-in Luna/Stroke fallback.
+- [x] Restore ART-profile packaging, add the AGP-9-compatible Baseline Profile
+  producer/consumer Modules, and keep all control hooks out of production release.
+- [x] Share Pinyin, Stroke, Zhuyin, Smart English, punctuation, and confirmation
+  journeys between profile generation and Macrobenchmark tests.
+- [x] Generate Baseline and Startup Profiles on the connected API-34 phone,
+  verify the compiled profile in a signed release artifact, and compare release
+  captures with no compilation versus profile compilation.
+- [x] Attribute the remaining `InputView` creation residual with semantic startup
+  stages, then change only its largest measured release-like group.
+- [x] Attribute `FcitxApplication.onCreate` with semantic startup stages, then
+  defer or deepen only its largest measured noncritical group.
+- [x] Capture fresh 20-sample warm traces for Pinyin, Stroke, Zhuyin, and Smart
+  English; leave candidate UI unchanged unless snapshot/render time regressed.
+- [x] Run focused regression tests and release-performance checks, build/install
+  debug for user verification, then commit and push coherent tooling, startup,
+  and documentation slices.

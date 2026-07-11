@@ -1,5 +1,33 @@
 # Design
 
+## Release-like Rime Fixture
+
+The performance harness has two explicit inputs: the isolated Rime engine APK
+and the maintained sibling `rime-ice-t9-phone` configuration checkout. Gradle
+validates that the checkout is committed, builds a runtime-only archive, and
+the fixture installer caches its unpacked contents under `/data/local/tmp` by
+Git revision. After the connected-test installer has reset the isolated target,
+`ImePerformanceDriver` copies that cache into the target's external Rime
+directory and verifies the three T9 schema files before starting the IME.
+
+The Driver first lets the target package create its own external-data root,
+then force-stops it before copying. This preserves Android's package ownership;
+a shell-created root can be readable by Rime yet still prevent it from updating
+runtime state. Each device operation is one simple shell command because the
+target vendor's `UiAutomation` transport does not provide an interactive shell
+for quoting or control operators.
+
+Configuration copying belongs after `pm clear`; Android removes the target's
+external app data during that reset. The cache is an installation optimization,
+not test state. A target run never borrows the formal or debug app's deployed
+Rime tree.
+
+The fixture selects `t9` as its initial schema while retaining the companion
+repository's full runtime data. Service readiness is schema-aware in
+performance builds: engine-ready with Luna Pinyin or full `rime_ice` remains a
+setup state, while only `t9` publishes the collection marker. This prevents a
+successful-looking profile from silently covering the wrong Chinese path.
+
 ## Scheme-Aware Physical Key Design
 
 Physical keys map to domain commands through the active input scheme rather
@@ -703,3 +731,69 @@ the build descriptor identity, exact installed descriptor-file digest,
 canonical plugin package identities, and restorable plugin metadata. The JSON
 codec remains only for full `DataDescriptor` work and is not initialized by an
 unchanged fast path.
+
+## Release Performance Harness
+
+The Release Performance Harness is a test-only Module with two Adapters: a
+release-derived profileable IME target and a tiny editor host in the Android test
+APK. The target uses an isolated application ID so benchmarking cannot replace
+the user's installed release or debug IME. Production release behavior and
+application identity remain unchanged.
+
+`ImePerformanceDriver` is the single Interface for benchmark journeys. Its
+Implementation configures only the isolated target, enables and selects its IME,
+opens and focuses the host editor, injects paced physical keyboard events, waits
+at semantic transitions, and restores the previous IME. Baseline generation and
+Macrobenchmark tests consume the same journey functions; they must not duplicate
+shell command sequences or key maps.
+
+Performance variants use compile-time preference defaults for all Chinese T9
+schemes, T9 layout, and Smart English. Production folds the performance flag to
+false, so deterministic test state needs no exported receiver, runtime switch,
+or preference fallback in the release app.
+
+The Baseline Profile consumer seam is restored in the app build: AGP profile
+tasks remain enabled and ProfileInstaller is packaged for sideloaded releases.
+The producer Module uses an AGP-9-compatible Benchmark/Baseline Profile toolchain.
+Startup journeys are marked for both Baseline and Startup Profiles; interaction
+journeys contribute only to the Baseline Profile. The profile source remains a
+generated, reviewable project artifact and release verification must find the
+compiled `assets/dexopt/baseline.prof` entry.
+
+Readiness is a typed test contract rather than a delay: the isolated plugin must
+be installed, the maintained configuration revision must be present, Rime must
+be ready, and the active schema must identify `t9`. Built-in Luna Pinyin cannot
+satisfy this contract. The Driver also waits for logged scheme and top-level mode
+transitions, so a profile cannot silently continue after a failed long press.
+
+## Startup Attribution And Deferred Ownership
+
+The Startup Performance Transaction remains the only timing Interface. It records
+semantic Application stages for Direct Boot, crash handling, preferences/logging,
+runtime managers, receiver registration, and device-protected synchronization.
+It also records bounded `InputView` construction stages for previously unattributed
+property groups. Instrumentation must not create a second timer registry or add
+work to physical-key and candidate-frame paths.
+
+Only the dominant serial group from a release-like capture may be deepened.
+Nonessential work can move after the first frame only when its Interface does not
+promise readiness to the IME surface. Direct Boot state, preferences required by
+input construction, theme state, and receiver correctness remain synchronous.
+Candidate UI Modules stay unchanged unless current warm traces identify them as
+the bottleneck.
+
+The measured startup change keeps ordinary behavior eager and defers only
+surfaces absent from normal typing. `SelectionActionPanel` and
+`NumberOperatorPanel` are main-thread, first-use values attached immediately
+before their existing show animation. Hide calls do not initialize them.
+Similarly, `ClipboardManager` remains initialized for lifecycle correctness,
+but its Room database and DAO are one synchronized lazy owner reached only by a
+clipboard operation. These boundaries remove hidden construction from every IME
+startup without introducing asynchronous UI publication or a compatibility
+path.
+
+The generated Baseline and Startup Profiles are checked into the release source
+set. A signed minified build must compile them into `assets/dexopt`, while the
+release-derived benchmark target compares `CompilationMode.None` against
+`BaselineProfileMode.Require`. Managed startup gains are reported independently
+from native Fcitx startup because ART profiles do not optimize the native engine.

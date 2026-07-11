@@ -69,6 +69,42 @@ unchanged configuration should not report `failed to save config to stream`,
 and Rime-ready should follow Fcitx-ready without another maintenance pass. Use
 the release package path without `.debug` when diagnosing the release IME.
 
+## Release-like Rime Performance Fixture
+
+Performance collection must not borrow the already-deployed formal or debug
+Rime directory. The connected performance tasks install an isolated Rime
+plugin, stage the clean sibling `rime-ice-t9-phone` checkout, and copy that
+configuration into the isolated target after Android resets its package data.
+Keep the sibling checkout clean and make sure it contains `t9`, `t9_stroke`,
+and `t9_zhuyin` before collecting profiles.
+
+The readiness proof is exact:
+
+```text
+Rime ready: schema=拼音九键
+```
+
+Generic Rime readiness or a `朙月拼音` schema means the plugin's built-in Luna
+configuration was deployed and the result is invalid. The critical profile
+journey must also observe `PINYIN -> STROKE -> ZHUYIN -> PINYIN`; a partly
+working stock Stroke schema is not sufficient evidence.
+
+Use the release-like tasks rather than timing the debug APK when comparing ART
+compilation:
+
+```bash
+./gradlew :app:generateReleaseBaselineProfile \
+  -PbuildABI=arm64-v8a \
+  -Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.enabledRules=BaselineProfile
+
+./gradlew :performance:connectedBenchmarkReleaseAndroidTest \
+  -PbuildABI=arm64-v8a \
+  -Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.enabledRules=Macrobenchmark
+```
+
+The Driver restores the previously selected IME after each run. It must never
+clear, seed, or select the user's formal or debug package as a benchmark target.
+
 ## Responsiveness Trace
 
 Turn on **Trace T9 responsiveness** in the app developer settings before
