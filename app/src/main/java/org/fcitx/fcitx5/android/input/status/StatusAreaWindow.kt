@@ -32,6 +32,7 @@ import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.Reload
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.SmartEnglishT9
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.TemporaryFullKeyboard
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.ThemeList
+import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Companion.isRimeSchemeSwitchAction
 import org.fcitx.fcitx5.android.input.wm.InputWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
 import org.fcitx.fcitx5.android.utils.AppUtil
@@ -143,7 +144,8 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
                     StatusActionMenuWindow(
                         StatusAreaEntry.titleForActionMenu(context, entry.action),
                         actions,
-                        StatusAreaEntry.activeMenuLabelForAction(entry.action)
+                        StatusAreaEntry.activeMenuLabelForAction(entry.action),
+                        entry.action.isRimeSchemeSwitchAction()
                     )
                 )
             }

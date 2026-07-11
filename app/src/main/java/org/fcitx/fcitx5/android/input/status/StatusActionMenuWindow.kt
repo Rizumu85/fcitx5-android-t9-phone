@@ -20,7 +20,8 @@ import org.mechdancer.dependency.manager.must
 class StatusActionMenuWindow(
     private val menuTitle: String,
     private val actions: Array<Action>,
-    private val activeMenuLabel: String? = null
+    private val activeMenuLabel: String? = null,
+    private val isRimeSchemeMenu: Boolean = false
 ) : InputWindow.ExtendedInputWindow<StatusActionMenuWindow>() {
 
     private val service: FcitxInputMethodService by manager.inputMethodService()
@@ -29,7 +30,7 @@ class StatusActionMenuWindow(
     private val windowManager: InputWindowManager by manager.must()
 
     private val ui by lazy {
-        StatusActionMenuUi(context, theme, actions, activeMenuLabel) { action ->
+        StatusActionMenuUi(context, theme, actions, activeMenuLabel, isRimeSchemeMenu) { action ->
             activateAction(action)
         }
     }

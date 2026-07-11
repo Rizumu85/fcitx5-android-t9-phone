@@ -32,6 +32,7 @@ class StatusActionMenuUi(
     private val theme: Theme,
     private val actions: Array<Action>,
     private val activeMenuLabel: String?,
+    private val isRimeSchemeMenu: Boolean,
     private val onActionClick: (Action) -> Unit
 ) : Ui {
 
@@ -88,7 +89,14 @@ class StatusActionMenuUi(
                 }
                 return@forEach
             }
-            val label = StatusAreaEntry.labelForActionMenuItem(action) ?: return@forEach
+            val sourceLabel = StatusAreaEntry.labelForActionMenuItem(action) ?: return@forEach
+            // The app owns English mode and exposes only its T9 Chinese schemes here; the
+            // bundled Rime Ice schema remains an implementation source, not a second Pinyin UI.
+            val label = if (isRimeSchemeMenu) {
+                schemeDisplayLabel(sourceLabel)
+            } else {
+                sourceLabel
+            } ?: return@forEach
             if (pendingSeparator && items.lastOrNull() is MenuItem.ActionRow) {
                 items.add(MenuItem.Separator)
             }
@@ -116,9 +124,21 @@ class StatusActionMenuUi(
     private fun activeStyleForMenuItem(action: Action, label: String): ActiveStyle =
         when {
             action.isChecked -> ActiveStyle.Checked
-            activeMenuLabel?.let { it == label } == true -> ActiveStyle.CurrentScheme
+            activeDisplayLabel()?.let { it == label } == true -> ActiveStyle.CurrentScheme
             else -> ActiveStyle.None
         }
+
+    private fun activeDisplayLabel(): String? = activeMenuLabel?.let { label ->
+        if (isRimeSchemeMenu) schemeDisplayLabel(label) else label
+    }
+
+    private fun schemeDisplayLabel(sourceLabel: String): String? =
+        RimeSchemeMenuPolicy.displayLabel(
+            sourceLabel = sourceLabel,
+            pinyinLabel = ctx.getString(R.string.chinese_t9_pinyin_compact),
+            strokeLabel = ctx.getString(R.string.chinese_t9_stroke_compact),
+            zhuyinLabel = ctx.getString(R.string.chinese_t9_zhuyin_compact)
+        )
 
     private fun actionRow(action: Action, label: String, activeStyle: ActiveStyle) = TextView(ctx).apply {
         text = label
