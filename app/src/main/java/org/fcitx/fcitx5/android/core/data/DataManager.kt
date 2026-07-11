@@ -40,7 +40,10 @@ object DataManager {
         val failed: Map<String, PluginLoadFailed>
     )
 
-    const val PLUGIN_INTENT = "${BuildConfig.APPLICATION_ID}.plugin.MANIFEST"
+    // Performance variants deliberately discover an isolated Rime fixture while production and
+    // debug keep their existing plugin families. The action is a build contract, not a runtime
+    // fallback, so a benchmark can never silently profile an app with no Chinese engine.
+    const val PLUGIN_INTENT = BuildConfig.PLUGIN_MANIFEST_ACTION
 
     private val lock = ReentrantLock()
 
@@ -154,7 +157,13 @@ object DataManager {
             )
         } else {
             pm.queryIntentActivities(Intent(PLUGIN_INTENT), PackageManager.MATCH_ALL)
-        }.map { it.activityInfo.packageName }.distinct().sorted()
+        }.map { it.activityInfo.packageName }
+            .distinct()
+            .filter { packageName ->
+                BuildConfig.PERFORMANCE_PLUGIN_PACKAGE.isEmpty() ||
+                    packageName == BuildConfig.PERFORMANCE_PLUGIN_PACKAGE
+            }
+            .sorted()
     }
 
     private fun discoverPluginPackages(): List<PluginPackageIdentity> {

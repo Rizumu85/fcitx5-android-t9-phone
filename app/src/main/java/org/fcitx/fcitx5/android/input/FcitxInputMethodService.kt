@@ -16,6 +16,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.text.InputType
+import android.util.Log
 import android.util.LruCache
 import android.util.Size
 import android.view.KeyCharacterMap
@@ -52,6 +53,7 @@ import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.R
+import org.fcitx.fcitx5.android.BuildConfig
 import org.fcitx.fcitx5.android.core.CapabilityFlag
 import org.fcitx.fcitx5.android.core.CapabilityFlags
 import org.fcitx.fcitx5.android.core.FcitxAPI
@@ -1668,6 +1670,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             },
             onModeLabelChanged = {
                 onT9ModeChanged?.invoke(getCurrentT9ModeLabel())
+                if (BuildConfig.PERFORMANCE_HARNESS) {
+                    Log.i(PERFORMANCE_HARNESS_LOG_TAG, "T9 mode: ${currentT9Mode.name}")
+                }
             },
             showModeIndicator = {
                 showModeIndicatorBadge(getCurrentT9ModeLabel())
@@ -1788,10 +1793,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var activeChineseT9Scheme = ChineseT9Scheme.PINYIN
     private var activeChineseT9SubModeIdentity: String? = null
     private var rimeInputMethodActive = false
+    private var performanceHarnessReadyLogged = false
 
     private fun handleRimeAvailability(data: FcitxEvent.RimeAvailabilityEvent.Data) {
         val transition = rimeAvailabilitySession.update(data)
         transition.current.activeSchema.takeIf(String::isNotEmpty)?.let(::activateChineseT9Scheme)
+        maybeLogPerformanceHarnessReady()
         if (!transition.changed) return
         when (transition.current.state) {
             FcitxEvent.RimeAvailabilityEvent.State.Ready -> {
@@ -1834,6 +1841,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun observeChineseT9InputMethod(uniqueName: String, subModeName: String) {
         rimeInputMethodActive = uniqueName == RIME_INPUT_METHOD
         activateChineseT9Scheme(subModeName)
+        maybeLogPerformanceHarnessReady()
         if (rimeInputMethodActive) {
             chineseT9OutputScriptSession.enterScheme(
                 activeChineseT9Scheme,
@@ -1841,6 +1849,51 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             )?.let(::enqueueChineseT9OutputScript)
         } else {
             chineseT9OutputScriptSession.leaveRime()
+        }
+    }
+
+    private fun maybeLogPerformanceHarnessReady() {
+        if (!BuildConfig.PERFORMANCE_HARNESS || performanceHarnessReadyLogged ||
+            !rimeInputMethodActive || !rimeAvailabilitySession.current.isReady
+        ) return
+        val schema = rimeAvailabilitySession.current.activeSchema.ifEmpty {
+            activeChineseT9SubModeIdentity.orEmpty()
+        }
+        val expectedSchema = BuildConfig.PERFORMANCE_RIME_SCHEMA
+        if (schema.isEmpty() || expectedSchema.isEmpty() ||
+            !ChineseT9Scheme.fromRimeIdentity(expectedSchema).matchesRimeIdentity(schema)
+        ) return
+        performanceHarnessReadyLogged = true
+        Log.i(PERFORMANCE_HARNESS_LOG_TAG, "Rime ready: schema=$schema")
+    }
+
+    private suspend fun FcitxAPI.preparePerformanceHarnessRime() {
+        // The isolated performance package must profile the same Chinese engine path as a real
+        // T9 session. This runs after activate(), because setInputMethod needs an InputContext.
+        val enabledNames = enabledIme().mapTo(linkedSetOf()) { it.uniqueName }
+        Log.i(PERFORMANCE_HARNESS_LOG_TAG, "Preparing Rime: enabled=$enabledNames")
+        if (RIME_INPUT_METHOD !in enabledNames &&
+            availableIme().any { it.uniqueName == RIME_INPUT_METHOD }
+        ) {
+            enabledNames += RIME_INPUT_METHOD
+            setEnabledIme(enabledNames.toTypedArray())
+        }
+        Log.i(
+            PERFORMANCE_HARNESS_LOG_TAG,
+            "Activating Rime: enabled=${RIME_INPUT_METHOD in enabledNames}"
+        )
+        activateIme(RIME_INPUT_METHOD)
+        val activeInputMethod = currentIme()
+        val availability = rimeAvailabilityCached
+        withContext(Dispatchers.Main.immediate) {
+            // A process-cold profile run can restore an already-active Rime without emitting a
+            // new IMChange edge. Reconcile the authoritative snapshots so readiness never depends
+            // on whether the service happened to observe that edge during startup.
+            observeChineseT9InputMethod(
+                activeInputMethod.uniqueName,
+                activeInputMethod.subMode.name
+            )
+            handleRimeAvailability(availability)
         }
     }
 
@@ -1853,6 +1906,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         // fcitx-thread round trip merely to classify the already-active Chinese scheme.
         activeChineseT9SubModeIdentity = identity
         activeChineseT9Scheme = next
+        if (BuildConfig.PERFORMANCE_HARNESS) {
+            Log.i(PERFORMANCE_HARNESS_LOG_TAG, "Chinese scheme: ${next.name}")
+        }
         val activationPresentation = chineseT9SchemeCycle.observeActive(next)
         chineseT9Composition.activateScheme(
             next = next,
@@ -2534,9 +2590,15 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         postFcitxJob {
             // ensure InputContext has been created before focusing it
             activate(uid, pkgName)
+            if (BuildConfig.PERFORMANCE_HARNESS) {
+                preparePerformanceHarnessRime()
+            }
         }
         if (firstBindInput) {
             firstBindInput = false
+            // The fixture owns its semantic IME state; a system subtype from another installed
+            // build must not overwrite Rime immediately after the harness activates it.
+            if (BuildConfig.PERFORMANCE_HARNESS) return
             // only use input method from subtype for the first `onBindInput`, because
             // 1. fcitx has `ShareInputState` option, thus reading input method from subtype
             //    everytime would ruin `ShareInputState=Program`
@@ -3040,6 +3102,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         private const val SmartEnglishCandidateLimit = 80
         private const val SmartEnglishNoMatchText = "No match"
         private const val RIME_INPUT_METHOD = "rime"
+        private const val PERFORMANCE_HARNESS_LOG_TAG = "FcitxPerfHarness"
         private val DIGIT_TEXTS = arrayOf("0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
     }
 }

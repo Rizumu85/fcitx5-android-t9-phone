@@ -4,9 +4,6 @@
  */
 import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
-import com.android.build.gradle.internal.tasks.CompileArtProfileTask
-import com.android.build.gradle.internal.tasks.ExpandArtProfileWildcardsTask
-import com.android.build.gradle.internal.tasks.MergeArtProfileTask
 import com.android.build.gradle.tasks.PackageApplication
 import com.mikepenz.aboutlibraries.plugin.AboutLibrariesExtension
 import org.gradle.api.Project
@@ -107,11 +104,6 @@ class AndroidAppConventionPlugin : AndroidBaseConventionPlugin() {
             }
         }
 
-        // remove assets/dexopt/baseline.prof{,m} (baseline profile)
-        target.tasks.withType<MergeArtProfileTask> { enabled = false }
-        target.tasks.withType<ExpandArtProfileWildcardsTask> { enabled = false }
-        target.tasks.withType<CompileArtProfileTask> { enabled = false }
-
         target.extensions.configure<ApplicationAndroidComponentsExtension> {
             // Add dependency relationships for data descriptor task
             onVariants { v ->
@@ -120,8 +112,10 @@ class AndroidAppConventionPlugin : AndroidBaseConventionPlugin() {
                 target.afterEvaluate {
                     tasks.findByName(DataDescriptorPlugin.TASK)?.also {
                         tasks.findByName("merge${variantName}Assets")?.dependsOn(it)
-                        tasks.findByName("lintVitalAnalyzeRelease")?.dependsOn(it)
-                        tasks.findByName("generateReleaseLintVitalReportModel")?.dependsOn(it)
+                        // Release-like fixture variants consume the generated descriptor too;
+                        // variant-specific dependencies prevent lint from racing the asset writer.
+                        tasks.findByName("lintVitalAnalyze$variantName")?.dependsOn(it)
+                        tasks.findByName("generate${variantName}LintVitalReportModel")?.dependsOn(it)
                     }
                 }
             }

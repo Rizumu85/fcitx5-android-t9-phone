@@ -19,7 +19,7 @@
 
     <queries>
         <intent>
-            <action android:name="${applicationId}.plugin.MANIFEST" />
+            <action android:name="${pluginManifestAction}" />
         </intent>
         <intent>
             <action android:name="android.view.InputMethod" />

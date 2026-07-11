@@ -10,6 +10,7 @@ import androidx.annotation.Keep
 import androidx.annotation.RequiresApi
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
+import org.fcitx.fcitx5.android.BuildConfig
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.InputFeedbacks.InputFeedbackMode
 import org.fcitx.fcitx5.android.input.InputUiFont
@@ -203,7 +204,11 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         val useT9KeyboardLayout =
             switch(R.string.use_t9_keyboard_layout, "use_t9_keyboard_layout", true)
         val smartEnglishT9 =
-            switch(R.string.smart_english_t9, "smart_english_t9", false) {
+            switch(
+                R.string.smart_english_t9,
+                "smart_english_t9",
+                BuildConfig.PERFORMANCE_HARNESS
+            ) {
                 useT9KeyboardLayout.getValue()
             }
 
@@ -436,13 +441,23 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             "chinese_t9_pinyin_output_script",
             ChineseT9OutputScript.Simplified
         ) { pinyin.getValue() }
-        val stroke = switch(R.string.chinese_t9_stroke, "chinese_t9_stroke_enabled", false)
+        // Performance variants enable every scheme by default so profile collection needs no
+        // exported runtime control hook; production BuildConfig folds these defaults to false.
+        val stroke = switch(
+            R.string.chinese_t9_stroke,
+            "chinese_t9_stroke_enabled",
+            BuildConfig.PERFORMANCE_HARNESS
+        )
         val strokeOutputScript = enumList(
             R.string.chinese_t9_stroke_output_script,
             "chinese_t9_stroke_output_script",
             ChineseT9OutputScript.Simplified
         ) { stroke.getValue() }
-        val zhuyin = switch(R.string.chinese_t9_zhuyin, "chinese_t9_zhuyin_enabled", false)
+        val zhuyin = switch(
+            R.string.chinese_t9_zhuyin,
+            "chinese_t9_zhuyin_enabled",
+            BuildConfig.PERFORMANCE_HARNESS
+        )
         val zhuyinOutputScript = enumList(
             R.string.chinese_t9_zhuyin_output_script,
             "chinese_t9_zhuyin_output_script",

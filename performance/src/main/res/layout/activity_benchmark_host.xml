@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <EditText
+        android:id="@+id/benchmark_editor"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="top|start"
+        android:hint="T9 performance editor"
+        android:imeOptions="flagNoExtractUi"
+        android:inputType="textCapSentences|textMultiLine"
+        android:padding="12dp" />
+
+</FrameLayout>

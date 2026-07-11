@@ -35,6 +35,12 @@ android {
         debug {
             resValue("string", "app_name", "@string/app_name_debug")
         }
+        create("performanceRelease") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".performance"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+        }
     }
 
     packaging {

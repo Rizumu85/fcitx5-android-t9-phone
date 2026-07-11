@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.kotlin.parcelize)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 android {
@@ -15,6 +16,16 @@ android {
     defaultConfig {
         applicationId = "org.fcitx.fcitx5.android"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("boolean", "PERFORMANCE_HARNESS", "false")
+        buildConfigField(
+            "String",
+            "PLUGIN_MANIFEST_ACTION",
+            "\"org.fcitx.fcitx5.android.plugin.MANIFEST\""
+        )
+        buildConfigField("String", "PERFORMANCE_PLUGIN_PACKAGE", "\"\"")
+        buildConfigField("String", "PERFORMANCE_RIME_SCHEMA", "\"\"")
+        manifestPlaceholders["pluginManifestAction"] =
+            "org.fcitx.fcitx5.android.plugin.MANIFEST"
 
         @Suppress("UnstableApiUsage")
         externalNativeBuild {
@@ -49,6 +60,55 @@ android {
             resValue("mipmap", "app_icon", "@mipmap/ic_launcher_debug")
             resValue("mipmap", "app_icon_round", "@mipmap/ic_launcher_round_debug")
             resValue("string", "app_name", "@string/app_name_debug")
+            buildConfigField(
+                "String",
+                "PLUGIN_MANIFEST_ACTION",
+                "\"org.fcitx.fcitx5.android.debug.plugin.MANIFEST\""
+            )
+            manifestPlaceholders["pluginManifestAction"] =
+                "org.fcitx.fcitx5.android.debug.plugin.MANIFEST"
+        }
+        create("benchmarkRelease") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".benchmark"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+            isDebuggable = false
+            isProfileable = true
+            buildConfigField("boolean", "PERFORMANCE_HARNESS", "true")
+            buildConfigField(
+                "String",
+                "PLUGIN_MANIFEST_ACTION",
+                "\"org.fcitx.fcitx5.android.plugin.MANIFEST\""
+            )
+            buildConfigField(
+                "String",
+                "PERFORMANCE_PLUGIN_PACKAGE",
+                "\"org.fcitx.fcitx5.android.plugin.rime.performance\""
+            )
+            buildConfigField("String", "PERFORMANCE_RIME_SCHEMA", "\"t9\"")
+        }
+        create("nonMinifiedRelease") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".baseline"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+            isDebuggable = false
+            isProfileable = true
+            isMinifyEnabled = false
+            isShrinkResources = false
+            buildConfigField("boolean", "PERFORMANCE_HARNESS", "true")
+            buildConfigField(
+                "String",
+                "PLUGIN_MANIFEST_ACTION",
+                "\"org.fcitx.fcitx5.android.plugin.MANIFEST\""
+            )
+            buildConfigField(
+                "String",
+                "PERFORMANCE_PLUGIN_PACKAGE",
+                "\"org.fcitx.fcitx5.android.plugin.rime.performance\""
+            )
+            buildConfigField("String", "PERFORMANCE_RIME_SCHEMA", "\"t9\"")
         }
     }
 
@@ -129,6 +189,8 @@ dependencies {
     implementation(libs.splitties.views.dsl.recyclerview)
     implementation(libs.splitties.views.recyclerview)
     implementation(libs.aboutlibraries.core)
+    implementation(libs.androidx.profileinstaller)
+    baselineProfile(project(":performance"))
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.rules)
@@ -138,8 +200,6 @@ dependencies {
 
 configurations {
     all {
-        // remove Baseline Profile Installer or whatever it is...
-        exclude(group = "androidx.profileinstaller", module = "profileinstaller")
         // remove unwanted splitties libraries...
         exclude(group = "com.louiscad.splitties", module = "splitties-appctx")
         exclude(group = "com.louiscad.splitties", module = "splitties-systemservices")

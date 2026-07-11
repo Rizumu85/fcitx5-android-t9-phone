@@ -1,0 +1,7 @@
+patch:
+  # Profiling starts from the maintained T9 schema while preserving the complete runtime data.
+  schema_list:
+    - schema: t9
+    - schema: t9_stroke
+    - schema: t9_zhuyin
+    - schema: rime_ice
