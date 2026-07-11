@@ -290,7 +290,7 @@
     <string name="following_system_settings">Follow system settings</string>
     <string name="button_sound">Key press sound</string>
     <string name="button_sound_volume">Keypress sound volume</string>
-    <string name="key_sound_pack_import">Import key sound pack</string>
+    <string name="key_sound_pack_import">Import key sounds</string>
     <string name="key_sound_pack_import_summary">Import key sounds from a Baidu Input Android .bds skin</string>
     <string name="key_sound_pack_select">Custom key sounds</string>
     <string name="key_sound_pack_android_default">Built-in default key sound</string>

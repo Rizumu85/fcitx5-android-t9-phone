@@ -290,7 +290,7 @@
     <string name="following_system_settings">跟随系统设置</string>
     <string name="button_sound">按键时音效</string>
     <string name="button_sound_volume">按键音音量</string>
-    <string name="key_sound_pack_import">导入按键音包</string>
+    <string name="key_sound_pack_import">导入按键音</string>
     <string name="key_sound_pack_import_summary">导入百度输入法 Android .bds 皮肤里的按键音</string>
     <string name="key_sound_pack_select">自定义按键音</string>
     <string name="key_sound_pack_android_default">内置默认按键音</string>

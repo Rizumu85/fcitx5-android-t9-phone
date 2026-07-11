@@ -284,7 +284,7 @@
     <string name="following_system_settings">跟隨系統設定</string>
     <string name="button_sound">按鍵時音效</string>
     <string name="button_sound_volume">按鍵音音量</string>
-    <string name="key_sound_pack_import">匯入按鍵音包</string>
+    <string name="key_sound_pack_import">匯入按鍵音</string>
     <string name="key_sound_pack_import_summary">匯入百度輸入法 Android .bds 皮膚裡的按鍵音</string>
     <string name="key_sound_pack_select">自訂按鍵音</string>
     <string name="key_sound_pack_android_default">內建預設按鍵音</string>

@@ -217,34 +217,9 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
             addView(
                 LinearLayout(context).apply {
                     orientation = LinearLayout.VERTICAL
-                    setPadding(0, context.dp(8), 0, context.dp(8))
+                    setPadding(context.dp(16), context.dp(8), context.dp(16), context.dp(8))
                     addView(context.soundVolumeControl())
-                    addView(TextView(context).apply {
-                        setText(R.string.key_sound_preview)
-                        textAppearance = context.resolveThemeAttribute(android.R.attr.textAppearanceListItem)
-                        setPaddingRelative(context.dp(24), context.dp(14), context.dp(24), context.dp(4))
-                    })
-                    addView(
-                        context.previewRow(
-                            R.string.key_sound_preview_standard,
-                            R.drawable.ic_baseline_keyboard_24,
-                            InputFeedbacks.SoundEffect.Standard
-                        )
-                    )
-                    addView(
-                        context.previewRow(
-                            R.string.key_sound_preview_space,
-                            R.drawable.ic_baseline_space_bar_24,
-                            InputFeedbacks.SoundEffect.SpaceBar
-                        )
-                    )
-                    addView(
-                        context.previewRow(
-                            R.string.key_sound_preview_delete,
-                            R.drawable.ic_baseline_backspace_24,
-                            InputFeedbacks.SoundEffect.Delete
-                        )
-                    )
+                    addView(context.soundPreviewControl())
                     UserKeySoundPack.listPacks(context).forEach { pack ->
                         addView(
                             context.soundPackRow(
@@ -327,7 +302,7 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
 
     private fun Context.soundVolumeControl() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        setPaddingRelative(dp(24), dp(8), dp(24), dp(8))
+        setPaddingRelative(dp(8), dp(4), dp(8), dp(4))
         val value = TextView(context)
         fun updateLabel(progress: Int) {
             value.text = if (progress == 0) {
@@ -336,11 +311,14 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
                 "$progress%"
             }
         }
-        addView(TextView(context).apply {
-            setText(R.string.button_sound_volume)
-            textAppearance = context.resolveThemeAttribute(android.R.attr.textAppearanceListItem)
+        addView(LinearLayout(context).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            addView(TextView(context).apply {
+                setText(R.string.button_sound_volume)
+                textAppearance = context.resolveThemeAttribute(android.R.attr.textAppearanceListItem)
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(value)
         })
-        addView(value)
         addView(SeekBar(context).apply {
             max = 100
             progress = keyboardPrefs.soundOnKeyPressVolume.getValue()
@@ -372,7 +350,7 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
         isFocusable = true
         background = styledDrawable(android.R.attr.selectableItemBackground)
         minimumHeight = styledDimenPxSize(android.R.attr.listPreferredItemHeightSmall)
-        setPaddingRelative(dp(8), dp(10), dp(6), dp(10))
+        setPaddingRelative(0, dp(4), 0, dp(4))
         setOnClickListener { onSelect() }
 
         addView(
@@ -387,7 +365,7 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
                 textAppearance = resolveThemeAttribute(android.R.attr.textAppearanceListItem)
                 setTextColor(styledColor(android.R.attr.textColorPrimary))
                 text = pack.name
-                maxLines = 4
+                maxLines = 2
             },
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         )
@@ -425,39 +403,26 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
         setPaddingRelative(dp(24), dp(10), dp(24), dp(10))
     }
 
-    private fun Context.previewRow(
-        @StringRes title: Int,
-        @DrawableRes icon: Int,
-        effect: InputFeedbacks.SoundEffect
-    ) = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
+    private fun Context.soundPreviewControl() = LinearLayout(this).apply {
         gravity = Gravity.CENTER_VERTICAL
-        isClickable = true
-        isFocusable = true
-        background = styledDrawable(android.R.attr.selectableItemBackground)
-        minimumHeight = styledDimenPxSize(android.R.attr.listPreferredItemHeightSmall)
-        setPaddingRelative(dp(24), dp(10), dp(24), dp(10))
-        setOnClickListener {
-            InputFeedbacks.previewSoundEffect(effect)
-        }
-
-        addView(
-            ImageView(context).apply {
+        setPaddingRelative(dp(8), dp(4), dp(8), dp(8))
+        addView(TextView(context).apply {
+            setText(R.string.key_sound_preview)
+            textAppearance = resolveThemeAttribute(android.R.attr.textAppearanceListItem)
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        listOf(
+            Triple(R.string.key_sound_preview_standard, R.drawable.ic_baseline_keyboard_24, InputFeedbacks.SoundEffect.Standard),
+            Triple(R.string.key_sound_preview_space, R.drawable.ic_baseline_space_bar_24, InputFeedbacks.SoundEffect.SpaceBar),
+            Triple(R.string.key_sound_preview_delete, R.drawable.ic_baseline_backspace_24, InputFeedbacks.SoundEffect.Delete)
+        ).forEach { (description, icon, effect) ->
+            addView(ImageButton(context).apply {
                 setImageDrawable(ContextCompat.getDrawable(context, icon))
                 imageTintList = ColorStateList.valueOf(styledColor(android.R.attr.colorControlNormal))
-            },
-            LinearLayout.LayoutParams(dp(24), dp(24)).apply {
-                rightMargin = dp(24)
-            }
-        )
-        addView(
-            TextView(context).apply {
-                textAppearance = resolveThemeAttribute(android.R.attr.textAppearanceListItem)
-                setTextColor(styledColor(android.R.attr.textColorPrimary))
-                setText(title)
-            },
-            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        )
+                background = styledDrawable(android.R.attr.selectableItemBackgroundBorderless)
+                contentDescription = getString(description)
+                setOnClickListener { InputFeedbacks.previewSoundEffect(effect) }
+            }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        }
     }
 
     private fun PreferenceScreen.addAfter(afterKey: String, preference: Preference) {
