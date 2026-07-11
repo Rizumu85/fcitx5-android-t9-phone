@@ -34,8 +34,9 @@ Use these files for different purposes:
 3. Keep Baidu text practical.
    - Update both Markdown and plain-text files.
    - Keep the root Baidu readme as the current public instructions.
-   - Keep the versioned Baidu readme in `release-baidu/vX.Y.Z/` matching that
-     release.
+   - Keep only the current release's versioned readme in Git. Delete the
+     previous version's duplicate readmes when preparing a new release; Git
+     history and `release-notes-vX.Y.Z.md` are the archive.
    - Baidu upload may need to be manual. The agent can help remove old remote
      APK/readme files through the browser when logged in, but the user may need
      to upload the new APKs manually.
@@ -175,10 +176,6 @@ git push origin master --tags
    - App `armeabi-v7a`
    - Rime plugin `arm64-v8a`
    - Rime plugin `armeabi-v7a`
-
-If GitHub Actions fails after push, check whether it is a release build failure
-or an unrelated CI checkout/submodule failure before changing the local release
-process.
 
 ## Final Release Checklist
 

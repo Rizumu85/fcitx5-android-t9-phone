@@ -30,29 +30,25 @@ Android smart/feature phones. The primary workflow is Chinese T9 input through
 Rime, English multi-tap input, numeric mode, and a compact always-available
 screen keyboard for auxiliary controls.
 
-## Documentation First
+## Documentation Hygiene
 
-Before writing project code, inspect the project root for `analysis.md`,
-`design.md`, and `plan.md`.
+Read `CONTEXT.md` and only the relevant files under `docs/` before changing a
+subsystem. Keep all project files, code comments, and developer documentation
+in English; user-facing Chinese manuals may remain Chinese. Chat summaries must
+be written in Chinese.
 
-- If they exist, read them and continue from their current state.
-- If any are missing, create only the missing files.
-- If they are stale, update them before changing code.
-- Keep all project files, code comments, and documentation in English.
-- Chat summaries of changes must be written in Chinese.
-
-Use the files this way:
-
-- `analysis.md`: problem understanding, assumptions, edge cases, constraints,
-  and discoveries.
-- `design.md`: project goal first, then architectural choices, system shape, API
-  contracts, UI/UX patterns, and tradeoffs.
-- `plan.md`: sequential, connected, testable checklist tied to `analysis.md` and
-  `design.md`.
-
-Keep `plan.md` updated as each step completes. If implementation discoveries
-change direction, update `analysis.md`, `design.md`, and `plan.md` before
-continuing.
+- `CONTEXT.md` is the concise, current architecture and domain map. Update
+  existing sections instead of appending a chronological work log.
+- `docs/adr/` stores durable product or architecture decisions that explain a
+  non-obvious tradeoff.
+- Runbooks and debugging notes store repeatable procedures, not implementation
+  history or completed task narratives.
+- Use the conversation plan tool for active work. Do not create persistent root
+  `analysis.md`, `design.md`, or `plan.md` journals unless the user explicitly
+  requests an artifact.
+- Delete completed checklists and superseded reasoning once their durable
+  decision is represented in code, `CONTEXT.md`, an ADR, or a runbook. Git
+  history is the archive.
 
 ## Engineering Style
 
