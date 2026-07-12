@@ -88,8 +88,7 @@ sealed class Theme : Parcelable {
         override val dividerColor: Int,
         override val clipboardEntryColor: Int,
         override val genericActiveBackgroundColor: Int,
-        override val genericActiveForegroundColor: Int,
-        val baiduSkin: BaiduSkin? = null
+        override val genericActiveForegroundColor: Int
     ) : Theme() {
         @Parcelize
         @Serializable
@@ -107,34 +106,6 @@ sealed class Theme : Parcelable {
                 return BitmapDrawable(appContext.resources, bitmap).apply {
                     colorFilter = DarkenColorFilter(100 - brightness)
                 }
-            }
-        }
-
-        @Parcelize
-        @Serializable
-        data class BaiduSkin(
-            val assetDirectoryPath: String,
-            val keys: Map<String, KeyVisual>
-        ) : Parcelable {
-            @Parcelize
-            @Serializable
-            data class KeyVisual(
-                val normalBackground: String,
-                val pressedBackground: String? = null,
-                val normalForeground: String? = null,
-                val pressedForeground: String? = null
-            ) : Parcelable
-
-            fun resolve(fileName: String): File = File(assetDirectoryPath, fileName)
-
-            fun isUsable(): Boolean = File(assetDirectoryPath).isDirectory && keys.values.all {
-                val files = listOfNotNull(
-                    it.normalBackground,
-                    it.pressedBackground,
-                    it.normalForeground,
-                    it.pressedForeground
-                )
-                files.all { name -> name == File(name).name && resolve(name).isFile }
             }
         }
 

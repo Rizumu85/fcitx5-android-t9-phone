@@ -9,7 +9,6 @@ import android.content.Context
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.FcitxKeyMapping
 import org.fcitx.fcitx5.android.core.KeySym
-import org.fcitx.fcitx5.android.data.theme.BaiduSkinKey
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.picker.PickerWindow
 
@@ -70,8 +69,7 @@ class TemporaryFullKeyboard(
                 textStyle = android.graphics.Typeface.BOLD,
                 percentWidth = 0.08f,
                 variant = Appearance.Variant.Alternative,
-                pressHighlight = false,
-                skinKey = BaiduSkinKey.GenericFunction
+                pressHighlight = false
             ),
             setOf(
                 Behavior.Press(KeyAction.LayoutSwitchAction(ExitTarget))
@@ -86,8 +84,7 @@ class TemporaryFullKeyboard(
                 src = R.drawable.ic_baseline_visibility_24,
                 percentWidth = 0.10f,
                 variant = Appearance.Variant.Alternative,
-                pressHighlight = false,
-                skinKey = BaiduSkinKey.GenericFunction
+                pressHighlight = false
             ),
             setOf(
                 Behavior.Hold(
@@ -140,8 +137,7 @@ class TemporaryFullKeyboard(
                     "符号",
                     PickerWindow.Key.Symbol.name,
                     0.15f,
-                    KeyDef.Appearance.Variant.Alternative,
-                    BaiduSkinKey.Symbol
+                    KeyDef.Appearance.Variant.Alternative
                 ),
                 ExitToT9Key(),
                 LanguageKey(0.12f),
@@ -159,8 +155,7 @@ class TemporaryFullKeyboard(
             variant = Appearance.Variant.Accent,
             border = Appearance.Border.Special,
             viewId = R.id.button_return,
-            pressHighlight = true,
-            skinKey = BaiduSkinKey.Return
+            pressHighlight = true
         ),
         setOf(
             Behavior.Press(KeyAction.SymAction(KeySym(FcitxKeyMapping.FcitxKey_Return)))

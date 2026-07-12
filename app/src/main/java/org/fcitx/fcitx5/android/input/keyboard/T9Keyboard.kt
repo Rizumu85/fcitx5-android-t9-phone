@@ -9,7 +9,6 @@ import android.content.Context
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.InputMethodEntry
 import org.fcitx.fcitx5.android.data.theme.Theme
-import org.fcitx.fcitx5.android.data.theme.BaiduSkinKey
 import org.fcitx.fcitx5.android.input.picker.PickerWindow
 import splitties.views.imageResource
 
@@ -29,19 +28,12 @@ class T9Keyboard(
 
         val Layout: List<List<KeyDef>> = listOf(
             listOf(
-                LayoutSwitchKey(
-                    "符号",
-                    PickerWindow.Key.Symbol.name,
-                    0.15f,
-                    KeyDef.Appearance.Variant.Alternative,
-                    BaiduSkinKey.Symbol
-                ),
+                LayoutSwitchKey("符号", PickerWindow.Key.Symbol.name, 0.15f, KeyDef.Appearance.Variant.Alternative),
                 ImagePickerSwitchKey(
                     R.drawable.ic_baseline_tag_faces_24,
                     PickerWindow.Key.Emoji,
                     0.08f,
-                    KeyDef.Appearance.Variant.Alternative,
-                    skinKey = BaiduSkinKey.GenericFunction
+                    KeyDef.Appearance.Variant.Alternative
                 ),
                 LanguageKey(0.12f),
                 SpaceKey(),

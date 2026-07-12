@@ -20,8 +20,7 @@ open class KeyDef(
         val margin: Boolean,
         val viewId: Int,
         val soundEffect: InputFeedbacks.SoundEffect,
-        val pressHighlight: Boolean,
-        val skinKey: String?
+        val pressHighlight: Boolean
     ) {
         enum class Variant {
             Normal, AltForeground, Alternative, Accent
@@ -47,9 +46,8 @@ open class KeyDef(
             margin: Boolean = true,
             viewId: Int = -1,
             soundEffect: InputFeedbacks.SoundEffect = InputFeedbacks.SoundEffect.Standard,
-            pressHighlight: Boolean = false,
-            skinKey: String? = null
-        ) : Appearance(percentWidth, variant, border, margin, viewId, soundEffect, pressHighlight, skinKey)
+            pressHighlight: Boolean = false
+        ) : Appearance(percentWidth, variant, border, margin, viewId, soundEffect, pressHighlight)
 
         class AltText(
             displayText: String,
@@ -66,8 +64,7 @@ open class KeyDef(
             border: Border = Border.Default,
             margin: Boolean = true,
             viewId: Int = -1,
-            pressHighlight: Boolean = false,
-            skinKey: String? = null
+            pressHighlight: Boolean = false
         ) : Text(
             displayText = displayText,
             textSize = textSize,
@@ -77,8 +74,7 @@ open class KeyDef(
             border = border,
             margin = margin,
             viewId = viewId,
-            pressHighlight = pressHighlight,
-            skinKey = skinKey
+            pressHighlight = pressHighlight
         )
 
         class Image(
@@ -90,9 +86,8 @@ open class KeyDef(
             margin: Boolean = true,
             viewId: Int = -1,
             soundEffect: InputFeedbacks.SoundEffect = InputFeedbacks.SoundEffect.Standard,
-            pressHighlight: Boolean = false,
-            skinKey: String? = null
-        ) : Appearance(percentWidth, variant, border, margin, viewId, soundEffect, pressHighlight, skinKey)
+            pressHighlight: Boolean = false
+        ) : Appearance(percentWidth, variant, border, margin, viewId, soundEffect, pressHighlight)
 
         class ImageText(
             displayText: String,
@@ -109,8 +104,7 @@ open class KeyDef(
             border: Border = Border.Default,
             margin: Boolean = true,
             viewId: Int = -1,
-            pressHighlight: Boolean = false,
-            skinKey: String? = null
+            pressHighlight: Boolean = false
         ) : Text(
             displayText = displayText,
             textSize = textSize,
@@ -120,8 +114,7 @@ open class KeyDef(
             border = border,
             margin = margin,
             viewId = viewId,
-            pressHighlight = pressHighlight,
-            skinKey = skinKey
+            pressHighlight = pressHighlight
         )
     }
 

@@ -166,17 +166,6 @@
     <string name="popup_on_key_press">按键时弹出显示字符</string>
     <string name="disable_animation">禁用动画</string>
     <string name="import_from_file">导入文件…</string>
-    <string name="import_baidu_skin">导入百度皮肤…</string>
-    <string name="baidu_skin_default_name">导入的百度皮肤</string>
-    <string name="baidu_skin_light_suffix">（亮色）</string>
-    <string name="baidu_skin_dark_suffix">（暗色）</string>
-    <string name="baidu_skin_imported_title">百度皮肤已导入</string>
-    <string name="baidu_skin_imported_message">已创建主题：%1$s\n\n%2$s\n\n应用会保留自己的九键布局，同时适配兼容的面板背景、按键素材、按下状态、功能键图标、颜色和按键音。不兼容的百度动画、手写及布局尺寸不会导入。</string>
-    <string name="baidu_skin_sounds_imported">兼容的按键音已导入并选中。</string>
-    <string name="baidu_skin_sounds_skipped">没有找到完整且兼容的按键音。</string>
-    <string name="baidu_skin_wrong_file">请选择 Android .bds 皮肤文件。</string>
-    <string name="baidu_skin_encrypted">这个皮肤加密了视觉素材。需要作者提供密码或未加密版本后才能转换。</string>
-    <string name="baidu_skin_invalid">无法转换这个百度皮肤。</string>
     <string name="duplicate_builtin_theme">复制内置主题…</string>
     <string name="exception_logcat_created">Logcat 进程已创建</string>
     <string name="exception_quickphrase_parse">无法解析快速输入条目： %1$s</string>

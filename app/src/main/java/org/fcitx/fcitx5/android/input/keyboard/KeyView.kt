@@ -24,7 +24,6 @@ import androidx.annotation.FloatRange
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.updateLayoutParams
 import org.fcitx.fcitx5.android.R
-import org.fcitx.fcitx5.android.data.theme.BaiduSkinVisuals
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.data.theme.ThemePrefs.PunctuationPosition
@@ -108,10 +107,6 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
         isDuplicateParentStateEnabled = true
     }
 
-    private val baiduSkinDrawables = BaiduSkinVisuals.resolve(theme, def.skinKey)
-    protected val baiduSkinForegroundApplied: Boolean
-        get() = baiduSkinDrawables?.foreground != null
-
     init {
         // trigger setEnabled(true)
         isEnabled = true
@@ -120,11 +115,8 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
         if (def.viewId > 0) {
             id = def.viewId
         }
-        // Semantic BDS assets replace only presentation; touch geometry and key behavior remain native.
-        if (baiduSkinDrawables != null) {
-            appearanceView.background = baiduSkinDrawables.background
-            appearanceView.foreground = baiduSkinDrawables.foreground
-        } else if ((bordered && def.border != Border.Off) || def.border == Border.On) {
+        // key border
+        if ((bordered && def.border != Border.Off) || def.border == Border.On) {
             val bkgColor = when (def.variant) {
                 Variant.Normal, Variant.AltForeground -> theme.keyBackgroundColor
                 Variant.Alternative -> theme.altKeyBackgroundColor
@@ -214,7 +206,7 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        if (bordered || baiduSkinDrawables != null) return
+        if (bordered) return
         when (def.viewId) {
             R.id.button_space -> {
                 val bkgRadius = dp(3f)
@@ -291,7 +283,6 @@ open class TextKeyView(ctx: Context, theme: Theme, def: KeyDef.Appearance.Text) 
                 horizontalBias = def.horizontalBias
             })
         }
-        if (baiduSkinForegroundApplied) mainText.visibility = View.INVISIBLE
     }
 }
 
@@ -317,7 +308,6 @@ class AltTextKeyView(ctx: Context, theme: Theme, def: KeyDef.Appearance.AltText)
         appearanceView.apply {
             add(altText, lParams(wrapContent, wrapContent))
         }
-        if (baiduSkinForegroundApplied) altText.visibility = View.INVISIBLE
         applyLayout(resources.configuration.orientation)
     }
 
@@ -330,7 +320,7 @@ class AltTextKeyView(ctx: Context, theme: Theme, def: KeyDef.Appearance.AltText)
             topToTop = parentId
             bottomToBottom = parentId
         }
-        altText.visibility = if (baiduSkinForegroundApplied) View.INVISIBLE else View.VISIBLE
+        altText.visibility = View.VISIBLE
         altText.updateLayoutParams<ConstraintLayout.LayoutParams> {
             // reset
             bottomToBottom = unset; bottomMargin = 0
@@ -349,7 +339,7 @@ class AltTextKeyView(ctx: Context, theme: Theme, def: KeyDef.Appearance.AltText)
             topToTop = parentId; topMargin = vMargin
             bottomToTop = altText.existingOrNewId
         }
-        altText.visibility = if (baiduSkinForegroundApplied) View.INVISIBLE else View.VISIBLE
+        altText.visibility = View.VISIBLE
         altText.updateLayoutParams<ConstraintLayout.LayoutParams> {
             // reset
             topToTop = unset; topMargin = 0
@@ -403,7 +393,6 @@ class ImageKeyView(ctx: Context, theme: Theme, def: KeyDef.Appearance.Image) :
                 centerInParent()
             })
         }
-        if (baiduSkinForegroundApplied) img.visibility = View.INVISIBLE
     }
 }
 

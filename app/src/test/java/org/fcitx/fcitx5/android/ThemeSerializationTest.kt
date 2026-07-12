@@ -31,27 +31,6 @@ class ThemeSerializationTest {
     }
 
     @Test
-    fun preservesBaiduSkinVisualManifest() {
-        val theme = ThemePreset.TransparentDark.deriveCustomBackground("skin", "", "").copy(
-            baiduSkin = Theme.Custom.BaiduSkin(
-                assetDirectoryPath = "/theme/assets",
-                keys = mapOf(
-                    "space" to Theme.Custom.BaiduSkin.KeyVisual(
-                        normalBackground = "space.png",
-                        pressedBackground = "space-pressed.png",
-                        normalForeground = "space-label.png"
-                    )
-                )
-            )
-        )
-
-        val (decoded, migrated) = theme.toJson().toCustomTheme()
-
-        Assert.assertFalse(migrated)
-        Assert.assertEquals(theme, decoded)
-    }
-
-    @Test
     fun version1() {
         // Version 1.0, outdated
         val raw = """

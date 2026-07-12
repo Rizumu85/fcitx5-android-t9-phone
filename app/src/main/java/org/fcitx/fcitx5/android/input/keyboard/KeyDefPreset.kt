@@ -12,7 +12,6 @@ import org.fcitx.fcitx5.android.core.KeyState
 import org.fcitx.fcitx5.android.core.KeyStates
 import org.fcitx.fcitx5.android.core.KeySym
 import org.fcitx.fcitx5.android.data.InputFeedbacks
-import org.fcitx.fcitx5.android.data.theme.BaiduSkinKey
 import org.fcitx.fcitx5.android.input.keyboard.KeyDef.Appearance.Border
 import org.fcitx.fcitx5.android.input.keyboard.KeyDef.Appearance.Variant
 import org.fcitx.fcitx5.android.input.picker.PickerWindow
@@ -59,8 +58,7 @@ class AlphabetKey(
         variant = variant,
         border = border,
         margin = margin,
-        pressHighlight = false,
-        skinKey = BaiduSkinKey.letter(character)
+        pressHighlight = false
     ),
     setOf(
         Behavior.Press(KeyAction.FcitxKeyAction(character)),
@@ -82,8 +80,7 @@ class AlphabetDigitKey(
         displayText = character,
         altText = altText,
         textSize = 23f,
-        pressHighlight = false,
-        skinKey = BaiduSkinKey.letter(character)
+        pressHighlight = false
     ),
     setOf(
         Behavior.Press(KeyAction.FcitxKeyAction(character)),
@@ -111,8 +108,7 @@ class CapsKey : KeyDef(
         src = R.drawable.ic_capslock_none,
         viewId = R.id.button_caps,
         percentWidth = 0.15f,
-        variant = Variant.Alternative,
-        skinKey = BaiduSkinKey.Caps
+        variant = Variant.Alternative
     ),
     setOf(
         Behavior.Press(KeyAction.CapsAction(false)),
@@ -125,8 +121,7 @@ class LayoutSwitchKey(
     displayText: String,
     val to: String = "",
     percentWidth: Float = 0.15f,
-    variant: Variant = Variant.Alternative,
-    skinKey: String? = null
+    variant: Variant = Variant.Alternative
 ) : KeyDef(
     Appearance.Text(
         displayText,
@@ -134,8 +129,7 @@ class LayoutSwitchKey(
         textStyle = Typeface.BOLD,
         percentWidth = percentWidth,
         variant = variant,
-        pressHighlight = false,
-        skinKey = skinKey
+        pressHighlight = false
     ),
     setOf(
         Behavior.Press(KeyAction.LayoutSwitchAction(to))
@@ -154,8 +148,7 @@ class BackspaceKey(
         percentWidth = percentWidth,
         variant = variant,
         viewId = R.id.button_backspace,
-        soundEffect = InputFeedbacks.SoundEffect.Delete,
-        skinKey = BaiduSkinKey.Backspace
+        soundEffect = InputFeedbacks.SoundEffect.Delete
     ),
     setOf(
         Behavior.Press(KeyAction.SymAction(KeySym(FcitxKeyMapping.FcitxKey_BackSpace))),
@@ -219,8 +212,7 @@ class LanguageKey(percentWidth: Float = 0.1f) : KeyDef(
         src = R.drawable.ic_baseline_language_24,
         percentWidth = percentWidth,
         variant = Variant.AltForeground,
-        viewId = R.id.button_lang,
-        skinKey = BaiduSkinKey.Language
+        viewId = R.id.button_lang
     ),
     setOf(
         Behavior.Press(KeyAction.LangSwitchAction),
@@ -236,8 +228,7 @@ class SpaceKey(percentWidth: Float = 0f) : KeyDef(
         border = Border.Special,
         viewId = R.id.button_space,
         soundEffect = InputFeedbacks.SoundEffect.SpaceBar,
-        pressHighlight = true,
-        skinKey = BaiduSkinKey.Space
+        pressHighlight = true
     ),
     setOf(
         Behavior.Press(KeyAction.SymAction(KeySym(FcitxKeyMapping.FcitxKey_space))),
@@ -253,8 +244,7 @@ class ReturnKey(percentWidth: Float = 0.15f) : KeyDef(
         border = Border.Special,
         viewId = R.id.button_return,
         soundEffect = InputFeedbacks.SoundEffect.Return,
-        pressHighlight = true,
-        skinKey = BaiduSkinKey.Return
+        pressHighlight = true
     ),
     setOf(
         Behavior.Press(KeyAction.SymAction(KeySym(FcitxKeyMapping.FcitxKey_Return)))
@@ -277,16 +267,14 @@ class ImageLayoutSwitchKey(
     percentWidth: Float = 0.1f,
     variant: Variant = Variant.AltForeground,
     viewId: Int = -1,
-    previewText: String? = null,
-    skinKey: String? = null
+    previewText: String? = null
 ) : KeyDef(
     Appearance.Image(
         src = icon,
         percentWidth = percentWidth,
         variant = variant,
         viewId = viewId,
-        pressHighlight = false,
-        skinKey = skinKey
+        pressHighlight = false
     ),
     setOf(
         Behavior.Press(KeyAction.LayoutSwitchAction(to))
@@ -302,16 +290,14 @@ class ImagePickerSwitchKey(
     variant: Variant = Variant.AltForeground,
     viewId: Int = -1,
     previewText: String = "",
-    @DrawableRes previewIcon: Int? = icon,
-    skinKey: String? = null
+    @DrawableRes previewIcon: Int? = icon
 ) : KeyDef(
     Appearance.Image(
         src = icon,
         percentWidth = percentWidth,
         variant = variant,
         viewId = viewId,
-        pressHighlight = false,
-        skinKey = skinKey
+        pressHighlight = false
     ),
     setOf(
         Behavior.Press(KeyAction.PickerSwitchAction(to))
@@ -351,8 +337,7 @@ class MiniSpaceKey : KeyDef(
         percentWidth = 0.15f,
         variant = Variant.Alternative,
         viewId = R.id.button_mini_space,
-        pressHighlight = true,
-        skinKey = BaiduSkinKey.Space
+        pressHighlight = true
     ),
     setOf(
         Behavior.Press(KeyAction.SymAction(KeySym(FcitxKeyMapping.FcitxKey_space)))
@@ -370,10 +355,7 @@ class NumPadKey(
         displayText,
         textSize = textSize,
         percentWidth = percentWidth,
-        variant = variant,
-        skinKey = displayText.singleOrNull()?.takeIf(Char::isDigit)?.let {
-            BaiduSkinKey.number(it.toString())
-        }
+        variant = variant
     ),
     setOf(
         Behavior.Press(KeyAction.SymAction(KeySym(sym), NumLockState))
