@@ -18,6 +18,7 @@ import org.fcitx.fcitx5.android.core.KeyStates
 import org.fcitx.fcitx5.android.core.KeySym
 import org.fcitx.fcitx5.android.data.InputFeedbacks
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
+import org.fcitx.fcitx5.android.data.theme.BaiduSkinVisuals
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView.GestureType
 import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView.OnGestureListener
@@ -77,6 +78,13 @@ abstract class BaseKeyboard(
         isMotionEventSplittingEnabled = true
         keyRows = keyLayout.map { row ->
             val keyViews = row.map(::createKeyView)
+            val skinAspects = row.map { BaiduSkinVisuals.aspectRatio(theme, it.appearance.skinKey) }
+            val skinAspectTotal = skinAspects.filterNotNull().sum()
+            // A BDS row carries its intended width ratios in the source tiles. Normalize those
+            // ratios to our row instead of forcing wide function keys into the native percentages.
+            val skinWidths = skinAspects.takeIf {
+                skinAspectTotal > 0f && it.all { aspect -> aspect != null }
+            }?.map { checkNotNull(it) / skinAspectTotal }
             constraintLayout Row@{
                 keyViews.forEachIndexed { index, view ->
                     add(view, lParams {
@@ -95,7 +103,8 @@ abstract class BaseKeyboard(
                             rightToLeftOf(keyViews[index + 1])
                         }
                         val def = row[index]
-                        matchConstraintPercentWidth = def.appearance.percentWidth
+                        matchConstraintPercentWidth =
+                            skinWidths?.get(index) ?: def.appearance.percentWidth
                     })
                 }
             }

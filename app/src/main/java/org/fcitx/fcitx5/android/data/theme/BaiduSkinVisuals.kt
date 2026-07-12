@@ -10,6 +10,7 @@ import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.RectF
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.StateListDrawable
 import android.util.LruCache
@@ -43,15 +44,10 @@ internal object BaiduSkinVisuals {
     private val bitmapCache = object : LruCache<String, Bitmap>(16 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.allocationByteCount
     }
+    private val aspectRatioCache = LruCache<String, Float>(128)
 
     fun resolve(theme: Theme, requestedKey: String?): BaiduKeyDrawables? {
-        val skin = (theme as? Theme.Custom)?.baiduSkin ?: return null
-        val visual = requestedKey?.let(skin.keys::get)
-            ?: skin.keys[BaiduSkinKey.GenericFunction].takeIf {
-                BaiduSkinKey.isFunction(requestedKey)
-            }
-            ?: skin.keys[BaiduSkinKey.Generic]
-            ?: return null
+        val (skin, visual) = findVisual(theme, requestedKey) ?: return null
         val normalBackground = drawable(skin.resolve(visual.normalBackground)) ?: return null
         val background = stateDrawable(
             normalBackground,
@@ -66,6 +62,32 @@ internal object BaiduSkinVisuals {
         return BaiduKeyDrawables(background, foreground)
     }
 
+    fun aspectRatio(theme: Theme, requestedKey: String?): Float? {
+        val (skin, visual) = findVisual(theme, requestedKey) ?: return null
+        val file = skin.resolve(visual.normalBackground)
+        aspectRatioCache[file.absolutePath]?.let { return it }
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, options)
+        if (options.outWidth <= 0 || options.outHeight <= 0) return null
+        return (options.outWidth.toFloat() / options.outHeight).also {
+            aspectRatioCache.put(file.absolutePath, it)
+        }
+    }
+
+    private fun findVisual(
+        theme: Theme,
+        requestedKey: String?
+    ): Pair<Theme.Custom.BaiduSkin, Theme.Custom.BaiduSkin.KeyVisual>? {
+        val skin = (theme as? Theme.Custom)?.baiduSkin ?: return null
+        val visual = requestedKey?.let(skin.keys::get)
+            ?: skin.keys[BaiduSkinKey.GenericFunction].takeIf {
+                BaiduSkinKey.isFunction(requestedKey)
+            }
+            ?: skin.keys[BaiduSkinKey.Generic]
+            ?: return null
+        return skin to visual
+    }
+
     private fun stateDrawable(normal: Drawable, pressed: Drawable?): Drawable =
         if (pressed == null) normal else StateListDrawable().apply {
             addState(intArrayOf(android.R.attr.state_pressed), pressed)
@@ -77,18 +99,28 @@ internal object BaiduSkinVisuals {
         val bitmap = bitmapCache[file.absolutePath] ?: BitmapFactory.decodeFile(file.absolutePath)
             ?.also { bitmapCache.put(file.absolutePath, it) }
             ?: return null
-        return StretchBitmapDrawable(bitmap)
+        return FitBitmapDrawable(bitmap)
     }
 
-    // BDS tiles already contain their own optical padding and shadows, so scaling the complete
-    // tile preserves the author's proportions better than applying the app's normal key insets.
-    private class StretchBitmapDrawable(
+    // BDS tiles already contain optical padding and shadows. Center-fitting the complete tile
+    // avoids deforming wide keys such as Space when our touch layout has a different aspect ratio.
+    private class FitBitmapDrawable(
         private val bitmap: Bitmap
     ) : Drawable() {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        private val destination = RectF()
 
         override fun draw(canvas: Canvas) {
-            canvas.drawBitmap(bitmap, null, bounds, paint)
+            val scale = minOf(
+                bounds.width().toFloat() / bitmap.width,
+                bounds.height().toFloat() / bitmap.height
+            )
+            val width = bitmap.width * scale
+            val height = bitmap.height * scale
+            val left = bounds.left + (bounds.width() - width) / 2f
+            val top = bounds.top + (bounds.height() - height) / 2f
+            destination.set(left, top, left + width, top + height)
+            canvas.drawBitmap(bitmap, null, destination, paint)
         }
 
         override fun setAlpha(alpha: Int) {
