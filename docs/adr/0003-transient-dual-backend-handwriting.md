@@ -27,12 +27,13 @@ matching must never block the UI thread.
   substroke repository is loaded on a background dispatcher when handwriting
   opens and then retained as an immutable process cache.
 - Google ML Kit Digital Ink Recognition is an optional enhanced backend. ML Kit
-  owns its model download. Download failure leaves offline recognition active
-  and exposes an explicit retry action; automatic failure never blocks input.
-  Input settings also expose download state and a manual download/retry action,
-  while model ownership remains independent from an active handwriting session.
-- A downloaded ML Kit model is warmed while the handwriting surface is idle and
-  is marked ready only after initialization. ML Kit output is restricted to one
+  owns its model download. Opening handwriting never starts a network request;
+  model download and retry belong to Input Settings. The first missing-model
+  session shows one transient action that deep-links to that setting, while the
+  drawing surface never displays model lifecycle status.
+- A downloaded ML Kit model is warmed after a short idle delay and is marked
+  ready only after initialization. This keeps native model startup from
+  competing with the first visible stroke. ML Kit output is restricted to one
   Han character; an empty or failed enhanced result falls back to the bundled
   recognizer instead of exposing punctuation or Latin strokes as candidates.
 - The recognizer for one character is selected when its first stroke begins.
@@ -41,6 +42,9 @@ matching must never block the UI thread.
 - Completed strokes are copied into recognition data. AndroidX Ink renders a
   separate low-latency `pressurePen` path, so brush smoothing and pressure
   response never alter the geometry sent to either recognizer.
+- AndroidX Ink completion callbacks and coordinator publications are reconciled
+  by a render ledger. A local completion reserves its desired slot before Ink is
+  notified, preventing a synchronous callback from deleting the fresh stroke.
 - Recognition starts 420 ms after the most recently completed stroke. Every
   stroke resets the same quiet-period timer; there is no first-stroke special
   case that can repeatedly interrupt a multi-stroke character. New strokes,
@@ -57,6 +61,9 @@ matching must never block the UI thread.
   character and clears the canvas while keeping handwriting open. Long number
   keys select visible shortcuts. Delete undoes one stroke; when the canvas is
   empty, delete continues to the editor deletion pipeline.
+- Undo and clear are overlay controls at the tray's upper-right corner. The
+  rounded, visually raised theme-colored tray occupies the remaining input
+  window; recognition status never reserves a permanent row beneath it.
 
 ## Performance Constraints
 
