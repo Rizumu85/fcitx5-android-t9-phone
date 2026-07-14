@@ -178,6 +178,8 @@ dependencies {
     implementation(libs.androidx.ink.authoring)
     implementation(libs.androidx.ink.brush)
     implementation(libs.androidx.ink.strokes)
+    implementation(libs.androidx.ink.rendering)
+    implementation(libs.androidx.input.motionprediction)
     implementation(libs.arrow.core)
     implementation(libs.arrow.functions)
     implementation(libs.imagecropper)

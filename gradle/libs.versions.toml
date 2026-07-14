@@ -14,6 +14,7 @@ aboutlibraries = "14.0.0-b02"
 arrow = "2.2.2"
 mlkitDigitalInk = "19.0.0"
 androidxInk = "1.0.0"
+androidxInput = "1.0.0"
 
 [libraries]
 android-gradlePlugin = { group = "com.android.tools.build", name = "gradle", version.ref = "androidGradlePlugin" }
@@ -74,6 +75,8 @@ mlkit-digital-ink = { module = "com.google.mlkit:digital-ink-recognition", versi
 androidx-ink-authoring = { module = "androidx.ink:ink-authoring", version.ref = "androidxInk" }
 androidx-ink-brush = { module = "androidx.ink:ink-brush", version.ref = "androidxInk" }
 androidx-ink-strokes = { module = "androidx.ink:ink-strokes", version.ref = "androidxInk" }
+androidx-ink-rendering = { module = "androidx.ink:ink-rendering", version.ref = "androidxInk" }
+androidx-input-motionprediction = { module = "androidx.input:input-motionprediction", version.ref = "androidxInput" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }

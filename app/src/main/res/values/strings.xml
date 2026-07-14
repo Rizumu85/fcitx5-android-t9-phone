@@ -431,6 +431,9 @@
     <string name="handwriting_go_to_download">Download</string>
     <string name="handwriting_undo_stroke">Undo last stroke</string>
     <string name="handwriting_clear">Clear handwriting</string>
+    <string name="handwriting_brush_style">Stroke style</string>
+    <string name="handwriting_brush_pen">Pen</string>
+    <string name="handwriting_brush_calligraphy">Calligraphy brush</string>
     <string name="handwriting_enhanced_model">Enhanced handwriting recognition (ML Kit)</string>
     <string name="handwriting_model_checking">Checking downloaded model…</string>
     <string name="handwriting_model_available">Downloaded and ready for offline use</string>

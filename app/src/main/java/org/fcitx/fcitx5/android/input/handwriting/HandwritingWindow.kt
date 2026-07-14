@@ -5,13 +5,11 @@
 
 package org.fcitx.fcitx5.android.input.handwriting
 
-import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
-import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.graphics.ColorUtils
@@ -19,6 +17,7 @@ import com.google.android.material.snackbar.Snackbar
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.input.FcitxInputMethodService
+import org.fcitx.fcitx5.android.input.bar.ui.ToolButton
 import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.wm.EssentialWindow
@@ -30,9 +29,9 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
     private val service: FcitxInputMethodService by manager.inputMethodService()
     private val theme by manager.theme()
     private val promptPref = AppPrefs.getInstance().internal.handwritingEnhancedPromptShown
+    private val brushStylePref = AppPrefs.getInstance().keyboard.handwritingBrushStyle
 
     companion object : EssentialWindow.Key {
-        private const val ControlSizeDp = 40
         private const val DisabledControlAlpha = 0.4f
     }
 
@@ -45,12 +44,29 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
     private lateinit var canvas: HandwritingCanvasView
     private lateinit var root: FrameLayout
     private lateinit var status: TextView
-    private lateinit var undoButton: ImageButton
-    private lateinit var clearButton: ImageButton
     private var modelPrompt: Snackbar? = null
 
+    private val undoButton by lazy {
+        toolButton(R.drawable.ic_baseline_undo_24, R.string.handwriting_undo_stroke) {
+            service.undoHandwritingStroke()
+        }
+    }
+    private val clearButton by lazy {
+        toolButton(R.drawable.ic_baseline_delete_sweep_24, R.string.handwriting_clear) {
+            service.clearHandwritingCharacter()
+        }
+    }
+    private val barExtension by lazy {
+        LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL or Gravity.END
+            addView(undoButton, LinearLayout.LayoutParams(context.dp(40), context.dp(40)))
+            addView(clearButton, LinearLayout.LayoutParams(context.dp(40), context.dp(40)))
+        }
+    }
+
     override fun onCreateView(): View {
-        canvas = HandwritingCanvasView(context).apply {
+        canvas = HandwritingCanvasView(context, brushStylePref::getValue).apply {
             brushColor = theme.keyTextColor
             background = roundedSurface(21f, theme.keyboardColor, withBorder = true)
             clipToOutline = true
@@ -68,18 +84,6 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             setPadding(context.dp(10), context.dp(5), context.dp(10), context.dp(5))
             background = roundedSurface(10f, theme.keyboardColor)
         }
-        undoButton = iconButton(R.drawable.ic_baseline_undo_24, R.string.handwriting_undo_stroke) {
-            service.undoHandwritingStroke()
-        }
-        clearButton = iconButton(R.drawable.ic_baseline_delete_sweep_24, R.string.handwriting_clear) {
-            service.clearHandwritingCharacter()
-        }
-        val controls = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            addControl(undoButton)
-            addControl(clearButton)
-        }
         root = FrameLayout(context).apply {
             setBackgroundColor(theme.barColor)
             // A drawable offset preserves the tray shadow without putting AndroidX Ink inside an
@@ -88,14 +92,14 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
                 View(context).apply {
                     background = roundedSurface(
                         21f,
-                        ColorUtils.blendARGB(theme.keyboardColor, android.graphics.Color.BLACK, 0.22f)
+                        ColorUtils.blendARGB(theme.keyboardColor, android.graphics.Color.BLACK, 0.17f)
                     )
                 },
                 FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT
                 ).apply {
-                    setMargins(context.dp(14), context.dp(13), context.dp(10), context.dp(9))
+                    setMargins(context.dp(10), context.dp(8), context.dp(10), context.dp(7))
                 }
             )
             addView(
@@ -104,17 +108,7 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT
                 ).apply {
-                    setMargins(context.dp(12), context.dp(10), context.dp(12), context.dp(12))
-                }
-            )
-            addView(
-                controls,
-                FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.WRAP_CONTENT,
-                    context.dp(ControlSizeDp)
-                ).apply {
-                    gravity = Gravity.TOP or Gravity.END
-                    setMargins(0, context.dp(19), context.dp(21), 0)
+                    setMargins(context.dp(10), context.dp(6), context.dp(10), context.dp(10))
                 }
             )
             addView(
@@ -124,7 +118,7 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
                     FrameLayout.LayoutParams.WRAP_CONTENT
                 ).apply {
                     gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                    bottomMargin = context.dp(20)
+                    bottomMargin = context.dp(16)
                 }
             )
         }
@@ -138,6 +132,8 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
     override fun onAttached() {
         service.setHandwritingStateListener(::renderState)
     }
+
+    override fun onCreateBarExtension(): View = barExtension
 
     override fun onDetached() {
         service.setHandwritingStateListener(null)
@@ -176,27 +172,11 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         }
     }
 
-    private fun iconButton(icon: Int, description: Int, action: () -> Unit) =
-        ImageButton(context).apply {
-            setImageResource(icon)
+    private fun toolButton(icon: Int, description: Int, action: () -> Unit) =
+        ToolButton(context, icon, theme).apply {
             contentDescription = context.getString(description)
-            imageTintList = ColorStateList.valueOf(theme.keyTextColor)
-            background = roundedSurface(
-                12f,
-                ColorUtils.blendARGB(theme.keyboardColor, theme.keyTextColor, 0.09f)
-            )
-            setPadding(context.dp(9), context.dp(9), context.dp(9), context.dp(9))
             setOnClickListener { action() }
         }
-
-    private fun LinearLayout.addControl(button: ImageButton) {
-        addView(
-            button,
-            LinearLayout.LayoutParams(context.dp(ControlSizeDp), context.dp(ControlSizeDp)).apply {
-                marginStart = context.dp(7)
-            }
-        )
-    }
 
     private fun roundedSurface(radiusDp: Float, color: Int, withBorder: Boolean = false) =
         GradientDrawable().apply {

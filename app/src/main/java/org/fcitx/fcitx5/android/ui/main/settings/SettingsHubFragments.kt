@@ -73,7 +73,11 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
             prefs.keyboard,
             setOf(prefs.keyboard.smartEnglishT9.key)
         ),
-        Group(R.string.handwriting_input, prefs.keyboard, emptySet()),
+        Group(
+            R.string.handwriting_input,
+            prefs.keyboard,
+            setOf(prefs.keyboard.handwritingBrushStyle.key)
+        ),
         Group(
             R.string.voice_input,
             prefs.keyboard,

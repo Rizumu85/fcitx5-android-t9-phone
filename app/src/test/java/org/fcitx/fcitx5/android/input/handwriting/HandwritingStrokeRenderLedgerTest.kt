@@ -12,29 +12,41 @@ import org.junit.Test
 class HandwritingStrokeRenderLedgerTest {
     @Test
     fun `completion callback before coordinator publish keeps local stroke`() {
-        val ledger = HandwritingStrokeRenderLedger<String>()
+        val ledger = HandwritingStrokeRenderLedger<String, Int>()
 
-        ledger.expectLocalStrokeCompletion()
+        ledger.expectLocalStrokeCompletion("stroke-1")
 
-        assertTrue(ledger.acceptFinished(listOf("stroke-1")).isEmpty())
-        assertTrue(ledger.reconcileCoordinatorCount(1).isEmpty())
+        assertEquals(listOf(1), ledger.acceptFinished(mapOf("stroke-1" to 1)))
+        assertEquals(listOf(1), ledger.reconcileCoordinatorCount(1))
     }
 
     @Test
     fun `undo removes latest rendered stroke`() {
-        val ledger = HandwritingStrokeRenderLedger<String>()
-        repeat(2) { ledger.expectLocalStrokeCompletion() }
-        ledger.acceptFinished(listOf("stroke-1", "stroke-2"))
+        val ledger = HandwritingStrokeRenderLedger<String, Int>()
+        ledger.expectLocalStrokeCompletion("stroke-1")
+        ledger.expectLocalStrokeCompletion("stroke-2")
+        ledger.acceptFinished(mapOf("stroke-1" to 1, "stroke-2" to 2))
 
-        assertEquals(setOf("stroke-2"), ledger.reconcileCoordinatorCount(1))
+        assertEquals(listOf(1), ledger.reconcileCoordinatorCount(1))
     }
 
     @Test
     fun `late completion after clear is removed`() {
-        val ledger = HandwritingStrokeRenderLedger<String>()
-        ledger.expectLocalStrokeCompletion()
+        val ledger = HandwritingStrokeRenderLedger<String, Int>()
+        ledger.expectLocalStrokeCompletion("stroke-1")
         ledger.reconcileCoordinatorCount(0)
 
-        assertEquals(setOf("stroke-1"), ledger.acceptFinished(listOf("stroke-1")))
+        assertTrue(ledger.acceptFinished(mapOf("stroke-1" to 1)).isEmpty())
+    }
+
+    @Test
+    fun `out of order completion callbacks preserve local finish order`() {
+        val ledger = HandwritingStrokeRenderLedger<String, Int>()
+        ledger.expectLocalStrokeCompletion("stroke-1")
+        ledger.expectLocalStrokeCompletion("stroke-2")
+
+        assertEquals(listOf(2), ledger.acceptFinished(mapOf("stroke-2" to 2)))
+        assertEquals(listOf(1, 2), ledger.acceptFinished(mapOf("stroke-1" to 1)))
+        assertEquals(listOf(1), ledger.reconcileCoordinatorCount(1))
     }
 }

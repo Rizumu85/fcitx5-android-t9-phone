@@ -14,26 +14,42 @@ import androidx.ink.authoring.InProgressStrokesView
 import androidx.ink.brush.Brush
 import androidx.ink.brush.StockBrushes
 import androidx.ink.strokes.Stroke
+import androidx.input.motionprediction.MotionEventPredictor
 import kotlin.math.hypot
 import kotlin.math.min
 
 /** Low-latency ink surface that keeps recognition geometry separate from rendered brush geometry. */
-class HandwritingCanvasView(context: Context) : FrameLayout(context) {
+class HandwritingCanvasView(
+    context: Context,
+    private val brushStyleProvider: () -> HandwritingBrushStyle = {
+        HandwritingBrushStyle.CALLIGRAPHY
+    }
+) : FrameLayout(context) {
     var onStrokeFinished: (HandwritingStroke) -> Unit = {}
 
     var brushColor: Int = 0
 
+    private val finishedStrokesView = FinishedHandwritingStrokesView(context)
     private val inkView = InProgressStrokesView(context)
+    private val motionPredictor = MotionEventPredictor.newInstance(this)
     private val activePoints = mutableListOf<HandwritingPoint>()
-    private val renderLedger = HandwritingStrokeRenderLedger<InProgressStrokeId>()
+    private val renderLedger = HandwritingStrokeRenderLedger<InProgressStrokeId, Stroke>()
     private var activeStrokeId: InProgressStrokeId? = null
+    private var activePointerId = MotionEvent.INVALID_POINTER_ID
 
     init {
+        addView(
+            finishedStrokesView,
+            LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+        )
         addView(inkView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         inkView.addFinishedStrokesListener(
             object : InProgressStrokesFinishedListener {
                 override fun onStrokesFinished(strokes: Map<InProgressStrokeId, Stroke>) {
-                    removeFinishedStrokes(renderLedger.acceptFinished(strokes.keys))
+                    // Completed geometry moves off the front buffer immediately. Keeping only the
+                    // active stroke there follows Ink's intended fast path and bounds move cost.
+                    finishedStrokesView.setStrokes(renderLedger.acceptFinished(strokes))
+                    inkView.removeFinishedStrokes(strokes.keys)
                 }
             }
         )
@@ -42,7 +58,7 @@ class HandwritingCanvasView(context: Context) : FrameLayout(context) {
     fun setCompletedStrokes(strokes: List<HandwritingStroke>) {
         // Coordinator state only appends, undoes, or clears strokes. Ink owns their visual
         // geometry, so count-based reconciliation avoids rebuilding paths on every state publish.
-        removeFinishedStrokes(renderLedger.reconcileCoordinatorCount(strokes.size))
+        finishedStrokesView.setStrokes(renderLedger.reconcileCoordinatorCount(strokes.size))
     }
 
     override fun onAttachedToWindow() {
@@ -54,11 +70,14 @@ class HandwritingCanvasView(context: Context) : FrameLayout(context) {
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean = true
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        motionPredictor.record(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> beginStroke(event)
             MotionEvent.ACTION_MOVE -> continueStroke(event)
             MotionEvent.ACTION_UP -> finishStroke(event)
             MotionEvent.ACTION_CANCEL -> cancelStroke(event)
+            MotionEvent.ACTION_POINTER_DOWN -> cancelStroke(event)
+            MotionEvent.ACTION_POINTER_UP -> Unit
             else -> return false
         }
         return true
@@ -68,22 +87,33 @@ class HandwritingCanvasView(context: Context) : FrameLayout(context) {
         parent?.requestDisallowInterceptTouchEvent(true)
         requestUnbufferedDispatch(event)
         activePoints.clear()
-        appendEventPoints(event, includeHistory = false)
-        activeStrokeId = inkView.startStroke(event, event.getPointerId(0), createBrush())
+        val pointerIndex = event.actionIndex
+        activePointerId = event.getPointerId(pointerIndex)
+        appendEventPoints(event, pointerIndex, includeHistory = false)
+        activeStrokeId = inkView.startStroke(event, activePointerId, createBrush())
     }
 
     private fun continueStroke(event: MotionEvent) {
         val strokeId = activeStrokeId ?: return
-        appendEventPoints(event, includeHistory = true)
-        inkView.addToStroke(event, event.getPointerId(0), strokeId)
+        val pointerIndex = event.findPointerIndex(activePointerId).takeIf { it >= 0 } ?: return
+        appendEventPoints(event, pointerIndex, includeHistory = true)
+        val predictedEvent = motionPredictor.predict()
+        try {
+            // Prediction fills the display-frame gap without polluting recognition geometry.
+            inkView.addToStroke(event, activePointerId, strokeId, predictedEvent)
+        } finally {
+            predictedEvent?.recycle()
+        }
     }
 
     private fun finishStroke(event: MotionEvent) {
         val strokeId = activeStrokeId ?: return
-        appendEventPoints(event, includeHistory = true)
-        renderLedger.expectLocalStrokeCompletion()
-        inkView.finishStroke(event, event.getPointerId(0), strokeId)
+        val pointerIndex = event.findPointerIndex(activePointerId).takeIf { it >= 0 } ?: return
+        appendEventPoints(event, pointerIndex, includeHistory = true)
+        renderLedger.expectLocalStrokeCompletion(strokeId)
+        inkView.finishStroke(event, activePointerId, strokeId)
         activeStrokeId = null
+        activePointerId = MotionEvent.INVALID_POINTER_ID
         parent?.requestDisallowInterceptTouchEvent(false)
         val stroke = HandwritingStroke(activePoints.toList())
         activePoints.clear()
@@ -93,22 +123,32 @@ class HandwritingCanvasView(context: Context) : FrameLayout(context) {
     private fun cancelStroke(event: MotionEvent) {
         activeStrokeId?.let { inkView.cancelStroke(it, event) }
         activeStrokeId = null
+        activePointerId = MotionEvent.INVALID_POINTER_ID
         activePoints.clear()
         parent?.requestDisallowInterceptTouchEvent(false)
     }
 
-    private fun appendEventPoints(event: MotionEvent, includeHistory: Boolean) {
+    private fun appendEventPoints(
+        event: MotionEvent,
+        pointerIndex: Int,
+        includeHistory: Boolean
+    ) {
         if (includeHistory) {
             for (historyIndex in 0 until event.historySize) {
                 appendPoint(
-                    event.getHistoricalX(0, historyIndex),
-                    event.getHistoricalY(0, historyIndex),
+                    event.getHistoricalX(pointerIndex, historyIndex),
+                    event.getHistoricalY(pointerIndex, historyIndex),
                     event.getHistoricalEventTime(historyIndex),
-                    event.getHistoricalPressure(0, historyIndex)
+                    event.getHistoricalPressure(pointerIndex, historyIndex)
                 )
             }
         }
-        appendPoint(event.x, event.y, event.eventTime, event.pressure)
+        appendPoint(
+            event.getX(pointerIndex),
+            event.getY(pointerIndex),
+            event.eventTime,
+            event.getPressure(pointerIndex)
+        )
     }
 
     private fun appendPoint(x: Float, y: Float, timeMillis: Long, pressure: Float) {
@@ -119,21 +159,27 @@ class HandwritingCanvasView(context: Context) : FrameLayout(context) {
         activePoints += HandwritingPoint(x, y, timeMillis, pressure.coerceIn(0.2f, 1.5f))
     }
 
-    private fun createBrush(): Brush = Brush.createWithColorIntArgb(
-        StockBrushes.pressurePen(),
-        brushColor,
-        (min(width, height) * BrushWidthRatio).coerceIn(MinBrushWidthPx, MaxBrushWidthPx),
-        BrushEpsilon
-    )
-
-    private fun removeFinishedStrokes(ids: Set<InProgressStrokeId>) {
-        if (ids.isNotEmpty()) inkView.removeFinishedStrokes(ids)
+    private fun createBrush(): Brush {
+        val minimumDimension = min(width, height)
+        // Read once per stroke. This keeps move handling allocation-free while still honoring a
+        // setting changed while Android merely hides, rather than recreates, the IME window.
+        val (family, size) = when (brushStyleProvider()) {
+            HandwritingBrushStyle.PEN -> StockBrushes.marker() to
+                (minimumDimension * PenWidthRatio).coerceIn(MinPenWidthPx, MaxPenWidthPx)
+            HandwritingBrushStyle.CALLIGRAPHY -> StockBrushes.pressurePen() to
+                (minimumDimension * CalligraphyWidthRatio)
+                    .coerceIn(MinCalligraphyWidthPx, MaxCalligraphyWidthPx)
+        }
+        return Brush.createWithColorIntArgb(family, brushColor, size, BrushEpsilon)
     }
 
     private companion object {
-        const val BrushWidthRatio = 0.026f
-        const val MinBrushWidthPx = 7f
-        const val MaxBrushWidthPx = 14f
+        const val PenWidthRatio = 0.018f
+        const val MinPenWidthPx = 5.5f
+        const val MaxPenWidthPx = 9f
+        const val CalligraphyWidthRatio = 0.04f
+        const val MinCalligraphyWidthPx = 11f
+        const val MaxCalligraphyWidthPx = 20f
         const val BrushEpsilon = 0.1f
         const val MinRecognitionPointDistancePx = 0.8f
     }

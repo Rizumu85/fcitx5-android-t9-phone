@@ -15,6 +15,7 @@ import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.InputFeedbacks.InputFeedbackMode
 import org.fcitx.fcitx5.android.input.InputUiFont
 import org.fcitx.fcitx5.android.input.bar.ToolbarButtonOrder
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingBrushStyle
 import org.fcitx.fcitx5.android.input.picker.PickerWindow
 import org.fcitx.fcitx5.android.input.popup.EmojiModifier
 import org.fcitx.fcitx5.android.input.t9.ChineseT9Scheme
@@ -192,6 +193,12 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
                 "smart_english_t9",
                 BuildConfig.PERFORMANCE_HARNESS
             )
+
+        val handwritingBrushStyle = enumList(
+            R.string.handwriting_brush_style,
+            "handwriting_brush_style",
+            HandwritingBrushStyle.CALLIGRAPHY
+        )
 
         val t9KeyboardHeightPercent: ManagedPreference.PInt
         val t9KeyboardHeightPercentLandscape: ManagedPreference.PInt
