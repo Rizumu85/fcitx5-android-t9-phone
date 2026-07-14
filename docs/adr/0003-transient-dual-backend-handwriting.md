@@ -40,11 +40,17 @@ matching must never block the UI thread.
   A model that becomes ready halfway through that character is used only for
   the next character, preventing unexplained candidate replacement.
 - Completed strokes are copied into recognition data. AndroidX Ink renders a
-  separate low-latency `pressurePen` path, so brush smoothing and pressure
-  response never alter the geometry sent to either recognizer.
+  separate low-latency path, so brush smoothing, motion prediction, and
+  pressure response never alter the geometry sent to either recognizer.
+- Users can choose `Pen` or `Calligraphy` in Input Settings. Both styles use
+  stock AndroidX Ink brush families; the setting changes presentation only and
+  never changes the recognition points. The style is resolved once when each
+  stroke begins, because Android may hide and reuse the same IME window after a
+  Settings change instead of attaching a new one.
 - AndroidX Ink completion callbacks and coordinator publications are reconciled
-  by a render ledger. A local completion reserves its desired slot before Ink is
-  notified, preventing a synchronous callback from deleting the fresh stroke.
+  by a render ledger. A local completion reserves its stroke identity before
+  Ink is notified, preventing a synchronous callback from deleting the fresh
+  stroke and preserving finish order when callbacks arrive out of order.
 - Recognition starts 420 ms after the most recently completed stroke. Every
   stroke resets the same quiet-period timer; there is no first-stroke special
   case that can repeatedly interrupt a multi-stroke character. New strokes,
@@ -61,17 +67,24 @@ matching must never block the UI thread.
   character and clears the canvas while keeping handwriting open. Long number
   keys select visible shortcuts. Delete undoes one stroke; when the canvas is
   empty, delete continues to the editor deletion pipeline.
-- Undo and clear are overlay controls at the tray's upper-right corner. The
-  rounded, visually raised theme-colored tray occupies the remaining input
-  window; recognition status never reserves a permanent row beneath it.
+- Undo and clear belong to the existing input-window title bar, outside the
+  writing tray, so controls never consume or cover drawing space.
+- The tray uses equal left and right margins and a static shadow drawable with
+  only a small downward offset. View elevation is deliberately avoided because
+  the Ink front-buffer surface must remain in a predictable layer hierarchy.
+  Recognition status never reserves a permanent row beneath the tray.
 
 ## Performance Constraints
 
 - Pointer move handling performs no repository access, coroutine launch, or
   model call. AndroidX Ink consumes unbuffered motion events through its
   low-latency renderer and is eagerly initialized before the first stroke.
-- The renderer retains finished stroke geometry and reconciles append, undo,
-  and clear by stroke identity. Recognition state changes do not rebuild paths.
+  `MotionEventPredictor` supplies display-only predicted samples while
+  recognition records actual events exclusively.
+- The front buffer owns only the active stroke. Finished Ink strokes move to a
+  stable normal view layer immediately, avoiding both front-buffer growth and
+  visible retract/reappear handoffs. Append, undo, and clear reconcile by
+  stroke identity; recognition state changes do not rebuild geometry.
 - The bundled repository is compact binary data and is parsed once outside the
   first-stroke render path.
 - Offline matching runs on `Dispatchers.Default`, reuses dynamic-programming
