@@ -17,7 +17,7 @@
 ## 实际界面
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/3ea558d4-c52d-4ba7-82c1-24b43b08f855" width="420" alt="实际输入界面截图：记事应用中输入 hao，候选气泡同时显示拼音筛选 gan、gao、han、hao 等，以及汉字和 Emoji 候选；底部是输入法工具栏。">
+  <img src="./assets/readme/latest-input-ui.png" width="420" alt="最新版实际输入界面截图：浅色记事应用中通过物理九键输入 hao，悬浮候选气泡显示拼音筛选和十个带数字序号的汉字候选，底部显示可配置工具栏、输入方案与退格回车按钮。">
 </p>
 
 ## 核心能力
