@@ -12,6 +12,7 @@ Supported T9 mechanisms:
 - English: multi-tap and predictive Smart English with next-word prediction.
 - Number mode: digits, common operators, and simple expression results.
 - Shared physical selection mode for cursor selection and edit actions.
+- Auxiliary Chinese handwriting through a transient drawing surface.
 
 Rime supplies Chinese engine candidates. `rime-ice-t9-phone` is the maintained
 configuration companion and must provide `t9`, `t9_stroke`, and `t9_zhuyin`.
@@ -159,6 +160,28 @@ selection prefers declared voice subtypes and conservative voice-service
 identity hints. Target resolution happens when invoked, and unavailable targets
 show feedback instead of failing silently. The full contract is recorded in
 `docs/adr/0002-voice-input-and-toolbar-contract.md`.
+
+## Handwriting
+
+`HandwritingWindow` is a transient auxiliary surface reached from the
+configurable toolbar. It replaces the keyboard area while active, uses a
+low-allocation variable-width Canvas brush with cached completed-stroke
+geometry, and discards uncommitted strokes as soon as the user leaves.
+
+`HandwritingCoordinator` owns stroke generations, recognizer selection,
+candidate focus, commit, undo, clear, and model state. The bundled
+`OfflineHanziRecognizer` provides a 9,507-character no-network floor;
+`MlKitHandwritingRecognizer` adds an optional runtime-downloaded enhanced model.
+The enhanced model is warmed before use and only one-character Han results are
+accepted. A character keeps the backend chosen on its first stroke so a
+completed model download cannot replace candidates halfway through input.
+
+Handwriting candidates join `T9CandidateUiSnapshotPipeline` through the
+`HANDWRITING` source. They reuse the existing bubble, paging, preview, shortcut,
+focus, and commit machinery. `PhysicalHandwritingKeyHandler` owns physical-key
+behavior while the surface is active, before ordinary Physical T9 routing.
+The complete decision is recorded in
+`docs/adr/0003-transient-dual-backend-handwriting.md`.
 
 ## Startup And Performance
 
