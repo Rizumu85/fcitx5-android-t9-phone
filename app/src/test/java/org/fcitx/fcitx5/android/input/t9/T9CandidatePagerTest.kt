@@ -192,6 +192,27 @@ class T9CandidatePagerTest {
         assertTrue(first.hasNext)
     }
 
+    @Test
+    fun pinsSemanticActionToEndOfFirstPageWithoutBreakingOriginalIndices() {
+        val pager = T9CandidatePager()
+        val candidates = listOf("，", "。", "？", "！", "、", "：", "；", "…", "·", "“", "↵")
+            .mapIndexed { index, text -> IndexedValue(index, candidate(text)) }
+        pager.update(
+            signature = "punctuation",
+            candidates = candidates,
+            characterBudget = 10,
+            pinnedFirstPageTailOriginalIndex = 10
+        )
+
+        val first = pager.currentPage()!!
+        assertEquals(listOf("，", "。", "？", "！", "、", "：", "；", "…", "·", "↵"), first.candidates.map { it.value.text })
+        assertArrayEquals(intArrayOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 10), first.originalIndices)
+
+        val second = pager.offset(1)!!
+        assertEquals(listOf("“"), second.candidates.map { it.value.text })
+        assertArrayEquals(intArrayOf(9), second.originalIndices)
+    }
+
     private fun candidate(text: String): FcitxEvent.Candidate =
         FcitxEvent.Candidate(label = "", text = text, comment = "")
 

@@ -18,8 +18,12 @@ class T9PunctuationSession(
         "{", "}", "<", ">", "_", "+", "=", "*", "&", "#", "%", "$", "~", "`", "\\",
         "|", "^"
     ),
-    newlineLabel: String? = null
+    includeNewline: Boolean = false
 ) {
+    companion object {
+        const val NewlineSymbol = "↵"
+    }
+
     enum class Set {
         CHINESE,
         ENGLISH
@@ -39,7 +43,8 @@ class T9PunctuationSession(
         val commitText: String = displayText
     )
 
-    private val newlineEntry = newlineLabel?.let { Entry(displayText = it, commitText = "\n") }
+    private val newlineEntry = includeNewline.takeIf { it }
+        ?.let { Entry(displayText = NewlineSymbol, commitText = "\n") }
 
     private var state = State()
 
@@ -122,7 +127,8 @@ class T9PunctuationSession(
         Set.CHINESE -> chinesePunctuation
         Set.ENGLISH -> englishPunctuation
         }.map(::Entry)
-        // A manual line break must remain available even when Return is configured as Send.
-        return newlineEntry?.let { listOf(it) + punctuation } ?: punctuation
+        // The pager pins this semantic action to the first page tail without changing punctuation
+        // ordering or making a word-like label wider than the universal return symbol.
+        return newlineEntry?.let { punctuation + it } ?: punctuation
     }
 }

@@ -158,11 +158,16 @@ class T9CandidateSourceSessions(
 
     fun buildPendingPunctuationPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates {
         val signature = T9CandidateSnapshots.pagerContent(data, characterBudget(), widthBudget())
+        val indexedCandidates = data.candidates.withIndex().toList()
+        val newlineIndex = indexedCandidates
+            .firstOrNull { it.value.text == T9PunctuationSession.NewlineSymbol }
+            ?.index
         pendingPunctuationPager.update(
             signature,
-            data.candidates.withIndex().toList(),
+            indexedCandidates,
             characterBudget(),
-            widthBudget()
+            widthBudget(),
+            pinnedFirstPageTailOriginalIndex = newlineIndex
         )
         val selectedIndex = data.cursorIndex.coerceIn(data.candidates.indices)
         val page = pendingPunctuationPager.selectPageContainingOriginalIndex(selectedIndex)

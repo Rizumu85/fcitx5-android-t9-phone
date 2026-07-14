@@ -41,15 +41,15 @@ class T9PunctuationSessionTest {
     }
 
     @Test
-    fun newlineUsesVisibleLabelButCommitsLineBreak() {
+    fun newlineUsesReturnSymbolButCommitsLineBreak() {
         val session = T9PunctuationSession(
             chinesePunctuation = listOf("，"),
             englishPunctuation = listOf("!"),
-            newlineLabel = "换行"
+            includeNewline = true
         )
 
-        assertEquals("换行", session.showChineseCandidates())
-        assertEquals("换行", session.paged()?.candidates?.first()?.text)
+        assertEquals("，", session.showChineseCandidates())
+        assertEquals(T9PunctuationSession.NewlineSymbol, session.selectCandidate(1))
         assertEquals("\n", session.commit())
     }
 

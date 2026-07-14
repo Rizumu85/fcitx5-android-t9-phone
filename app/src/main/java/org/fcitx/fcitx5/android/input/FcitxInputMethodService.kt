@@ -1768,7 +1768,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
     private val t9PunctuationCoordinator: T9PunctuationCoordinator by lazy {
         T9PunctuationCoordinator(
-            session = T9PunctuationSession(newlineLabel = getString(R.string.newline)),
+            session = T9PunctuationSession(includeNewline = true),
             clearTransientInputUiState = ::clearTransientInputUiState,
             publishCandidateSource = { candidatesView?.refreshT9Ui() },
             cancelTimeout = {},

@@ -74,6 +74,7 @@ class T9CandidatePager {
     private var signature = ""
     private var budget = 0
     private var widthSignature = ""
+    private var pinnedFirstPageTailOriginalIndex: Int? = null
     private var pages: List<List<IndexedValue<FcitxEvent.Candidate>>> = emptyList()
 
     var pageIndex = 0
@@ -89,6 +90,7 @@ class T9CandidatePager {
         signature = ""
         budget = 0
         widthSignature = ""
+        pinnedFirstPageTailOriginalIndex = null
         pages = emptyList()
         pageIndex = 0
         candidates = emptyList()
@@ -98,20 +100,28 @@ class T9CandidatePager {
         signature: String,
         candidates: List<IndexedValue<FcitxEvent.Candidate>>,
         characterBudget: Int,
-        widthBudget: T9CandidateWidthBudget? = null
+        widthBudget: T9CandidateWidthBudget? = null,
+        pinnedFirstPageTailOriginalIndex: Int? = null
     ) {
         val normalizedBudget = T9CandidateBudget.normalizedBudget(characterBudget)
         val normalizedWidthSignature = widthBudget?.signature.orEmpty()
         if (
             this.signature == signature &&
             budget == normalizedBudget &&
-            widthSignature == normalizedWidthSignature
+            widthSignature == normalizedWidthSignature &&
+            this.pinnedFirstPageTailOriginalIndex == pinnedFirstPageTailOriginalIndex
         ) return
         this.signature = signature
         this.budget = normalizedBudget
         this.widthSignature = normalizedWidthSignature
+        this.pinnedFirstPageTailOriginalIndex = pinnedFirstPageTailOriginalIndex
         this.candidates = candidates
-        pages = buildPages(candidates, normalizedBudget, widthBudget)
+        pages = buildPages(
+            candidates,
+            normalizedBudget,
+            widthBudget,
+            pinnedFirstPageTailOriginalIndex
+        )
         pageIndex = 0
     }
 
@@ -146,9 +156,35 @@ class T9CandidatePager {
     private fun buildPages(
         candidates: List<IndexedValue<FcitxEvent.Candidate>>,
         budget: Int,
-        widthBudget: T9CandidateWidthBudget?
+        widthBudget: T9CandidateWidthBudget?,
+        pinnedFirstPageTailOriginalIndex: Int?
     ): List<List<IndexedValue<FcitxEvent.Candidate>>> {
         if (candidates.isEmpty()) return emptyList()
+        val pinned = candidates.firstOrNull { it.index == pinnedFirstPageTailOriginalIndex }
+        val ordinary = if (pinned == null) candidates else candidates.filterNot { it === pinned }
+        val pages = paginate(ordinary, budget, widthBudget).toMutableList()
+        if (pinned == null) return pages
+
+        if (pages.isEmpty()) pages.add(mutableListOf())
+        val first = pages.first()
+        val displaced = mutableListOf<IndexedValue<FcitxEvent.Candidate>>()
+        while (first.isNotEmpty() && !pageFits(first + pinned, budget, widthBudget)) {
+            displaced.add(0, first.removeAt(first.lastIndex))
+        }
+        first += pinned
+        if (displaced.isNotEmpty()) {
+            val remainder = displaced + pages.drop(1).flatten()
+            while (pages.size > 1) pages.removeAt(pages.lastIndex)
+            pages.addAll(paginate(remainder, budget, widthBudget))
+        }
+        return pages
+    }
+
+    private fun paginate(
+        candidates: List<IndexedValue<FcitxEvent.Candidate>>,
+        budget: Int,
+        widthBudget: T9CandidateWidthBudget?
+    ): List<MutableList<IndexedValue<FcitxEvent.Candidate>>> {
         val pages = mutableListOf<MutableList<IndexedValue<FcitxEvent.Candidate>>>()
         var current = mutableListOf<IndexedValue<FcitxEvent.Candidate>>()
         var used = 0
@@ -179,5 +215,16 @@ class T9CandidatePager {
             pages += current
         }
         return pages
+    }
+
+    private fun pageFits(
+        candidates: List<IndexedValue<FcitxEvent.Candidate>>,
+        budget: Int,
+        widthBudget: T9CandidateWidthBudget?
+    ): Boolean {
+        if (candidates.size > T9CandidateBudget.MAX_CANDIDATES_PER_PAGE) return false
+        if (candidates.sumOf { T9CandidateBudget.candidateCost(it.value.text) } > budget) return false
+        return widthBudget == null ||
+            candidates.sumOf { widthBudget.candidateWidthPx(it.value) } <= widthBudget.maxWidthPx
     }
 }
