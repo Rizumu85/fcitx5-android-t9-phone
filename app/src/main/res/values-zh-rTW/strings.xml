@@ -315,6 +315,17 @@
     <string name="enter_key_sends_messages">Enter 鍵傳送訊息</string>
     <string name="enter_key_sends_messages_summary">支援部分聊天和留言輸入框；需要換行時可使用符號第一頁的「換行」</string>
     <string name="newline">換行</string>
+    <string name="check_for_updates">檢查更新</string>
+    <string name="check_for_updates_summary">目前檢查應用程式版本，之後也會在同一處管理 Rime 詞庫更新</string>
+    <string name="checking_for_updates">正在檢查…</string>
+    <string name="update_available">發現新版本 %1$s</string>
+    <string name="update_available_summary">前往 Release 頁面下載適合裝置的應用程式安裝包；對應的 Rime 安裝包也列在同一版本中。</string>
+    <string name="view_update">查看更新</string>
+    <string name="download_update">下載更新</string>
+    <string name="no_update_available">已是最新版本</string>
+    <string name="no_update_available_summary">目前使用的是最新應用程式版本。</string>
+    <string name="update_check_failed">檢查更新失敗</string>
+    <string name="update_check_network_error">請檢查網路連線後重試。自動檢查遇到網路問題時不會顯示提示。</string>
     <string name="clipboard_return_after_paste">貼上後返回</string>
     <string name="theme_message_follow_system_day_night_mode_enabled">已設定「依據系統設定主題色調」，無法手動切換主題。</string>
     <string name="disable_it">停用此項</string>

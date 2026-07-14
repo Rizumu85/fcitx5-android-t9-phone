@@ -175,6 +175,12 @@ start.
 Quick Settings renders from `FcitxCachedState.statusAreaActions` before attach;
 opening the window never waits for a new serialized engine query.
 
+Settings entry uses a persisted 24-hour gate before querying the latest GitHub
+release. Automatic network failures are silent and still consume the gate;
+manual checks bypass it and report failures. The parsed release separates app
+and Rime assets so both can share one update center when Rime installation is
+added.
+
 `DataInstallationState` and `DataInstallationStateCodec` provide the bounded,
 atomic native-data fast path. Any version, descriptor, plugin, checksum, or
 corruption mismatch falls back to a complete installation; there is no partial

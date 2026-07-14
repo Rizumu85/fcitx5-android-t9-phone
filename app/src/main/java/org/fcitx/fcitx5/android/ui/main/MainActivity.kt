@@ -21,6 +21,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.forEach
 import androidx.core.view.updateLayoutParams
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.fragment.NavHostFragment
@@ -30,6 +31,9 @@ import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.databinding.ActivityMainBinding
 import org.fcitx.fcitx5.android.ui.main.settings.SettingsRoute
 import org.fcitx.fcitx5.android.ui.setup.SetupActivity
+import org.fcitx.fcitx5.android.update.AutomaticUpdateCheckGate
+import org.fcitx.fcitx5.android.update.UpdateCheckUi
+import org.fcitx.fcitx5.android.update.UpdateChecker
 import org.fcitx.fcitx5.android.utils.Const
 import org.fcitx.fcitx5.android.utils.item
 import org.fcitx.fcitx5.android.utils.navigateWithAnim
@@ -38,6 +42,7 @@ import org.fcitx.fcitx5.android.utils.startActivity
 import splitties.dimensions.dp
 import splitties.resources.styledColor
 import splitties.views.topPadding
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -94,6 +99,22 @@ class MainActivity : AppCompatActivity() {
         }
         processIntent(intent)
         checkNotificationPermission()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        checkForUpdatesAutomatically()
+    }
+
+    private fun checkForUpdatesAutomatically() {
+        if (!AutomaticUpdateCheckGate(this).tryAcquire()) return
+        lifecycleScope.launch {
+            // Automatic checks stay silent unless an update is actually available.
+            val result = UpdateChecker().check()
+            if (result is UpdateChecker.Result.Available && !isFinishing) {
+                UpdateCheckUi.showAvailable(this@MainActivity, result.release)
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {

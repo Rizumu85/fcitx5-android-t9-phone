@@ -7,17 +7,24 @@ package org.fcitx.fcitx5.android.ui.main
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import androidx.lifecycle.lifecycleScope
+import androidx.preference.Preference
 import org.fcitx.fcitx5.android.BuildConfig
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.ui.common.PaddingPreferenceFragment
 import org.fcitx.fcitx5.android.ui.main.settings.SettingsRoute
+import org.fcitx.fcitx5.android.update.UpdateCheckUi
+import org.fcitx.fcitx5.android.update.UpdateChecker
 import org.fcitx.fcitx5.android.utils.Const
 import org.fcitx.fcitx5.android.utils.addCategory
 import org.fcitx.fcitx5.android.utils.addPreference
 import org.fcitx.fcitx5.android.utils.formatDateTime
 import org.fcitx.fcitx5.android.utils.navigateWithAnim
+import kotlinx.coroutines.launch
 
 class AboutFragment : PaddingPreferenceFragment() {
+
+    private lateinit var checkUpdatePreference: Preference
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         preferenceScreen = preferenceManager.createPreferenceScreen(requireContext()).apply {
@@ -39,6 +46,16 @@ class AboutFragment : PaddingPreferenceFragment() {
             addCategory(R.string.version) {
                 isIconSpaceReserved = false
                 addPreference(R.string.current_version, Const.versionName)
+                checkUpdatePreference = Preference(context).apply {
+                    isIconSpaceReserved = false
+                    setTitle(R.string.check_for_updates)
+                    setSummary(R.string.check_for_updates_summary)
+                    setOnPreferenceClickListener {
+                        checkForUpdates()
+                        true
+                    }
+                }
+                addPreference(checkUpdatePreference)
                 addPreference(R.string.build_git_hash, BuildConfig.BUILD_GIT_HASH) {
                     val commit = BuildConfig.BUILD_GIT_HASH.substringBefore('-')
                     val uri = Uri.parse("${Const.githubRepo}/commit/${commit}")
@@ -46,6 +63,23 @@ class AboutFragment : PaddingPreferenceFragment() {
                 }
                 addPreference(R.string.build_time, formatDateTime(BuildConfig.BUILD_TIME))
             }
+        }
+    }
+
+    private fun checkForUpdates() {
+        checkUpdatePreference.isEnabled = false
+        checkUpdatePreference.setSummary(R.string.checking_for_updates)
+        lifecycleScope.launch {
+            when (val result = UpdateChecker().check()) {
+                is UpdateChecker.Result.Available ->
+                    UpdateCheckUi.showAvailable(requireContext(), result.release)
+                UpdateChecker.Result.UpToDate ->
+                    UpdateCheckUi.showUpToDate(requireContext())
+                is UpdateChecker.Result.Failed ->
+                    UpdateCheckUi.showFailure(requireContext())
+            }
+            checkUpdatePreference.isEnabled = true
+            checkUpdatePreference.setSummary(R.string.check_for_updates_summary)
         }
     }
 }
