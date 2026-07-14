@@ -111,7 +111,10 @@ class MainActivity : AppCompatActivity() {
         if (!AutomaticUpdateCheckGate(this).tryAcquire()) return
         lifecycleScope.launch {
             // Automatic checks stay silent unless an update is actually available.
-            val result = UpdateChecker(InstalledUpdateVersionsResolver.resolve(this@MainActivity)).check()
+            val result = UpdateChecker(
+                InstalledUpdateVersionsResolver.resolve(this@MainActivity),
+                InstalledUpdateVersionsResolver.supportedComponents()
+            ).check()
             if (result is UpdateChecker.Result.Available && !isFinishing) {
                 UpdateCheckUi.showAvailable(this@MainActivity, result)
             }

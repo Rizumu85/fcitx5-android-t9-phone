@@ -72,7 +72,10 @@ class AboutFragment : PaddingPreferenceFragment() {
         checkUpdatePreference.setSummary(R.string.checking_for_updates)
         lifecycleScope.launch {
             val installedVersions = InstalledUpdateVersionsResolver.resolve(requireContext())
-            when (val result = UpdateChecker(installedVersions).check()) {
+            when (val result = UpdateChecker(
+                installedVersions,
+                InstalledUpdateVersionsResolver.supportedComponents()
+            ).check()) {
                 is UpdateChecker.Result.Available ->
                     UpdateCheckUi.showAvailable(requireContext(), result)
                 UpdateChecker.Result.UpToDate ->

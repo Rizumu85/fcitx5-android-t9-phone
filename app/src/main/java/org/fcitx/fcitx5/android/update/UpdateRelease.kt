@@ -9,11 +9,17 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-data class UpdateRelease(
+enum class UpdateComponent {
+    APP,
+    RIME_PLUGIN,
+    RIME_CONFIG
+}
+
+data class UpdateArtifact(
+    val component: UpdateComponent,
     val version: String,
     val pageUrl: String,
-    val appAssets: List<Asset>,
-    val rimeAssets: List<Asset>
+    val assets: List<Asset>
 ) {
     data class Asset(
         val name: String,
@@ -21,29 +27,28 @@ data class UpdateRelease(
     )
 }
 
-enum class UpdateComponent {
-    APP,
-    RIME
-}
-
 data class InstalledUpdateVersions(
     val app: String,
-    val rime: String?
-)
+    val rimePlugin: String?,
+    val rimeConfig: String?
+) {
+    fun versionOf(component: UpdateComponent): String? = when (component) {
+        UpdateComponent.APP -> app
+        UpdateComponent.RIME_PLUGIN -> rimePlugin
+        UpdateComponent.RIME_CONFIG -> rimeConfig
+    }
+}
 
 object UpdatePlan {
-    fun availableComponents(
-        release: UpdateRelease,
-        installed: InstalledUpdateVersions
-    ): Set<UpdateComponent> = buildSet {
-        if (release.appAssets.isNotEmpty() && UpdateVersion.isNewer(release.version, installed.app)) {
-            add(UpdateComponent.APP)
-        }
-        if (release.rimeAssets.isNotEmpty() &&
-            (installed.rime == null || UpdateVersion.isNewer(release.version, installed.rime))
-        ) {
-            add(UpdateComponent.RIME)
-        }
+    fun availableArtifacts(
+        artifacts: List<UpdateArtifact>,
+        installed: InstalledUpdateVersions,
+        supportedComponents: Set<UpdateComponent> = UpdateComponent.entries.toSet()
+    ): List<UpdateArtifact> = artifacts.filter { artifact ->
+        artifact.component in supportedComponents &&
+            installed.versionOf(artifact.component)?.let { installedVersion ->
+                UpdateVersion.isNewer(artifact.version, installedVersion)
+            } != false
     }
 }
 
@@ -63,20 +68,40 @@ object UpdateReleaseParser {
         @SerialName("browser_download_url") val downloadUrl: String
     )
 
-    fun parse(payload: String): UpdateRelease {
+    fun parseAppRelease(payload: String): List<UpdateArtifact> {
         val release = json.decodeFromString<GithubRelease>(payload)
-        val assets = release.assets.map { UpdateRelease.Asset(it.name, it.downloadUrl) }
-        return UpdateRelease(
-            version = release.tagName.removePrefix("v"),
-            pageUrl = release.pageUrl,
-            appAssets = assets.filter { it.name.matches(APP_APK) },
-            rimeAssets = assets.filter { it.name.matches(RIME_APK) }
+        val assets = release.assets.map { UpdateArtifact.Asset(it.name, it.downloadUrl) }
+        val version = release.tagName.removePrefix("v")
+        return buildList {
+            assets.filter { it.name.matches(APP_APK) }.takeIf(List<*>::isNotEmpty)?.let {
+                add(UpdateArtifact(UpdateComponent.APP, version, release.pageUrl, it))
+            }
+            assets.filter { it.name.matches(RIME_PLUGIN_APK) }.takeIf(List<*>::isNotEmpty)?.let {
+                add(UpdateArtifact(UpdateComponent.RIME_PLUGIN, version, release.pageUrl, it))
+            }
+        }
+    }
+
+    fun parseRimeConfigRelease(payload: String): List<UpdateArtifact> {
+        val release = json.decodeFromString<GithubRelease>(payload)
+        val assets = release.assets
+            .filter { it.name == RIME_CONFIG_ARCHIVE }
+            .map { UpdateArtifact.Asset(it.name, it.downloadUrl) }
+        if (assets.isEmpty()) return emptyList()
+        return listOf(
+            UpdateArtifact(
+                component = UpdateComponent.RIME_CONFIG,
+                version = release.tagName.removePrefix("v"),
+                pageUrl = release.pageUrl,
+                assets = assets
+            )
         )
     }
 
     private val APP_APK = Regex("org\\.fcitx\\.fcitx5\\.android-[^-]+-.+-release\\.apk")
-    private val RIME_APK =
+    private val RIME_PLUGIN_APK =
         Regex("org\\.fcitx\\.fcitx5\\.android\\.plugin\\.rime-[^-]+-.+-release\\.apk")
+    private const val RIME_CONFIG_ARCHIVE = "rime-ice-t9-phone-main.zip"
 }
 
 object UpdateVersion {

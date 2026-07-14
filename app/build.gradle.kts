@@ -24,6 +24,7 @@ android {
         )
         buildConfigField("String", "PERFORMANCE_PLUGIN_PACKAGE", "\"\"")
         buildConfigField("String", "PERFORMANCE_RIME_SCHEMA", "\"\"")
+        buildConfigField("String", "RIME_CONFIG_BASELINE_VERSION", "\"3.0.0\"")
         manifestPlaceholders["pluginManifestAction"] =
             "org.fcitx.fcitx5.android.plugin.MANIFEST"
 

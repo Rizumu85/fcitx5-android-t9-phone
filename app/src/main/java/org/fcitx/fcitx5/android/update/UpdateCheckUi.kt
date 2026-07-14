@@ -8,30 +8,40 @@ package org.fcitx.fcitx5.android.update
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import org.fcitx.fcitx5.android.R
 
 object UpdateCheckUi {
     fun showAvailable(context: Context, result: UpdateChecker.Result.Available) {
-        val release = result.release
-        val components = result.components.toList().sortedBy(UpdateComponent::ordinal)
-        val labels = components.map { component ->
-            when (component) {
-                UpdateComponent.APP -> context.getString(R.string.update_app_component, release.version)
-                UpdateComponent.RIME -> context.getString(R.string.update_rime_component, release.version)
+        val artifacts = result.artifacts.sortedBy { it.component.ordinal }
+        val labels = artifacts.map { artifact ->
+            when (artifact.component) {
+                UpdateComponent.APP -> context.getString(
+                    R.string.download_app_update,
+                    artifact.version
+                )
+                UpdateComponent.RIME_PLUGIN -> context.getString(
+                    R.string.download_rime_plugin_update,
+                    artifact.version
+                )
+                UpdateComponent.RIME_CONFIG -> context.getString(
+                    R.string.download_rime_config_update,
+                    artifact.version
+                )
             }
         }.toTypedArray()
         AlertDialog.Builder(context)
-            .setTitle(context.getString(R.string.update_available, release.version))
+            .setTitle(R.string.update_available)
             .setItems(labels) { _, index ->
-                if (!UpdateDownloader.enqueue(context, release, components[index])) {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(release.pageUrl)))
+                val artifact = artifacts[index]
+                if (UpdateDownloader.enqueue(context, artifact)) {
+                    Toast.makeText(context, R.string.update_download_started, Toast.LENGTH_SHORT).show()
+                } else {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(artifact.pageUrl)))
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
-            .setNeutralButton(R.string.view_update) { _, _ ->
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(release.pageUrl)))
-            }
             .show()
     }
 

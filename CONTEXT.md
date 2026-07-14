@@ -176,10 +176,14 @@ Quick Settings renders from `FcitxCachedState.statusAreaActions` before attach;
 opening the window never waits for a new serialized engine query.
 
 Settings entry uses a persisted 24-hour gate before querying the latest GitHub
-release. Automatic network failures are silent and still consume the gate;
-manual checks bypass it and report failures. The parsed release separates app
-and Rime assets; version planning and ABI selection update either component
-from the same update dialog while keeping their installations independent.
+releases. Automatic network failures are silent and still consume the gate;
+manual checks bypass it and report failures. The update catalog treats the app,
+the ABI-specific Rime plugin APK, and the architecture-independent
+`rime-ice-t9-phone` configuration as three independently versioned artifacts.
+Release builds can download and install both APK components; debug builds only
+offer configuration updates because release APKs cannot replace debug package
+IDs. Configuration archives are overlaid without deleting user files while
+Fcitx is stopped, then their release version is recorded before Rime restarts.
 
 `DataInstallationState` and `DataInstallationStateCodec` provide the bounded,
 atomic native-data fast path. Any version, descriptor, plugin, checksum, or

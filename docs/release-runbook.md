@@ -57,7 +57,12 @@ Update all version-controlled version surfaces before building:
    - This prevents release APK names and runtime version strings from becoming
      `git describe` strings such as `vX.Y.Z-0-gabcdef`.
 
-3. In docs and release files:
+3. In `app/build.gradle.kts`:
+   - Set `RIME_CONFIG_BASELINE_VERSION` to the exact `rime-ice-t9-phone` release
+     distributed with this app version. The updater uses this only to recognize
+     configurations installed before version tracking existed.
+
+4. In docs and release files:
    - Create or update `release-notes-vX.Y.Z.md`.
    - Update the exact APK examples in Baidu readme files.
    - Update any versioned local staging folder path.
@@ -188,6 +193,7 @@ git push origin master --tags
 - [ ] Baidu root readme Markdown and text are updated.
 - [ ] `release-baidu/vX.Y.Z/` readme Markdown and text match the release.
 - [ ] `Versions.kt` and `gradle.properties` use the new version.
+- [ ] `RIME_CONFIG_BASELINE_VERSION` matches the documented Rime configuration tag.
 - [ ] Unit tests and `git diff --check` pass or known unrelated failures are documented.
 - [ ] Release APKs were built with signing properties, not debug tasks.
 - [ ] `apksigner verify` passes for all four distributed APKs.

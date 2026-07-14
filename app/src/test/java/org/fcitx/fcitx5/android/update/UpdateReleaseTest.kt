@@ -12,29 +12,32 @@ import org.junit.Test
 
 class UpdateReleaseTest {
     @Test
-    fun `release parser separates app and rime assets`() {
-        val release = UpdateReleaseParser.parse(
-            """
-            {
-              "tag_name": "v4.4.0",
-              "html_url": "https://example.com/release",
-              "assets": [
-                {
-                  "name": "org.fcitx.fcitx5.android-4.4.0-arm64-v8a-release.apk",
-                  "browser_download_url": "https://example.com/app.apk"
-                },
-                {
-                  "name": "org.fcitx.fcitx5.android.plugin.rime-4.4.0-arm64-v8a-release.apk",
-                  "browser_download_url": "https://example.com/rime.apk"
-                }
-              ]
-            }
-            """.trimIndent()
+    fun `app release parser creates independent app and plugin artifacts`() {
+        val artifacts = UpdateReleaseParser.parseAppRelease(
+            releaseJson(
+                version = "4.4.0",
+                assets = listOf(
+                    "org.fcitx.fcitx5.android-4.4.0-arm64-v8a-release.apk" to "app",
+                    "org.fcitx.fcitx5.android.plugin.rime-4.4.0-arm64-v8a-release.apk" to "plugin"
+                )
+            )
         )
 
-        assertEquals("4.4.0", release.version)
-        assertEquals(1, release.appAssets.size)
-        assertEquals(1, release.rimeAssets.size)
+        assertEquals(listOf(UpdateComponent.APP, UpdateComponent.RIME_PLUGIN), artifacts.map { it.component })
+        assertEquals(listOf("4.4.0", "4.4.0"), artifacts.map { it.version })
+    }
+
+    @Test
+    fun `rime config parser keeps its own release version`() {
+        val artifacts = UpdateReleaseParser.parseRimeConfigRelease(
+            releaseJson(
+                version = "3.1.0",
+                assets = listOf("rime-ice-t9-phone-main.zip" to "config")
+            )
+        )
+
+        assertEquals(UpdateComponent.RIME_CONFIG, artifacts.single().component)
+        assertEquals("3.1.0", artifacts.single().version)
     }
 
     @Test
@@ -56,42 +59,69 @@ class UpdateReleaseTest {
     }
 
     @Test
-    fun `app asset follows device abi preference`() {
-        val release = UpdateRelease(
-            version = "4.4.0",
-            pageUrl = "https://example.com",
-            appAssets = listOf(
-                UpdateRelease.Asset("app-4.4.0-armeabi-v7a-release.apk", "32"),
-                UpdateRelease.Asset("app-4.4.0-arm64-v8a-release.apk", "64")
-            ),
-            rimeAssets = emptyList()
+    fun `apk asset follows device abi preference while config is architecture independent`() {
+        val app = artifact(
+            UpdateComponent.APP,
+            "4.4.0",
+            "app-4.4.0-armeabi-v7a-release.apk" to "32",
+            "app-4.4.0-arm64-v8a-release.apk" to "64"
+        )
+        val config = artifact(
+            UpdateComponent.RIME_CONFIG,
+            "3.1.0",
+            "rime-ice-t9-phone-main.zip" to "config"
         )
 
-        assertEquals(
-            "64",
-            UpdateAssetSelector.asset(
-                release,
-                UpdateComponent.APP,
-                listOf("arm64-v8a", "armeabi-v7a")
-            )?.downloadUrl
-        )
+        assertEquals("64", UpdateAssetSelector.asset(app, listOf("arm64-v8a", "armeabi-v7a"))?.downloadUrl)
+        assertEquals("config", UpdateAssetSelector.asset(config, emptyList())?.downloadUrl)
     }
 
     @Test
-    fun `update plan includes rime independently from app`() {
-        val release = UpdateRelease(
-            version = "4.3.0",
-            pageUrl = "https://example.com",
-            appAssets = listOf(UpdateRelease.Asset("app.apk", "app")),
-            rimeAssets = listOf(UpdateRelease.Asset("rime.apk", "rime"))
+    fun `update plan compares each component version independently`() {
+        val artifacts = listOf(
+            artifact(UpdateComponent.APP, "4.3.0", "app.apk" to "app"),
+            artifact(UpdateComponent.RIME_PLUGIN, "4.3.0", "plugin.apk" to "plugin"),
+            artifact(UpdateComponent.RIME_CONFIG, "3.0.0", "config.zip" to "config")
         )
 
         assertEquals(
-            setOf(UpdateComponent.RIME),
-            UpdatePlan.availableComponents(
-                release,
-                InstalledUpdateVersions(app = "4.3.0", rime = "4.2.0")
+            listOf(UpdateComponent.RIME_PLUGIN),
+            UpdatePlan.availableArtifacts(
+                artifacts,
+                InstalledUpdateVersions(app = "4.3.0", rimePlugin = "4.2.0", rimeConfig = "3.0.0")
+            ).map { it.component }
+        )
+        assertEquals(
+            emptyList<UpdateArtifact>(),
+            UpdatePlan.availableArtifacts(
+                artifacts,
+                InstalledUpdateVersions(app = "4.3.0", rimePlugin = null, rimeConfig = "3.0.0"),
+                supportedComponents = setOf(UpdateComponent.RIME_CONFIG)
             )
         )
     }
+
+    private fun artifact(
+        component: UpdateComponent,
+        version: String,
+        vararg assets: Pair<String, String>
+    ) = UpdateArtifact(
+        component = component,
+        version = version,
+        pageUrl = "https://example.com/release",
+        assets = assets.map { UpdateArtifact.Asset(it.first, it.second) }
+    )
+
+    private fun releaseJson(version: String, assets: List<Pair<String, String>>): String =
+        """
+        {
+          "tag_name": "v$version",
+          "html_url": "https://example.com/release",
+          "assets": [
+            ${assets.joinToString(",") { (name, url) ->
+                """{"name":"$name","browser_download_url":"$url"}"""
+            }}
+          ]
+        }
+        """.trimIndent()
 }
