@@ -29,6 +29,8 @@ matching must never block the UI thread.
 - Google ML Kit Digital Ink Recognition is an optional enhanced backend. ML Kit
   owns its model download. Download failure leaves offline recognition active
   and exposes an explicit retry action; automatic failure never blocks input.
+  Input settings also expose download state and a manual download/retry action,
+  while model ownership remains independent from an active handwriting session.
 - A downloaded ML Kit model is warmed while the handwriting surface is idle and
   is marked ready only after initialization. ML Kit output is restricted to one
   Han character; an empty or failed enhanced result falls back to the bundled
@@ -36,18 +38,17 @@ matching must never block the UI thread.
 - The recognizer for one character is selected when its first stroke begins.
   A model that becomes ready halfway through that character is used only for
   the next character, preventing unexplained candidate replacement.
-- Completed strokes are copied into recognition data. The Canvas keeps a
-  separate display path, so brush smoothing and visual taper never alter the
-  geometry sent to either recognizer.
-- Recognition starts only after stroke completion. The first stroke uses a
-  short debounce for prompt feedback; later strokes use a slightly longer
-  continuation window to avoid relaying out the bubble between rapid strokes.
-  New strokes, undo, clear, commit, and window exit invalidate the previous
-  generation so stale results cannot publish.
-- Existing candidates remain visually stable while the next recognition is in
-  flight, but cannot be committed until the new generation publishes. This
-  avoids a disappear/reappear flash without allowing an obsolete character to
-  be selected.
+- Completed strokes are copied into recognition data. AndroidX Ink renders a
+  separate low-latency `pressurePen` path, so brush smoothing and pressure
+  response never alter the geometry sent to either recognizer.
+- Recognition starts 420 ms after the most recently completed stroke. Every
+  stroke resets the same quiet-period timer; there is no first-stroke special
+  case that can repeatedly interrupt a multi-stroke character. New strokes,
+  undo, clear, commit, and window exit invalidate the previous generation so
+  stale results cannot publish.
+- A stroke-set mutation immediately invalidates and hides published candidates.
+  A visible candidate must always be committable; the UI never leaves an old
+  bubble on screen while rejecting its tap during newer recognition.
 - Handwriting joins `T9CandidateUiSnapshotPipeline` as the explicit
   `HANDWRITING` source. Paging, original indices, focus, shortcut labels,
   preview, and commit use the existing candidate bubble and interaction
@@ -60,9 +61,10 @@ matching must never block the UI thread.
 ## Performance Constraints
 
 - Pointer move handling performs no repository access, coroutine launch, or
-  model call.
-- Completed-stroke brush widths are precomputed when the stroke set changes;
-  pointer frames only calculate geometry for the active stroke.
+  model call. AndroidX Ink consumes unbuffered motion events through its
+  low-latency renderer and is eagerly initialized before the first stroke.
+- The renderer retains finished stroke geometry and reconciles append, undo,
+  and clear by stroke identity. Recognition state changes do not rebuild paths.
 - The bundled repository is compact binary data and is parsed once outside the
   first-stroke render path.
 - Offline matching runs on `Dispatchers.Default`, reuses dynamic-programming

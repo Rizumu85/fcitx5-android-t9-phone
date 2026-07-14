@@ -18,3 +18,7 @@ source files are licensed under LGPL-3.0-or-later. A verbatim copy is in
 Google ML Kit Digital Ink Recognition is a separately distributed optional
 enhanced backend. Its language model is downloaded by ML Kit at runtime and is
 not bundled, mirrored, or repackaged by this project.
+
+AndroidX Ink provides the low-latency handwriting renderer and stock pressure
+pen brush. AndroidX is licensed under the Apache License 2.0; its dependency
+license is included in the app's generated third-party library notices.
