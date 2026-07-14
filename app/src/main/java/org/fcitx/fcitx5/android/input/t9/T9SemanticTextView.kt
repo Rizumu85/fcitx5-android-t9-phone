@@ -10,6 +10,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
+import android.os.Build
 import android.util.AttributeSet
 import android.widget.TextView
 import kotlin.math.ceil
@@ -79,7 +80,10 @@ class T9SemanticTextView @JvmOverloads constructor(
         symbolPaint.isAntiAlias = true
         symbolPaint.color = currentTextColor
         symbolPaint.style = Paint.Style.STROKE
-        symbolPaint.strokeWidth = max(MIN_STROKE_PX, em * STROKE_EM)
+        symbolPaint.strokeWidth = max(
+            MIN_STROKE_PX,
+            em * T9SemanticSymbolStyle.strokeEmForWeight(resolvedFontWeight())
+        )
         symbolPaint.strokeCap = Paint.Cap.ROUND
         symbolPaint.strokeJoin = Paint.Join.ROUND
         symbolPath.reset()
@@ -93,6 +97,24 @@ class T9SemanticTextView @JvmOverloads constructor(
         canvas.drawPath(symbolPath, symbolPaint)
     }
 
+    private fun resolvedFontWeight(): Int {
+        val declaredWeight = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            paint.typeface?.weight
+        } else {
+            null
+        }
+        val baseWeight = declaredWeight ?: if (paint.typeface?.isBold == true) {
+            T9SemanticSymbolStyle.BoldFontWeight
+        } else {
+            T9SemanticSymbolStyle.NormalFontWeight
+        }
+        return if (paint.isFakeBoldText) {
+            max(baseWeight, T9SemanticSymbolStyle.BoldFontWeight)
+        } else {
+            baseWeight
+        }
+    }
+
     companion object {
         fun handles(text: CharSequence): Boolean =
             text.toString() == T9PunctuationSession.NewlineSymbol
@@ -103,11 +125,12 @@ class T9SemanticTextView @JvmOverloads constructor(
         private const val ADVANCE_EM = 1.18f
         private const val GLYPH_WIDTH_EM = 0.88f
         private const val GLYPH_HEIGHT_EM = 0.82f
-        private const val STROKE_EM = 0.085f
         private const val MIN_STROKE_PX = 1.5f
         private const val SHAFT_Y_RATIO = 0.14f
         private const val ARROW_WING_X_RATIO = 0.24f
         private const val ARROW_WING_Y_RATIO = 0.22f
+        // Font files expose weight but not a reliable sharp-versus-rounded personality. A fixed,
+        // moderate bend remains legible beside both geometric and soft custom typefaces.
         private const val TURN_RADIUS_RATIO = 0.22f
     }
 }
