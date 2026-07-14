@@ -5,32 +5,20 @@
 
 package org.fcitx.fcitx5.android.input.handwriting
 
-import com.google.android.gms.tasks.Task
-import com.google.mlkit.common.model.DownloadConditions
-import com.google.mlkit.common.model.RemoteModelManager
 import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognition
-import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognitionModel
-import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognitionModelIdentifier
 import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognizer
 import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognizerOptions
 import com.google.mlkit.vision.digitalink.recognition.Ink
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
-class MlKitHandwritingRecognizer {
-    private val modelIdentifier = requireNotNull(
-        DigitalInkRecognitionModelIdentifier.fromLanguageTag(ModelLanguageTag)
-    )
-    private val model = DigitalInkRecognitionModel.builder(modelIdentifier).build()
-    private val modelManager = RemoteModelManager.getInstance()
+class MlKitHandwritingRecognizer(
+    private val modelManager: MlKitHandwritingModelManager = MlKitHandwritingModelManager()
+) {
+    private val model = modelManager.model
     private var recognizer: DigitalInkRecognizer? = null
 
-    suspend fun isDownloaded(): Boolean = modelManager.isModelDownloaded(model).await()
+    suspend fun isDownloaded(): Boolean = modelManager.isDownloaded()
 
-    suspend fun download() {
-        modelManager.download(model, DownloadConditions.Builder().build()).await()
-    }
+    suspend fun download() = modelManager.download()
 
     suspend fun warmup() {
         recognizeInk(
@@ -85,17 +73,4 @@ class MlKitHandwritingRecognizer {
         recognizer = null
     }
 
-    private suspend fun <T> Task<T>.await(): T = suspendCancellableCoroutine { continuation ->
-        addOnSuccessListener { value ->
-            if (continuation.isActive) continuation.resume(value)
-        }
-        addOnFailureListener { error ->
-            if (continuation.isActive) continuation.resumeWithException(error)
-        }
-        addOnCanceledListener { continuation.cancel() }
-    }
-
-    private companion object {
-        const val ModelLanguageTag = "zh-Hani"
-    }
 }

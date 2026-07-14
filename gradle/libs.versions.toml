@@ -13,6 +13,7 @@ splitties = "3.0.0"
 aboutlibraries = "14.0.0-b02"
 arrow = "2.2.2"
 mlkitDigitalInk = "19.0.0"
+androidxInk = "1.0.0"
 
 [libraries]
 android-gradlePlugin = { group = "com.android.tools.build", name = "gradle", version.ref = "androidGradlePlugin" }
@@ -70,6 +71,9 @@ androidx-lifecycle-testing = { module = "androidx.lifecycle:lifecycle-runtime-te
 kotlinpoet-ksp = { module = "com.squareup:kotlinpoet-ksp", version = "2.2.0" }
 ksp = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
 mlkit-digital-ink = { module = "com.google.mlkit:digital-ink-recognition", version.ref = "mlkitDigitalInk" }
+androidx-ink-authoring = { module = "androidx.ink:ink-authoring", version.ref = "androidxInk" }
+androidx-ink-brush = { module = "androidx.ink:ink-brush", version.ref = "androidxInk" }
+androidx-ink-strokes = { module = "androidx.ink:ink-strokes", version.ref = "androidxInk" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }

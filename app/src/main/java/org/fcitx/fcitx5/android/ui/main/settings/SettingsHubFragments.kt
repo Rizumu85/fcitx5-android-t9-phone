@@ -9,10 +9,15 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.lifecycle.lifecycleScope
+import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceScreen
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
+import org.fcitx.fcitx5.android.input.handwriting.MlKitHandwritingModelManager
 import org.fcitx.fcitx5.android.ui.common.PaddingPreferenceFragment
 import org.fcitx.fcitx5.android.ui.main.modified.MySwitchPreference
 import org.fcitx.fcitx5.android.utils.addCategory
@@ -38,7 +43,13 @@ abstract class SettingsHubFragment : PaddingPreferenceFragment() {
 }
 
 class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
+    private enum class HandwritingModelUiState { CHECKING, AVAILABLE, MISSING, DOWNLOADING, FAILED }
+
     private val prefs = AppPrefs.getInstance()
+    private val handwritingModelManager = MlKitHandwritingModelManager()
+    private var handwritingModelPreference: Preference? = null
+    private var handwritingModelJob: Job? = null
+    private var handwritingModelUiState = HandwritingModelUiState.CHECKING
 
     override fun groups() = listOf(
         Group(
@@ -58,6 +69,7 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
             prefs.keyboard,
             setOf(prefs.keyboard.smartEnglishT9.key)
         ),
+        Group(R.string.handwriting_input, prefs.keyboard, emptySet()),
         Group(
             R.string.voice_input,
             prefs.keyboard,
@@ -114,6 +126,77 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
                     }
                 }
             )
+        }
+        screen.findPreference<PreferenceCategory>(
+            groupKey(R.string.handwriting_input)
+        )?.apply {
+            addPreference(
+                Preference(screen.context).apply {
+                    setTitle(R.string.handwriting_enhanced_model)
+                    isIconSpaceReserved = false
+                    setOnPreferenceClickListener {
+                        if (
+                            handwritingModelJob?.isActive != true &&
+                            (handwritingModelUiState == HandwritingModelUiState.MISSING ||
+                                handwritingModelUiState == HandwritingModelUiState.FAILED)
+                        ) {
+                            downloadHandwritingModel()
+                        }
+                        true
+                    }
+                    handwritingModelPreference = this
+                }
+            )
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshHandwritingModelState()
+    }
+
+    private fun refreshHandwritingModelState() {
+        if (handwritingModelPreference == null || handwritingModelJob?.isActive == true) return
+        renderHandwritingModelState(HandwritingModelUiState.CHECKING)
+        handwritingModelJob = lifecycleScope.launch {
+            val state = runCatching { handwritingModelManager.isDownloaded() }
+                .fold(
+                    onSuccess = { downloaded ->
+                        if (downloaded) HandwritingModelUiState.AVAILABLE
+                        else HandwritingModelUiState.MISSING
+                    },
+                    onFailure = { HandwritingModelUiState.FAILED }
+                )
+            renderHandwritingModelState(state)
+        }
+    }
+
+    private fun downloadHandwritingModel() {
+        renderHandwritingModelState(HandwritingModelUiState.DOWNLOADING)
+        handwritingModelJob = lifecycleScope.launch {
+            val state = runCatching { handwritingModelManager.download() }
+                .fold(
+                    onSuccess = { HandwritingModelUiState.AVAILABLE },
+                    onFailure = { HandwritingModelUiState.FAILED }
+                )
+            renderHandwritingModelState(state)
+        }
+    }
+
+    private fun renderHandwritingModelState(state: HandwritingModelUiState) {
+        handwritingModelUiState = state
+        handwritingModelPreference?.apply {
+            summary = getString(
+                when (state) {
+                    HandwritingModelUiState.CHECKING -> R.string.handwriting_model_checking
+                    HandwritingModelUiState.AVAILABLE -> R.string.handwriting_model_available
+                    HandwritingModelUiState.MISSING -> R.string.handwriting_model_missing
+                    HandwritingModelUiState.DOWNLOADING -> R.string.handwriting_model_downloading
+                    HandwritingModelUiState.FAILED -> R.string.handwriting_model_failed
+                }
+            )
+            isEnabled = state != HandwritingModelUiState.CHECKING &&
+                state != HandwritingModelUiState.DOWNLOADING
         }
     }
 }

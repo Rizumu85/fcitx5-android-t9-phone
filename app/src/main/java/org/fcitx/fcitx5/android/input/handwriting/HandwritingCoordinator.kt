@@ -86,6 +86,7 @@ class HandwritingCoordinator(
             activeBackend = if (enhancedReady) Backend.ENHANCED else Backend.OFFLINE
         }
         strokes = strokes + HandwritingStroke(stroke.points.toList())
+        invalidatePublishedCandidates()
         recognizing = true
         noMatch = false
         revision++
@@ -98,6 +99,7 @@ class HandwritingCoordinator(
         strokes = strokes.dropLast(1)
         generation++
         recognitionJob?.cancel()
+        invalidatePublishedCandidates()
         recognizing = strokes.isNotEmpty()
         noMatch = false
         revision++
@@ -227,16 +229,9 @@ class HandwritingCoordinator(
         val requestBackend = activeBackend ?: Backend.OFFLINE
         recognitionJob?.cancel()
         recognitionJob = scope.launch {
-            // The first stroke deserves immediate feedback, while later strokes are usually part
-            // of the same Hanzi. A slightly longer continuation window avoids reranking and
-            // relaying out the candidate bubble between naturally rapid strokes.
-            delay(
-                if (requestStrokes.size == 1) {
-                    FirstStrokeDebounceMillis
-                } else {
-                    ContinuationStrokeDebounceMillis
-                }
-            )
+            // Recognition begins after one stable quiet period. A short first-stroke special case
+            // repeatedly interrupted multi-stroke characters and made the floating bubble flicker.
+            delay(RecognitionIdleMillis)
             val started = SystemClock.elapsedRealtimeNanos()
             val batch = runCatching {
                 when (requestBackend) {
@@ -306,6 +301,15 @@ class HandwritingCoordinator(
         if (publish && active) publishState()
     }
 
+    private fun invalidatePublishedCandidates() {
+        if (candidates.isEmpty()) return
+        // Any stroke-set mutation changes the character's identity. Keeping the old bubble
+        // interactive creates a visible-but-uncommittable state while recognition catches up.
+        candidates = emptyList()
+        selectedIndex = 0
+        hideCandidates()
+    }
+
     private fun publishState() {
         stateListener?.invoke(
             HandwritingViewState(
@@ -332,8 +336,7 @@ class HandwritingCoordinator(
     }
 
     private companion object {
-        const val FirstStrokeDebounceMillis = 55L
-        const val ContinuationStrokeDebounceMillis = 120L
+        const val RecognitionIdleMillis = 420L
         const val CandidateLimit = 30
     }
 }
