@@ -12,10 +12,20 @@
 
 ## 安装包
 
-请根据手机架构同时安装输入法本体和 Rime 插件：
+这边总共有 4 个安装包，分为输入法本体和 Rime 插件，以及 32 位版本和 64 位版本。
+请先查找自己的手机型号，确认手机是 32 位还是 64 位：
 
-- 64 位：`org.fcitx.fcitx5.android-4.4.0-arm64-v8a-release.apk` 与 `org.fcitx.fcitx5.android.plugin.rime-4.4.0-arm64-v8a-release.apk`
-- 32 位：`org.fcitx.fcitx5.android-4.4.0-armeabi-v7a-release.apk` 与 `org.fcitx.fcitx5.android.plugin.rime-4.4.0-armeabi-v7a-release.apk`
+- 32 位手机下载 `armeabi-v7a` 版本。
+- 64 位手机下载 `arm64-v8a` 版本。
+
+根据自己的手机架构，输入法本体和 Rime 插件两个 APK 都需要下载并安装。
+
+例如多亲 F22 Pro 是 64 位手机，需要安装：
+
+- `org.fcitx.fcitx5.android-4.4.0-arm64-v8a-release.apk`
+- `org.fcitx.fcitx5.android.plugin.rime-4.4.0-arm64-v8a-release.apk`
+
+安装完成后，请回到项目主页继续阅读首次安装教程。
 
 ## Rime 版本对应关系
 
