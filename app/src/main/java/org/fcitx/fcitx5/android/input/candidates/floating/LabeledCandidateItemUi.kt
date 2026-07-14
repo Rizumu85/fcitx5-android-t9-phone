@@ -18,7 +18,7 @@ import androidx.core.text.buildSpannedString
 import androidx.core.text.color
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.data.theme.Theme
-import org.fcitx.fcitx5.android.input.t9.T9SemanticTextStyler
+import org.fcitx.fcitx5.android.input.t9.T9SemanticTextView
 import splitties.views.dsl.core.Ui
 import kotlin.math.roundToInt
 
@@ -41,7 +41,7 @@ class LabeledCandidateItemUi(
     private var lastUsesShortcutLabel = false
     private var lastShortcutEdgeAlignedEnd = false
 
-    private val candidateText = TextView(ctx).apply {
+    private val candidateText = T9SemanticTextView(ctx).apply {
         setupTextView(this)
         isSingleLine = true
         gravity = Gravity.CENTER
@@ -155,7 +155,7 @@ class LabeledCandidateItemUi(
         val altFg = if (active) theme.genericActiveForegroundColor else theme.candidateCommentColor
         if (t9InputModeEnabled && shortcutLabel != null) {
             candidateText.setTextColor(fg)
-            candidateText.text = T9SemanticTextStyler.decorate(candidate.text)
+            candidateText.text = candidate.text
             shortcutText.setTextColor(if (active) theme.genericActiveForegroundColor else theme.candidateCommentColor)
             shortcutText.text = shortcutLabel
             shortcutText.visibility = View.VISIBLE

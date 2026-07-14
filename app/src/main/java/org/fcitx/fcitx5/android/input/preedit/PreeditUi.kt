@@ -28,7 +28,7 @@ open class PreeditUi(
     override val ctx: Context,
     private val theme: Theme,
     private val setupTextView: (TextView.() -> Unit)? = null,
-    private val decorateText: (CharSequence) -> CharSequence = { it }
+    private val textViewFactory: ((Context) -> TextView)? = null
 ) : Ui {
 
     class CursorSpan(ctx: Context, @ColorInt color: Int, metrics: Paint.FontMetricsInt) :
@@ -45,10 +45,13 @@ open class PreeditUi(
         CursorSpan(ctx, theme.keyTextColor, upView.paint.fontMetricsInt)
     }
 
-    private fun createTextView() = textView {
-        setTextColor(theme.keyTextColor)
-        textSize = 16f
-        setupTextView?.invoke(this)
+    private fun createTextView(): TextView {
+        val configure: TextView.() -> Unit = {
+            setTextColor(theme.keyTextColor)
+            textSize = 16f
+            setupTextView?.invoke(this)
+        }
+        return textViewFactory?.invoke(ctx)?.apply(configure) ?: textView { configure(this) }
     }
 
     private val upView = createTextView()
@@ -64,7 +67,7 @@ open class PreeditUi(
     }
 
     private fun updateTextView(view: TextView, str: CharSequence, visible: Boolean) {
-        view.text = decorateText(str)
+        view.text = str
         view.visibility = if (visible) View.VISIBLE else View.GONE
     }
 

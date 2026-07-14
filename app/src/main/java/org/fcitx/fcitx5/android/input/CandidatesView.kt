@@ -50,7 +50,7 @@ import org.fcitx.fcitx5.android.input.t9.T9PinyinChipAdapter
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowSurfacePlanner
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowWindow
 import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
-import org.fcitx.fcitx5.android.input.t9.T9SemanticTextStyler
+import org.fcitx.fcitx5.android.input.t9.T9SemanticTextView
 import org.fcitx.fcitx5.android.input.t9.T9ShortcutCandidateLayout
 import org.fcitx.fcitx5.android.input.t9.T9CandidateRefreshGeneration
 import splitties.dimensions.dp
@@ -205,9 +205,11 @@ class CandidatesView(
         ctx = ctx,
         theme = theme,
         setupTextView = setupTextViewSmallRow,
-        // Product decision: semantic punctuation uses the same centered artwork in both bubbles;
-        // font fallback made the return arrow small and baseline-dependent in custom UI fonts.
-        decorateText = T9SemanticTextStyler::decorate
+        // Product decision: punctuation preview should read as an action icon, not inherit the
+        // deliberately small pinyin-preview type scale used by ordinary text.
+        textViewFactory = { context ->
+            T9SemanticTextView(context).apply { semanticSymbolScale = 1.3f }
+        }
     )
 
     private val t9CandidateUiSnapshotPipeline = T9CandidateUiSnapshotPipeline(
@@ -952,7 +954,7 @@ class CandidatesView(
             textSize = fontSize * ctx.resources.displayMetrics.scaledDensity
             InputUiFont.applyTo(this)
         }
-        return paint.measureText(text).roundToInt()
+        return T9SemanticTextView.measureWidth(paint, text).roundToInt()
     }
 
     private fun isT9CandidateRenderable(candidate: FcitxEvent.Candidate): Boolean {
@@ -960,7 +962,7 @@ class CandidatesView(
             textSize = fontSize * ctx.resources.displayMetrics.scaledDensity
             InputUiFont.applyTo(this)
         }
-        return paint.hasGlyph(candidate.text)
+        return T9SemanticTextView.handles(candidate.text) || paint.hasGlyph(candidate.text)
     }
 
     private fun currentPinyinSurfacePlan(
