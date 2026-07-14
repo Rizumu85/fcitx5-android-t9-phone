@@ -25,6 +25,7 @@ class HandwritingCanvasView(
         HandwritingBrushStyle.CALLIGRAPHY
     }
 ) : FrameLayout(context) {
+    var onStrokeStarted: () -> Unit = {}
     var onStrokeFinished: (HandwritingStroke) -> Unit = {}
 
     var brushColor: Int = 0
@@ -86,6 +87,9 @@ class HandwritingCanvasView(
     private fun beginStroke(event: MotionEvent) {
         parent?.requestDisallowInterceptTouchEvent(true)
         requestUnbufferedDispatch(event)
+        // Recognition must be invalidated on ACTION_DOWN rather than after the stroke completes;
+        // otherwise a partial-character result can relayout the candidate bubble under the pen.
+        onStrokeStarted()
         activePoints.clear()
         val pointerIndex = event.actionIndex
         activePointerId = event.getPointerId(pointerIndex)

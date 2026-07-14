@@ -2153,6 +2153,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         handwritingCoordinator.setStateListener(listener)
     }
 
+    fun beginHandwritingStroke() {
+        handwritingCoordinator.beginStroke()
+    }
+
     fun addHandwritingStroke(stroke: HandwritingStroke) {
         handwritingCoordinator.addStroke(stroke)
     }

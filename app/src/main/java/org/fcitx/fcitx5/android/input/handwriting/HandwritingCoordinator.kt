@@ -85,6 +85,19 @@ class HandwritingCoordinator(
         if (listener != null && active) publishState()
     }
 
+    fun beginStroke() {
+        if (!active) return
+        // A new down event is the earliest reliable evidence that the previous quiet period was
+        // only an inter-stroke pause. Invalidate work here so stale results never reach the UI.
+        generation++
+        recognitionJob?.cancel()
+        val statusChanged = noMatch || pronunciation != null
+        invalidatePronunciationFeedback()
+        invalidatePublishedCandidates()
+        noMatch = false
+        if (statusChanged) publishState()
+    }
+
     fun addStroke(stroke: HandwritingStroke) {
         if (!active || stroke.points.isEmpty()) return
         // Pronunciation is learning feedback for the character just committed. The first stroke
@@ -236,8 +249,8 @@ class HandwritingCoordinator(
         val requestBackend = activeBackend ?: Backend.OFFLINE
         recognitionJob?.cancel()
         recognitionJob = scope.launch {
-            // Recognition begins after one stable quiet period. A short first-stroke special case
-            // repeatedly interrupted multi-stroke characters and made the floating bubble flicker.
+            // Human inter-stroke pauses commonly exceed 420 ms. Waiting through a deliberate
+            // character boundary avoids repeated ML Kit work and popup relayouts while drawing.
             delay(RecognitionIdleMillis)
             val started = SystemClock.elapsedRealtimeNanos()
             val batch = runCatching {
@@ -377,7 +390,7 @@ class HandwritingCoordinator(
     }
 
     private companion object {
-        const val RecognitionIdleMillis = 420L
+        const val RecognitionIdleMillis = 800L
         const val PronunciationDisplayMillis = 4_500L
         const val EnhancedWarmupDelayMillis = 750L
         const val CandidateLimit = 30

@@ -69,6 +69,7 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             brushColor = theme.keyTextColor
             background = roundedSurface(21f, theme.keyboardColor, withBorder = true)
             clipToOutline = true
+            onStrokeStarted = service::beginHandwritingStroke
             onStrokeFinished = service::addHandwritingStroke
         }
         status = TextView(context).apply {
