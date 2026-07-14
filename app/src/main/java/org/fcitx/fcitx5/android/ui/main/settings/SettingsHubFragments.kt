@@ -6,6 +6,7 @@
 package org.fcitx.fcitx5.android.ui.main.settings
 
 import android.os.Bundle
+import android.view.View
 import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
@@ -23,6 +24,7 @@ import org.fcitx.fcitx5.android.ui.main.modified.MySwitchPreference
 import org.fcitx.fcitx5.android.utils.addCategory
 import org.fcitx.fcitx5.android.utils.addPreference
 import org.fcitx.fcitx5.android.utils.buildDocumentsProviderIntent
+import org.fcitx.fcitx5.android.utils.lazyRoute
 import org.fcitx.fcitx5.android.utils.navigateWithAnim
 import org.fcitx.fcitx5.android.utils.toast
 
@@ -46,10 +48,12 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
     private enum class HandwritingModelUiState { CHECKING, AVAILABLE, MISSING, DOWNLOADING, FAILED }
 
     private val prefs = AppPrefs.getInstance()
+    private val route by lazyRoute<SettingsRoute.InputOptions>()
     private val handwritingModelManager = MlKitHandwritingModelManager()
     private var handwritingModelPreference: Preference? = null
     private var handwritingModelJob: Job? = null
     private var handwritingModelUiState = HandwritingModelUiState.CHECKING
+    private var handwritingDownloadRequestConsumed = false
 
     override fun groups() = listOf(
         Group(
@@ -132,6 +136,7 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
         )?.apply {
             addPreference(
                 Preference(screen.context).apply {
+                    key = HandwritingModelPreferenceKey
                     setTitle(R.string.handwriting_enhanced_model)
                     isIconSpaceReserved = false
                     setOnPreferenceClickListener {
@@ -147,6 +152,13 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
                     handwritingModelPreference = this
                 }
             )
+        }
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        if (route.requestHandwritingModelDownload) {
+            listView.post { scrollToPreference(HandwritingModelPreferenceKey) }
         }
     }
 
@@ -168,6 +180,14 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
                     onFailure = { HandwritingModelUiState.FAILED }
                 )
             renderHandwritingModelState(state)
+            if (
+                route.requestHandwritingModelDownload &&
+                !handwritingDownloadRequestConsumed &&
+                state == HandwritingModelUiState.MISSING
+            ) {
+                handwritingDownloadRequestConsumed = true
+                downloadHandwritingModel()
+            }
         }
     }
 
@@ -198,6 +218,10 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
             isEnabled = state != HandwritingModelUiState.CHECKING &&
                 state != HandwritingModelUiState.DOWNLOADING
         }
+    }
+
+    private companion object {
+        const val HandwritingModelPreferenceKey = "handwriting_enhanced_model"
     }
 }
 

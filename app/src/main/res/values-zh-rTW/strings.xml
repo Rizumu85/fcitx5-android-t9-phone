@@ -419,11 +419,9 @@
     <string name="toolbar_buttons_summary">選擇並調整工具列按鈕順序</string>
     <string name="handwriting_input">手寫輸入</string>
     <string name="show_handwriting_button">手寫輸入</string>
-    <string name="handwriting_preparing_offline">正在準備離線辨識…</string>
-    <string name="handwriting_downloading_enhanced">下載增強辨識中 · 離線可用</string>
-    <string name="handwriting_enhanced_download_failed">增強辨識不可用</string>
     <string name="handwriting_no_match">未辨識到</string>
-    <string name="handwriting_retry_enhanced">重試增強辨識</string>
+    <string name="handwriting_enhanced_onboarding">下載增強手寫辨識可提高準確率，也可以繼續使用內建離線辨識。</string>
+    <string name="handwriting_go_to_download">前往下載</string>
     <string name="handwriting_undo_stroke">還原上一筆</string>
     <string name="handwriting_clear">清除手寫</string>
     <string name="handwriting_enhanced_model">增強手寫辨識（ML Kit）</string>

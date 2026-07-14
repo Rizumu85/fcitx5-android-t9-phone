@@ -46,7 +46,7 @@ class MainFragment : PaddingPreferenceFragment() {
                 addDestinationPreference(
                     R.string.input_options,
                     R.drawable.ic_baseline_language_24,
-                    SettingsRoute.InputOptions
+                    SettingsRoute.InputOptions()
                 )
                 addDestinationPreference(
                     R.string.appearance_and_candidates,

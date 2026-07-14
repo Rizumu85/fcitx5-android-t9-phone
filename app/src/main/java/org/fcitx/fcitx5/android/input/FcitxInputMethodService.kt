@@ -2155,10 +2155,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     fun clearHandwritingCharacter(): Boolean = handwritingCoordinator.clear()
 
-    fun retryHandwritingEnhancedModel() {
-        handwritingCoordinator.retryEnhancedModel()
-    }
-
     fun getHandwritingUiSnapshot(): HandwritingUiSnapshot? =
         handwritingCoordinatorDelegate.takeIf { it.isInitialized() }?.value?.snapshot()
 

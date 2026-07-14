@@ -21,10 +21,9 @@ data class HandwritingRecognition(
 
 enum class HandwritingModelState {
     PREPARING_OFFLINE,
-    DOWNLOADING_ENHANCED,
     OFFLINE_READY,
-    ENHANCED_READY,
-    ENHANCED_DOWNLOAD_FAILED
+    ENHANCED_MODEL_MISSING,
+    ENHANCED_READY
 }
 
 data class HandwritingViewState(

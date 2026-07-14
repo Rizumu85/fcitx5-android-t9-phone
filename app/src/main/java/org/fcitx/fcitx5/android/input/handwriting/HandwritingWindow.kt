@@ -15,20 +15,23 @@ import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.graphics.ColorUtils
+import com.google.android.material.snackbar.Snackbar
 import org.fcitx.fcitx5.android.R
+import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.input.FcitxInputMethodService
 import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.wm.EssentialWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindow
+import org.fcitx.fcitx5.android.utils.AppUtil
 import splitties.dimensions.dp
 
 class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), EssentialWindow {
     private val service: FcitxInputMethodService by manager.inputMethodService()
     private val theme by manager.theme()
+    private val promptPref = AppPrefs.getInstance().internal.handwritingEnhancedPromptShown
 
     companion object : EssentialWindow.Key {
-        private const val ControlHeightDp = 54
         private const val ControlSizeDp = 40
         private const val DisabledControlAlpha = 0.4f
     }
@@ -40,15 +43,16 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         get() = context.getString(R.string.handwriting_input)
 
     private lateinit var canvas: HandwritingCanvasView
+    private lateinit var root: FrameLayout
     private lateinit var status: TextView
     private lateinit var undoButton: ImageButton
     private lateinit var clearButton: ImageButton
-    private lateinit var retryButton: ImageButton
+    private var modelPrompt: Snackbar? = null
 
     override fun onCreateView(): View {
         canvas = HandwritingCanvasView(context).apply {
             brushColor = theme.keyTextColor
-            background = roundedSurface(16f, withBorder = true)
+            background = roundedSurface(21f, theme.keyboardColor, withBorder = true)
             clipToOutline = true
             onStrokeFinished = service::addHandwritingStroke
         }
@@ -60,9 +64,9 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             ellipsize = TextUtils.TruncateAt.END
             includeFontPadding = false
             maxWidth = context.dp(220)
-            minHeight = context.dp(32)
+            minHeight = context.dp(28)
             setPadding(context.dp(10), context.dp(5), context.dp(10), context.dp(5))
-            background = roundedSurface(10f)
+            background = roundedSurface(10f, theme.keyboardColor)
         }
         undoButton = iconButton(R.drawable.ic_baseline_undo_24, R.string.handwriting_undo_stroke) {
             service.undoHandwritingStroke()
@@ -70,36 +74,61 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         clearButton = iconButton(R.drawable.ic_baseline_delete_sweep_24, R.string.handwriting_clear) {
             service.clearHandwritingCharacter()
         }
-        retryButton = iconButton(R.drawable.ic_baseline_sync_24, R.string.handwriting_retry_enhanced) {
-            service.retryHandwritingEnhancedModel()
-        }.apply {
-            visibility = View.GONE
-        }
-        val controlRow = LinearLayout(context).apply {
+        val controls = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(theme.barColor)
-            setPadding(context.dp(10), context.dp(4), context.dp(10), context.dp(6))
-            addView(status, LinearLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT
-            ))
-            addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
-            addControl(retryButton)
             addControl(undoButton)
             addControl(clearButton)
         }
-        return LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
+        root = FrameLayout(context).apply {
             setBackgroundColor(theme.barColor)
+            // A drawable offset preserves the tray shadow without putting AndroidX Ink inside an
+            // elevated render layer, which would delay or hide its front-buffer strokes.
             addView(
-                canvas,
-                LinearLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 0, 1f).apply {
-                    setMargins(context.dp(10), context.dp(8), context.dp(10), context.dp(2))
+                View(context).apply {
+                    background = roundedSurface(
+                        21f,
+                        ColorUtils.blendARGB(theme.keyboardColor, android.graphics.Color.BLACK, 0.22f)
+                    )
+                },
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                ).apply {
+                    setMargins(context.dp(14), context.dp(13), context.dp(10), context.dp(9))
                 }
             )
-            addView(controlRow, LinearLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, context.dp(ControlHeightDp)))
+            addView(
+                canvas,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                ).apply {
+                    setMargins(context.dp(12), context.dp(10), context.dp(12), context.dp(12))
+                }
+            )
+            addView(
+                controls,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    context.dp(ControlSizeDp)
+                ).apply {
+                    gravity = Gravity.TOP or Gravity.END
+                    setMargins(0, context.dp(19), context.dp(21), 0)
+                }
+            )
+            addView(
+                status,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                    bottomMargin = context.dp(20)
+                }
+            )
         }
+        return root
     }
 
     override fun beforeAttached() {
@@ -112,6 +141,8 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
 
     override fun onDetached() {
         service.setHandwritingStateListener(null)
+        modelPrompt?.dismiss()
+        modelPrompt = null
         // Leaving handwriting is an explicit cancellation boundary. Uncommitted strokes are
         // discarded immediately so returning to T9 never revives an accidental character.
         service.endHandwritingInput()
@@ -123,20 +154,26 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         clearButton.isEnabled = state.strokes.isNotEmpty()
         undoButton.alpha = if (undoButton.isEnabled) 1f else DisabledControlAlpha
         clearButton.alpha = if (clearButton.isEnabled) 1f else DisabledControlAlpha
-        val enhancedFailed = state.modelState == HandwritingModelState.ENHANCED_DOWNLOAD_FAILED
-        retryButton.visibility = if (enhancedFailed) View.VISIBLE else View.GONE
-        val message = when {
-            state.noMatch -> R.string.handwriting_no_match
-            state.modelState == HandwritingModelState.PREPARING_OFFLINE ->
-                R.string.handwriting_preparing_offline
-            state.modelState == HandwritingModelState.DOWNLOADING_ENHANCED ->
-                R.string.handwriting_downloading_enhanced
-            enhancedFailed -> R.string.handwriting_enhanced_download_failed
-            else -> 0
+        status.visibility = if (state.noMatch) View.VISIBLE else View.GONE
+        if (state.noMatch) status.setText(R.string.handwriting_no_match)
+        if (
+            state.modelState == HandwritingModelState.ENHANCED_MODEL_MISSING &&
+            !promptPref.getValue()
+        ) {
+            promptPref.setValue(true)
+            modelPrompt = Snackbar.make(
+                root,
+                R.string.handwriting_enhanced_onboarding,
+                Snackbar.LENGTH_LONG
+            )
+                .setBackgroundTint(theme.popupBackgroundColor)
+                .setTextColor(theme.popupTextColor)
+                .setActionTextColor(theme.genericActiveBackgroundColor)
+                .setAction(R.string.handwriting_go_to_download) {
+                    AppUtil.launchMainToHandwritingModel(context)
+                }
+                .also(Snackbar::show)
         }
-        status.visibility = if (message == 0) View.GONE else View.VISIBLE
-        if (message != 0) status.setText(message)
-        status.setTextColor(if (enhancedFailed) theme.keyTextColor else theme.candidateCommentColor)
     }
 
     private fun iconButton(icon: Int, description: Int, action: () -> Unit) =
@@ -144,7 +181,10 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             setImageResource(icon)
             contentDescription = context.getString(description)
             imageTintList = ColorStateList.valueOf(theme.keyTextColor)
-            background = roundedSurface(12f)
+            background = roundedSurface(
+                12f,
+                ColorUtils.blendARGB(theme.keyboardColor, theme.keyTextColor, 0.09f)
+            )
             setPadding(context.dp(9), context.dp(9), context.dp(9), context.dp(9))
             setOnClickListener { action() }
         }
@@ -153,20 +193,20 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         addView(
             button,
             LinearLayout.LayoutParams(context.dp(ControlSizeDp), context.dp(ControlSizeDp)).apply {
-                marginStart = context.dp(6)
+                marginStart = context.dp(7)
             }
         )
     }
 
-    private fun roundedSurface(radiusDp: Float, withBorder: Boolean = false) =
+    private fun roundedSurface(radiusDp: Float, color: Int, withBorder: Boolean = false) =
         GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            cornerRadius = context.dp(radiusDp).toFloat()
-            setColor(theme.keyboardColor)
+            cornerRadius = context.dp(radiusDp)
+            setColor(color)
             if (withBorder) {
                 setStroke(
                     context.dp(1),
-                    ColorUtils.setAlphaComponent(theme.keyTextColor, (0.12f * 255).toInt())
+                    ColorUtils.setAlphaComponent(theme.keyTextColor, (0.07f * 255).toInt())
                 )
             }
         }

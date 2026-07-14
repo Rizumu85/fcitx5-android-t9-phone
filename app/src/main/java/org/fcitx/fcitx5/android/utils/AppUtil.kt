@@ -36,6 +36,9 @@ object AppUtil {
     fun launchMainToKeyboard(context: Context) =
         launchMainToDest(context, SettingsRoute.KeysAndToolbar)
 
+    fun launchMainToHandwritingModel(context: Context) =
+        launchMainToDest(context, SettingsRoute.InputOptions(requestHandwritingModelDownload = true))
+
     fun launchMainToInputMethodList(context: Context) =
         launchMainToDest(context, SettingsRoute.InputMethodList)
 

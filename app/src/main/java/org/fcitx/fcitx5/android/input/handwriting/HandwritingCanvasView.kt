@@ -25,19 +25,15 @@ class HandwritingCanvasView(context: Context) : FrameLayout(context) {
 
     private val inkView = InProgressStrokesView(context)
     private val activePoints = mutableListOf<HandwritingPoint>()
-    private val finishedStrokeIds = mutableListOf<InProgressStrokeId>()
+    private val renderLedger = HandwritingStrokeRenderLedger<InProgressStrokeId>()
     private var activeStrokeId: InProgressStrokeId? = null
-    private var targetStrokeCount = 0
 
     init {
         addView(inkView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         inkView.addFinishedStrokesListener(
             object : InProgressStrokesFinishedListener {
                 override fun onStrokesFinished(strokes: Map<InProgressStrokeId, Stroke>) {
-                    strokes.keys.forEach { id ->
-                        if (id !in finishedStrokeIds) finishedStrokeIds += id
-                    }
-                    trimRenderedStrokes()
+                    removeFinishedStrokes(renderLedger.acceptFinished(strokes.keys))
                 }
             }
         )
@@ -46,8 +42,7 @@ class HandwritingCanvasView(context: Context) : FrameLayout(context) {
     fun setCompletedStrokes(strokes: List<HandwritingStroke>) {
         // Coordinator state only appends, undoes, or clears strokes. Ink owns their visual
         // geometry, so count-based reconciliation avoids rebuilding paths on every state publish.
-        targetStrokeCount = strokes.size
-        trimRenderedStrokes()
+        removeFinishedStrokes(renderLedger.reconcileCoordinatorCount(strokes.size))
     }
 
     override fun onAttachedToWindow() {
@@ -86,6 +81,7 @@ class HandwritingCanvasView(context: Context) : FrameLayout(context) {
     private fun finishStroke(event: MotionEvent) {
         val strokeId = activeStrokeId ?: return
         appendEventPoints(event, includeHistory = true)
+        renderLedger.expectLocalStrokeCompletion()
         inkView.finishStroke(event, event.getPointerId(0), strokeId)
         activeStrokeId = null
         parent?.requestDisallowInterceptTouchEvent(false)
@@ -130,11 +126,8 @@ class HandwritingCanvasView(context: Context) : FrameLayout(context) {
         BrushEpsilon
     )
 
-    private fun trimRenderedStrokes() {
-        if (finishedStrokeIds.size <= targetStrokeCount) return
-        val removed = finishedStrokeIds.subList(targetStrokeCount, finishedStrokeIds.size).toSet()
-        inkView.removeFinishedStrokes(removed)
-        finishedStrokeIds.subList(targetStrokeCount, finishedStrokeIds.size).clear()
+    private fun removeFinishedStrokes(ids: Set<InProgressStrokeId>) {
+        if (ids.isNotEmpty()) inkView.removeFinishedStrokes(ids)
     }
 
     private companion object {

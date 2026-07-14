@@ -39,7 +39,7 @@ class HandwritingCoordinator(
     private var activeBackend: Backend? = null
     private var offlineReady = false
     private var enhancedReady = false
-    private var enhancedDownloadFailed = false
+    private var enhancedModelMissing = false
     private var modelState = HandwritingModelState.PREPARING_OFFLINE
     private var recognizing = false
     private var noMatch = false
@@ -152,11 +152,6 @@ class HandwritingCoordinator(
         return true
     }
 
-    fun retryEnhancedModel() {
-        if (enhancedReady || enhancedModelJob?.isActive == true) return
-        startEnhancedModelDownload()
-    }
-
     fun close() {
         recognitionJob?.cancel()
         offlineWarmupJob?.cancel()
@@ -179,45 +174,41 @@ class HandwritingCoordinator(
             }
         }
         if (enhancedModelJob?.isActive != true && !enhancedReady) {
-            startEnhancedModelDownload()
+            prepareEnhancedModelIfAvailable()
         }
     }
 
-    private fun startEnhancedModelDownload() {
-        enhancedDownloadFailed = false
-        modelState = if (offlineReady) {
-            HandwritingModelState.DOWNLOADING_ENHANCED
-        } else {
-            HandwritingModelState.PREPARING_OFFLINE
-        }
-        publishState()
+    private fun prepareEnhancedModelIfAvailable() {
+        enhancedModelMissing = false
+        updateAvailableModelState()
         enhancedModelJob = scope.launch {
+            val downloaded = runCatching { enhancedRecognizer.isDownloaded() }
+                .onFailure { Timber.w(it, "Unable to check enhanced handwriting model") }
+                .getOrDefault(false)
+            if (!downloaded) {
+                enhancedModelMissing = true
+                updateAvailableModelState()
+                return@launch
+            }
             runCatching {
-                if (!enhancedRecognizer.isDownloaded()) enhancedRecognizer.download()
-                // Model initialization can take over a second on slower phones. Warming it while
-                // the canvas is idle keeps that cost off the first enhanced recognition request.
+                // Do not let native model initialization contend with the first visible stroke.
+                // The bundled backend handles any character started during this quiet window.
+                delay(EnhancedWarmupDelayMillis)
                 enhancedRecognizer.warmup()
             }.onSuccess {
                 enhancedReady = true
-                modelState = HandwritingModelState.ENHANCED_READY
             }.onFailure {
-                Timber.w(it, "Enhanced handwriting model download failed; bundled recognizer remains active")
-                enhancedDownloadFailed = true
-                modelState = if (offlineReady) {
-                    HandwritingModelState.ENHANCED_DOWNLOAD_FAILED
-                } else {
-                    HandwritingModelState.PREPARING_OFFLINE
-                }
+                Timber.w(it, "Unable to prepare enhanced handwriting model; bundled recognizer remains active")
             }
-            if (active) publishState()
+            updateAvailableModelState()
         }
     }
 
     private fun updateAvailableModelState() {
         modelState = when {
             enhancedReady -> HandwritingModelState.ENHANCED_READY
-            enhancedDownloadFailed -> HandwritingModelState.ENHANCED_DOWNLOAD_FAILED
-            enhancedModelJob?.isActive == true -> HandwritingModelState.DOWNLOADING_ENHANCED
+            enhancedModelMissing -> HandwritingModelState.ENHANCED_MODEL_MISSING
+            !offlineReady -> HandwritingModelState.PREPARING_OFFLINE
             else -> HandwritingModelState.OFFLINE_READY
         }
         if (active) publishState()
@@ -337,6 +328,7 @@ class HandwritingCoordinator(
 
     private companion object {
         const val RecognitionIdleMillis = 420L
+        const val EnhancedWarmupDelayMillis = 750L
         const val CandidateLimit = 30
     }
 }
