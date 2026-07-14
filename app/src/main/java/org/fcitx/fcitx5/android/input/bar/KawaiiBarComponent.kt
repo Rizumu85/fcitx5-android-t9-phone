@@ -52,6 +52,7 @@ import org.fcitx.fcitx5.android.input.dependency.context
 import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.editing.TextEditingWindow
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingWindow
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
 import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
@@ -232,6 +233,9 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                     service.sendCombinationKeyEvents(KeyEvent.KEYCODE_Z, ctrl = true, shift = true)
                 }
                 voiceInputButton.setOnClickListener(switchToVoiceInputCallback)
+                handwritingButton.setOnClickListener {
+                    windowManager.attachWindow(HandwritingWindow)
+                }
                 cursorMoveButton.setOnClickListener {
                     windowManager.attachWindow(TextEditingWindow())
                 }
@@ -257,6 +261,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
             undo = prefs.keyboard.showUndoButton.getValue(),
             redo = prefs.keyboard.showRedoButton.getValue(),
             voiceInput = prefs.keyboard.showVoiceInputButton.getValue() && isVoiceInputAllowedForEditor,
+            handwriting = prefs.keyboard.showHandwritingButton.getValue(),
             textEditing = prefs.keyboard.showTextEditingButton.getValue(),
             clipboard = prefs.keyboard.showClipboardButton.getValue()
         )

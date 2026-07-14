@@ -8,6 +8,7 @@ enum class ToolbarButtonOrder(val storageId: String) {
     Undo("undo"),
     Redo("redo"),
     VoiceInput("voice_input"),
+    Handwriting("handwriting"),
     TextEditing("text_editing"),
     Clipboard("clipboard");
 
@@ -15,11 +16,15 @@ enum class ToolbarButtonOrder(val storageId: String) {
         val default = entries
 
         fun decode(value: String): List<ToolbarButtonOrder> {
-            val stored = value.split(',').mapNotNull { id -> entries.find { it.storageId == id } }
+            val stored = value.split(',')
+                .mapNotNull { id -> entries.find { it.storageId == id } }
+                .distinct()
+                .toMutableList()
             if (VoiceInput !in stored) {
-                val insertion = (stored.indexOf(Redo) + 1).coerceAtLeast(0)
-                return stored.toMutableList().apply { add(insertion, VoiceInput) } +
-                    entries.filterNot { it in stored || it == VoiceInput }
+                stored.add((stored.indexOf(Redo) + 1).coerceAtLeast(0), VoiceInput)
+            }
+            if (Handwriting !in stored) {
+                stored.add((stored.indexOf(VoiceInput) + 1).coerceAtLeast(0), Handwriting)
             }
             return (stored + entries).distinct()
         }

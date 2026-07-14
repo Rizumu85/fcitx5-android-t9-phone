@@ -145,12 +145,14 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         // Toolbar membership is edited as one product setting, while separate booleans let the
         // live IME update one slot without parsing or rewriting a serialized collection.
         val showVoiceInputButton = toolbarButton("show_voice_input_button")
+        val showHandwritingButton = toolbarButton("show_handwriting_button")
         val showUndoButton = toolbarButton("show_toolbar_undo_button")
         val showRedoButton = toolbarButton("show_toolbar_redo_button")
         val showTextEditingButton = toolbarButton("show_toolbar_text_editing_button")
         val showClipboardButton = toolbarButton("show_toolbar_clipboard_button")
         val toolbarButtonPreferences = listOf(
             showVoiceInputButton,
+            showHandwritingButton,
             showUndoButton,
             showRedoButton,
             showTextEditingButton,

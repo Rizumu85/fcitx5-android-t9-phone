@@ -174,6 +174,7 @@ dependencies {
     implementation(libs.androidx.startup)
     implementation(libs.androidx.viewpager2)
     implementation(libs.material)
+    implementation(libs.mlkit.digital.ink)
     implementation(libs.arrow.core)
     implementation(libs.arrow.functions)
     implementation(libs.imagecropper)

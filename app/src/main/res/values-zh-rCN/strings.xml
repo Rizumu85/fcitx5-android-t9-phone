@@ -424,6 +424,16 @@
     <string name="preferred_voice_input">首选语音输入</string>
     <string name="toolbar_buttons">工具栏设置</string>
     <string name="toolbar_buttons_summary">选择并调整工具栏按钮顺序</string>
+    <string name="handwriting_input">手写输入</string>
+    <string name="show_handwriting_button">手写输入</string>
+    <string name="handwriting_recognizing">正在识别…</string>
+    <string name="handwriting_preparing_offline">正在准备离线识别…</string>
+    <string name="handwriting_downloading_enhanced">正在下载增强识别 · 离线仍可用</string>
+    <string name="handwriting_enhanced_download_failed">增强识别不可用 · 离线仍可用</string>
+    <string name="handwriting_no_match">未识别到 · 可继续书写、撤销或清除</string>
+    <string name="handwriting_retry_enhanced">重试增强识别</string>
+    <string name="handwriting_undo_stroke">撤销上一笔</string>
+    <string name="handwriting_clear">清除手写</string>
     <string name="t9_idle_long_zero_behavior">长按 0 语音输入</string>
     <string name="t9_idle_long_zero_literal">输入数字 0</string>
     <string name="t9_idle_long_zero_voice">语音输入</string>

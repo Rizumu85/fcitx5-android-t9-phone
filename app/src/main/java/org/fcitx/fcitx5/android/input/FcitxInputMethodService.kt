@@ -77,6 +77,11 @@ import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.cursor.CursorRange
 import org.fcitx.fcitx5.android.input.cursor.CursorTracker
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingCoordinator
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingStroke
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingUiSnapshot
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingViewState
+import org.fcitx.fcitx5.android.input.handwriting.PhysicalHandwritingKeyHandler
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionCoordinator
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionLifecycle
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionTicket
@@ -176,6 +181,16 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             candidatesView?.commitSmartEnglishShortcut(index) == true
         }
     )
+    private val handwritingCoordinatorDelegate = lazy {
+        HandwritingCoordinator(
+            context = this,
+            scope = lifecycleScope,
+            commitText = ::commitText,
+            refreshCandidates = { candidatesView?.refreshT9Ui() },
+            hideCandidates = { candidatesView?.hideT9CandidateUiImmediately() }
+        )
+    }
+    private val handwritingCoordinator by handwritingCoordinatorDelegate
     private val physicalT9KeyHost = PhysicalT9KeyHostAdapter(
         state = PhysicalT9KeyHostAdapter.State(
             isInInputMode = { inputDeviceMgr.isInInputMode },
@@ -1704,6 +1719,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             keyDownRoutes = listOf(
                 PhysicalInputRouter.Route(::routeNumberTransientPanelKeyDown),
                 PhysicalInputRouter.Route(::routeSelectionActionPanelKeyDown),
+                PhysicalInputRouter.Route(::routeHandwritingKeyDown),
                 PhysicalInputRouter.Route(::routePasswordHorizontalFocusKeyDown),
                 PhysicalInputRouter.Route(::routePasswordBackspaceKeyDown),
                 PhysicalInputRouter.Route(::routePasswordLiteralKeyDown),
@@ -1716,12 +1732,26 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             // Selection-mode OK release must resolve its deferred short press before generic
             // key-up pairing consumes the same physical key.
             keyUpBeforePairingRoutes = listOf(
+                PhysicalInputRouter.Route(::routeHandwritingKeyUp),
                 PhysicalInputRouter.Route(::routeSelectionModeKeyUp)
             ),
             keyUpAfterPairingRoutes = listOf(
                 PhysicalInputRouter.Route(::routeT9KeyUp),
                 PhysicalInputRouter.Route(::routeMappedKeyUp)
             )
+        )
+    }
+    private val physicalHandwritingKeyHandler by lazy {
+        PhysicalHandwritingKeyHandler(
+            longPressDelayMillis = { physicalLongPressDelay },
+            hasStrokes = { handwritingCoordinator.hasStrokes },
+            hasCandidates = { getHandwritingUiSnapshot()?.candidates?.isNotEmpty() == true },
+            undoStroke = handwritingCoordinator::undoStroke,
+            moveCandidate = { delta -> candidatesView?.moveHighlightedT9BottomCandidate(delta) == true },
+            offsetPage = { delta -> candidatesView?.offsetT9BottomCandidatePage(delta) == true },
+            commitCurrentCandidate = { candidatesView?.commitHighlightedT9BottomCandidate() == true },
+            commitShortcut = { index -> candidatesView?.commitT9HanziShortcut(index) == true },
+            sendReturn = ::handleReturnKey
         )
     }
 
@@ -2088,6 +2118,56 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return smartEnglishCoordinator.commitCandidate(index, appendSpace, continuePrediction)
     }
 
+    fun beginHandwritingInput() {
+        if (handwritingCoordinator.isActive) return
+        val hadChineseComposition = hasT9CompositionState() || composing.isNotEmpty()
+        t9PunctuationCoordinator.cancel()
+        t9MultiTapCoordinator.reset()
+        smartEnglishCoordinator.reset()
+        resetComposingState()
+        currentInputConnection?.finishComposingText()
+        clearTransientInputUiState()
+        moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
+        handwritingCoordinator.begin()
+        if (hadChineseComposition) {
+            postFcitxJob { focusOutIn() }
+        }
+    }
+
+    fun endHandwritingInput() {
+        if (!handwritingCoordinatorDelegate.isInitialized()) return
+        physicalHandwritingKeyHandler.reset()
+        handwritingCoordinator.end()
+    }
+
+    fun isHandwritingInputActive(): Boolean =
+        handwritingCoordinatorDelegate.isInitialized() && handwritingCoordinator.isActive
+
+    fun setHandwritingStateListener(listener: ((HandwritingViewState) -> Unit)?) {
+        handwritingCoordinator.setStateListener(listener)
+    }
+
+    fun addHandwritingStroke(stroke: HandwritingStroke) {
+        handwritingCoordinator.addStroke(stroke)
+    }
+
+    fun undoHandwritingStroke(): Boolean = handwritingCoordinator.undoStroke()
+
+    fun clearHandwritingCharacter(): Boolean = handwritingCoordinator.clear()
+
+    fun retryHandwritingEnhancedModel() {
+        handwritingCoordinator.retryEnhancedModel()
+    }
+
+    fun getHandwritingUiSnapshot(): HandwritingUiSnapshot? =
+        handwritingCoordinatorDelegate.takeIf { it.isInitialized() }?.value?.snapshot()
+
+    fun moveHandwritingSelectionTo(index: Int): Boolean =
+        handwritingCoordinator.moveSelectionTo(index)
+
+    fun commitHandwritingCandidate(index: Int? = null): Boolean =
+        handwritingCoordinator.commitCandidate(index)
+
     private fun shouldLearnEnglishWords(): Boolean {
         return SmartEnglishLearningPolicy.shouldLearnWords(currentInputEditorInfo)
     }
@@ -2393,6 +2473,22 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             "EDITOR/SELECTION_ACTION"
         )
 
+    private fun routeHandwritingKeyDown(
+        input: PhysicalInputRouter.Input
+    ): PhysicalInputRouter.Result? {
+        if (!isHandwritingInputActive()) return null
+        val result = physicalHandwritingKeyHandler.handleKeyDown(
+            input.mappedKeyCode,
+            input.mappedEvent.toHandwritingKeyInput()
+        )
+            ?: return null
+        return PhysicalInputRouter.Result(
+            handled = result.handled,
+            consumeKeyUp = result.consumeKeyUp?.let { input.keyCode },
+            tracePath = "HANDWRITING/KEY"
+        ).takeIf { it.handled || it.consumeKeyUp != null }
+    }
+
     private fun routePasswordHorizontalFocusKeyDown(
         input: PhysicalInputRouter.Input
     ): PhysicalInputRouter.Result? {
@@ -2438,6 +2534,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun routeT9KeyDown(input: PhysicalInputRouter.Input): PhysicalInputRouter.Result? {
+        if (isHandwritingInputActive()) return null
         val result = physicalT9KeyHandler.handleKeyDown(input.keyCode, input.event)
         return PhysicalInputRouter.Result(result.handled, result.consumedKeyUp)
             .takeIf { it.handled || it.consumeKeyUp != null }
@@ -2526,11 +2623,35 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             handlePhysicalSelectionModeKeyUp(input.keyCode, input.event)
         }
 
+    private fun routeHandwritingKeyUp(
+        input: PhysicalInputRouter.Input
+    ): PhysicalInputRouter.Result? {
+        if (!isHandwritingInputActive()) return null
+        val result = physicalHandwritingKeyHandler.handleKeyUp(
+            input.mappedKeyCode,
+            input.mappedEvent.toHandwritingKeyInput()
+        )
+            ?: return null
+        return PhysicalInputRouter.Result(
+            handled = result.handled,
+            consumeKeyUp = result.consumeKeyUp?.let { input.keyCode },
+            tracePath = "HANDWRITING/KEY"
+        ).takeIf { it.handled || it.consumeKeyUp != null }
+    }
+
     private fun routeT9KeyUp(input: PhysicalInputRouter.Input): PhysicalInputRouter.Result? {
+        if (isHandwritingInputActive()) return null
         val result = physicalT9KeyHandler.handleKeyUp(input.keyCode, input.event)
         return PhysicalInputRouter.Result(result.handled, result.consumedKeyUp)
             .takeIf { it.handled || it.consumeKeyUp != null }
     }
+
+    private fun KeyEvent.toHandwritingKeyInput() = PhysicalHandwritingKeyHandler.KeyInput(
+        action = action,
+        repeatCount = repeatCount,
+        downTime = downTime,
+        eventTime = eventTime
+    )
 
     private fun routeMappedKeyUp(input: PhysicalInputRouter.Input): PhysicalInputRouter.Result =
         PhysicalInputRouter.Result(
@@ -3005,6 +3126,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     override fun onFinishInputView(finishingInput: Boolean) {
         Timber.d("onFinishInputView: finishingInput=$finishingInput")
+        endHandwritingInput()
         resetNumberModeIfInitialized()
         updateSelectionBackCallback(false)
         decorLocationUpdated = false
@@ -3027,6 +3149,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     override fun onFinishInput() {
         Timber.d("onFinishInput")
+        endHandwritingInput()
         resetNumberModeIfInitialized()
         updateSelectionBackCallback(false)
         inputDeviceMgr.onFinishInput()
@@ -3055,6 +3178,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     override fun onDestroy() {
+        if (handwritingCoordinatorDelegate.isInitialized()) handwritingCoordinator.close()
         updateSelectionBackCallback(false)
         recreateInputViewPrefs.forEach {
             it.unregisterOnChangeListener(recreateInputViewListener)

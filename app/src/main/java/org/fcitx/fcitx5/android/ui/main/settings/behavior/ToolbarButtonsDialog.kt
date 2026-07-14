@@ -40,6 +40,7 @@ class ToolbarButtonsDialog(
             ToolbarButtonOrder.Undo -> Item(id, R.string.undo, R.drawable.ic_baseline_undo_24, prefs.showUndoButton.getValue())
             ToolbarButtonOrder.Redo -> Item(id, R.string.redo, R.drawable.ic_baseline_redo_24, prefs.showRedoButton.getValue())
             ToolbarButtonOrder.VoiceInput -> Item(id, R.string.show_voice_input_button, R.drawable.ic_baseline_keyboard_voice_24, prefs.showVoiceInputButton.getValue())
+            ToolbarButtonOrder.Handwriting -> Item(id, R.string.show_handwriting_button, R.drawable.ic_handwriting_24, prefs.showHandwritingButton.getValue())
             ToolbarButtonOrder.TextEditing -> Item(id, R.string.text_editing, R.drawable.ic_cursor_move, prefs.showTextEditingButton.getValue())
             ToolbarButtonOrder.Clipboard -> Item(id, R.string.clipboard, R.drawable.ic_clipboard, prefs.showClipboardButton.getValue())
         }
@@ -133,6 +134,7 @@ class ToolbarButtonsDialog(
 
     private fun save() {
         prefs.showVoiceInputButton.setValue(items.first { it.id == ToolbarButtonOrder.VoiceInput }.visible)
+        prefs.showHandwritingButton.setValue(items.first { it.id == ToolbarButtonOrder.Handwriting }.visible)
         prefs.showUndoButton.setValue(items.first { it.id == ToolbarButtonOrder.Undo }.visible)
         prefs.showRedoButton.setValue(items.first { it.id == ToolbarButtonOrder.Redo }.visible)
         prefs.showTextEditingButton.setValue(items.first { it.id == ToolbarButtonOrder.TextEditing }.visible)

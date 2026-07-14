@@ -6,6 +6,7 @@
 package org.fcitx.fcitx5.android.input.t9
 
 import org.fcitx.fcitx5.android.core.FcitxEvent
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingUiSnapshot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -51,6 +52,41 @@ class T9CandidateSourceSessionsTest {
             T9CandidateUiSnapshotPipeline.CommitBottomCandidate.PendingPunctuation(2),
             sessions.commitCurrentBottomCandidate()
         )
+    }
+
+    @Test
+    fun handwritingPagingKeepsOriginalCandidateIndex() {
+        val sessions = sessions(characterBudget = 4)
+        val first = requireNotNull(
+            sessions.buildHandwritingPaged(
+                HandwritingUiSnapshot(
+                    revision = 1,
+                    candidates = listOf("你", "好", "世", "界", "中", "文"),
+                    selectedIndex = 0
+                )
+            )
+        )
+        sessions.updateShownState(
+            source = T9CandidateUiSnapshotPipeline.ShownSource.HANDWRITING,
+            paged = first.data,
+            originalIndices = first.originalIndices,
+            matchedPrefix = null
+        )
+
+        val page = sessions.offsetCurrentPage(1)
+
+        require(page is T9CandidateUiSnapshotPipeline.PageOffset.Handwriting)
+        assertEquals(4, page.nextOriginalIndex)
+    }
+
+    @Test
+    fun handwritingSelectionRevisionKeepsCandidateContentKeyStable() {
+        val candidates = listOf("你", "好", "世", "界")
+
+        val beforeMove = HandwritingUiSnapshot(1, candidates, selectedIndex = 0)
+        val afterMove = HandwritingUiSnapshot(2, candidates, selectedIndex = 2)
+
+        assertEquals(beforeMove.contentKey, afterMove.contentKey)
     }
 
     private fun sessions(characterBudget: Int = 20): T9CandidateSourceSessions =

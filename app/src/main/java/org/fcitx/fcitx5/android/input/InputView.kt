@@ -49,6 +49,7 @@ import org.fcitx.fcitx5.android.input.broadcast.PunctuationComponent
 import org.fcitx.fcitx5.android.input.broadcast.ReturnKeyDrawableComponent
 import org.fcitx.fcitx5.android.input.candidates.horizontal.HorizontalCandidateComponent
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingWindow
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
 import org.fcitx.fcitx5.android.input.keyboard.T9Keyboard
 import org.fcitx.fcitx5.android.input.keyboard.TemporaryFullKeyboard
@@ -326,6 +327,7 @@ class InputView(
         windowManager.addLazyEssentialWindow(PickerWindow.Key.Symbol, ::symbolPicker)
         windowManager.addLazyEssentialWindow(PickerWindow.Key.Emoji, ::emojiPicker)
         windowManager.addLazyEssentialWindow(PickerWindow.Key.Emoticon, ::emoticonPicker)
+        windowManager.addLazyEssentialWindow(HandwritingWindow, ::HandwritingWindow)
 
         // 1. Initialize T9 state and set callbacks before attachWindow so onAttached → onLayoutChanged is ready
         isT9KeyboardActive = true

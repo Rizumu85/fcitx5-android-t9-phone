@@ -47,6 +47,10 @@ class ButtonsBarUi(override val ctx: Context, private val theme: Theme) : Ui {
         contentDescription = ctx.getString(R.string.switch_to_voice_input)
     }
 
+    val handwritingButton = toolButton(R.drawable.ic_handwriting_24).apply {
+        contentDescription = ctx.getString(R.string.handwriting_input)
+    }
+
     val cursorMoveButton = toolButton(R.drawable.ic_cursor_move).apply {
         contentDescription = ctx.getString(R.string.text_editing)
     }
@@ -64,6 +68,7 @@ class ButtonsBarUi(override val ctx: Context, private val theme: Theme) : Ui {
             ToolbarButtonOrder.Undo to undoButton,
             ToolbarButtonOrder.Redo to redoButton,
             ToolbarButtonOrder.VoiceInput to voiceInputButton,
+            ToolbarButtonOrder.Handwriting to handwritingButton,
             ToolbarButtonOrder.TextEditing to cursorMoveButton,
             ToolbarButtonOrder.Clipboard to clipboardButton
         )
@@ -77,12 +82,14 @@ class ButtonsBarUi(override val ctx: Context, private val theme: Theme) : Ui {
         undo: Boolean,
         redo: Boolean,
         voiceInput: Boolean,
+        handwriting: Boolean,
         textEditing: Boolean,
         clipboard: Boolean
     ) {
         undoButton.visibility = if (undo) View.VISIBLE else View.GONE
         redoButton.visibility = if (redo) View.VISIBLE else View.GONE
         voiceInputButton.visibility = if (voiceInput) View.VISIBLE else View.GONE
+        handwritingButton.visibility = if (handwriting) View.VISIBLE else View.GONE
         cursorMoveButton.visibility = if (textEditing) View.VISIBLE else View.GONE
         clipboardButton.visibility = if (clipboard) View.VISIBLE else View.GONE
     }

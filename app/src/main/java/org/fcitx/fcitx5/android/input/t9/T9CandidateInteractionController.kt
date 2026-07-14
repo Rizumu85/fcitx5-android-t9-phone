@@ -13,7 +13,9 @@ class T9CandidateInteractionController(
 ) {
     interface Host {
         fun moveSmartEnglishSelection(originalIndex: Int): Boolean
+        fun moveHandwritingSelection(originalIndex: Int): Boolean
         fun commitSmartEnglishCandidate(originalIndex: Int): Boolean
+        fun commitHandwritingCandidate(originalIndex: Int): Boolean
         fun commitPendingPunctuationCandidate(originalIndex: Int): Boolean
         fun movePendingPunctuationSelection(originalIndex: Int): Boolean
         fun publishLocalSelection()
@@ -44,6 +46,8 @@ class T9CandidateInteractionController(
                 val updated = when (result.source) {
                     T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH ->
                         host.moveSmartEnglishSelection(result.originalIndex)
+                    T9CandidateUiSnapshotPipeline.ShownSource.HANDWRITING ->
+                        host.moveHandwritingSelection(result.originalIndex)
                     T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION ->
                         host.movePendingPunctuationSelection(result.originalIndex)
                     T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK,
@@ -76,6 +80,11 @@ class T9CandidateInteractionController(
                 host.refreshT9Ui()
                 true
             }
+            is T9CandidateUiSnapshotPipeline.PageOffset.Handwriting -> {
+                if (!host.moveHandwritingSelection(result.nextOriginalIndex)) return false
+                host.refreshT9Ui()
+                true
+            }
             T9CandidateUiSnapshotPipeline.PageOffset.Refresh -> {
                 host.refreshT9Ui()
                 true
@@ -95,6 +104,8 @@ class T9CandidateInteractionController(
         return when (result) {
             is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.SmartEnglish ->
                 host.commitSmartEnglishCandidate(result.originalIndex)
+            is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.Handwriting ->
+                host.commitHandwritingCandidate(result.originalIndex)
             is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.PendingPunctuation ->
                 host.commitPendingPunctuationCandidate(result.originalIndex)
             is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.Chinese ->

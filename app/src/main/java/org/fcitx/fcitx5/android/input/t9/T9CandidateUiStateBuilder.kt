@@ -9,6 +9,7 @@ import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.core.FormattedText
 import org.fcitx.fcitx5.android.core.TextFormatFlag
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrientation
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingUiSnapshot
 
 data class T9CandidateUiInputSnapshot(
     val inputPanel: FcitxEvent.InputPanelEvent.Data,
@@ -22,7 +23,9 @@ data class T9CandidateUiInputSnapshot(
     val chineseSnapshot: ChineseT9InputSnapshot?,
     val smartEnglishSnapshot: SmartEnglishUiSnapshot?,
     val pendingPunctuationRawPaged: FcitxEvent.PagedCandidateEvent.Data?,
-    val currentFocus: T9CandidateFocus
+    val currentFocus: T9CandidateFocus,
+    val handwritingActive: Boolean = false,
+    val handwritingSnapshot: HandwritingUiSnapshot? = null
 )
 
 data class T9CandidateInteractionState(
@@ -53,6 +56,7 @@ class T9CandidateUiStateBuilder(
 
     interface Pipeline {
         fun buildSmartEnglishPaged(snapshot: SmartEnglishUiSnapshot): T9PagedCandidates?
+        fun buildHandwritingPaged(snapshot: HandwritingUiSnapshot): T9PagedCandidates?
         fun buildT9PendingPunctuationPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates
         fun filterT9StrokeCandidates(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates
         fun resetT9BulkFilterState()
@@ -90,6 +94,8 @@ class T9CandidateUiStateBuilder(
                 ?.let(::pendingPunctuationPresentationState)
         T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH ->
             smartEnglishPresentation ?: input.smartEnglishSnapshot?.presentation
+        T9CandidateUiSnapshotPipeline.ShownSource.HANDWRITING ->
+            handwritingPresentation(paged)
         T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK,
         T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_LOCAL,
         T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_ENGINE ->
@@ -107,6 +113,7 @@ class T9CandidateUiStateBuilder(
 
     fun build(input: T9CandidateUiInputSnapshot): T9CandidateUiSnapshot? =
         T9ResponsivenessTrace.measure("CandidatesView.updateUi.buildState") {
+            if (input.handwritingActive) return@measure buildHandwriting(input)
             val surface = T9CandidateSourceControlPlanner.surface(
                 chineseActive = input.chineseT9Active,
                 smartEnglishActive = if (!input.chineseT9Active) {
@@ -323,6 +330,55 @@ class T9CandidateUiStateBuilder(
                 focusCorrection = focusPlan.correction
             )
         }
+
+    private fun buildHandwriting(input: T9CandidateUiInputSnapshot): T9CandidateUiSnapshot {
+        clearChinesePresentationState()
+        val paged = input.handwritingSnapshot
+            ?.let(pipeline::buildHandwritingPaged)
+            ?: T9PagedCandidates.Empty
+        val presentation = handwritingPresentation(paged.data)
+        val shownState = ShownState(
+            paged = paged.data,
+            originalIndices = paged.originalIndices,
+            usesSmartEnglish = false,
+            usesPendingPunctuation = false,
+            usesBulkSelection = false,
+            usesLocalBudget = false,
+            matchedPrefix = null
+        )
+        return T9CandidateUiSnapshot(
+            renderState = T9CandidateRenderStatePlanner.plan(
+                T9CandidateRenderStatePlanner.Input(
+                    inputPanel = FcitxEvent.InputPanelEvent.Data(),
+                    candidates = paged.data,
+                    orientation = input.orientation,
+                    usesSmartEnglish = false,
+                    usesPendingPunctuation = false,
+                    chineseT9Active = false,
+                    suppressEmptyCandidates = false,
+                    presentationState = presentation,
+                    focus = T9CandidateFocus.BOTTOM,
+                    usesHandwriting = true
+                )
+            ),
+            shownState = shownState,
+            interactionState = T9CandidateInteractionState(
+                shownSource = T9CandidateUiSnapshotPipeline.ShownSource.HANDWRITING,
+                hasBottomCandidateRow = paged.data.candidates.isNotEmpty(),
+                matchedPrefix = null
+            ),
+            focusCorrection = T9CandidateFocus.BOTTOM.takeIf {
+                input.currentFocus != T9CandidateFocus.BOTTOM
+            }
+        )
+    }
+
+    private fun handwritingPresentation(
+        paged: FcitxEvent.PagedCandidateEvent.Data
+    ): T9PresentationState? = paged.candidates
+        .getOrNull(paged.cursorIndex)
+        ?.text
+        ?.let(::pendingPunctuationPresentationState)
 
     private fun getChinesePresentationState(key: ChineseT9PresentationSnapshotKey): T9PresentationState {
         if (key == previousChinesePresentationKey) {

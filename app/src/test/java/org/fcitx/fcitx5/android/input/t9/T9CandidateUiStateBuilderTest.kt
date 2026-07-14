@@ -7,6 +7,7 @@ package org.fcitx.fcitx5.android.input.t9
 
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrientation
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingUiSnapshot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -42,6 +43,27 @@ class T9CandidateUiStateBuilderTest {
         assertEquals(0, pipeline.buildCursorContextSignatureCount)
         assertEquals(0, pipeline.applyHanziCursorCount)
         assertEquals(0, pipeline.getT9PresentationCount)
+    }
+
+    @Test
+    fun handwritingOwnsCandidateSurfaceWithoutRunningChinesePipeline() {
+        val pipeline = FakePipeline()
+        val result = T9CandidateUiStateBuilder(pipeline).build(
+            input(chineseActive = true).copy(
+                handwritingActive = true,
+                handwritingSnapshot = HandwritingUiSnapshot(
+                    revision = 1,
+                    candidates = listOf("你", "好"),
+                    selectedIndex = 1
+                )
+            )
+        )
+
+        assertNotNull(result)
+        assertEquals(T9CandidateUiSnapshotPipeline.ShownSource.HANDWRITING, result!!.interactionState.shownSource)
+        assertEquals("好", result.renderState.panel.preedit.toString())
+        assertEquals(0, pipeline.getT9PresentationCount)
+        assertEquals(0, pipeline.filterPagedByPrefixesCount)
     }
 
     @Test
@@ -278,6 +300,22 @@ class T9CandidateUiStateBuilderTest {
         override fun buildSmartEnglishPaged(
             snapshot: SmartEnglishUiSnapshot
         ): T9PagedCandidates? = snapshot.paged?.let(T9PagedCandidates::passthrough)
+
+        override fun buildHandwritingPaged(
+            snapshot: HandwritingUiSnapshot
+        ): T9PagedCandidates? = snapshot.candidates.takeIf { it.isNotEmpty() }?.let { candidates ->
+            T9PagedCandidates.passthrough(
+                FcitxEvent.PagedCandidateEvent.Data(
+                    candidates = candidates.map {
+                        FcitxEvent.Candidate(label = "", text = it, comment = "")
+                    }.toTypedArray(),
+                    cursorIndex = snapshot.selectedIndex,
+                    layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
+                    hasPrev = false,
+                    hasNext = false
+                )
+            )
+        }
 
         override fun buildT9PendingPunctuationPaged(
             data: FcitxEvent.PagedCandidateEvent.Data

@@ -1,0 +1,12 @@
+{
+    "uniqueId": "gugray/hanzi_lookup-data",
+    "artifactVersion": "2026-07-14",
+    "description": "Substroke descriptors for 9,507 Chinese characters, adapted into the app's compact offline handwriting repository. The data originates from Make Me a Hanzi and Arphic PL fonts. The bundled recognizer independently adapts the documented HanziLookup matching approach.",
+    "name": "HanziLookup offline handwriting data and design reference",
+    "website": "https://github.com/gugray/hanzi_lookup",
+    "tag": "dictionary",
+    "licenses": [
+        "LGPL-3.0-or-later",
+        "Arphic-1999"
+    ]
+}

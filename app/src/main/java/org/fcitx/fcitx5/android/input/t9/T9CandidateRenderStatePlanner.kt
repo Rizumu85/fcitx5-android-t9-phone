@@ -19,7 +19,8 @@ object T9CandidateRenderStatePlanner {
         val chineseT9Active: Boolean,
         val suppressEmptyCandidates: Boolean,
         val presentationState: T9PresentationState?,
-        val focus: T9CandidateFocus
+        val focus: T9CandidateFocus,
+        val usesHandwriting: Boolean = false
     )
 
     fun plan(input: Input): T9CandidateRenderState {
@@ -68,7 +69,8 @@ object T9CandidateRenderStatePlanner {
     private fun shouldShowShortcutLabels(input: Input): Boolean =
         input.candidates.candidates.isNotEmpty() &&
             input.presentationState?.candidateStatus == null &&
-            (input.usesSmartEnglish || input.usesPendingPunctuation || input.chineseT9Active)
+            (input.usesSmartEnglish || input.usesPendingPunctuation || input.chineseT9Active ||
+                input.usesHandwriting)
 
     private fun shouldShow(input: Input): Boolean =
         !input.suppressEmptyCandidates && evaluateVisibility(

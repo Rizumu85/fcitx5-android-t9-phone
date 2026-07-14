@@ -12,6 +12,7 @@ uiAutomator = "2.4.0"
 splitties = "3.0.0"
 aboutlibraries = "14.0.0-b02"
 arrow = "2.2.2"
+mlkitDigitalInk = "19.0.0"
 
 [libraries]
 android-gradlePlugin = { group = "com.android.tools.build", name = "gradle", version.ref = "androidGradlePlugin" }
@@ -68,6 +69,7 @@ androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstall
 androidx-lifecycle-testing = { module = "androidx.lifecycle:lifecycle-runtime-testing", version.ref = "lifecycle" }
 kotlinpoet-ksp = { module = "com.squareup:kotlinpoet-ksp", version = "2.2.0" }
 ksp = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
+mlkit-digital-ink = { module = "com.google.mlkit:digital-ink-recognition", version.ref = "mlkitDigitalInk" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
