@@ -26,12 +26,13 @@ object InputUiFont {
     private val fontExtensions = setOf("ttf", "otf", "ttc")
 
     private data class FontFileEntry(val file: File)
+    private data class ResolvedFont(val typeface: Typeface, val weight: Int?)
 
     @Volatile
-    private var cachedTypefaceValue: String? = null
+    private var cachedFontValue: String? = null
 
     @Volatile
-    private var cachedTypeface: Typeface? = null
+    private var cachedFont: ResolvedFont? = null
 
     fun customFontPreferenceEntries(context: Context): List<Pair<String, CharSequence>> {
         val entries = mutableListOf(SystemDefaultValue to context.getString(R.string.system_default))
@@ -42,20 +43,24 @@ object InputUiFont {
         )
     }
 
-    private fun selectedTypeface(): Typeface? {
+    private fun selectedFont(): ResolvedFont? {
         val value = AppPrefs.getInstance().keyboard.inputUiFont.getValue()
         if (value == SystemDefaultValue || !value.startsWith(FontFilePrefix)) return null
         // Decision: candidate rendering can measure text dozens of times per key press, so a
         // custom font path must not hit Typeface.createFromFile on the input hot path.
-        cachedTypefaceValue.takeIf { it == value }?.let { return cachedTypeface }
+        cachedFontValue.takeIf { it == value }?.let { return cachedFont }
         return synchronized(this) {
-            cachedTypefaceValue.takeIf { it == value }?.let { return@synchronized cachedTypeface }
-            typefaceFromFontFileValue(value).also {
-                cachedTypefaceValue = value
-                cachedTypeface = it
+            cachedFontValue.takeIf { it == value }?.let { return@synchronized cachedFont }
+            fontFromFileValue(value).also {
+                cachedFontValue = value
+                cachedFont = it
             }
         }
     }
+
+    private fun selectedTypeface(): Typeface? = selectedFont()?.typeface
+
+    fun selectedFontWeight(): Int? = selectedFont()?.weight
 
     fun applyTo(view: TextView, style: Int = Typeface.NORMAL) {
         view.setTypeface(selectedTypeface(), style)
@@ -105,23 +110,31 @@ object InputUiFont {
         return "$FontFilePrefix${file.absolutePath}"
     }
 
-    private fun typefaceFromFontFileValue(value: String): Typeface? {
+    private fun fontFromFileValue(value: String): ResolvedFont? {
         return runCatching {
             val file = File(value.removePrefix(FontFilePrefix))
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 // Product decision: custom typography must not turn a valid rare Han candidate
                 // into a blank chip. One fallback family also keeps Paint measurement aligned
                 // with the Typeface used by candidate TextViews.
-                val family = FontFamily.Builder(Font.Builder(file).build()).build()
-                Typeface.CustomFallbackBuilder(family)
+                val font = Font.Builder(file).build()
+                val family = FontFamily.Builder(font).build()
+                val typeface = Typeface.CustomFallbackBuilder(family)
                     .setSystemFallback("sans-serif")
                     .build()
+                ResolvedFont(typeface, font.style.weight)
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                Typeface.Builder(file)
+                val typeface = Typeface.Builder(file)
                     .setFallback("sans-serif")
                     .build()
+                val weight = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    typeface.weight
+                } else {
+                    null
+                }
+                ResolvedFont(typeface, weight)
             } else {
-                Typeface.createFromFile(file)
+                ResolvedFont(Typeface.createFromFile(file), null)
             }
         }.getOrNull()
     }

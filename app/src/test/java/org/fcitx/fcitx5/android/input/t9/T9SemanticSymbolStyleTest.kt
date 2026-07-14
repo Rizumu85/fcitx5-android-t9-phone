@@ -11,17 +11,17 @@ import org.junit.Test
 class T9SemanticSymbolStyleTest {
     @Test
     fun mapsReportedFontWeightToBoundedStrokeWidth() {
-        assertEquals(0.065f, T9SemanticSymbolStyle.strokeEmForWeight(100), DELTA)
-        assertEquals(0.075f, T9SemanticSymbolStyle.strokeEmForWeight(250), DELTA)
-        assertEquals(0.085f, T9SemanticSymbolStyle.strokeEmForWeight(400), DELTA)
-        assertEquals(0.100f, T9SemanticSymbolStyle.strokeEmForWeight(650), DELTA)
-        assertEquals(0.115f, T9SemanticSymbolStyle.strokeEmForWeight(900), DELTA)
+        assertEquals(0.070f, T9SemanticSymbolStyle.strokeEmForWeight(100), DELTA)
+        assertEquals(0.0825f, T9SemanticSymbolStyle.strokeEmForWeight(250), DELTA)
+        assertEquals(0.095f, T9SemanticSymbolStyle.strokeEmForWeight(400), DELTA)
+        assertEquals(0.1175f, T9SemanticSymbolStyle.strokeEmForWeight(650), DELTA)
+        assertEquals(0.140f, T9SemanticSymbolStyle.strokeEmForWeight(900), DELTA)
     }
 
     @Test
     fun clampsMalformedFontMetadata() {
-        assertEquals(0.065f, T9SemanticSymbolStyle.strokeEmForWeight(-100), DELTA)
-        assertEquals(0.115f, T9SemanticSymbolStyle.strokeEmForWeight(1200), DELTA)
+        assertEquals(0.070f, T9SemanticSymbolStyle.strokeEmForWeight(-100), DELTA)
+        assertEquals(0.140f, T9SemanticSymbolStyle.strokeEmForWeight(1200), DELTA)
     }
 
     companion object {

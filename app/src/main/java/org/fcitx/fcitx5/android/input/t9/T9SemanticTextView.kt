@@ -13,6 +13,7 @@ import android.graphics.Rect
 import android.os.Build
 import android.util.AttributeSet
 import android.widget.TextView
+import org.fcitx.fcitx5.android.input.InputUiFont
 import kotlin.math.ceil
 import kotlin.math.max
 
@@ -85,7 +86,7 @@ class T9SemanticTextView @JvmOverloads constructor(
             em * T9SemanticSymbolStyle.strokeEmForWeight(resolvedFontWeight())
         )
         symbolPaint.strokeCap = Paint.Cap.ROUND
-        symbolPaint.strokeJoin = Paint.Join.ROUND
+        symbolPaint.strokeJoin = Paint.Join.MITER
         symbolPath.reset()
         symbolPath.moveTo(right, glyphTop)
         symbolPath.lineTo(right, shaftY - turnRadius)
@@ -98,11 +99,10 @@ class T9SemanticTextView @JvmOverloads constructor(
     }
 
     private fun resolvedFontWeight(): Int {
-        val declaredWeight = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            paint.typeface?.weight
-        } else {
-            null
-        }
+        // Typeface.create(base, NORMAL) can report 400 even when a static custom font contains
+        // semibold outlines. Prefer the source font's parsed OpenType weight when available.
+        val declaredWeight = InputUiFont.selectedFontWeight()
+            ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) paint.typeface?.weight else null
         val baseWeight = declaredWeight ?: if (paint.typeface?.isBold == true) {
             T9SemanticSymbolStyle.BoldFontWeight
         } else {
@@ -131,6 +131,6 @@ class T9SemanticTextView @JvmOverloads constructor(
         private const val ARROW_WING_Y_RATIO = 0.22f
         // Font files expose weight but not a reliable sharp-versus-rounded personality. A fixed,
         // moderate bend remains legible beside both geometric and soft custom typefaces.
-        private const val TURN_RADIUS_RATIO = 0.22f
+        private const val TURN_RADIUS_RATIO = 0.10f
     }
 }

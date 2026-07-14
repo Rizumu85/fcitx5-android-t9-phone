@@ -33,7 +33,7 @@ internal object T9SemanticSymbolStyle {
 
     private const val MIN_FONT_WEIGHT = 100
     private const val MAX_FONT_WEIGHT = 900
-    private const val THIN_STROKE_EM = 0.065f
-    private const val NORMAL_STROKE_EM = 0.085f
-    private const val HEAVY_STROKE_EM = 0.115f
+    private const val THIN_STROKE_EM = 0.070f
+    private const val NORMAL_STROKE_EM = 0.095f
+    private const val HEAVY_STROKE_EM = 0.140f
 }
