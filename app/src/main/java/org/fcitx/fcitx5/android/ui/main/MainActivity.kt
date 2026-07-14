@@ -32,6 +32,7 @@ import org.fcitx.fcitx5.android.databinding.ActivityMainBinding
 import org.fcitx.fcitx5.android.ui.main.settings.SettingsRoute
 import org.fcitx.fcitx5.android.ui.setup.SetupActivity
 import org.fcitx.fcitx5.android.update.AutomaticUpdateCheckGate
+import org.fcitx.fcitx5.android.update.InstalledUpdateVersionsResolver
 import org.fcitx.fcitx5.android.update.UpdateCheckUi
 import org.fcitx.fcitx5.android.update.UpdateChecker
 import org.fcitx.fcitx5.android.utils.Const
@@ -110,9 +111,9 @@ class MainActivity : AppCompatActivity() {
         if (!AutomaticUpdateCheckGate(this).tryAcquire()) return
         lifecycleScope.launch {
             // Automatic checks stay silent unless an update is actually available.
-            val result = UpdateChecker().check()
+            val result = UpdateChecker(InstalledUpdateVersionsResolver.resolve(this@MainActivity)).check()
             if (result is UpdateChecker.Result.Available && !isFinishing) {
-                UpdateCheckUi.showAvailable(this@MainActivity, result.release)
+                UpdateCheckUi.showAvailable(this@MainActivity, result)
             }
         }
     }

@@ -14,9 +14,17 @@ import android.os.Build
 import android.os.Environment
 
 object UpdateAssetSelector {
-    fun appAsset(release: UpdateRelease, supportedAbis: List<String>): UpdateRelease.Asset? =
+    fun asset(
+        release: UpdateRelease,
+        component: UpdateComponent,
+        supportedAbis: List<String>
+    ): UpdateRelease.Asset? =
         supportedAbis.firstNotNullOfOrNull { abi ->
-            release.appAssets.firstOrNull { it.name.endsWith("-$abi-release.apk") }
+            val assets = when (component) {
+                UpdateComponent.APP -> release.appAssets
+                UpdateComponent.RIME -> release.rimeAssets
+            }
+            assets.firstOrNull { it.name.endsWith("-$abi-release.apk") }
         }
 }
 
@@ -25,8 +33,12 @@ object UpdateDownloader {
     private const val PendingIdsKey = "pending_ids"
     private const val ApkMimeType = "application/vnd.android.package-archive"
 
-    fun enqueueApp(context: Context, release: UpdateRelease): Boolean {
-        val asset = UpdateAssetSelector.appAsset(release, Build.SUPPORTED_ABIS.toList())
+    fun enqueue(
+        context: Context,
+        release: UpdateRelease,
+        component: UpdateComponent
+    ): Boolean {
+        val asset = UpdateAssetSelector.asset(release, component, Build.SUPPORTED_ABIS.toList())
             ?: return false
         val manager = context.getSystemService(DownloadManager::class.java)
         val request = DownloadManager.Request(Uri.parse(asset.downloadUrl))

@@ -12,18 +12,25 @@ import androidx.appcompat.app.AlertDialog
 import org.fcitx.fcitx5.android.R
 
 object UpdateCheckUi {
-    fun showAvailable(context: Context, release: UpdateRelease) {
+    fun showAvailable(context: Context, result: UpdateChecker.Result.Available) {
+        val release = result.release
+        val components = result.components.toList().sortedBy(UpdateComponent::ordinal)
+        val labels = components.map { component ->
+            when (component) {
+                UpdateComponent.APP -> context.getString(R.string.update_app_component, release.version)
+                UpdateComponent.RIME -> context.getString(R.string.update_rime_component, release.version)
+            }
+        }.toTypedArray()
         AlertDialog.Builder(context)
             .setTitle(context.getString(R.string.update_available, release.version))
-            .setMessage(R.string.update_available_summary)
+            .setItems(labels) { _, index ->
+                if (!UpdateDownloader.enqueue(context, release, components[index])) {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(release.pageUrl)))
+                }
+            }
             .setNegativeButton(android.R.string.cancel, null)
             .setNeutralButton(R.string.view_update) { _, _ ->
                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(release.pageUrl)))
-            }
-            .setPositiveButton(R.string.download_update) { _, _ ->
-                if (!UpdateDownloader.enqueueApp(context, release)) {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(release.pageUrl)))
-                }
             }
             .show()
     }

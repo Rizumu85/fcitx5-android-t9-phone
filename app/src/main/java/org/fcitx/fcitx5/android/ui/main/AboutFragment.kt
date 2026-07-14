@@ -15,6 +15,7 @@ import org.fcitx.fcitx5.android.ui.common.PaddingPreferenceFragment
 import org.fcitx.fcitx5.android.ui.main.settings.SettingsRoute
 import org.fcitx.fcitx5.android.update.UpdateCheckUi
 import org.fcitx.fcitx5.android.update.UpdateChecker
+import org.fcitx.fcitx5.android.update.InstalledUpdateVersionsResolver
 import org.fcitx.fcitx5.android.utils.Const
 import org.fcitx.fcitx5.android.utils.addCategory
 import org.fcitx.fcitx5.android.utils.addPreference
@@ -70,9 +71,10 @@ class AboutFragment : PaddingPreferenceFragment() {
         checkUpdatePreference.isEnabled = false
         checkUpdatePreference.setSummary(R.string.checking_for_updates)
         lifecycleScope.launch {
-            when (val result = UpdateChecker().check()) {
+            val installedVersions = InstalledUpdateVersionsResolver.resolve(requireContext())
+            when (val result = UpdateChecker(installedVersions).check()) {
                 is UpdateChecker.Result.Available ->
-                    UpdateCheckUi.showAvailable(requireContext(), result.release)
+                    UpdateCheckUi.showAvailable(requireContext(), result)
                 UpdateChecker.Result.UpToDate ->
                     UpdateCheckUi.showUpToDate(requireContext())
                 is UpdateChecker.Result.Failed ->

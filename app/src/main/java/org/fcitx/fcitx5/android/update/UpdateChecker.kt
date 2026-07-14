@@ -6,6 +6,7 @@
 package org.fcitx.fcitx5.android.update
 
 import android.content.Context
+import android.content.pm.PackageManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.BuildConfig
@@ -13,10 +14,14 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 class UpdateChecker(
+    private val installedVersions: InstalledUpdateVersions,
     private val fetchRelease: suspend () -> String = ::fetchLatestRelease
 ) {
     sealed class Result {
-        data class Available(val release: UpdateRelease) : Result()
+        data class Available(
+            val release: UpdateRelease,
+            val components: Set<UpdateComponent>
+        ) : Result()
         data object UpToDate : Result()
         data class Failed(val cause: Throwable) : Result()
     }
@@ -25,8 +30,9 @@ class UpdateChecker(
         UpdateReleaseParser.parse(fetchRelease())
     }.fold(
         onSuccess = { release ->
-            if (UpdateVersion.isNewer(release.version, BuildConfig.VERSION_NAME)) {
-                Result.Available(release)
+            val components = UpdatePlan.availableComponents(release, installedVersions)
+            if (components.isNotEmpty()) {
+                Result.Available(release, components)
             } else {
                 Result.UpToDate
             }
@@ -51,6 +57,21 @@ class UpdateChecker(
             }
         }
     }
+}
+
+object InstalledUpdateVersionsResolver {
+    private const val ReleaseRimePackage = "org.fcitx.fcitx5.android.plugin.rime"
+
+    fun resolve(context: Context): InstalledUpdateVersions = InstalledUpdateVersions(
+        app = BuildConfig.VERSION_NAME,
+        // Release assets update the production plugin. Looking at the debug plugin here would
+        // advertise an APK that is intentionally unable to replace its different package ID.
+        rime = context.packageManager.versionNameOrNull(ReleaseRimePackage)
+    )
+
+    @Suppress("DEPRECATION")
+    private fun PackageManager.versionNameOrNull(packageName: String): String? =
+        runCatching { getPackageInfo(packageName, 0).versionName }.getOrNull()
 }
 
 class AutomaticUpdateCheckGate(

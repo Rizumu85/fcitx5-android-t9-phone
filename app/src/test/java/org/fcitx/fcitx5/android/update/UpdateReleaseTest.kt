@@ -69,7 +69,29 @@ class UpdateReleaseTest {
 
         assertEquals(
             "64",
-            UpdateAssetSelector.appAsset(release, listOf("arm64-v8a", "armeabi-v7a"))?.downloadUrl
+            UpdateAssetSelector.asset(
+                release,
+                UpdateComponent.APP,
+                listOf("arm64-v8a", "armeabi-v7a")
+            )?.downloadUrl
+        )
+    }
+
+    @Test
+    fun `update plan includes rime independently from app`() {
+        val release = UpdateRelease(
+            version = "4.3.0",
+            pageUrl = "https://example.com",
+            appAssets = listOf(UpdateRelease.Asset("app.apk", "app")),
+            rimeAssets = listOf(UpdateRelease.Asset("rime.apk", "rime"))
+        )
+
+        assertEquals(
+            setOf(UpdateComponent.RIME),
+            UpdatePlan.availableComponents(
+                release,
+                InstalledUpdateVersions(app = "4.3.0", rime = "4.2.0")
+            )
         )
     }
 }

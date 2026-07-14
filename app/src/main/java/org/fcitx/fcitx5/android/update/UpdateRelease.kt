@@ -21,6 +21,32 @@ data class UpdateRelease(
     )
 }
 
+enum class UpdateComponent {
+    APP,
+    RIME
+}
+
+data class InstalledUpdateVersions(
+    val app: String,
+    val rime: String?
+)
+
+object UpdatePlan {
+    fun availableComponents(
+        release: UpdateRelease,
+        installed: InstalledUpdateVersions
+    ): Set<UpdateComponent> = buildSet {
+        if (release.appAssets.isNotEmpty() && UpdateVersion.isNewer(release.version, installed.app)) {
+            add(UpdateComponent.APP)
+        }
+        if (release.rimeAssets.isNotEmpty() &&
+            (installed.rime == null || UpdateVersion.isNewer(release.version, installed.rime))
+        ) {
+            add(UpdateComponent.RIME)
+        }
+    }
+}
+
 object UpdateReleaseParser {
     private val json = Json { ignoreUnknownKeys = true }
 
