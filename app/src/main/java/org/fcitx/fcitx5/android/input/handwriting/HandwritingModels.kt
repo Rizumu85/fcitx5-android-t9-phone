@@ -30,8 +30,30 @@ data class HandwritingViewState(
     val strokes: List<HandwritingStroke>,
     val modelState: HandwritingModelState,
     val recognizing: Boolean,
-    val noMatch: Boolean
+    val noMatch: Boolean,
+    val pronunciation: HandwritingPronunciationFeedback?
 )
+
+data class HandwritingPronunciationFeedback(
+    val character: String,
+    val readings: List<String>
+) {
+    companion object {
+        fun create(character: String, readings: List<String>): HandwritingPronunciationFeedback? {
+            val normalized = readings
+                .asSequence()
+                .map { it.trim() }
+                .filter(String::isNotEmpty)
+                .distinct()
+                .toList()
+            return if (character.isBlank() || normalized.isEmpty()) {
+                null
+            } else {
+                HandwritingPronunciationFeedback(character, normalized)
+            }
+        }
+    }
+}
 
 data class HandwritingUiSnapshot(
     val revision: Long,

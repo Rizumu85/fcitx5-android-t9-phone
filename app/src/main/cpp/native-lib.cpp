@@ -28,11 +28,13 @@
 #include <fcitx-utils/eventdispatcher.h>
 #include <fcitx-utils/standardpath.h>
 #include <fcitx-utils/stringutils.h>
+#include <fcitx-utils/utf8.h>
 #include <fcitx-config/iniparser.h>
 
 #include <quickphrase_public.h>
 #include <unicode_public.h>
 #include <clipboard_public.h>
+#include <pinyinhelper_public.h>
 #include <rime_public.h>
 
 #include <libime/pinyin/pinyindictionary.h>
@@ -448,6 +450,22 @@ public:
         return p_rime->call<fcitx::IRimeEngine::getInput>(ic);
     }
 
+    std::vector<std::string> getPinyinReadings(const std::string &character) {
+        if (character.empty() || fcitx::utf8::lengthValidated(character) != 1) {
+            return {};
+        }
+        if (!p_pinyinhelper) {
+            // Keep the module off the startup path; pronunciation is an optional handwriting
+            // aid, and AddonManager retains the lazily loaded instance for later commits.
+            p_pinyinhelper = p_instance->addonManager().addon("pinyinhelper", true);
+        }
+        if (!p_pinyinhelper) {
+            return {};
+        }
+        return p_pinyinhelper->call<fcitx::IPinyinHelper::lookup>(
+            fcitx::utf8::getChar(character));
+    }
+
     bool replaceRimeInput(int start, int length, const std::string &replacement, int caretPos) {
         if (!p_frontend || !p_rime) return false;
         auto *ic = p_frontend->call<fcitx::IAndroidFrontend::activeInputContext>();
@@ -513,6 +531,7 @@ private:
     fcitx::AddonInstance *p_unicode = nullptr;
     fcitx::AddonInstance *p_clipboard = nullptr;
     fcitx::AddonInstance *p_rime = nullptr;
+    fcitx::AddonInstance *p_pinyinhelper = nullptr;
 
     void resetGlobalPointers() {
         p_instance.reset();
@@ -522,6 +541,7 @@ private:
         p_unicode = nullptr;
         p_clipboard = nullptr;
         p_rime = nullptr;
+        p_pinyinhelper = nullptr;
     }
 };
 
@@ -892,6 +912,14 @@ Java_org_fcitx_fcitx5_android_core_Fcitx_getRimeInput(JNIEnv *env, jclass clazz)
     RETURN_VALUE_IF_NOT_RUNNING(env->NewStringUTF(""))
     const auto input = Fcitx::Instance().getRimeInput();
     return env->NewStringUTF(input.c_str());
+}
+
+extern "C"
+JNIEXPORT jobjectArray JNICALL
+Java_org_fcitx_fcitx5_android_core_Fcitx_getPinyinReadings(JNIEnv *env, jclass clazz, jstring character) {
+    RETURN_VALUE_IF_NOT_RUNNING(nullptr)
+    const auto readings = Fcitx::Instance().getPinyinReadings(CString(env, character));
+    return stringVectorToJStringArray(env, readings);
 }
 
 extern "C"

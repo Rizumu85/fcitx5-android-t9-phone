@@ -61,6 +61,7 @@ target_link_libraries(native-lib
         Boost::iostreams
         LibIME::Pinyin
         LibIME::Table
+        fcitx5-chinese-addons::pinyinhelper
         pinyin-customphrase
         )
 

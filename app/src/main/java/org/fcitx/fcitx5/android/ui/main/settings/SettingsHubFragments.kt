@@ -76,7 +76,10 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
         Group(
             R.string.handwriting_input,
             prefs.keyboard,
-            setOf(prefs.keyboard.handwritingBrushStyle.key)
+            setOf(
+                prefs.keyboard.handwritingShowPronunciation.key,
+                prefs.keyboard.handwritingBrushStyle.key
+            )
         ),
         Group(
             R.string.voice_input,

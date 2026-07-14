@@ -23,7 +23,9 @@ class HandwritingCoordinator(
     private val scope: CoroutineScope,
     private val commitText: (String) -> Unit,
     private val refreshCandidates: () -> Unit,
-    private val hideCandidates: () -> Unit
+    private val hideCandidates: () -> Unit,
+    private val showPronunciationAfterCommit: () -> Boolean,
+    private val lookupPronunciations: suspend (String) -> List<String>
 ) {
     private enum class Backend { OFFLINE, ENHANCED }
 
@@ -43,7 +45,10 @@ class HandwritingCoordinator(
     private var modelState = HandwritingModelState.PREPARING_OFFLINE
     private var recognizing = false
     private var noMatch = false
+    private var pronunciation: HandwritingPronunciationFeedback? = null
+    private var pronunciationGeneration = 0L
     private var recognitionJob: Job? = null
+    private var pronunciationJob: Job? = null
     private var offlineWarmupJob: Job? = null
     private var enhancedModelJob: Job? = null
     private var stateListener: ((HandwritingViewState) -> Unit)? = null
@@ -57,6 +62,7 @@ class HandwritingCoordinator(
     fun begin() {
         if (active) return
         active = true
+        invalidatePronunciationFeedback()
         clearCharacter(publish = false)
         publishState()
         warmupRecognizers()
@@ -68,6 +74,7 @@ class HandwritingCoordinator(
         active = false
         generation++
         recognitionJob?.cancel()
+        invalidatePronunciationFeedback()
         clearCharacter(publish = false)
         stateListener = null
         hideCandidates()
@@ -80,6 +87,9 @@ class HandwritingCoordinator(
 
     fun addStroke(stroke: HandwritingStroke) {
         if (!active || stroke.points.isEmpty()) return
+        // Pronunciation is learning feedback for the character just committed. The first stroke
+        // of the next character dismisses it without making the user wait for a timeout.
+        invalidatePronunciationFeedback()
         if (strokes.isEmpty()) {
             // A character keeps one recognizer for its entire lifetime. Switching to a model that
             // finishes downloading mid-character makes candidates jump for no user action.
@@ -117,7 +127,10 @@ class HandwritingCoordinator(
     }
 
     fun clear(): Boolean {
-        if (!active || strokes.isEmpty() && candidates.isEmpty()) return false
+        if (!active || strokes.isEmpty() && candidates.isEmpty() && pronunciation == null) {
+            return false
+        }
+        invalidatePronunciationFeedback()
         clearCharacter(publish = true)
         hideCandidates()
         return true
@@ -146,14 +159,17 @@ class HandwritingCoordinator(
         if (!active || recognizing) return false
         val resolvedIndex = index ?: selectedIndex
         val text = candidates.getOrNull(resolvedIndex) ?: return false
+        invalidatePronunciationFeedback()
         commitText(text)
         clearCharacter(publish = true)
         hideCandidates()
+        publishPronunciation(text)
         return true
     }
 
     fun close() {
         recognitionJob?.cancel()
+        invalidatePronunciationFeedback()
         offlineWarmupJob?.cancel()
         enhancedModelJob?.cancel()
         enhancedRecognizer.close()
@@ -301,13 +317,47 @@ class HandwritingCoordinator(
         hideCandidates()
     }
 
+    private fun publishPronunciation(character: String) {
+        if (!showPronunciationAfterCommit()) return
+        val requestGeneration = ++pronunciationGeneration
+        pronunciationJob = scope.launch {
+            val feedback = runCatching {
+                HandwritingPronunciationFeedback.create(
+                    character,
+                    lookupPronunciations(character)
+                )
+            }.onFailure {
+                Timber.w(it, "Unable to look up handwriting pronunciation")
+            }.getOrNull()
+            if (!active || requestGeneration != pronunciationGeneration || feedback == null) {
+                return@launch
+            }
+            pronunciation = feedback
+            publishState()
+            delay(PronunciationDisplayMillis)
+            if (active && requestGeneration == pronunciationGeneration) {
+                pronunciation = null
+                pronunciationJob = null
+                publishState()
+            }
+        }
+    }
+
+    private fun invalidatePronunciationFeedback() {
+        pronunciationGeneration++
+        pronunciationJob?.cancel()
+        pronunciationJob = null
+        pronunciation = null
+    }
+
     private fun publishState() {
         stateListener?.invoke(
             HandwritingViewState(
                 strokes = strokes,
                 modelState = modelState,
                 recognizing = recognizing,
-                noMatch = noMatch
+                noMatch = noMatch,
+                pronunciation = pronunciation
             )
         )
     }
@@ -328,6 +378,7 @@ class HandwritingCoordinator(
 
     private companion object {
         const val RecognitionIdleMillis = 420L
+        const val PronunciationDisplayMillis = 4_500L
         const val EnhancedWarmupDelayMillis = 750L
         const val CandidateLimit = 30
     }

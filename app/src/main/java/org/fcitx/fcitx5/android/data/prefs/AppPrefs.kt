@@ -194,6 +194,12 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
                 BuildConfig.PERFORMANCE_HARNESS
             )
 
+        val handwritingShowPronunciation = switch(
+            R.string.handwriting_show_pronunciation,
+            "handwriting_show_pronunciation",
+            true,
+            R.string.handwriting_show_pronunciation_summary
+        )
         val handwritingBrushStyle = enumList(
             R.string.handwriting_brush_style,
             "handwriting_brush_style",

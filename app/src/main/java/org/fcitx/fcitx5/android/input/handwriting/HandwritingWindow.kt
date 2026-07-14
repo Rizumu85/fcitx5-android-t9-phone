@@ -6,7 +6,6 @@
 package org.fcitx.fcitx5.android.input.handwriting
 
 import android.graphics.drawable.GradientDrawable
-import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
@@ -75,11 +74,11 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         status = TextView(context).apply {
             gravity = Gravity.CENTER
             setTextColor(theme.candidateCommentColor)
-            textSize = 12f
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
+            textSize = 14f
             includeFontPadding = false
-            maxWidth = context.dp(220)
+            maxWidth = (resources.displayMetrics.widthPixels - context.dp(40)).coerceAtLeast(
+                context.dp(120)
+            )
             minHeight = context.dp(28)
             setPadding(context.dp(10), context.dp(5), context.dp(10), context.dp(5))
             background = roundedSurface(10f, theme.keyboardColor)
@@ -150,8 +149,21 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         clearButton.isEnabled = state.strokes.isNotEmpty()
         undoButton.alpha = if (undoButton.isEnabled) 1f else DisabledControlAlpha
         clearButton.alpha = if (clearButton.isEnabled) 1f else DisabledControlAlpha
-        status.visibility = if (state.noMatch) View.VISIBLE else View.GONE
-        if (state.noMatch) status.setText(R.string.handwriting_no_match)
+        when {
+            state.noMatch -> {
+                status.setText(R.string.handwriting_no_match)
+                status.visibility = View.VISIBLE
+            }
+            state.pronunciation != null -> {
+                status.text = context.getString(
+                    R.string.handwriting_pronunciation_format,
+                    state.pronunciation.character,
+                    state.pronunciation.readings.joinToString(" · ")
+                )
+                status.visibility = View.VISIBLE
+            }
+            else -> status.visibility = View.GONE
+        }
         if (
             state.modelState == HandwritingModelState.ENHANCED_MODEL_MISSING &&
             !promptPref.getValue()

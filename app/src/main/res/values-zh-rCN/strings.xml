@@ -434,6 +434,9 @@
     <string name="handwriting_brush_style">笔触样式</string>
     <string name="handwriting_brush_pen">钢笔</string>
     <string name="handwriting_brush_calligraphy">毛笔</string>
+    <string name="handwriting_show_pronunciation">提交后显示拼音</string>
+    <string name="handwriting_show_pronunciation_summary">手写提交汉字后，短暂显示所有带声调的拼音读音</string>
+    <string name="handwriting_pronunciation_format">%1$s  %2$s</string>
     <string name="handwriting_enhanced_model">增强手写识别（ML Kit）</string>
     <string name="handwriting_model_checking">正在检查识别模型…</string>
     <string name="handwriting_model_available">已下载，可离线使用</string>

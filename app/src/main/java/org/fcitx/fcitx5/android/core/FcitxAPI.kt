@@ -62,6 +62,7 @@ interface FcitxAPI {
     suspend fun reset()
     suspend fun moveCursor(position: Int)
     suspend fun getRimeInput(): String
+    suspend fun lookupPinyinReadings(character: String): Array<String>
     suspend fun replaceRimeInput(
         start: Int,
         length: Int,

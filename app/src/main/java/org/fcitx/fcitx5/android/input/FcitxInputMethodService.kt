@@ -187,7 +187,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             scope = lifecycleScope,
             commitText = ::commitText,
             refreshCandidates = { candidatesView?.refreshT9Ui() },
-            hideCandidates = { candidatesView?.hideT9CandidateUiImmediately() }
+            hideCandidates = { candidatesView?.hideT9CandidateUiImmediately() },
+            showPronunciationAfterCommit = {
+                prefs.keyboard.handwritingShowPronunciation.getValue()
+            },
+            lookupPronunciations = { character ->
+                fcitx.runOnReady { lookupPinyinReadings(character) }.asList()
+            }
         )
     }
     private val handwritingCoordinator by handwritingCoordinatorDelegate

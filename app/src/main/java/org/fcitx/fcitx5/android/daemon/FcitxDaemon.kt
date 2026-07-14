@@ -48,6 +48,9 @@ object FcitxDaemon {
             override suspend fun getRimeInput(): String =
                 realFcitx.getRimeInput()
 
+            override suspend fun lookupPinyinReadings(character: String): Array<String> =
+                realFcitx.lookupPinyinReadings(character)
+
             override suspend fun replaceRimeInput(
                 start: Int,
                 length: Int,
