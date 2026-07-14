@@ -108,6 +108,7 @@ import org.fcitx.fcitx5.android.input.t9.T9ModeCoordinator
 import org.fcitx.fcitx5.android.input.t9.T9MultiTapCoordinator
 import org.fcitx.fcitx5.android.input.t9.T9PresentationState
 import org.fcitx.fcitx5.android.input.t9.T9PunctuationCoordinator
+import org.fcitx.fcitx5.android.input.t9.T9PunctuationSession
 import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
 import org.fcitx.fcitx5.android.utils.InputMethodUtil
 import org.fcitx.fcitx5.android.utils.alpha
@@ -1765,12 +1766,15 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             formatText = ::formattedT9Text
         )
     }
-    private val t9PunctuationCoordinator: T9PunctuationCoordinator = T9PunctuationCoordinator(
-        clearTransientInputUiState = ::clearTransientInputUiState,
-        publishCandidateSource = { candidatesView?.refreshT9Ui() },
-        cancelTimeout = {},
-        commitText = ::commitText
-    )
+    private val t9PunctuationCoordinator: T9PunctuationCoordinator by lazy {
+        T9PunctuationCoordinator(
+            session = T9PunctuationSession(newlineLabel = getString(R.string.newline)),
+            clearTransientInputUiState = ::clearTransientInputUiState,
+            publishCandidateSource = { candidatesView?.refreshT9Ui() },
+            cancelTimeout = {},
+            commitText = ::commitText
+        )
+    }
 
     private val chineseT9Composition = ChineseT9CompositionCoordinator(
         formatText = ::formattedT9Text,

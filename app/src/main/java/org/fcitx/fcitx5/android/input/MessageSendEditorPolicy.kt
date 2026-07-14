@@ -48,18 +48,23 @@ object MessageSendEditorPolicy {
         if (!isPlainTextEditor(snapshot.inputType)) return false
 
         val action = snapshot.imeOptions and EditorInfo.IME_MASK_ACTION
-        if (action != EditorInfo.IME_ACTION_NONE &&
-            action != EditorInfo.IME_ACTION_UNSPECIFIED
-        ) return false
-
         val isMultiline = snapshot.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0
         val suppressesEnterAction =
             snapshot.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
         val hasMessageHint = snapshot.hintText.orEmpty().let { hint ->
             messageHints.any { hint.contains(it, ignoreCase = true) }
         }
-        // Package name alone is not enough: the same apps also expose search and settings fields.
-        return isMultiline || suppressesEnterAction || hasMessageHint
+        // Some chat editors advertise DONE while suppressing its action so Android will keep a
+        // multiline Enter key. Only that strong signature may override DONE; navigation and
+        // search actions remain owned by the editor.
+        return when (action) {
+            EditorInfo.IME_ACTION_NONE,
+            EditorInfo.IME_ACTION_UNSPECIFIED ->
+                isMultiline || suppressesEnterAction || hasMessageHint
+            EditorInfo.IME_ACTION_DONE ->
+                (isMultiline && suppressesEnterAction) || hasMessageHint
+            else -> false
+        }
     }
 
     private fun isSupportedPackage(packageName: String): Boolean =

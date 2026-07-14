@@ -47,6 +47,19 @@ class MessageSendEditorPolicyTest {
     }
 
     @Test
+    fun `qq chat editor with done action is forced to send`() {
+        assertTrue(
+            MessageSendEditorPolicy.shouldForceSend(
+                snapshot(
+                    packageName = "com.tencent.mobileqq",
+                    inputType = 0xa0001,
+                    imeOptions = 0x40000006
+                )
+            )
+        )
+    }
+
+    @Test
     fun `unsupported app and password fields are rejected`() {
         assertFalse(
             MessageSendEditorPolicy.shouldForceSend(

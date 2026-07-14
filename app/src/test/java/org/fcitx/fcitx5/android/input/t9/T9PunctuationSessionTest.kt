@@ -40,4 +40,17 @@ class T9PunctuationSessionTest {
         assertNull(session.pendingText)
     }
 
+    @Test
+    fun newlineUsesVisibleLabelButCommitsLineBreak() {
+        val session = T9PunctuationSession(
+            chinesePunctuation = listOf("，"),
+            englishPunctuation = listOf("!"),
+            newlineLabel = "换行"
+        )
+
+        assertEquals("换行", session.showChineseCandidates())
+        assertEquals("换行", session.paged()?.candidates?.first()?.text)
+        assertEquals("\n", session.commit())
+    }
+
 }

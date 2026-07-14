@@ -213,15 +213,9 @@ class PickerPageUi(
                 } else {
                     isEnabled = true
                     val value = items[i]
-                    // Newline is editor text with no glyph, so its visible key needs an explicit label.
-                    val label = if (value == PickerData.Newline) {
-                        ctx.getString(R.string.newline)
-                    } else {
-                        value
-                    }
                     val commitString =
                         if (withSkinTone) EmojiModifier.getPreferredTone(value) else value
-                    mainText.text = label
+                    mainText.text = value
                     setOnClickListener {
                         onSymbolClick(commitString)
                     }
@@ -231,7 +225,7 @@ class PickerPageUi(
                         onPopupAction(
                             PopupAction.ShowKeyboardAction(
                                 view.id,
-                                KeyDef.Popup.Keyboard(label),
+                                KeyDef.Popup.Keyboard(value),
                                 bounds
                             )
                         )
@@ -248,7 +242,7 @@ class PickerPageUi(
                                 onPopupAction(
                                     PopupAction.PreviewAction(
                                         view.id,
-                                        label,
+                                        value,
                                         view.bounds,
                                         textSize = density.textSize
                                     )
