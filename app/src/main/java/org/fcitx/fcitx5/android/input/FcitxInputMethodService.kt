@@ -2541,11 +2541,15 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             .takeIf { handled }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        // Idle keys still belong to the phone's physical keypad experience even though their
+        // action passes through to the foreground app. Dialer fields already provide feedback.
+        if (!inputDeviceMgr.isPassthroughInput) {
+            playPhysicalKeySound(keyCode, event)
+        }
         if (inputDeviceMgr.shouldPassThroughHardwareKeys) {
             physicalInputRouter.reset()
             return super.onKeyDown(keyCode, event)
         }
-        playPhysicalKeySound(keyCode, event)
         return physicalInputRouter.handleKeyDown(keyCode, event)
     }
 
