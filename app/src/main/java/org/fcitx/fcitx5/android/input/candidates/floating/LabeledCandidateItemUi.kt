@@ -8,7 +8,10 @@ package org.fcitx.fcitx5.android.input.candidates.floating
 import android.content.Context
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.text.SpannableString
+import android.text.Spanned
 import android.text.TextUtils
+import android.text.style.RelativeSizeSpan
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -18,6 +21,7 @@ import androidx.core.text.buildSpannedString
 import androidx.core.text.color
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.data.theme.Theme
+import org.fcitx.fcitx5.android.input.t9.T9PunctuationSession
 import splitties.views.dsl.core.Ui
 import kotlin.math.roundToInt
 
@@ -154,7 +158,7 @@ class LabeledCandidateItemUi(
         val altFg = if (active) theme.genericActiveForegroundColor else theme.candidateCommentColor
         if (t9InputModeEnabled && shortcutLabel != null) {
             candidateText.setTextColor(fg)
-            candidateText.text = candidate.text
+            candidateText.text = candidate.displayTextForT9Shortcut()
             shortcutText.setTextColor(if (active) theme.genericActiveForegroundColor else theme.candidateCommentColor)
             shortcutText.text = shortcutLabel
             shortcutText.visibility = View.VISIBLE
@@ -241,11 +245,26 @@ class LabeledCandidateItemUi(
         view.layoutParams = params
     }
 
+    private fun FcitxEvent.Candidate.displayTextForT9Shortcut(): CharSequence {
+        if (text != T9PunctuationSession.NewlineSymbol) return text
+        // Product decision: retain the familiar bent return arrow while compensating for its
+        // unusually small em box without changing the size of every punctuation candidate.
+        return SpannableString(text).apply {
+            setSpan(
+                RelativeSizeSpan(RETURN_SYMBOL_TEXT_SCALE),
+                0,
+                length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+    }
+
     companion object {
         private const val ACTIVE_HIGHLIGHT_SCALE = 1.07f
         private const val SHORTCUT_LABEL_SCALE = 0.45f
         private const val SHORTCUT_CANDIDATE_MIN_WIDTH_EM = 1.35f
         private const val SHORTCUT_CANDIDATE_LINE_HEIGHT_EM = 1.45f
         private const val SHORTCUT_LABEL_LINE_HEIGHT_EM = 0.62f
+        private const val RETURN_SYMBOL_TEXT_SCALE = 1.25f
     }
 }

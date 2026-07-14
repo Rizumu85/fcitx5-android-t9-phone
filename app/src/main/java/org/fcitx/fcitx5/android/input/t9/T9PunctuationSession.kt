@@ -21,9 +21,7 @@ class T9PunctuationSession(
     includeNewline: Boolean = false
 ) {
     companion object {
-        // The return-key symbol has a full-height glyph in Android's fallback fonts; the narrower
-        // bent arrow looked undersized beside punctuation when a custom UI font lacked that glyph.
-        const val NewlineSymbol = "⏎"
+        const val NewlineSymbol = "↵"
     }
 
     enum class Set {
