@@ -33,13 +33,15 @@ Use these files for different purposes:
    - Always include a `Rime Version Mapping` section with the exact Rime plugin
      version and the exact `rime-ice-t9-phone` release tag. State clearly whether
      users must update and redeploy the configuration package.
+   - Keep only the latest release-notes file in the repository after publishing;
+     older notes remain available on the corresponding GitHub Releases.
 
 3. Keep Baidu text practical.
    - Update both Markdown and plain-text files.
    - Keep the root Baidu readme as the current public instructions.
    - Keep only the current release's versioned readme in Git. Delete the
      previous version's duplicate readmes when preparing a new release; Git
-     history and `release-notes-vX.Y.Z.md` are the archive.
+     history and GitHub Releases are the archive.
    - Baidu upload may need to be manual. The agent can help remove old remote
      APK/readme files through the browser when logged in, but the user may need
      to upload the new APKs manually.
