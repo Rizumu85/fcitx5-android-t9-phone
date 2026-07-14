@@ -27,7 +27,8 @@ import splitties.views.dsl.core.verticalLayout
 open class PreeditUi(
     override val ctx: Context,
     private val theme: Theme,
-    private val setupTextView: (TextView.() -> Unit)? = null
+    private val setupTextView: (TextView.() -> Unit)? = null,
+    private val decorateText: (CharSequence) -> CharSequence = { it }
 ) : Ui {
 
     class CursorSpan(ctx: Context, @ColorInt color: Int, metrics: Paint.FontMetricsInt) :
@@ -63,7 +64,7 @@ open class PreeditUi(
     }
 
     private fun updateTextView(view: TextView, str: CharSequence, visible: Boolean) {
-        view.text = str
+        view.text = decorateText(str)
         view.visibility = if (visible) View.VISIBLE else View.GONE
     }
 

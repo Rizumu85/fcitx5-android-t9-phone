@@ -50,6 +50,7 @@ import org.fcitx.fcitx5.android.input.t9.T9PinyinChipAdapter
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowSurfacePlanner
 import org.fcitx.fcitx5.android.input.t9.T9PinyinRowWindow
 import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
+import org.fcitx.fcitx5.android.input.t9.T9SemanticTextStyler
 import org.fcitx.fcitx5.android.input.t9.T9ShortcutCandidateLayout
 import org.fcitx.fcitx5.android.input.t9.T9CandidateRefreshGeneration
 import splitties.dimensions.dp
@@ -200,7 +201,14 @@ class CandidatesView(
         includeFontPadding = false
     }
 
-    private val preeditUi = PreeditUi(ctx, theme, setupTextViewSmallRow)
+    private val preeditUi = PreeditUi(
+        ctx = ctx,
+        theme = theme,
+        setupTextView = setupTextViewSmallRow,
+        // Product decision: semantic punctuation uses the same centered artwork in both bubbles;
+        // font fallback made the return arrow small and baseline-dependent in custom UI fonts.
+        decorateText = T9SemanticTextStyler::decorate
+    )
 
     private val t9CandidateUiSnapshotPipeline = T9CandidateUiSnapshotPipeline(
         characterBudget = { t9HanziCharacterBudget },
