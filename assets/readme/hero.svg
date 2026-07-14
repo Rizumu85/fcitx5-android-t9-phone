@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400" role="img" aria-labelledby="title desc">
+  <title id="title">fcitx5-android-t9-phone</title>
+  <desc id="desc">面向物理九键安卓手机的 Fcitx5 输入法。画面展示数字序列 426 解析为 hao，并在十二键键盘旁显示中文候选。</desc>
+
+  <rect width="1200" height="400" rx="24" fill="#0D1117"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">
+    <text x="64" y="64" fill="#52B8AE" font-size="18" font-weight="700" letter-spacing="1">FCITX5 ANDROID · PHYSICAL T9</text>
+    <text x="64" y="132" fill="#F5F7F6" font-size="54" font-weight="750">fcitx5-android-</text>
+    <text x="64" y="194" fill="#F5F7F6" font-size="54" font-weight="750">t9-phone</text>
+    <text x="64" y="246" fill="#C6CDCF" font-size="25">为实体九键安卓手机设计的输入法</text>
+    <text x="64" y="282" fill="#899294" font-size="20">拼音 · 笔画 · 注音 · 联想英语 · 数字</text>
+
+    <g transform="translate(64 324)" font-size="16" font-weight="650">
+      <rect width="126" height="38" rx="19" fill="#1B2527" stroke="#345A58"/>
+      <text x="63" y="25" text-anchor="middle" fill="#9FE0D8">物理键优先</text>
+      <rect x="140" width="126" height="38" rx="19" fill="#1B2527" stroke="#345A58"/>
+      <text x="203" y="25" text-anchor="middle" fill="#9FE0D8">Rime 中文</text>
+      <rect x="280" width="126" height="38" rx="19" fill="#1B2527" stroke="#345A58"/>
+      <text x="343" y="25" text-anchor="middle" fill="#9FE0D8">Android 6+</text>
+    </g>
+
+    <g transform="translate(714 34)">
+      <rect width="422" height="112" rx="18" fill="#F5F7F6"/>
+      <rect x="18" y="17" width="64" height="30" rx="8" fill="#E5EAEB"/>
+      <text x="50" y="38" text-anchor="middle" fill="#445054" font-size="17" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">426</text>
+      <text x="99" y="39" fill="#697477" font-size="17">gan</text>
+      <text x="149" y="39" fill="#697477" font-size="17">gao</text>
+      <text x="203" y="39" fill="#697477" font-size="17">han</text>
+      <rect x="251" y="14" width="62" height="36" rx="10" fill="#C8EEEA"/>
+      <text x="282" y="39" text-anchor="middle" fill="#124E49" font-size="18" font-weight="700">hao</text>
+      <text x="331" y="39" fill="#697477" font-size="17">ha</text>
+
+      <rect x="18" y="59" width="58" height="40" rx="10" fill="#52B8AE"/>
+      <text x="47" y="88" text-anchor="middle" fill="#082B28" font-size="28" font-weight="750">好</text>
+      <text x="105" y="88" text-anchor="middle" fill="#273236" font-size="27">号</text>
+      <text x="160" y="88" text-anchor="middle" fill="#273236" font-size="27">浩</text>
+      <text x="215" y="88" text-anchor="middle" fill="#273236" font-size="27">豪</text>
+      <text x="270" y="88" text-anchor="middle" fill="#273236" font-size="27">毫</text>
+      <text x="325" y="88" text-anchor="middle" fill="#273236" font-size="27">郝</text>
+      <text x="382" y="86" text-anchor="middle" fill="#526064" font-size="19">›</text>
+    </g>
+
+    <g transform="translate(742 164)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">
+      <g fill="#171C21" stroke="#303840">
+        <rect x="0" y="0" width="116" height="46" rx="9"/>
+        <rect x="128" y="0" width="116" height="46" rx="9" fill="#234744" stroke="#52B8AE"/>
+        <rect x="256" y="0" width="116" height="46" rx="9"/>
+        <rect x="0" y="58" width="116" height="46" rx="9" fill="#234744" stroke="#52B8AE"/>
+        <rect x="128" y="58" width="116" height="46" rx="9"/>
+        <rect x="256" y="58" width="116" height="46" rx="9" fill="#234744" stroke="#52B8AE"/>
+        <rect x="0" y="116" width="116" height="46" rx="9"/>
+        <rect x="128" y="116" width="116" height="46" rx="9"/>
+        <rect x="256" y="116" width="116" height="46" rx="9"/>
+        <rect x="0" y="174" width="116" height="46" rx="9"/>
+        <rect x="128" y="174" width="116" height="46" rx="9"/>
+        <rect x="256" y="174" width="116" height="46" rx="9"/>
+      </g>
+
+      <g fill="#D7DDDE" font-size="19" text-anchor="middle">
+        <text x="58" y="29">1</text>
+        <text x="186" y="29" fill="#B8F0EA">2 ABC</text>
+        <text x="314" y="29">3 DEF</text>
+        <text x="58" y="87" fill="#B8F0EA">4 GHI</text>
+        <text x="186" y="87">5 JKL</text>
+        <text x="314" y="87" fill="#B8F0EA">6 MNO</text>
+        <text x="58" y="145">7 PQRS</text>
+        <text x="186" y="145">8 TUV</text>
+        <text x="314" y="145">9 WXYZ</text>
+        <text x="58" y="204">*</text>
+        <text x="186" y="204">0</text>
+        <text x="314" y="204">#</text>
+      </g>
+    </g>
+  </g>
+</svg>
