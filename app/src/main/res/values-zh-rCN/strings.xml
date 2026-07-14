@@ -318,6 +318,9 @@
     <string name="key_sound_preview_space">空格 / 功能键</string>
     <string name="key_sound_preview_delete">删除 / 回车</string>
     <string name="physical_key_sound">物理按键音效</string>
+    <string name="enter_key_sends_messages">回车键发送消息</string>
+    <string name="enter_key_sends_messages_summary">支持部分聊天和评论输入框；需要换行时可使用符号第一页的“换行”</string>
+    <string name="newline">换行</string>
     <string name="clipboard_return_after_paste">粘贴后返回</string>
     <string name="theme_message_follow_system_day_night_mode_enabled">“跟随系统夜间模式”已启用，不能手动更换主题。</string>
     <string name="disable_it">禁用它</string>

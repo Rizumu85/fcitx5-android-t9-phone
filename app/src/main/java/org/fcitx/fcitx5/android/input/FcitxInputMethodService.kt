@@ -1030,6 +1030,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 sendTt9StyleDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
                 return
             }
+            if (keyboardPrefs.enterKeySendsMessages.getValue() &&
+                MessageSendEditorPolicy.shouldForceSend(MessageSendEditorPolicy.snapshot(this))
+            ) {
+                if (currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_SEND) != true) {
+                    sendTt9StyleDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
+                }
+                return
+            }
             when (val action = getTt9StyleEditorAction()) {
                 tt9StyleEnterAction -> {
                     Timber.d(

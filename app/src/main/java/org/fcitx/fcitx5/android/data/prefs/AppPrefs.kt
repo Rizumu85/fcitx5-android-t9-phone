@@ -129,6 +129,12 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         }
         val passwordInputPreview =
             switch(R.string.password_input_preview, "password_input_preview", true)
+        val enterKeySendsMessages = switch(
+            R.string.enter_key_sends_messages,
+            "enter_key_sends_messages",
+            false,
+            R.string.enter_key_sends_messages_summary
+        )
         val inputUiFont = dynamicStringList(
             R.string.input_ui_font_family,
             "input_ui_font",

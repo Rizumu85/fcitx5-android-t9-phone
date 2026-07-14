@@ -312,6 +312,9 @@
     <string name="key_sound_preview_space">空格 / 功能鍵</string>
     <string name="key_sound_preview_delete">刪除 / Enter</string>
     <string name="physical_key_sound">實體按鍵音效</string>
+    <string name="enter_key_sends_messages">Enter 鍵傳送訊息</string>
+    <string name="enter_key_sends_messages_summary">支援部分聊天和留言輸入框；需要換行時可使用符號第一頁的「換行」</string>
+    <string name="newline">換行</string>
     <string name="clipboard_return_after_paste">貼上後返回</string>
     <string name="theme_message_follow_system_day_night_mode_enabled">已設定「依據系統設定主題色調」，無法手動切換主題。</string>
     <string name="disable_it">停用此項</string>

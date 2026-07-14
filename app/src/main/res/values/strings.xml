@@ -318,6 +318,9 @@
     <string name="key_sound_preview_space">Space / function</string>
     <string name="key_sound_preview_delete">Delete / Return</string>
     <string name="physical_key_sound">Physical key sounds</string>
+    <string name="enter_key_sends_messages">Enter key sends messages</string>
+    <string name="enter_key_sends_messages_summary">In supported chat and comment fields; use Newline on the first Symbols page when needed</string>
+    <string name="newline">Newline</string>
     <string name="clipboard_return_after_paste">Return after pasting</string>
     <string name="theme_message_follow_system_day_night_mode_enabled">Cannot switch theme manually while \"Follow system day/night mode\" is enabled.</string>
     <string name="disable_it">Disable it</string>

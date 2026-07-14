@@ -212,10 +212,16 @@ class PickerPageUi(
                     onGestureListener = null
                 } else {
                     isEnabled = true
-                    val label = items[i]
+                    val value = items[i]
+                    // Newline is editor text with no glyph, so its visible key needs an explicit label.
+                    val label = if (value == PickerData.Newline) {
+                        ctx.getString(R.string.newline)
+                    } else {
+                        value
+                    }
                     val commitString =
-                        if (withSkinTone) EmojiModifier.getPreferredTone(label) else label
-                    mainText.text = commitString
+                        if (withSkinTone) EmojiModifier.getPreferredTone(value) else value
+                    mainText.text = label
                     setOnClickListener {
                         onSymbolClick(commitString)
                     }
