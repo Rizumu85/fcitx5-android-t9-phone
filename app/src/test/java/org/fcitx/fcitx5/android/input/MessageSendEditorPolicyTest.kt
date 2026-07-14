@@ -60,6 +60,38 @@ class MessageSendEditorPolicyTest {
     }
 
     @Test
+    fun `doubao supported app family uses send behavior`() {
+        val packages = listOf(
+            "com.tencent.mm",
+            "com.tencent.mobileqq",
+            "com.ss.android.lark",
+            "com.ss.android.ugc.aweme",
+            "com.ss.android.ugc.aweme.lite",
+            "com.ss.android.ugc.aweme.hubble",
+            "com.ss.android.yumme.video",
+            "com.ss.android.ugc.livelite",
+            "com.ss.android.ugc.live",
+            "my.maya.android",
+            "com.ss.android.article.news",
+            "com.ss.android.article.lite",
+            "com.luna.music",
+            "com.xingin.xhs"
+        )
+
+        packages.forEach { packageName ->
+            assertTrue(
+                packageName,
+                MessageSendEditorPolicy.shouldForceSend(
+                    snapshot(
+                        packageName = packageName,
+                        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                    )
+                )
+            )
+        }
+    }
+
+    @Test
     fun `unsupported app and password fields are rejected`() {
         assertFalse(
             MessageSendEditorPolicy.shouldForceSend(

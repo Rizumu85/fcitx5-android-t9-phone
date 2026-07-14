@@ -21,9 +21,13 @@ object MessageSendEditorPolicy {
         "com.tencent.mobileqq",
         "com.tencent.wework",
         "com.ss.android.lark",
+        "com.larksuite.suite",
         "com.xingin.xhs",
         "com.luna.music",
-        "my.maya.android"
+        "my.maya.android",
+        "com.ss.android.yumme.video",
+        "com.ss.android.ugc.livelite",
+        "com.ss.android.ugc.live"
     )
 
     private val packagePrefixes = listOf(

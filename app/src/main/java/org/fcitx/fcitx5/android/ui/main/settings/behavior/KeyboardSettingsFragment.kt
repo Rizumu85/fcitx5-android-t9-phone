@@ -108,7 +108,6 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
         val productSettingKeys = setOf(
             keyboardPrefs.hapticOnKeyPress.key,
             keyboardPrefs.soundOnKeyPress.key,
-            keyboardPrefs.enterKeySendsMessages.key,
             keyboardPrefs.passwordInputPreview.key,
             keyboardPrefs.t9KeyboardHeightPercent.key,
             "toolbar_buttons_manage",
@@ -135,7 +134,6 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
         screen.groupPreferences(
             R.string.keyboard_layout,
             listOf(
-                keyboardPrefs.enterKeySendsMessages.key,
                 keyboardPrefs.passwordInputPreview.key,
                 keyboardPrefs.t9KeyboardHeightPercent.key
             )
