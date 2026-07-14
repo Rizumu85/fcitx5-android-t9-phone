@@ -67,6 +67,12 @@ matching must never block the UI thread.
   character and clears the canvas while keeping handwriting open. Long number
   keys select visible shortcuts. Delete undoes one stroke; when the canvas is
   empty, delete continues to the editor deletion pipeline.
+- Users can enable tone-marked Pinyin feedback after commit. The lookup uses the
+  Pinyin Helper database already bundled with Fcitx, preserves every distinct
+  reading for polyphonic characters, and runs after text has been committed.
+  Feedback disappears after 4.5 seconds or immediately when the next stroke
+  begins, so it teaches the previous character without reserving permanent
+  drawing space.
 - Undo and clear belong to the existing input-window title bar, outside the
   writing tray, so controls never consume or cover drawing space.
 - The tray uses equal left and right margins and a static shadow drawable with
@@ -92,6 +98,9 @@ matching must never block the UI thread.
   asynchronously.
 - Candidate publication is generation checked and goes through the existing
   snapshot diff renderer.
+- Pronunciation lookup runs on the Fcitx dispatcher, loads Pinyin Helper only on
+  first use, and publishes through its own generation check. It cannot delay a
+  commit or revive feedback after a new stroke or window exit.
 - Recognition timing is emitted through Timber and Android trace sections so
   device testing can separate drawing, matching, candidate snapshot, and frame
   latency.

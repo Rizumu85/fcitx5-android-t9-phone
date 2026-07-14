@@ -165,8 +165,8 @@ show feedback instead of failing silently. The full contract is recorded in
 
 `HandwritingWindow` is a transient auxiliary surface reached from the
 configurable toolbar. It replaces the keyboard area while active, uses a
-low-allocation variable-width Canvas brush with cached completed-stroke
-geometry, and discards uncommitted strokes as soon as the user leaves.
+low-latency AndroidX Ink front buffer with a stable finished-stroke layer, and
+discards uncommitted strokes as soon as the user leaves.
 
 `HandwritingCoordinator` owns stroke generations, recognizer selection,
 candidate focus, commit, undo, clear, and model state. The bundled
@@ -180,6 +180,10 @@ Handwriting candidates join `T9CandidateUiSnapshotPipeline` through the
 `HANDWRITING` source. They reuse the existing bubble, paging, preview, shortcut,
 focus, and commit machinery. `PhysicalHandwritingKeyHandler` owns physical-key
 behavior while the surface is active, before ordinary Physical T9 routing.
+After commit, an optional learning aid asynchronously queries the bundled Fcitx
+Pinyin Helper and briefly shows every tone-marked reading in the tray. The
+lookup never delays text commit, and a new stroke immediately dismisses stale
+pronunciation feedback.
 The complete decision is recorded in
 `docs/adr/0003-transient-dual-backend-handwriting.md`.
 
