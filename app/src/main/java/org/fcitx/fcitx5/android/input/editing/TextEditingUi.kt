@@ -8,6 +8,8 @@ import android.content.Context
 import android.view.View
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.constraintlayout.widget.Guideline
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.InputFeedbacks
 import org.fcitx.fcitx5.android.data.theme.Theme
@@ -28,6 +30,7 @@ import splitties.views.dsl.core.Ui
 import splitties.views.dsl.core.add
 import splitties.views.dsl.core.horizontalLayout
 import splitties.views.dsl.core.lParams
+import splitties.views.dsl.core.view
 
 class TextEditingUi(
     override val ctx: Context,
@@ -36,33 +39,52 @@ class TextEditingUi(
     private val radius: Float
 ) : Ui {
 
-    private fun textButton(@StringRes id: Int, altStyle: Boolean = false) =
-        TextEditingButton(ctx, theme, border, radius, altStyle).apply {
-            setText(id)
-        }
+    private fun textButton(
+        @StringRes id: Int,
+        shape: TextEditingButton.Shape = TextEditingButton.Shape.Standalone
+    ) = TextEditingButton(ctx, theme, border, radius, shape).apply {
+        setText(id)
+    }
 
-    private fun iconButton(@DrawableRes icon: Int, altStyle: Boolean = false) =
-        TextEditingButton(ctx, theme, border, radius, altStyle).apply {
-            setIcon(icon)
-        }
+    private fun iconButton(
+        @DrawableRes icon: Int,
+        shape: TextEditingButton.Shape = TextEditingButton.Shape.Standalone
+    ) = TextEditingButton(ctx, theme, border, radius, shape).apply {
+        setIcon(icon)
+    }
 
-    val upButton = iconButton(R.drawable.ic_baseline_keyboard_arrow_up_24).apply {
+    val upButton = iconButton(
+        R.drawable.ic_baseline_keyboard_arrow_up_24,
+        shape = TextEditingButton.Shape.DpadUp
+    ).apply {
         contentDescription = ctx.getString(R.string.move_cursor_up)
     }
 
-    val rightButton = iconButton(R.drawable.ic_baseline_keyboard_arrow_right_24).apply {
+    val rightButton = iconButton(
+        R.drawable.ic_baseline_keyboard_arrow_right_24,
+        shape = TextEditingButton.Shape.DpadRight
+    ).apply {
         contentDescription = ctx.getString(R.string.move_cursor_right)
     }
 
-    val downButton = iconButton(R.drawable.ic_baseline_keyboard_arrow_down_24).apply {
+    val downButton = iconButton(
+        R.drawable.ic_baseline_keyboard_arrow_down_24,
+        shape = TextEditingButton.Shape.DpadDown
+    ).apply {
         contentDescription = ctx.getString(R.string.move_cursor_down)
     }
 
-    val leftButton = iconButton(R.drawable.ic_baseline_keyboard_arrow_left_24).apply {
+    val leftButton = iconButton(
+        R.drawable.ic_baseline_keyboard_arrow_left_24,
+        shape = TextEditingButton.Shape.DpadLeft
+    ).apply {
         contentDescription = ctx.getString(R.string.move_cursor_left)
     }
 
-    val selectButton = textButton(R.string.select).apply {
+    val selectButton = textButton(
+        R.string.select,
+        shape = TextEditingButton.Shape.DpadCenter
+    ).apply {
         enableActivatedState()
     }
 
@@ -91,10 +113,15 @@ class TextEditingUi(
         contentDescription = ctx.getString(R.string.backspace)
     }
 
-    override val root = constraintLayout {
-        // The title and controls are one editing surface; using the bar color here avoids a
-        // second keyboard-colored band between them in themes where those tokens differ.
-        backgroundColor = theme.barColor
+    private val actionGuide = view(::Guideline)
+
+    private val dpad = constraintLayout {
+        background = TextEditingDpadDrawable(
+            theme.keyBackgroundColor,
+            radius,
+            theme.keyShadowColor,
+            if (border) dp(1) else 0
+        )
 
         add(leftButton, lParams {
             below(upButton)
@@ -117,63 +144,79 @@ class TextEditingUi(
         add(downButton, lParams {
             below(selectButton)
             leftToRightOf(leftButton)
-            above(homeButton)
+            bottomOfParent()
             rightToLeftOf(rightButton)
         })
         add(rightButton, lParams {
             below(upButton)
             leftToRightOf(selectButton)
             above(downButton)
-            rightToLeftOf(copyButton)
+            rightOfParent()
+        })
+    }
+
+    override val root = constraintLayout {
+        // The title and controls are one editing surface; using the bar color here avoids a
+        // second keyboard-colored band between them in themes where those tokens differ.
+        backgroundColor = theme.barColor
+
+        add(actionGuide, lParams {
+            orientation = ConstraintLayout.LayoutParams.VERTICAL
+            guidePercent = 0.7f
+        })
+        add(dpad, lParams {
+            topOfParent()
+            leftOfParent()
+            above(homeButton)
+            rightToLeftOf(actionGuide)
+            matchConstraintPercentWidth = 0.48f
+            horizontalBias = 0.5f
         })
 
         add(homeButton, lParams {
-            below(downButton)
+            below(dpad)
             leftOfParent()
             bottomOfParent()
             rightToLeftOf(endButton)
+            matchConstraintPercentHeight = 0.25f
         })
         add(endButton, lParams {
-            below(downButton)
+            below(dpad)
             leftToRightOf(homeButton)
             bottomOfParent()
-            rightToLeftOf(backspaceButton)
+            rightToLeftOf(actionGuide)
+            matchConstraintPercentHeight = 0.25f
         })
 
         add(selectAllButton, lParams {
             topOfParent()
-            leftToRightOf(rightButton)
+            leftToRightOf(actionGuide)
             rightOfParent()
             above(cutButton)
-            matchConstraintPercentWidth = 0.3f
         })
         add(cutButton, lParams {
             below(selectAllButton)
-            leftToRightOf(rightButton)
+            leftToRightOf(actionGuide)
             rightOfParent()
             above(copyButton)
-            matchConstraintPercentWidth = 0.3f
         })
         add(copyButton, lParams {
             below(cutButton)
-            leftToRightOf(rightButton)
+            leftToRightOf(actionGuide)
             rightOfParent()
             above(pasteButton)
-            matchConstraintPercentWidth = 0.3f
         })
         add(pasteButton, lParams {
             below(copyButton)
-            leftToRightOf(rightButton)
+            leftToRightOf(actionGuide)
             rightOfParent()
             above(backspaceButton)
-            matchConstraintPercentWidth = 0.3f
         })
         add(backspaceButton, lParams {
             below(pasteButton)
-            leftToRightOf(rightButton)
+            leftToRightOf(actionGuide)
             rightOfParent()
             bottomOfParent()
-            matchConstraintPercentWidth = 0.3f
         })
     }
 
