@@ -64,6 +64,8 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         private const val ActionRailWidthDp = 44
         private const val ActionSizeDp = 40
         private const val ActionSpacingDp = 4
+        private const val MinimumActionSizeDp = 32
+        private const val MinimumActionSpacingDp = 2
         private const val ActionLabelHeightDp = 18
         private const val ActionLabelWidthDp = 28
         private const val ActionLabelMaxSizeSp = 18f
@@ -466,9 +468,13 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             setOnClickListener { action() }
         }
 
-    private fun actionRail(vararg buttons: View) = LinearLayout(context).apply {
-        orientation = LinearLayout.VERTICAL
-        gravity = Gravity.CENTER
+    private fun actionRail(vararg buttons: View) = HandwritingActionRail(
+        context = context,
+        preferredButtonSizePx = context.dp(ActionSizeDp),
+        preferredMarginPx = context.dp(ActionSpacingDp),
+        minimumButtonSizePx = context.dp(MinimumActionSizeDp),
+        minimumMarginPx = context.dp(MinimumActionSpacingDp)
+    ).apply {
         buttons.forEach { button ->
             addView(
                 button,
@@ -619,6 +625,43 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             cornerRadius = context.dp(radiusDp)
             setColor(color)
         }
+}
+
+private class HandwritingActionRail(
+    context: android.content.Context,
+    private val preferredButtonSizePx: Int,
+    private val preferredMarginPx: Int,
+    private val minimumButtonSizePx: Int,
+    private val minimumMarginPx: Int
+) : LinearLayout(context) {
+    init {
+        orientation = VERTICAL
+        gravity = Gravity.CENTER
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        if (MeasureSpec.getMode(heightMeasureSpec) != MeasureSpec.UNSPECIFIED && childCount > 0) {
+            val availableHeight = (
+                MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom
+                ).coerceAtLeast(0)
+            val sizing = HandwritingActionRailLayoutPolicy.resolve(
+                availableHeightPx = availableHeight,
+                buttonCount = childCount,
+                preferredButtonSizePx = preferredButtonSizePx,
+                preferredMarginPx = preferredMarginPx,
+                minimumButtonSizePx = minimumButtonSizePx,
+                minimumMarginPx = minimumMarginPx
+            )
+            repeat(childCount) { index ->
+                val params = getChildAt(index).layoutParams as LayoutParams
+                params.width = sizing.buttonSizePx
+                params.height = sizing.buttonSizePx
+                params.topMargin = sizing.verticalMarginPx
+                params.bottomMargin = sizing.verticalMarginPx
+            }
+        }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
 }
 
 private class OpticallyCenteredActionTextView(context: android.content.Context) : TextView(context) {
