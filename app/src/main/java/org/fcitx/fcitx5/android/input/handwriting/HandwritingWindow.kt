@@ -23,8 +23,6 @@ import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.input.FcitxInputMethodService
 import org.fcitx.fcitx5.android.input.InputUiFont
 import org.fcitx.fcitx5.android.input.bar.ui.ToolButton
-import org.fcitx.fcitx5.android.input.broadcast.InputBroadcastReceiver
-import org.fcitx.fcitx5.android.input.broadcast.ReturnKeyDrawableComponent
 import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
@@ -38,21 +36,19 @@ import org.fcitx.fcitx5.android.utils.rippleDrawable
 import org.mechdancer.dependency.manager.must
 import splitties.dimensions.dp
 
-class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), EssentialWindow,
-    InputBroadcastReceiver {
+class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), EssentialWindow {
     private val service: FcitxInputMethodService by manager.inputMethodService()
     private val theme by manager.theme()
     private val windowManager: InputWindowManager by manager.must()
-    private val returnKeyDrawable: ReturnKeyDrawableComponent by manager.must()
     private val promptPref = AppPrefs.getInstance().internal.handwritingEnhancedPromptShown
     private val brushStylePref = AppPrefs.getInstance().keyboard.handwritingBrushStyle
 
     companion object : EssentialWindow.Key {
         private const val DisabledControlAlpha = 0.4f
-        private const val ActionRadiusDp = 10f
+        private const val ActionRadiusDp = 14f
         private const val ActionRailWidthDp = 44
         private const val ActionSizeDp = 40
-        private const val ActionSpacingDp = 3
+        private const val ActionSpacingDp = 4
     }
 
     override val key: EssentialWindow.Key
@@ -64,7 +60,6 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
     private lateinit var canvas: HandwritingCanvasView
     private lateinit var root: FrameLayout
     private lateinit var status: TextView
-    private lateinit var returnButton: ToolButton
     private var modelPrompt: Snackbar? = null
 
     private val undoButton by lazy {
@@ -147,30 +142,35 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             )
         }
         val leftRail = actionRail(
+            iconActionButton(
+                icon = R.drawable.ic_baseline_tag_faces_24,
+                description = R.string.handwriting_open_emoji_keyboard,
+                action = ::openEmojiKeyboard
+            ),
             textActionButton(
                 text = context.getString(R.string.handwriting_number_shortcut),
                 description = R.string.handwriting_open_number_keyboard,
-                textSize = 13f,
+                textSize = 15f,
                 action = ::openNumberKeyboard
             ),
             textActionButton(
-                text = context.getString(R.string.handwriting_symbol_shortcut),
-                description = R.string.handwriting_open_symbol_keyboard,
-                textSize = 17f,
-                action = ::openSymbolKeyboard
-            ),
-            iconActionButton(
-                icon = R.drawable.ic_baseline_space_bar_24,
-                description = R.string.handwriting_insert_space
+                text = context.getString(R.string.handwriting_chinese_shortcut),
+                description = R.string.handwriting_language_switch_placeholder,
+                textSize = 15f,
+                action = {}
+            ).apply {
+                isEnabled = false
+                alpha = 0.55f
+            },
+            textActionButton(
+                text = context.getString(R.string.handwriting_comma_shortcut),
+                description = R.string.handwriting_insert_comma,
+                textSize = 18f
             ) {
-                service.commitHandwritingLiteral(" ")
+                service.commitHandwritingLiteral(
+                    context.getString(R.string.handwriting_comma_shortcut)
+                )
             }
-        )
-        returnButton = iconActionButton(
-            icon = returnKeyDrawable.resourceId,
-            description = R.string.handwriting_return,
-            accent = true,
-            action = service::performHandwritingReturn
         )
         val rightRail = actionRail(
             iconActionButton(
@@ -178,25 +178,18 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
                 description = R.string.handwriting_delete_committed_text,
                 action = service::deleteCommittedTextFromHandwriting
             ),
-            textActionButton(
-                text = context.getString(R.string.handwriting_comma_shortcut),
-                description = R.string.handwriting_insert_comma,
-                textSize = 22f
+            iconActionButton(
+                icon = R.drawable.ic_baseline_space_bar_24,
+                description = R.string.handwriting_insert_space
             ) {
-                service.commitHandwritingLiteral(
-                    context.getString(R.string.handwriting_comma_shortcut)
-                )
+                service.commitHandwritingLiteral(" ")
             },
             textActionButton(
-                text = context.getString(R.string.handwriting_period_shortcut),
-                description = R.string.handwriting_insert_period,
-                textSize = 22f
-            ) {
-                service.commitHandwritingLiteral(
-                    context.getString(R.string.handwriting_period_shortcut)
-                )
-            },
-            returnButton
+                text = context.getString(R.string.handwriting_symbol_shortcut),
+                description = R.string.handwriting_open_symbol_keyboard,
+                textSize = 15f,
+                action = ::openSymbolKeyboard
+            )
         )
         root = FrameLayout(context).apply {
             setBackgroundColor(theme.barColor)
@@ -253,10 +246,6 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         // Leaving handwriting is an explicit cancellation boundary. Uncommitted strokes are
         // discarded immediately so returning to T9 never revives an accidental character.
         service.endHandwritingInput()
-    }
-
-    override fun onReturnKeyDrawableUpdate(resourceId: Int) {
-        if (::returnButton.isInitialized) returnButton.setIcon(resourceId)
     }
 
     private fun renderState(state: HandwritingViewState) {
@@ -357,7 +346,8 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
     private fun applyActionSurface(view: View, accent: Boolean) {
         view.background = roundedSurface(
             ActionRadiusDp,
-            if (accent) theme.genericActiveBackgroundColor else theme.altKeyBackgroundColor
+            if (accent) theme.genericActiveBackgroundColor else theme.altKeyBackgroundColor,
+            withBorder = !accent
         )
         view.foreground = rippleDrawable(
             theme.keyPressHighlightColor,
@@ -367,11 +357,19 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
 
     private fun openSymbolKeyboard() {
         service.commitHandwritingCandidateBeforeAuxiliaryInput()
+        windowManager.beginAuxiliaryInput(HandwritingWindow)
         windowManager.attachWindow(PickerWindow.Key.Symbol)
+    }
+
+    private fun openEmojiKeyboard() {
+        service.commitHandwritingCandidateBeforeAuxiliaryInput()
+        windowManager.beginAuxiliaryInput(HandwritingWindow)
+        windowManager.attachWindow(PickerWindow.Key.Emoji)
     }
 
     private fun openNumberKeyboard() {
         service.commitHandwritingCandidateBeforeAuxiliaryInput()
+        windowManager.beginAuxiliaryInput(HandwritingWindow)
         val keyboardWindow = windowManager.getEssentialWindow(KeyboardWindow) as KeyboardWindow
         keyboardWindow.switchLayout(NumberKeyboard.Name)
         // KeyboardWindow switches layouts on the main executor; attach in the following turn so

@@ -430,6 +430,9 @@
     <string name="handwriting_insert_space">輸入空格</string>
     <string name="handwriting_open_symbol_keyboard">開啟符號鍵盤</string>
     <string name="handwriting_open_number_keyboard">開啟數字鍵盤</string>
+    <string name="handwriting_open_emoji_keyboard">開啟表情鍵盤</string>
+    <string name="handwriting_language_switch_placeholder">中英文手寫切換暫不可用</string>
+    <string name="handwriting_chinese_shortcut">中</string>
     <string name="handwriting_return">傳送或換行</string>
     <string name="handwriting_comma_shortcut">，</string>
     <string name="handwriting_period_shortcut">。</string>

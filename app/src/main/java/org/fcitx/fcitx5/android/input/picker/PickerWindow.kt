@@ -18,6 +18,7 @@ import org.fcitx.fcitx5.android.input.keyboard.KeyAction
 import org.fcitx.fcitx5.android.input.keyboard.KeyActionListener
 import org.fcitx.fcitx5.android.input.keyboard.KeyDef
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
+import org.fcitx.fcitx5.android.input.keyboard.TextKeyboard
 import org.fcitx.fcitx5.android.input.popup.PopupAction
 import org.fcitx.fcitx5.android.input.popup.PopupActionListener
 import org.fcitx.fcitx5.android.input.popup.PopupComponent
@@ -59,6 +60,11 @@ class PickerWindow(
     private val keyActionListener = KeyActionListener { it, source ->
         when (it) {
             is KeyAction.LayoutSwitchAction -> {
+                if (it.act == TextKeyboard.Name &&
+                    windowManager.returnFromAuxiliaryInput()
+                ) {
+                    return@KeyActionListener
+                }
                 // Switch to NumberKeyboard before attaching KeyboardWindow
                 (windowManager.getEssentialWindow(KeyboardWindow) as KeyboardWindow)
                     .switchLayout(it.act)

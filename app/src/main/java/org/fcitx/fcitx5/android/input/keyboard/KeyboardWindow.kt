@@ -104,9 +104,23 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
     private val keyActionListener = KeyActionListener { it, source ->
         when (it) {
             is KeyAction.LayoutSwitchAction -> {
-                if (it.act == TemporaryFullKeyboard.ExitTarget) {
+                if (
+                    it.act == TextKeyboard.Name &&
+                    currentKeyboardName == NumberKeyboard.Name &&
+                    windowManager.hasAuxiliaryReturnTarget()
+                ) {
+                    // Number is a temporary drawer when entered from handwriting. Normalize the
+                    // dormant keyboard before returning so a later regular attach cannot flash it.
+                    switchLayout(T9Keyboard.Name, remember = false)
+                    ContextCompat.getMainExecutor(service).execute {
+                        windowManager.returnFromAuxiliaryInput()
+                    }
+                } else if (it.act == TemporaryFullKeyboard.ExitTarget) {
                     disableTemporaryTextKeyboardForCurrentSession()
                 } else {
+                    if (it.act != NumberKeyboard.Name && it.act != PickerWindow.Key.Symbol.name) {
+                        windowManager.clearAuxiliaryInputReturnTarget()
+                    }
                     switchLayout(it.act)
                 }
             }

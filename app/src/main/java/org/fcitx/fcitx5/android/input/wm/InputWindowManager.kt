@@ -37,6 +37,7 @@ class InputWindowManager : UniqueViewComponent<InputWindowManager, FrameLayout>(
 
     private var currentWindow: InputWindow? = null
     private var currentView: View? = null
+    private val auxiliaryReturnSession = AuxiliaryInputReturnSession()
 
     /**
      * Invoked when the active window changes (after detach of old, after attach of new).
@@ -111,6 +112,22 @@ class InputWindowManager : UniqueViewComponent<InputWindowManager, FrameLayout>(
         materializeEssentialWindow(windowKey)?.let { (window, _) ->
             attachWindow(window)
         } ?: throw IllegalStateException("$windowKey is not a known essential window key")
+    }
+
+    fun beginAuxiliaryInput(returnTarget: EssentialWindow.Key) {
+        auxiliaryReturnSession.begin(returnTarget)
+    }
+
+    fun hasAuxiliaryReturnTarget(): Boolean = auxiliaryReturnSession.hasTarget()
+
+    fun returnFromAuxiliaryInput(): Boolean {
+        val target = auxiliaryReturnSession.consume() ?: return false
+        attachWindow(target)
+        return true
+    }
+
+    fun clearAuxiliaryInputReturnTarget() {
+        auxiliaryReturnSession.clear()
     }
 
     /**
