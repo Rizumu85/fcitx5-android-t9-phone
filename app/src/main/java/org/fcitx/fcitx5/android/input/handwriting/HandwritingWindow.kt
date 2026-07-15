@@ -194,7 +194,7 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
                 action = service::deleteCommittedTextFromHandwriting
             ),
             iconActionButton(
-                icon = R.drawable.ic_baseline_space_bar_24,
+                icon = R.drawable.ic_handwriting_space_bar_24,
                 description = R.string.handwriting_insert_space
             ) {
                 service.commitHandwritingLiteral(" ")
@@ -442,10 +442,10 @@ private class OpticallyCenteredActionTextView(context: android.content.Context) 
         // Manual glyph drawing bypasses TextView's state-color application; keep custom themes and
         // disabled states authoritative by applying the resolved color explicitly.
         paint.color = currentTextColor
-        // Font metrics center the em box, which leaves punctuation visibly low. Centering actual
-        // glyph bounds gives commas, Latin digits, and CJK labels one optical alignment rule.
+        // Advance width includes punctuation side bearings, so both axes use visible glyph bounds
+        // to keep commas, Latin digits, and CJK labels optically centered by the same rule.
         paint.getTextBounds(value, 0, value.length, visualBounds)
-        val x = (width - paint.measureText(value)) / 2f
+        val x = width / 2f - (visualBounds.left + visualBounds.right) / 2f
         val baseline = height / 2f - (visualBounds.top + visualBounds.bottom) / 2f
         canvas.drawText(value, x, baseline, paint)
     }
