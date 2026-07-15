@@ -19,28 +19,32 @@ import java.net.URL
 class UpdateChecker(
     private val installedVersions: InstalledUpdateVersions,
     private val supportedComponents: Set<UpdateComponent>,
-    private val fetchAppRelease: suspend () -> String = { fetchLatestRelease(AppReleaseUrl) },
-    private val fetchRimeConfigRelease: suspend () -> String = {
-        fetchLatestRelease(RimeConfigReleaseUrl)
+    private val fetchAppReleases: suspend () -> String = { fetchReleases(AppReleasesUrl) },
+    private val fetchRimeConfigReleases: suspend () -> String = {
+        fetchReleases(RimeConfigReleasesUrl)
     }
 ) {
     sealed class Result {
-        data class Available(val artifacts: List<UpdateArtifact>) : Result()
+        data class Available(val releases: List<UpdateRelease>) : Result() {
+            val latestArtifacts: List<UpdateArtifact> = UpdatePlan.latestArtifacts(releases)
+        }
         data object UpToDate : Result()
         data class Failed(val cause: Throwable) : Result()
     }
 
     suspend fun check(): Result = coroutineScope {
         val appResult = async {
-            runCatching { UpdateReleaseParser.parseAppRelease(fetchAppRelease()) }
+            runCatching { UpdateReleaseParser.parseAppReleases(fetchAppReleases()) }
         }
         val configResult = async {
-            runCatching { UpdateReleaseParser.parseRimeConfigRelease(fetchRimeConfigRelease()) }
+            runCatching {
+                UpdateReleaseParser.parseRimeConfigReleases(fetchRimeConfigReleases())
+            }
         }
         val results = listOf(appResult.await(), configResult.await())
-        val artifacts = results.flatMap { it.getOrDefault(emptyList()) }
-        val available = UpdatePlan.availableArtifacts(
-            artifacts = artifacts,
+        val releases = results.flatMap { it.getOrDefault(emptyList()) }
+        val available = UpdatePlan.availableReleases(
+            releases = releases,
             installed = installedVersions,
             supportedComponents = supportedComponents
         )
@@ -52,12 +56,12 @@ class UpdateChecker(
     }
 
     companion object {
-        private const val AppReleaseUrl =
-            "https://api.github.com/repos/Rizumu85/fcitx5-android-t9-phone/releases/latest"
-        private const val RimeConfigReleaseUrl =
-            "https://api.github.com/repos/Rizumu85/rime-ice-t9-phone/releases/latest"
+        private const val AppReleasesUrl =
+            "https://api.github.com/repos/Rizumu85/fcitx5-android-t9-phone/releases?per_page=100"
+        private const val RimeConfigReleasesUrl =
+            "https://api.github.com/repos/Rizumu85/rime-ice-t9-phone/releases?per_page=100"
 
-        private suspend fun fetchLatestRelease(url: String): String = withContext(Dispatchers.IO) {
+        private suspend fun fetchReleases(url: String): String = withContext(Dispatchers.IO) {
             val connection = URL(url).openConnection() as HttpURLConnection
             try {
                 connection.connectTimeout = 5_000

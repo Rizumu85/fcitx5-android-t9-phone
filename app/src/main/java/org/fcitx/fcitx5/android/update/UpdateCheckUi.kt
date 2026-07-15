@@ -14,35 +14,30 @@ import org.fcitx.fcitx5.android.R
 
 object UpdateCheckUi {
     fun showAvailable(context: Context, result: UpdateChecker.Result.Available) {
-        val artifacts = result.artifacts.sortedBy { it.component.ordinal }
-        val labels = artifacts.map { artifact ->
-            when (artifact.component) {
-                UpdateComponent.APP -> context.getString(
-                    R.string.download_app_update,
-                    artifact.version
-                )
-                UpdateComponent.RIME_PLUGIN -> context.getString(
-                    R.string.download_rime_plugin_update,
-                    artifact.version
-                )
-                UpdateComponent.RIME_CONFIG -> context.getString(
-                    R.string.download_rime_config_update,
-                    artifact.version
-                )
+        lateinit var dialog: AlertDialog
+        val content = UpdateReleaseHistoryUi(
+            context = context,
+            releases = result.releases,
+            latestArtifacts = result.latestArtifacts,
+            onDownload = { artifact ->
+                dialog.dismiss()
+                startDownload(context, artifact)
             }
-        }.toTypedArray()
-        AlertDialog.Builder(context)
+        )
+        dialog = AlertDialog.Builder(context)
             .setTitle(R.string.update_available)
-            .setItems(labels) { _, index ->
-                val artifact = artifacts[index]
-                if (UpdateDownloader.enqueue(context, artifact)) {
-                    Toast.makeText(context, R.string.update_download_started, Toast.LENGTH_SHORT).show()
-                } else {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(artifact.pageUrl)))
-                }
-            }
+            .setView(content)
             .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            .create()
+        dialog.show()
+    }
+
+    private fun startDownload(context: Context, artifact: UpdateArtifact) {
+        if (UpdateDownloader.enqueue(context, artifact)) {
+            Toast.makeText(context, R.string.update_download_started, Toast.LENGTH_SHORT).show()
+        } else {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(artifact.pageUrl)))
+        }
     }
 
     fun showUpToDate(context: Context) {

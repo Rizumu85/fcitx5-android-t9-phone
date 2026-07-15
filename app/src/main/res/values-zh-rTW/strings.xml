@@ -316,6 +316,12 @@
     <string name="check_for_updates_summary">統一檢查應用程式、Rime 外掛和九鍵 Rime 設定</string>
     <string name="checking_for_updates">正在檢查…</string>
     <string name="update_available">發現可用更新</string>
+    <string name="update_release_app_channel">應用程式與 Rime 外掛 %1$s</string>
+    <string name="update_release_rime_config_channel">九鍵 Rime 設定 %1$s</string>
+    <string name="update_release_latest">最新</string>
+    <string name="update_release_notes_empty">此版本暫無更新說明。</string>
+    <string name="update_release_page_indicator">%1$d / %2$d · 左右滑動查看不同版本</string>
+    <string name="update_release_single_page">更新說明</string>
     <string name="download_app_update">下載並安裝應用程式 %1$s</string>
     <string name="download_rime_plugin_update">下載並安裝 Rime 外掛 %1$s</string>
     <string name="download_rime_config_update">下載並套用九鍵 Rime 設定 %1$s</string>

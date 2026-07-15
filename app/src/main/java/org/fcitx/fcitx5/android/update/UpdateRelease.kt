@@ -15,6 +15,11 @@ enum class UpdateComponent {
     RIME_CONFIG
 }
 
+enum class UpdateReleaseChannel {
+    APP,
+    RIME_CONFIG
+}
+
 data class UpdateArtifact(
     val component: UpdateComponent,
     val version: String,
@@ -26,6 +31,16 @@ data class UpdateArtifact(
         val downloadUrl: String
     )
 }
+
+data class UpdateRelease(
+    val channel: UpdateReleaseChannel,
+    val version: String,
+    val title: String,
+    val pageUrl: String,
+    val notes: String,
+    val publishedAt: String,
+    val artifacts: List<UpdateArtifact>
+)
 
 data class InstalledUpdateVersions(
     val app: String,
@@ -50,6 +65,26 @@ object UpdatePlan {
                 UpdateVersion.isNewer(artifact.version, installedVersion)
             } != false
     }
+
+    fun availableReleases(
+        releases: List<UpdateRelease>,
+        installed: InstalledUpdateVersions,
+        supportedComponents: Set<UpdateComponent> = UpdateComponent.entries.toSet()
+    ): List<UpdateRelease> = releases.mapNotNull { release ->
+        val artifacts = availableArtifacts(release.artifacts, installed, supportedComponents)
+        release.copy(artifacts = artifacts).takeIf { artifacts.isNotEmpty() }
+    }.sortedByDescending(UpdateRelease::publishedAt)
+
+    fun latestArtifacts(releases: List<UpdateRelease>): List<UpdateArtifact> =
+        releases.asSequence()
+            .flatMap { it.artifacts.asSequence() }
+            .groupBy(UpdateArtifact::component)
+            .mapNotNull { (_, artifacts) ->
+                artifacts.maxWithOrNull { left, right ->
+                    UpdateVersion.compare(left.version, right.version)
+                }
+            }
+            .sortedBy { it.component.ordinal }
 }
 
 object UpdateReleaseParser {
@@ -58,7 +93,12 @@ object UpdateReleaseParser {
     @Serializable
     private data class GithubRelease(
         @SerialName("tag_name") val tagName: String,
+        val name: String = "",
         @SerialName("html_url") val pageUrl: String,
+        val body: String = "",
+        @SerialName("published_at") val publishedAt: String = "",
+        val draft: Boolean = false,
+        val prerelease: Boolean = false,
         val assets: List<GithubAsset> = emptyList()
     )
 
@@ -68,33 +108,65 @@ object UpdateReleaseParser {
         @SerialName("browser_download_url") val downloadUrl: String
     )
 
-    fun parseAppRelease(payload: String): List<UpdateArtifact> {
-        val release = json.decodeFromString<GithubRelease>(payload)
-        val assets = release.assets.map { UpdateArtifact.Asset(it.name, it.downloadUrl) }
-        val version = release.tagName.removePrefix("v")
-        return buildList {
-            assets.filter { it.name.matches(APP_APK) }.takeIf(List<*>::isNotEmpty)?.let {
-                add(UpdateArtifact(UpdateComponent.APP, version, release.pageUrl, it))
+    fun parseAppReleases(payload: String): List<UpdateRelease> =
+        json.decodeFromString<List<GithubRelease>>(payload)
+            .filterNot { it.draft || it.prerelease }
+            .mapNotNull { release ->
+                val assets = release.assets.map { UpdateArtifact.Asset(it.name, it.downloadUrl) }
+                val version = release.tagName.removePrefix("v")
+                val artifacts = buildList {
+                    assets.filter { it.name.matches(APP_APK) }.takeIf(List<*>::isNotEmpty)?.let {
+                        add(UpdateArtifact(UpdateComponent.APP, version, release.pageUrl, it))
+                    }
+                    assets.filter { it.name.matches(RIME_PLUGIN_APK) }
+                        .takeIf(List<*>::isNotEmpty)?.let {
+                            add(
+                                UpdateArtifact(
+                                    UpdateComponent.RIME_PLUGIN,
+                                    version,
+                                    release.pageUrl,
+                                    it
+                                )
+                            )
+                        }
+                }
+                release.toUpdateRelease(UpdateReleaseChannel.APP, version, artifacts)
             }
-            assets.filter { it.name.matches(RIME_PLUGIN_APK) }.takeIf(List<*>::isNotEmpty)?.let {
-                add(UpdateArtifact(UpdateComponent.RIME_PLUGIN, version, release.pageUrl, it))
-            }
-        }
-    }
 
-    fun parseRimeConfigRelease(payload: String): List<UpdateArtifact> {
-        val release = json.decodeFromString<GithubRelease>(payload)
-        val assets = release.assets
-            .filter { it.name == RIME_CONFIG_ARCHIVE }
-            .map { UpdateArtifact.Asset(it.name, it.downloadUrl) }
-        if (assets.isEmpty()) return emptyList()
-        return listOf(
-            UpdateArtifact(
-                component = UpdateComponent.RIME_CONFIG,
-                version = release.tagName.removePrefix("v"),
-                pageUrl = release.pageUrl,
-                assets = assets
-            )
+    fun parseRimeConfigReleases(payload: String): List<UpdateRelease> =
+        json.decodeFromString<List<GithubRelease>>(payload)
+            .filterNot { it.draft || it.prerelease }
+            .mapNotNull { release ->
+                val assets = release.assets
+                    .filter { it.name == RIME_CONFIG_ARCHIVE }
+                    .map { UpdateArtifact.Asset(it.name, it.downloadUrl) }
+                val version = release.tagName.removePrefix("v")
+                val artifacts = assets.takeIf(List<*>::isNotEmpty)?.let {
+                    listOf(
+                        UpdateArtifact(
+                            component = UpdateComponent.RIME_CONFIG,
+                            version = version,
+                            pageUrl = release.pageUrl,
+                            assets = it
+                        )
+                    )
+                }.orEmpty()
+                release.toUpdateRelease(UpdateReleaseChannel.RIME_CONFIG, version, artifacts)
+            }
+
+    private fun GithubRelease.toUpdateRelease(
+        channel: UpdateReleaseChannel,
+        version: String,
+        artifacts: List<UpdateArtifact>
+    ): UpdateRelease? = artifacts.takeIf(List<*>::isNotEmpty)?.let {
+        UpdateRelease(
+            channel = channel,
+            version = version,
+            title = name,
+            pageUrl = pageUrl,
+            notes = body.trim(),
+            publishedAt = publishedAt,
+            artifacts = it
         )
     }
 
@@ -105,15 +177,17 @@ object UpdateReleaseParser {
 }
 
 object UpdateVersion {
-    fun isNewer(candidate: String, current: String): Boolean {
-        val candidateParts = candidate.numericParts()
-        val currentParts = current.numericParts()
-        val size = maxOf(candidateParts.size, currentParts.size)
+    fun isNewer(candidate: String, current: String): Boolean = compare(candidate, current) > 0
+
+    fun compare(left: String, right: String): Int {
+        val leftParts = left.numericParts()
+        val rightParts = right.numericParts()
+        val size = maxOf(leftParts.size, rightParts.size)
         return (0 until size).firstNotNullOfOrNull { index ->
-            val comparison = candidateParts.getOrElse(index) { 0 }
-                .compareTo(currentParts.getOrElse(index) { 0 })
-            comparison.takeIf { it != 0 }
-        }?.let { it > 0 } ?: false
+            leftParts.getOrElse(index) { 0 }
+                .compareTo(rightParts.getOrElse(index) { 0 })
+                .takeIf { it != 0 }
+        } ?: 0
     }
 
     private fun String.numericParts(): List<Int> =

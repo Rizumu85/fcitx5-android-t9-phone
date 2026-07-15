@@ -322,6 +322,12 @@
     <string name="check_for_updates_summary">Check app, Rime plugin, and T9 Rime configuration together</string>
     <string name="checking_for_updates">Checking…</string>
     <string name="update_available">Updates available</string>
+    <string name="update_release_app_channel">App and Rime plugin %1$s</string>
+    <string name="update_release_rime_config_channel">T9 Rime configuration %1$s</string>
+    <string name="update_release_latest">Latest</string>
+    <string name="update_release_notes_empty">No release notes for this version.</string>
+    <string name="update_release_page_indicator">%1$d / %2$d · Swipe left or right for other versions</string>
+    <string name="update_release_single_page">Release notes</string>
     <string name="download_app_update">Download and install app %1$s</string>
     <string name="download_rime_plugin_update">Download and install Rime plugin %1$s</string>
     <string name="download_rime_config_update">Download and apply T9 Rime configuration %1$s</string>

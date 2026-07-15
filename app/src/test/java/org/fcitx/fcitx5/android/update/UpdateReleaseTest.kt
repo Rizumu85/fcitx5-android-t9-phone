@@ -13,8 +13,8 @@ import org.junit.Test
 class UpdateReleaseTest {
     @Test
     fun `app release parser creates independent app and plugin artifacts`() {
-        val artifacts = UpdateReleaseParser.parseAppRelease(
-            releaseJson(
+        val releases = UpdateReleaseParser.parseAppReleases(
+            releasesJson(
                 version = "4.4.0",
                 assets = listOf(
                     "org.fcitx.fcitx5.android-4.4.0-arm64-v8a-release.apk" to "app",
@@ -22,22 +22,48 @@ class UpdateReleaseTest {
                 )
             )
         )
+        val artifacts = releases.single().artifacts
 
         assertEquals(listOf(UpdateComponent.APP, UpdateComponent.RIME_PLUGIN), artifacts.map { it.component })
         assertEquals(listOf("4.4.0", "4.4.0"), artifacts.map { it.version })
+        assertEquals("Release 4.4.0", releases.single().title)
+        assertEquals("Notes for 4.4.0", releases.single().notes)
     }
 
     @Test
     fun `rime config parser keeps its own release version`() {
-        val artifacts = UpdateReleaseParser.parseRimeConfigRelease(
-            releaseJson(
+        val releases = UpdateReleaseParser.parseRimeConfigReleases(
+            releasesJson(
                 version = "3.1.0",
                 assets = listOf("rime-ice-t9-phone-main.zip" to "config")
             )
         )
+        val artifacts = releases.single().artifacts
 
         assertEquals(UpdateComponent.RIME_CONFIG, artifacts.single().component)
         assertEquals("3.1.0", artifacts.single().version)
+    }
+
+    @Test
+    fun `available release history is newest first and excludes installed versions`() {
+        val releases = listOf(
+            release("4.3.0", "2026-07-11T00:00:00Z", UpdateComponent.APP),
+            release("4.4.0", "2026-07-14T00:00:00Z", UpdateComponent.APP),
+            release("3.1.0", "2026-07-13T00:00:00Z", UpdateComponent.RIME_CONFIG),
+            release("4.2.0", "2026-07-10T00:00:00Z", UpdateComponent.APP)
+        )
+
+        val available = UpdatePlan.availableReleases(
+            releases,
+            InstalledUpdateVersions(app = "4.2.0", rimePlugin = null, rimeConfig = "3.0.0"),
+            supportedComponents = setOf(UpdateComponent.APP, UpdateComponent.RIME_CONFIG)
+        )
+
+        assertEquals(listOf("4.4.0", "3.1.0", "4.3.0"), available.map { it.version })
+        assertEquals(
+            listOf("4.4.0", "3.1.0"),
+            UpdatePlan.latestArtifacts(available).map { it.version }
+        )
     }
 
     @Test
@@ -112,16 +138,37 @@ class UpdateReleaseTest {
         assets = assets.map { UpdateArtifact.Asset(it.first, it.second) }
     )
 
-    private fun releaseJson(version: String, assets: List<Pair<String, String>>): String =
+    private fun release(
+        version: String,
+        publishedAt: String,
+        component: UpdateComponent
+    ) = UpdateRelease(
+        channel = if (component == UpdateComponent.RIME_CONFIG) {
+            UpdateReleaseChannel.RIME_CONFIG
+        } else {
+            UpdateReleaseChannel.APP
+        },
+        version = version,
+        title = "Release $version",
+        pageUrl = "https://example.com/release/$version",
+        notes = "Notes for $version",
+        publishedAt = publishedAt,
+        artifacts = listOf(artifact(component, version, "$component-$version" to version))
+    )
+
+    private fun releasesJson(version: String, assets: List<Pair<String, String>>): String =
         """
-        {
-          "tag_name": "v$version",
-          "html_url": "https://example.com/release",
-          "assets": [
-            ${assets.joinToString(",") { (name, url) ->
-                """{"name":"$name","browser_download_url":"$url"}"""
-            }}
-          ]
-        }
+        [{
+            "tag_name": "v$version",
+            "name": "Release $version",
+            "html_url": "https://example.com/release",
+            "body": "Notes for $version",
+            "published_at": "2026-07-14T00:00:00Z",
+            "assets": [
+              ${assets.joinToString(",") { (name, url) ->
+                  """{"name":"$name","browser_download_url":"$url"}"""
+              }}
+            ]
+        }]
         """.trimIndent()
 }
