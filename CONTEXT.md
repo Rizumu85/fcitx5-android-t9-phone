@@ -142,9 +142,11 @@ Geometry is centralized:
 - `FloatingCandidateWindowController` owns cursor anchoring, insets, delayed
   show, and touch-receiver placement.
 
-The accepted bubble visuals are product behavior. New candidate mechanisms join
-before the snapshot seam rather than creating another renderer or view-owned
-pager.
+The accepted bubble visuals are product behavior for T9 text modes. New text
+candidate mechanisms join before the snapshot seam rather than creating
+another renderer or view-owned pager. Handwriting is the deliberate exception:
+its results belong to the transient handwriting tray and use the compact strip
+described below.
 
 ## Voice And Toolbar
 
@@ -170,10 +172,12 @@ and discards uncommitted strokes as soon as the user leaves. The ordinary-view
 renderer is deliberate: target T9 phones may run modern Android over vendor
 graphics stacks that do not reliably present every SurfaceControl front-buffer
 update. Compact rails outside the drawing tray provide editor backspace,
-Chinese comma and period, space, symbol and number keyboard entry, and the
-editor-specific return action without shrinking the tray vertically. Stroke
-undo and canvas clear remain separate toolbar actions so deleting committed
-text cannot be confused with editing the current drawing.
+Chinese comma, space, symbol and number keyboard entry, input-mode switching,
+and the editor-specific return action without shrinking the tray vertically.
+Stroke undo and canvas clear remain separate toolbar actions so deleting
+committed text cannot be confused with editing the current drawing. Rail
+controls use the same press, sound, and haptic feedback path as ordinary input
+controls.
 
 `HandwritingCoordinator` owns stroke generations, recognizer selection,
 candidate focus, commit, undo, clear, and model state. The bundled
@@ -188,10 +192,17 @@ remain excluded from the Chinese candidate surface. A character keeps the
 backend chosen on its first down event so a completed model warmup cannot
 replace candidates halfway through input.
 
-Handwriting candidates join `T9CandidateUiSnapshotPipeline` through the
-`HANDWRITING` source. They reuse the existing bubble, paging, preview, shortcut,
-focus, and commit machinery. `PhysicalHandwritingKeyHandler` owns physical-key
+`HandwritingCandidateSession` owns result paging and selection, and
+`HandwritingCandidateStrip` renders a fixed-pool horizontal row inside the
+handwriting title bar. The strip intentionally has no paging arrows: touch
+selects visible results, left/right moves focus, and up/down changes pages on
+the target physical keypad. `PhysicalHandwritingKeyHandler` owns physical-key
 behavior while the surface is active, before ordinary Physical T9 routing.
+Short `1/4/7/*` mirror Emoji, Number, input-mode switch, and Symbol on the left
+rail; short `3/6/9` mirror editor backspace, Space, and Comma on the right rail.
+Long digits remain candidate shortcuts. The dedicated physical backspace first
+cancels the whole pending handwritten character; once the tray is empty, the
+next press continues to normal editor deletion.
 After commit, an optional learning aid asynchronously queries the bundled Fcitx
 Pinyin Helper and briefly shows every tone-marked reading in the tray. The
 lookup never delays text commit, and a new stroke immediately dismisses stale

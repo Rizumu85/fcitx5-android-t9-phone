@@ -9,8 +9,8 @@ Accepted
 Handwriting is an auxiliary input mechanism for users who cannot conveniently
 produce a character through Pinyin, Stroke, or Zhuyin. It must remain useful on
 mainland networks and on a newly installed device before any network model is
-available. It must also reuse the established candidate bubble and physical
-selection rules instead of introducing a second candidate system.
+available. Its candidates must stay visually attached to the transient writing
+tray while preserving the physical selection rules used elsewhere.
 
 The drawing surface has different latency requirements from recognition. A
 finger or stylus stroke must render synchronously, while repository loading and
@@ -62,9 +62,11 @@ matching must never block the UI thread.
   stroke begins, because Android may hide and reuse the same IME window after a
   Settings change instead of attaching a new one.
 - The drawing tray remains the dominant surface. Two narrow external rails
-  expose text backspace, comma, period, space, symbol and number keyboard entry,
-  and the editor-specific return action. They reuse the normal editor and
-  keyboard routes rather than embedding duplicate symbol or number layouts.
+  expose text backspace, comma, space, symbol and number keyboard entry,
+  input-mode switching, and the editor-specific return action. They reuse the
+  normal editor and keyboard routes rather than embedding duplicate symbol or
+  number layouts. Every rail control uses `CustomGestureView`, including normal
+  key sound, haptic, and press-highlight behavior.
 - AndroidX Ink completion callbacks and coordinator publications are reconciled
   by a render ledger. A local completion reserves its stroke identity before
   Ink is notified, preventing a synchronous callback from deleting the fresh
@@ -77,14 +79,19 @@ matching must never block the UI thread.
 - A stroke-set mutation immediately invalidates and hides published candidates.
   A visible candidate must always be committable; the UI never leaves an old
   bubble on screen while rejecting its tap during newer recognition.
-- Handwriting joins `T9CandidateUiSnapshotPipeline` as the explicit
-  `HANDWRITING` source. Paging, original indices, focus, shortcut labels,
-  preview, and commit use the existing candidate bubble and interaction
-  controller.
+- Handwriting candidates use a dedicated `HandwritingCandidateSession` and a
+  fixed-pool horizontal strip in the 40 dp handwriting title bar. This is a
+  deliberate exception to the floating T9 candidate bubble: results stay
+  attached to the tray without moving or resizing the drawing canvas. The strip
+  has no paging arrows. Touch commits visible results, left/right moves focus,
+  and physical up/down changes pages.
 - Touching a candidate, OK, short `0`, or short `#` with strokes commits the selected
   character and clears the canvas while keeping handwriting open. Long number
-  keys select visible shortcuts. Delete undoes one stroke; when the canvas is
-  empty, delete continues to the editor deletion pipeline.
+  keys select visible shortcuts. Short `1/4/7/*` mirror Emoji, Number, input-mode
+  switch, and Symbol; short `3/6/9` mirror editor backspace, Space, and Comma.
+  The dedicated physical backspace cancels candidates and clears the entire
+  pending character on its first press; once empty, it continues to the editor
+  deletion pipeline. Stroke-by-stroke undo remains the separate title action.
 - Users can enable tone-marked Pinyin feedback after commit. The lookup uses the
   Pinyin Helper database already bundled with Fcitx, preserves every distinct
   reading for polyphonic characters, and runs after text has been committed.
@@ -117,8 +124,8 @@ matching must never block the UI thread.
   lane, and cancellation is never converted into fallback recognition work.
 - Immutable AndroidX Ink brushes are cached by style, color, and tray size so
   the first-down path does not repeatedly cross the brush-construction JNI seam.
-- Candidate publication is generation checked and goes through the existing
-  snapshot diff renderer.
+- Candidate publication is generation checked and binds into a reused ten-cell
+  strip; it performs no Android view construction on recognition updates.
 - Pronunciation lookup runs on the Fcitx dispatcher, loads Pinyin Helper only on
   first use, and publishes through its own generation check. It cannot delay a
   commit or revive feedback after a new stroke or window exit.
