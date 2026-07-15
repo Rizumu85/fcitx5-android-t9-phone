@@ -13,6 +13,7 @@ import org.fcitx.fcitx5.android.data.InputFeedbacks
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.bar.ui.ToolButton
 import splitties.dimensions.dp
+import splitties.views.backgroundColor
 import splitties.views.dsl.constraintlayout.above
 import splitties.views.dsl.constraintlayout.below
 import splitties.views.dsl.constraintlayout.bottomOfParent
@@ -73,26 +74,32 @@ class TextEditingUi(
         contentDescription = ctx.getString(R.string.move_cursor_to_end)
     }
 
-    val selectAllButton = textButton(android.R.string.selectAll, altStyle = true)
+    // Editing actions need the same visible key surface as navigation because this panel's
+    // background intentionally equals barColor, which is also the alt-key color in some themes.
+    val selectAllButton = textButton(android.R.string.selectAll)
 
-    val cutButton = textButton(android.R.string.cut, altStyle = true).apply {
+    val cutButton = textButton(android.R.string.cut).apply {
         visibility = View.GONE
     }
 
-    val copyButton = textButton(android.R.string.copy, altStyle = true)
+    val copyButton = textButton(android.R.string.copy)
 
-    val pasteButton = textButton(android.R.string.paste, altStyle = true)
+    val pasteButton = textButton(android.R.string.paste)
 
-    val backspaceButton = iconButton(R.drawable.ic_baseline_backspace_24, altStyle = true).apply {
+    val backspaceButton = iconButton(R.drawable.ic_baseline_backspace_24).apply {
         soundEffect = InputFeedbacks.SoundEffect.Delete
         contentDescription = ctx.getString(R.string.backspace)
     }
 
     override val root = constraintLayout {
+        // The title and controls are one editing surface; using the bar color here avoids a
+        // second keyboard-colored band between them in themes where those tokens differ.
+        backgroundColor = theme.barColor
+
         add(leftButton, lParams {
-            topOfParent()
+            below(upButton)
             leftOfParent()
-            above(homeButton)
+            above(downButton)
             rightToLeftOf(selectButton)
         })
         add(upButton, lParams {
@@ -114,9 +121,9 @@ class TextEditingUi(
             rightToLeftOf(rightButton)
         })
         add(rightButton, lParams {
-            topOfParent()
+            below(upButton)
             leftToRightOf(selectButton)
-            above(endButton)
+            above(downButton)
             rightToLeftOf(copyButton)
         })
 

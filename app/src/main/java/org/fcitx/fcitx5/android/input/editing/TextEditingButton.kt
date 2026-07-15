@@ -108,7 +108,10 @@ class TextEditingButton(
 
     override fun setEnabled(enabled: Boolean) {
         super.setEnabled(enabled)
-        alpha = if (enabled) 1f else DisabledAlpha
+        // Keep disabled actions in the same solid key grid so selection changes do not make the
+        // editing surface look as though a key disappeared; only its content recedes.
+        textView.alpha = if (enabled) 1f else DisabledContentAlpha
+        imageView.alpha = if (enabled) 1f else DisabledContentAlpha
     }
 
     private fun normalBackground(color: Int) = if (bordered) {
@@ -134,6 +137,6 @@ class TextEditingButton(
     }
 
     private companion object {
-        const val DisabledAlpha = 0.4f
+        const val DisabledContentAlpha = 0.4f
     }
 }
