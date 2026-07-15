@@ -12,7 +12,7 @@ Supported T9 mechanisms:
 - English: multi-tap and predictive Smart English with next-word prediction.
 - Number mode: digits, common operators, and simple expression results.
 - Shared physical selection mode for cursor selection and edit actions.
-- Auxiliary Chinese handwriting through a transient drawing surface.
+- Auxiliary Chinese and English handwriting through a transient drawing surface.
 
 Rime supplies Chinese engine candidates. `rime-ice-t9-phone` is the maintained
 configuration companion and must provide `t9`, `t9_stroke`, and `t9_zhuyin`.
@@ -179,30 +179,47 @@ committed text cannot be confused with editing the current drawing. Rail
 controls use the same press, sound, and haptic feedback path as ordinary input
 controls.
 
-`HandwritingCoordinator` owns stroke generations, recognizer selection,
-candidate focus, commit, undo, clear, and model state. The bundled
-`OfflineHanziRecognizer` provides a 9,507-character no-network floor;
-`MlKitEnhancedHandwritingBackend` adds an optional runtime-downloaded enhanced
-model. Model construction, availability checks, warmup, and recognition run on
-one background lane behind a quiet-period gate. A stroke during that gate
-cancels pending initialization and uses the offline floor instead of competing
-with model JIT or native loading. Enhanced results accept one-character Hanzi
-plus a bounded set of common punctuation and operators; Latin words and emoji
-remain excluded from the Chinese candidate surface. A character keeps the
-backend chosen on its first down event so a completed model warmup cannot
+`HandwritingCoordinator` owns language, stroke generations, recognizer
+selection, candidate source, focus, commit, undo, clear, and model state. The
+language initially follows the active T9 text mode and the in-tray `中`/`En`
+control switches Chinese and English without leaving handwriting. The bundled
+`OfflineHanziRecognizer` provides Chinese with a 9,507-character no-network
+floor. `MlKitEnhancedHandwritingBackend` keeps lazy clients for Chinese and
+English runtime-downloaded models on one serialized background lane; English
+requires its downloaded model rather than exposing low-quality Latin fallback
+guesses. Recognition requests include stable tray dimensions and a bounded
+editor pre-context without adding work to pointer-move handling.
+
+The Chinese result policy accepts one Han character plus a bounded set of
+common punctuation and operators. The English policy accepts one word or common
+symbol. When Predictive English is enabled, `EnglishSuggestionEngine` is shared
+by T9 and handwriting: ML Kit order is locally reranked by dictionary and pair
+frequency, explicitly chosen recognized words use the existing learned-word
+policy, and explicit selection continues into next-word predictions. Basic
+English handwriting still works when prediction is disabled and preserves ML
+Kit order. A new stroke immediately replaces predictions with a new recognition
+cycle.
+
+Model construction, availability checks, warmup, and recognition stay behind a
+quiet-period gate. A stroke during Chinese initialization uses the offline floor
+instead of competing with model JIT or native loading. One handwritten unit
+keeps the backend chosen on its first down event so completed warmup cannot
 replace candidates halfway through input.
 
-`HandwritingCandidateSession` owns result paging and selection, and
-`HandwritingCandidateStrip` renders a fixed-pool horizontal row inside the
-handwriting title bar. The strip intentionally has no paging arrows: touch
-selects visible results, left/right moves focus, and up/down changes pages on
-the target physical keypad. `PhysicalHandwritingKeyHandler` owns physical-key
-behavior while the surface is active, before ordinary Physical T9 routing.
-Short `1/4/7/*` mirror Emoji, Number, input-mode switch, and Symbol on the left
-rail; short `3/6/9` mirror editor backspace, Space, and Comma on the right rail.
-Long digits remain candidate shortcuts. The dedicated physical backspace first
-cancels the whole pending handwritten character; once the tray is empty, the
-next press continues to normal editor deletion.
+`HandwritingCandidateSession` owns recognition/prediction paging and selection,
+and `HandwritingCandidateStrip` renders a fixed ten-cell pool inside the
+handwriting title bar. Chinese pages retain compact balanced cells; English
+words use measured bounded widths and horizontal reveal without creating views.
+The strip intentionally has no paging arrows: touch selects visible results,
+left/right moves focus, and up/down changes pages on the target physical keypad.
+`PhysicalHandwritingKeyHandler` owns physical-key behavior while the surface is
+active, before ordinary Physical T9 routing. Short `1/4/7/*` mirror Emoji,
+Number, handwriting-language switch, and Symbol on the left rail; short `3/6/9`
+mirror editor backspace, Space, and the language-appropriate Comma on the right
+rail. Long digits remain candidate shortcuts. Touch and physical backspace share
+one contract: first cancel a pending handwritten unit; prediction-only state is
+dismissed but does not consume deletion; otherwise delete exactly one editor
+unit through the normal service pipeline.
 After commit, an optional learning aid asynchronously queries the bundled Fcitx
 Pinyin Helper and briefly shows every tone-marked reading in the tray. The
 lookup never delays text commit, and a new stroke immediately dismisses stale

@@ -1,4 +1,4 @@
-# ADR 0003: Transient Dual-Backend Handwriting
+# ADR 0003: Transient Multi-language Dual-Backend Handwriting
 
 ## Status
 
@@ -7,10 +7,11 @@ Accepted
 ## Context
 
 Handwriting is an auxiliary input mechanism for users who cannot conveniently
-produce a character through Pinyin, Stroke, or Zhuyin. It must remain useful on
-mainland networks and on a newly installed device before any network model is
-available. Its candidates must stay visually attached to the transient writing
-tray while preserving the physical selection rules used elsewhere.
+produce Chinese through Pinyin, Stroke, or Zhuyin, or English through T9. It
+must remain useful for Chinese on mainland networks and on a newly installed
+device before any network model is available. Its candidates must stay visually
+attached to the transient writing tray while preserving the physical selection
+rules used elsewhere.
 
 The drawing surface has different latency requirements from recognition. A
 finger or stylus stroke must render synchronously, while repository loading and
@@ -23,26 +24,33 @@ matching must never block the UI thread.
   Chinese-scheme cycle.
 - Leaving the handwriting window discards all uncommitted strokes immediately.
   There is no confirmation dialog and no restoration when the user returns.
-- The bundled offline recognizer is always available. Its 9,507-character
-  substroke repository is loaded on a background dispatcher when handwriting
-  opens and then retained as an immutable process cache.
-- Google ML Kit Digital Ink Recognition is an optional enhanced backend. ML Kit
-  owns its model download. Opening handwriting never starts a network request;
-  model download and retry belong to Input Settings. The first missing-model
-  session shows one transient action that deep-links to that setting, while the
-  drawing surface never displays model lifecycle status.
+- The language initially follows the active Chinese or English T9 mode. A
+  dedicated `中`/`En` control, mirrored by short physical `7`, changes
+  handwriting language in place. It does not leave handwriting or mutate the
+  top-level T9 mode.
+- The bundled offline recognizer is always available for Chinese. Its
+  9,507-character substroke repository is loaded on a background dispatcher
+  when handwriting opens and then retained as an immutable process cache.
+- Google ML Kit Digital Ink Recognition owns separate downloadable Chinese and
+  English models. Chinese treats it as an optional enhanced backend; English
+  requires its model and does not invent a low-quality bundled fallback.
+  Opening handwriting never starts a network download. Download and retry
+  belong to two explicit rows in Input Settings. The first missing-model session
+  shows one language-specific action that deep-links to the corresponding row,
+  while the drawing surface never reserves model lifecycle UI.
 - Model construction, availability checks, Ink conversion, native warmup, and
   enhanced recognition are serialized on one background lane. Merely opening
   handwriting does not construct ML Kit objects on the input thread.
 - A downloaded ML Kit model is prepared only after a two-second stroke-free
   quiet period and is marked ready after native initialization. A down event
   during that gate cancels preparation before ML Kit is touched; that character
-  deliberately uses the bundled backend rather than letting model JIT compete
-  with drawing. If preparation has already completed, the enhanced backend is
-  ready before the next character begins. ML Kit output is restricted to one
-  Han character or an explicit set of common punctuation and operators; an
-  empty or failed enhanced result falls back to the bundled recognizer instead
-  of exposing Latin words or emoji as candidates.
+  deliberately uses the bundled Chinese backend rather than letting model JIT
+  compete with drawing. If preparation has already completed, the enhanced
+  backend is ready before the next unit begins. Chinese ML Kit output is
+  restricted to one Han character or an explicit set of common punctuation and
+  operators; an empty or failed Chinese result falls back to the bundled
+  recognizer instead of exposing Latin words or emoji. English output is
+  restricted to one word or the same bounded common-symbol set.
 - The recognizer for one character is selected on its first down event, before
   the stroke has finished.
   A model that becomes ready halfway through that character is used only for
@@ -71,27 +79,44 @@ matching must never block the UI thread.
   by a render ledger. A local completion reserves its stroke identity before
   Ink is notified, preventing a synchronous callback from deleting the fresh
   stroke and preserving finish order when callbacks arrive out of order.
-- Recognition starts 800 ms after the most recently completed stroke. Every
-  stroke resets the same quiet-period timer; there is no first-stroke special
-  case that can repeatedly interrupt a multi-stroke character. New strokes,
+- Chinese recognition starts 800 ms and English recognition 700 ms after the
+  most recently completed stroke. Every stroke resets the language's same
+  quiet-period timer; there is no first-stroke special case that can repeatedly
+  interrupt a multi-stroke unit. New strokes,
   undo, clear, commit, and window exit invalidate the previous generation so
   stale results cannot publish.
 - A stroke-set mutation immediately invalidates and hides published candidates.
   A visible candidate must always be committable; the UI never leaves an old
   bubble on screen while rejecting its tap during newer recognition.
 - Handwriting candidates use a dedicated `HandwritingCandidateSession` and a
-  fixed-pool horizontal strip in the 40 dp handwriting title bar. This is a
+  fixed ten-view horizontal strip in the 40 dp handwriting title bar. Chinese
+  candidates retain balanced compact cells; English words use measured bounded
+  widths and scroll reveal without allocating views. This is a
   deliberate exception to the floating T9 candidate bubble: results stay
   attached to the tray without moving or resizing the drawing canvas. The strip
   has no paging arrows. Touch commits visible results, left/right moves focus,
   and physical up/down changes pages.
-- Touching a candidate, OK, short `0`, or short `#` with strokes commits the selected
-  character and clears the canvas while keeping handwriting open. Long number
-  keys select visible shortcuts. Short `1/4/7/*` mirror Emoji, Number, input-mode
-  switch, and Symbol; short `3/6/9` mirror editor backspace, Space, and Comma.
-  The dedicated physical backspace cancels candidates and clears the entire
-  pending character on its first press; once empty, it continues to the editor
-  deletion pipeline. Stroke-by-stroke undo remains the separate title action.
+- Touching a candidate, OK, short `0`, or short `#` with strokes commits the
+  selected result and clears the canvas while keeping handwriting open. An
+  explicitly selected English word appends one space. When Predictive English
+  is enabled, it then exposes next-word predictions; selecting a prediction
+  repeats the same flow. Recognition words follow the existing personalized
+  learning policy, prediction choices teach only the pair, and a new stroke
+  replaces prediction state immediately. Without Predictive English, ML Kit
+  order is preserved and neither reranking nor prediction is applied.
+- Long number keys select visible shortcuts. Short `1/4/7/*` mirror Emoji,
+  Number, handwriting-language switch, and Symbol; short `3/6/9` mirror editor
+  backspace, Space, and the language-appropriate Comma. Touch and physical
+  backspace call the same pending-unit boundary. A recognition unit is canceled
+  before editor deletion; prediction-only state is dismissed while the same
+  press continues to delete one editor unit. Stroke-by-stroke undo remains the
+  separate title action.
+- ML Kit receives the stable tray writing area. English requests also receive
+  at most 20 characters of editor pre-context captured on entry or explicit
+  language switch; pointer events never query the editor. T9 and handwriting
+  share `EnglishSuggestionEngine`, so built-in words, learned words, pair
+  frequency, and cache generations have one owner while their composition
+  sessions remain independent.
 - Users can enable tone-marked Pinyin feedback after commit. The lookup uses the
   Pinyin Helper database already bundled with Fcitx, preserves every distinct
   reading for polyphonic characters, and runs after text has been committed.
@@ -125,7 +150,8 @@ matching must never block the UI thread.
 - Immutable AndroidX Ink brushes are cached by style, color, and tray size so
   the first-down path does not repeatedly cross the brush-construction JNI seam.
 - Candidate publication is generation checked and binds into a reused ten-cell
-  strip; it performs no Android view construction on recognition updates.
+  strip; measured English widths reuse the existing TextViews and perform no
+  Android view construction on recognition updates.
 - Pronunciation lookup runs on the Fcitx dispatcher, loads Pinyin Helper only on
   first use, and publishes through its own generation check. It cannot delay a
   commit or revive feedback after a new stroke or window exit.
@@ -135,8 +161,9 @@ matching must never block the UI thread.
 
 ## Consequences
 
-The app gains a reliable offline floor and a higher-quality enhanced path
-without mirroring Google's model or making input network-dependent. The APK
-grows by the compact repository and ML Kit runtime, but not by the downloaded
-language model. Candidate behavior remains consistent with the rest of the T9
-product.
+The app gains a reliable Chinese offline floor plus high-quality Chinese and
+English enhanced paths without mirroring Google's models. The APK grows by the
+compact Chinese repository and ML Kit runtime, but not by either downloaded
+language model. English is unavailable until its model has been downloaded,
+then recognition is fully local. Candidate behavior remains consistent with
+the rest of the T9 product while the transient tray keeps its own renderer.
