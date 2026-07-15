@@ -79,6 +79,7 @@ import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.cursor.CursorRange
 import org.fcitx.fcitx5.android.input.cursor.CursorTracker
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingCoordinator
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingLanguage
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingStroke
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingViewState
 import org.fcitx.fcitx5.android.input.handwriting.PhysicalHandwritingKeyHandler
@@ -195,7 +196,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             },
             lookupPronunciations = { character ->
                 fcitx.runOnReady { lookupPinyinReadings(character) }.asList()
-            }
+            },
+            smartEnglishEnabled = { smartEnglishModeController.enabled },
+            shouldLearnEnglishWords = ::shouldLearnEnglishWords
         )
     }
     private val handwritingCoordinator by handwritingCoordinatorDelegate
@@ -1766,13 +1769,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             longPressDelayMillis = { physicalLongPressDelay },
             hasStrokes = { handwritingCoordinator.hasStrokes },
             hasCandidates = { handwritingCoordinator.hasCandidates },
-            clearPendingCharacter = {
-                if (handwritingCoordinator.hasStrokes || handwritingCoordinator.hasCandidates) {
-                    handwritingCoordinator.clear()
-                } else {
-                    false
-                }
-            },
+            clearPendingCharacter = handwritingCoordinator::consumeBackspaceBeforeEditor,
             moveCandidate = handwritingCoordinator::moveSelectionBy,
             offsetPage = handwritingCoordinator::offsetCandidatePage,
             commitCurrentCandidate = { handwritingCoordinator.commitCandidate() },
@@ -2154,7 +2151,16 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         currentInputConnection?.finishComposingText()
         clearTransientInputUiState()
         moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
-        handwritingCoordinator.begin()
+        val initialLanguage = if (currentT9Mode == T9InputMode.ENGLISH) {
+            HandwritingLanguage.ENGLISH
+        } else {
+            HandwritingLanguage.CHINESE
+        }
+        val editorPreContext = currentInputConnection
+            ?.getTextBeforeCursor(20, 0)
+            ?.toString()
+            .orEmpty()
+        handwritingCoordinator.begin(initialLanguage, editorPreContext)
         if (BuildConfig.PERFORMANCE_HARNESS) {
             Log.i(PERFORMANCE_HARNESS_LOG_TAG, "Handwriting ready")
         }
@@ -2184,6 +2190,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         handwritingCoordinator.addStroke(stroke)
     }
 
+    fun updateHandwritingWritingArea(width: Int, height: Int) {
+        handwritingCoordinator.updateWritingArea(width, height)
+    }
+
+    fun switchHandwritingLanguage() {
+        val editorPreContext = currentInputConnection
+            ?.getTextBeforeCursor(20, 0)
+            ?.toString()
+            .orEmpty()
+        handwritingCoordinator.switchLanguage(editorPreContext)
+    }
+
     fun undoHandwritingStroke(): Boolean = handwritingCoordinator.undoStroke()
 
     fun clearHandwritingCharacter(): Boolean = handwritingCoordinator.clear()
@@ -2195,25 +2213,22 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         handwritingCoordinator.commitCandidate(index)
 
     fun commitHandwritingLiteral(text: String) {
-        // Punctuation and spacing continue the sentence the user just wrote. Commit a visible
-        // handwriting choice first so a shortcut never discards that character on its way out.
-        handwritingCoordinator.commitCandidate()
-        commitText(text)
+        handwritingCoordinator.commitLiteral(text)
     }
 
     fun deleteCommittedTextFromHandwriting() {
-        // The canvas already has separate stroke undo and clear controls. This action deliberately
-        // follows the normal editor backspace path instead of mutating the in-progress character.
-        handleBackspaceKey()
+        // Touch and physical backspace share one pending-character boundary. Once that boundary is
+        // empty, the ordinary editor pipeline deletes exactly one code point/selection.
+        if (!handwritingCoordinator.consumeBackspaceBeforeEditor()) handleBackspaceKey()
     }
 
     fun performHandwritingReturn() {
-        handwritingCoordinator.commitCandidate()
+        handwritingCoordinator.prepareForReturn()
         handleReturnKey()
     }
 
     fun commitHandwritingCandidateBeforeAuxiliaryInput() {
-        handwritingCoordinator.commitCandidate()
+        handwritingCoordinator.prepareForAuxiliaryInput()
     }
 
     private fun shouldLearnEnglishWords(): Boolean {

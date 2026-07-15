@@ -17,6 +17,7 @@ import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.InputUiFont
 import org.fcitx.fcitx5.android.utils.borderlessRippleDrawable
 import splitties.dimensions.dp
+import kotlin.math.ceil
 import kotlin.math.max
 
 class HandwritingCandidateStrip(
@@ -48,11 +49,12 @@ class HandwritingCandidateStrip(
         CandidateCell(context, theme, candidateTextSizeSp, onCandidateClick).also { cell ->
             candidateRow.addView(
                 cell,
-                LayoutParams(context.dp(CandidateWidthDp), LayoutParams.MATCH_PARENT)
+                LayoutParams(context.dp(ChineseCandidateWidthDp), LayoutParams.MATCH_PARENT)
             )
         }
     }
     private var renderedPage = HandwritingCandidatePage.Empty
+    private var renderedLanguage = HandwritingLanguage.CHINESE
 
     init {
         orientation = HORIZONTAL
@@ -62,8 +64,9 @@ class HandwritingCandidateStrip(
         visibility = GONE
     }
 
-    fun render(page: HandwritingCandidatePage) {
+    fun render(page: HandwritingCandidatePage, language: HandwritingLanguage) {
         renderedPage = page
+        renderedLanguage = language
         visibility = if (page.items.isEmpty()) GONE else VISIBLE
         cells.forEachIndexed { index, cell ->
             val item = page.items.getOrNull(index)
@@ -76,7 +79,7 @@ class HandwritingCandidateStrip(
     }
 
     private fun revealSelection() {
-        if (distributeVisibleCells()) {
+        if (layoutVisibleCells()) {
             post(::revealSelection)
             return
         }
@@ -95,15 +98,19 @@ class HandwritingCandidateStrip(
         }
     }
 
-    private fun distributeVisibleCells(): Boolean {
+    private fun layoutVisibleCells(): Boolean {
         val count = renderedPage.items.size
         if (count == 0 || scroller.width <= 0) return false
-        // Sparse handwriting results should read as one balanced strip like the reference layout;
-        // dense pages retain a minimum cell width and become horizontally scrollable on narrow UI.
-        val width = max(context.dp(CandidateWidthDp), scroller.width / count)
         var changed = false
         cells.forEachIndexed { index, cell ->
             if (index >= count) return@forEachIndexed
+            val width = when (renderedLanguage) {
+                // Han candidates keep the compact, evenly balanced strip already established by
+                // the handwriting tray. English words need natural widths so they stay legible.
+                HandwritingLanguage.CHINESE ->
+                    max(context.dp(ChineseCandidateWidthDp), scroller.width / count)
+                HandwritingLanguage.ENGLISH -> cell.preferredEnglishWidth(scroller.width)
+            }
             val params = cell.layoutParams as LayoutParams
             if (params.width != width) {
                 params.width = width
@@ -162,11 +169,27 @@ class HandwritingCandidateStrip(
                 if (selected) theme.genericActiveBackgroundColor else theme.candidateCommentColor
             )
         }
+
+        fun preferredEnglishWidth(viewportWidth: Int): Int {
+            val textWidth = max(
+                candidateText.paint.measureText(candidateText.text.toString()),
+                shortcutText.paint.measureText(shortcutText.text.toString())
+            )
+            val desired = ceil(textWidth).toInt() + context.dp(EnglishCandidateHorizontalInsetDp * 2)
+            return desired.coerceIn(
+                context.dp(EnglishCandidateMinimumWidthDp),
+                (viewportWidth - context.dp(EnglishCandidateViewportInsetDp))
+                    .coerceAtLeast(context.dp(EnglishCandidateMinimumWidthDp))
+            )
+        }
     }
 
     private companion object {
         const val MaxCandidateCount = 10
-        const val CandidateWidthDp = 34
+        const val ChineseCandidateWidthDp = 34
+        const val EnglishCandidateMinimumWidthDp = 48
+        const val EnglishCandidateHorizontalInsetDp = 10
+        const val EnglishCandidateViewportInsetDp = 8
         const val CandidateVerticalInsetDp = 2
         const val ShortcutTextSizeSp = 8f
         const val CandidateWeight = 2.5f

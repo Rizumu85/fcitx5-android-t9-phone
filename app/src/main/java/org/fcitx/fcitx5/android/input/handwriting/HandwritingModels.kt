@@ -19,16 +19,43 @@ data class HandwritingRecognition(
     val score: Float
 )
 
+enum class HandwritingLanguage {
+    CHINESE,
+    ENGLISH
+}
+
+data class HandwritingWritingArea(
+    val width: Float,
+    val height: Float
+)
+
+internal data class HandwritingRecognitionRequest(
+    val language: HandwritingLanguage,
+    val strokes: List<HandwritingStroke>,
+    val writingArea: HandwritingWritingArea?,
+    val preContext: String,
+    val limit: Int
+)
+
 enum class HandwritingModelState {
     PREPARING_OFFLINE,
+    PREPARING_ENHANCED,
     OFFLINE_READY,
     ENHANCED_MODEL_MISSING,
     ENHANCED_READY
 }
 
+enum class HandwritingCandidateSource {
+    NONE,
+    RECOGNITION,
+    PREDICTION
+}
+
 data class HandwritingViewState(
+    val language: HandwritingLanguage,
     val strokes: List<HandwritingStroke>,
     val candidatePage: HandwritingCandidatePage,
+    val candidateSource: HandwritingCandidateSource,
     val modelState: HandwritingModelState,
     val recognizing: Boolean,
     val noMatch: Boolean,

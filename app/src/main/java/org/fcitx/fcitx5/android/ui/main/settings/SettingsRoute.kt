@@ -47,7 +47,7 @@ sealed class SettingsRoute : Parcelable {
 
     @Serializable
     data class InputOptions(
-        val requestHandwritingModelDownload: Boolean = false
+        val requestedHandwritingModel: String? = null
     ) : SettingsRoute()
 
     @Serializable

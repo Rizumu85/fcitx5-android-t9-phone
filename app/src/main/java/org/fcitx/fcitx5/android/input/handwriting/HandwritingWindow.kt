@@ -16,6 +16,7 @@ import android.graphics.drawable.RippleDrawable
 import android.graphics.drawable.StateListDrawable
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -23,7 +24,6 @@ import androidx.annotation.DrawableRes
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.isVisible
-import com.google.android.material.snackbar.Snackbar
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.InputFeedbacks
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
@@ -42,6 +42,7 @@ import org.fcitx.fcitx5.android.input.wm.EssentialWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
 import org.fcitx.fcitx5.android.utils.AppUtil
+import org.fcitx.fcitx5.android.utils.borderlessRippleDrawable
 import org.mechdancer.dependency.manager.must
 import splitties.dimensions.dp
 
@@ -51,7 +52,10 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
     private val theme by manager.theme()
     private val windowManager: InputWindowManager by manager.must()
     private val returnKeyDrawable: ReturnKeyDrawableComponent by manager.must()
-    private val promptPref = AppPrefs.getInstance().internal.handwritingEnhancedPromptShown
+    private val chineseModelPromptPref =
+        AppPrefs.getInstance().internal.handwritingChineseModelPromptShown
+    private val englishModelPromptPref =
+        AppPrefs.getInstance().internal.handwritingEnglishModelPromptShown
     private val brushStylePref = AppPrefs.getInstance().keyboard.handwritingBrushStyle
 
     companion object : EssentialWindow.Key {
@@ -65,6 +69,7 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         private const val ActionLabelMaxSizeSp = 18f
         private const val ActionPunctuationHeightDp = 16
         private const val ActionPunctuationMaxSizeSp = 24f
+        private const val ModelPromptDurationMillis = 8_000L
     }
 
     override val key: EssentialWindow.Key
@@ -79,7 +84,11 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
     private lateinit var root: FrameLayout
     private lateinit var status: TextView
     private lateinit var returnButton: ToolButton
-    private var modelPrompt: Snackbar? = null
+    private lateinit var languageButtonLabel: OpticallyCenteredActionTextView
+    private lateinit var commaButtonLabel: OpticallyCenteredActionTextView
+    private var currentLanguage = HandwritingLanguage.CHINESE
+    private var modelPrompt: View? = null
+    private val dismissModelPrompt = Runnable(::removeModelPrompt)
 
     private val undoButton by lazy {
         toolButton(R.drawable.ic_baseline_undo_24, R.string.handwriting_undo_stroke) {
@@ -155,6 +164,9 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             clipToOutline = true
             onStrokeStarted = service::beginHandwritingStroke
             onStrokeFinished = service::addHandwritingStroke
+            addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
+                service.updateHandwritingWritingArea(right - left, bottom - top)
+            }
         }
         status = TextView(context).apply {
             gravity = Gravity.CENTER
@@ -223,10 +235,11 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             ),
             textActionButton(
                 text = context.getString(R.string.handwriting_chinese_shortcut),
-                description = R.string.handwriting_switch_input_mode,
+                description = R.string.handwriting_switch_language,
                 targetVisualHeightDp = ActionLabelHeightDp,
                 maxTextSizeSp = ActionLabelMaxSizeSp,
-                action = { performAction(HandwritingAction.SWITCH_INPUT_MODE) }
+                onLabelCreated = { languageButtonLabel = it },
+                action = { performAction(HandwritingAction.SWITCH_LANGUAGE) }
             ),
             textActionButton(
                 text = context.getString(R.string.handwriting_symbol_shortcut),
@@ -254,6 +267,7 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
                 description = R.string.handwriting_insert_comma,
                 targetVisualHeightDp = ActionPunctuationHeightDp,
                 maxTextSizeSp = ActionPunctuationMaxSizeSp,
+                onLabelCreated = { commaButtonLabel = it },
                 action = { performAction(HandwritingAction.INSERT_COMMA) }
             ),
             iconActionButton(
@@ -317,8 +331,8 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
 
     override fun onDetached() {
         service.setHandwritingStateListener(null)
-        modelPrompt?.dismiss()
-        modelPrompt = null
+        root.removeCallbacks(dismissModelPrompt)
+        removeModelPrompt()
         // Leaving handwriting is an explicit cancellation boundary. Uncommitted strokes are
         // discarded immediately so returning to T9 never revives an accidental character.
         service.endHandwritingInput()
@@ -329,8 +343,21 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
     }
 
     private fun renderState(state: HandwritingViewState) {
+        currentLanguage = state.language
         canvas.setCompletedStrokes(state.strokes)
-        candidateStrip.render(state.candidatePage)
+        candidateStrip.render(state.candidatePage, state.language)
+        languageButtonLabel.text = context.getString(
+            when (state.language) {
+                HandwritingLanguage.CHINESE -> R.string.handwriting_chinese_shortcut
+                HandwritingLanguage.ENGLISH -> R.string.handwriting_english_shortcut
+            }
+        )
+        commaButtonLabel.text = context.getString(
+            when (state.language) {
+                HandwritingLanguage.CHINESE -> R.string.handwriting_comma_shortcut
+                HandwritingLanguage.ENGLISH -> R.string.handwriting_english_comma_shortcut
+            }
+        )
         // Once strokes exist, an empty center stays quiet until recognition publishes candidates;
         // flashing the title between strokes would make the dedicated result strip feel unstable.
         titleLabel.isVisible = state.strokes.isEmpty() && state.candidatePage.items.isEmpty()
@@ -353,24 +380,83 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             }
             else -> status.visibility = View.GONE
         }
-        if (
-            state.modelState == HandwritingModelState.ENHANCED_MODEL_MISSING &&
-            !promptPref.getValue()
-        ) {
-            promptPref.setValue(true)
-            modelPrompt = Snackbar.make(
-                root,
-                R.string.handwriting_enhanced_onboarding,
-                Snackbar.LENGTH_LONG
-            )
-                .setBackgroundTint(theme.popupBackgroundColor)
-                .setTextColor(theme.popupTextColor)
-                .setActionTextColor(theme.genericActiveBackgroundColor)
-                .setAction(R.string.handwriting_go_to_download) {
-                    AppUtil.launchMainToHandwritingModel(context)
-                }
-                .also(Snackbar::show)
+        val promptPref = when (state.language) {
+            HandwritingLanguage.CHINESE -> chineseModelPromptPref
+            HandwritingLanguage.ENGLISH -> englishModelPromptPref
         }
+        if (state.modelState == HandwritingModelState.ENHANCED_MODEL_MISSING && !promptPref.getValue()) {
+            promptPref.setValue(true)
+            showModelPrompt(state.language)
+        }
+    }
+
+    private fun showModelPrompt(language: HandwritingLanguage) {
+        removeModelPrompt()
+        val prompt = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(context.dp(12), context.dp(8), context.dp(6), context.dp(8))
+            background = roundedSurface(10f, theme.popupBackgroundColor)
+            addView(
+                TextView(context).apply {
+                    setText(
+                        when (language) {
+                            HandwritingLanguage.CHINESE ->
+                                R.string.handwriting_chinese_model_onboarding
+                            HandwritingLanguage.ENGLISH ->
+                                R.string.handwriting_english_model_onboarding
+                        }
+                    )
+                    setTextColor(theme.popupTextColor)
+                    textSize = 13f
+                    maxLines = 2
+                    InputUiFont.applyTo(this)
+                },
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            )
+            addView(
+                TextView(context).apply {
+                    setText(R.string.handwriting_go_to_download)
+                    setTextColor(theme.genericActiveBackgroundColor)
+                    textSize = 13f
+                    gravity = Gravity.CENTER
+                    setPadding(context.dp(10), context.dp(6), context.dp(10), context.dp(6))
+                    background = borderlessRippleDrawable(
+                        theme.keyPressHighlightColor,
+                        context.dp(8)
+                    )
+                    InputUiFont.applyTo(this, Typeface.BOLD)
+                    setOnClickListener {
+                        removeModelPrompt()
+                        AppUtil.launchMainToHandwritingModel(context, language)
+                    }
+                },
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            )
+        }
+        modelPrompt = prompt
+        root.addView(
+            prompt,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.BOTTOM
+                setMargins(context.dp(12), 0, context.dp(12), context.dp(12))
+            }
+        )
+        root.removeCallbacks(dismissModelPrompt)
+        root.postDelayed(dismissModelPrompt, ModelPromptDurationMillis)
+    }
+
+    private fun removeModelPrompt() {
+        modelPrompt?.let { prompt ->
+            (prompt.parent as? ViewGroup)?.removeView(prompt)
+        }
+        modelPrompt = null
     }
 
     private fun toolButton(icon: Int, description: Int, action: () -> Unit) =
@@ -418,6 +504,7 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         targetVisualHeightDp: Int,
         maxTextSizeSp: Float,
         soundEffect: InputFeedbacks.SoundEffect = InputFeedbacks.SoundEffect.Standard,
+        onLabelCreated: (OpticallyCenteredActionTextView) -> Unit = {},
         action: () -> Unit
     ) = CustomGestureView(context).apply {
         contentDescription = context.getString(description)
@@ -437,6 +524,7 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
                 isFocusable = false
                 InputUiFont.applyTo(this, Typeface.BOLD)
                 setTextColor(theme.altKeyTextColor)
+                onLabelCreated(this)
             },
             FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -485,9 +573,15 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             HandwritingAction.DELETE_TEXT -> service.deleteCommittedTextFromHandwriting()
             HandwritingAction.OPEN_NUMBER -> openNumberKeyboard()
             HandwritingAction.INSERT_SPACE -> service.commitHandwritingLiteral(" ")
-            HandwritingAction.SWITCH_INPUT_MODE -> switchInputMode()
+            HandwritingAction.SWITCH_LANGUAGE -> service.switchHandwritingLanguage()
             HandwritingAction.INSERT_COMMA -> service.commitHandwritingLiteral(
-                context.getString(R.string.handwriting_comma_shortcut)
+                context.getString(
+                    if (currentLanguage == HandwritingLanguage.ENGLISH) {
+                        R.string.handwriting_english_comma_shortcut
+                    } else {
+                        R.string.handwriting_comma_shortcut
+                    }
+                )
             )
             HandwritingAction.OPEN_SYMBOLS -> openSymbolKeyboard()
             HandwritingAction.RETURN -> service.performHandwritingReturn()
@@ -516,12 +610,6 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         ContextCompat.getMainExecutor(context).execute {
             windowManager.attachWindow(KeyboardWindow)
         }
-    }
-
-    private fun switchInputMode() {
-        service.commitHandwritingCandidateBeforeAuxiliaryInput()
-        service.switchToNextT9Mode()
-        windowManager.attachWindow(KeyboardWindow)
     }
 
     private fun roundedSurface(radiusDp: Float, color: Int) =

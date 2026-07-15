@@ -30,6 +30,38 @@ class PhysicalHandwritingKeyHandlerTest {
     }
 
     @Test
+    fun deleteDismissesPredictionButStillFallsThroughToEditorDeletion() {
+        var predictionVisible = true
+        val handler = PhysicalHandwritingKeyHandler(
+            longPressDelayMillis = { 500 },
+            hasStrokes = { false },
+            hasCandidates = { predictionVisible },
+            clearPendingCharacter = {
+                predictionVisible = false
+                false
+            },
+            moveCandidate = { true },
+            offsetPage = { true },
+            commitCurrentCandidate = { true },
+            commitShortcut = { true },
+            performAction = {}
+        )
+
+        val result = handler.handleKeyDown(
+            KeyEvent.KEYCODE_DEL,
+            PhysicalHandwritingKeyHandler.KeyInput(
+                action = KeyEvent.ACTION_DOWN,
+                repeatCount = 0,
+                downTime = 0L,
+                eventTime = 0L
+            )
+        )
+
+        assertNull(result)
+        assertEquals(false, predictionVisible)
+    }
+
+    @Test
     fun poundCommitsCandidateWithStrokesAndPerformsReturnWhenEmpty() {
         val fixture = Fixture(hasStrokes = true)
 
@@ -57,7 +89,7 @@ class PhysicalHandwritingKeyHandlerTest {
             KeyEvent.KEYCODE_3 to HandwritingAction.DELETE_TEXT,
             KeyEvent.KEYCODE_4 to HandwritingAction.OPEN_NUMBER,
             KeyEvent.KEYCODE_6 to HandwritingAction.INSERT_SPACE,
-            KeyEvent.KEYCODE_7 to HandwritingAction.SWITCH_INPUT_MODE,
+            KeyEvent.KEYCODE_7 to HandwritingAction.SWITCH_LANGUAGE,
             KeyEvent.KEYCODE_9 to HandwritingAction.INSERT_COMMA
         ).forEach { (keyCode, expectedAction) ->
             fixture.keyDown(keyCode)

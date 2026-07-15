@@ -9,9 +9,12 @@ import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognition
 import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognizer
 import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognizerOptions
 import com.google.mlkit.vision.digitalink.recognition.Ink
+import com.google.mlkit.vision.digitalink.recognition.RecognitionContext
+import com.google.mlkit.vision.digitalink.recognition.WritingArea
 
 internal class MlKitHandwritingRecognizer(
-    private val modelManager: MlKitHandwritingModelManager = MlKitHandwritingModelManager()
+    private val language: HandwritingLanguage,
+    private val modelManager: MlKitHandwritingModelManager = MlKitHandwritingModelManager(language)
 ) : EnhancedHandwritingEngine {
     private val model by lazy(modelManager::model)
     private var recognizer: DigitalInkRecognizer? = null
@@ -32,11 +35,11 @@ internal class MlKitHandwritingRecognizer(
     }
 
     override suspend fun recognize(
-        strokes: List<HandwritingStroke>,
-        limit: Int
+        request: HandwritingRecognitionRequest
     ): List<HandwritingRecognition> {
+        require(request.language == language)
         val ink = Ink.builder().apply {
-            strokes.forEach { stroke ->
+            request.strokes.forEach { stroke ->
                 val inkStroke = Ink.Stroke.builder().apply {
                     stroke.points.forEach { point ->
                         addPoint(Ink.Point.create(point.x, point.y, point.timeMillis))
@@ -45,17 +48,22 @@ internal class MlKitHandwritingRecognizer(
                 addStroke(inkStroke)
             }
         }.build()
-        return recognizeInk(ink).candidates
-            // Keep the surface Chinese-first while allowing intentional punctuation drawings.
-            // A bounded symbol set avoids unrelated emoji and Latin guesses crowding out Hanzi.
-            .filter { candidate -> HandwritingRecognitionTextPolicy.accepts(candidate.text) }
-            .take(limit)
-            .mapIndexed { index, candidate ->
-                HandwritingRecognition(candidate.text, 1f / (index + 1f))
+        val context = buildMlKitRecognitionContext(request)
+        return recognizeInk(ink, context).candidates
+            .mapIndexedNotNull { index, candidate ->
+                val text = HandwritingRecognitionTextPolicy.normalize(language, candidate.text)
+                    ?: return@mapIndexedNotNull null
+                // ML Kit candidate order is stable across models while score availability is not.
+                HandwritingRecognition(text, 1f / (index + 1f))
             }
+            .distinctBy(HandwritingRecognition::text)
+            .take(request.limit)
     }
 
     private suspend fun recognizeInk(ink: Ink) = client().recognize(ink).await()
+
+    private suspend fun recognizeInk(ink: Ink, context: RecognitionContext) =
+        client().recognize(ink, context).await()
 
     private fun client(): DigitalInkRecognizer = recognizer ?: DigitalInkRecognition.getClient(
         DigitalInkRecognizerOptions.builder(model).build()
@@ -65,5 +73,17 @@ internal class MlKitHandwritingRecognizer(
         recognizer?.close()
         recognizer = null
     }
-
 }
+
+internal fun buildMlKitRecognitionContext(
+    request: HandwritingRecognitionRequest
+): RecognitionContext = RecognitionContext.builder().apply {
+    request.writingArea?.let { area ->
+        setWritingArea(WritingArea(area.width, area.height))
+    }
+    // ML Kit models pre-context as a required property even at the start of an editor.
+    // Supplying the empty boundary keeps first-word recognition on the context-aware API.
+    setPreContext(request.preContext.takeLast(MaximumPreContextLength))
+}.build()
+
+private const val MaximumPreContextLength = 20

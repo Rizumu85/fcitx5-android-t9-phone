@@ -19,11 +19,14 @@ import kotlin.coroutines.resumeWithException
 
 /** Owns the downloadable model independently from an input-session recognizer. */
 class MlKitHandwritingModelManager(
+    val language: HandwritingLanguage,
     private val dispatcher: CoroutineDispatcher = MlKitHandwritingDispatcher
 ) {
     private val model by lazy {
         DigitalInkRecognitionModel.builder(
-            requireNotNull(DigitalInkRecognitionModelIdentifier.fromLanguageTag(ModelLanguageTag))
+            requireNotNull(
+                DigitalInkRecognitionModelIdentifier.fromLanguageTag(language.modelLanguageTag)
+            )
         ).build()
     }
 
@@ -39,10 +42,13 @@ class MlKitHandwritingModelManager(
         remoteModelManager.download(model, DownloadConditions.Builder().build()).await()
     }
 
-    private companion object {
-        const val ModelLanguageTag = "zh-Hani"
-    }
 }
+
+private val HandwritingLanguage.modelLanguageTag: String
+    get() = when (this) {
+        HandwritingLanguage.CHINESE -> "zh-Hani"
+        HandwritingLanguage.ENGLISH -> "en"
+    }
 
 internal suspend fun <T> Task<T>.await(): T = suspendCancellableCoroutine { continuation ->
     addOnCompleteListener(DirectExecutor) { task ->

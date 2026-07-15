@@ -13,7 +13,7 @@ enum class HandwritingAction {
     DELETE_TEXT,
     OPEN_NUMBER,
     INSERT_SPACE,
-    SWITCH_INPUT_MODE,
+    SWITCH_LANGUAGE,
     INSERT_COMMA,
     OPEN_SYMBOLS,
     RETURN

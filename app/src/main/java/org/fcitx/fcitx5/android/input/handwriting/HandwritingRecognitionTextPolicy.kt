@@ -13,10 +13,25 @@ internal object HandwritingRecognitionTextPolicy {
         "(", ")", "[", "]", "{", "}", "+", "=", "@", "#", "%", "&", "*"
     )
 
-    fun accepts(text: String): Boolean = text.isSingleHanCharacter() || text in commonSymbols
+    private val englishWord = Regex("[A-Za-z]+(?:['’\\-][A-Za-z]+)*")
+
+    fun normalize(language: HandwritingLanguage, rawText: String): String? {
+        val text = rawText.trim()
+        if (text.isEmpty() || text.length > MaximumTextLength) return null
+        return text.takeIf {
+            when (language) {
+                HandwritingLanguage.CHINESE -> text.isSingleHanCharacter() || text in commonSymbols
+                HandwritingLanguage.ENGLISH -> englishWord.matches(text) || text in commonSymbols
+            }
+        }
+    }
+
+    fun isEnglishWord(text: String): Boolean = englishWord.matches(text)
 
     private fun String.isSingleHanCharacter(): Boolean {
         if (codePointCount(0, length) != 1) return false
         return Character.UnicodeScript.of(codePointAt(0)) == Character.UnicodeScript.HAN
     }
+
+    private const val MaximumTextLength = 48
 }

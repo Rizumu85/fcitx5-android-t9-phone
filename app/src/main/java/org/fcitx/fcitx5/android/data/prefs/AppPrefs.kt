@@ -35,7 +35,10 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         val editorInfoInspector = bool("editor_info_inspector", false)
         val t9ResponsivenessTrace = bool("t9_responsiveness_trace", false)
         val needNotifications = bool("need_notifications", true)
-        val handwritingEnhancedPromptShown = bool("handwriting_enhanced_prompt_shown", false)
+        val handwritingChineseModelPromptShown =
+            bool("handwriting_enhanced_prompt_shown", false)
+        val handwritingEnglishModelPromptShown =
+            bool("handwriting_english_model_prompt_shown", false)
     }
 
     inner class Advanced : ManagedPreferenceCategory(R.string.advanced, sharedPreferences) {

@@ -12,6 +12,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import org.fcitx.fcitx5.android.R
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingLanguage
 import org.fcitx.fcitx5.android.ui.main.ClipboardEditActivity
 import org.fcitx.fcitx5.android.ui.main.MainActivity
 import org.fcitx.fcitx5.android.ui.main.settings.SettingsRoute
@@ -36,8 +37,11 @@ object AppUtil {
     fun launchMainToKeyboard(context: Context) =
         launchMainToDest(context, SettingsRoute.KeysAndToolbar)
 
-    fun launchMainToHandwritingModel(context: Context) =
-        launchMainToDest(context, SettingsRoute.InputOptions(requestHandwritingModelDownload = true))
+    fun launchMainToHandwritingModel(context: Context, language: HandwritingLanguage) =
+        launchMainToDest(
+            context,
+            SettingsRoute.InputOptions(requestedHandwritingModel = language.name)
+        )
 
     fun launchMainToInputMethodList(context: Context) =
         launchMainToDest(context, SettingsRoute.InputMethodList)

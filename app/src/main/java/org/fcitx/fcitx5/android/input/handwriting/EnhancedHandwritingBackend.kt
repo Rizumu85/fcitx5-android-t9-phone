@@ -17,21 +17,15 @@ internal interface EnhancedHandwritingEngine {
 
     suspend fun warmup()
 
-    suspend fun recognize(
-        strokes: List<HandwritingStroke>,
-        limit: Int
-    ): List<HandwritingRecognition>
+    suspend fun recognize(request: HandwritingRecognitionRequest): List<HandwritingRecognition>
 
     fun close()
 }
 
 internal interface EnhancedHandwritingBackend {
-    suspend fun prepare(): Boolean
+    suspend fun prepare(language: HandwritingLanguage): Boolean
 
-    suspend fun recognize(
-        strokes: List<HandwritingStroke>,
-        limit: Int
-    ): List<HandwritingRecognition>
+    suspend fun recognize(request: HandwritingRecognitionRequest): List<HandwritingRecognition>
 
     fun close()
 }
@@ -39,13 +33,14 @@ internal interface EnhancedHandwritingBackend {
 /** Keeps every ML Kit entry point off the latency-sensitive input thread. */
 internal class MlKitEnhancedHandwritingBackend(
     private val dispatcher: CoroutineDispatcher = MlKitHandwritingDispatcher,
-    private val engineFactory: () -> EnhancedHandwritingEngine = { MlKitHandwritingRecognizer() }
+    private val engineFactory: (HandwritingLanguage) -> EnhancedHandwritingEngine = {
+        MlKitHandwritingRecognizer(it)
+    }
 ) : EnhancedHandwritingBackend {
-    @Volatile
-    private var engine: EnhancedHandwritingEngine? = null
+    private val engines = mutableMapOf<HandwritingLanguage, EnhancedHandwritingEngine>()
 
-    override suspend fun prepare(): Boolean = withContext(dispatcher) {
-        val workerEngine = engine()
+    override suspend fun prepare(language: HandwritingLanguage): Boolean = withContext(dispatcher) {
+        val workerEngine = engine(language)
         if (!workerEngine.isDownloaded()) {
             false
         } else {
@@ -55,20 +50,20 @@ internal class MlKitEnhancedHandwritingBackend(
     }
 
     override suspend fun recognize(
-        strokes: List<HandwritingStroke>,
-        limit: Int
+        request: HandwritingRecognitionRequest
     ): List<HandwritingRecognition> = withContext(dispatcher) {
-        engine().recognize(strokes, limit)
+        engine(request.language).recognize(request)
     }
 
     override fun close() {
-        engine?.close()
-        engine = null
+        engines.values.forEach(EnhancedHandwritingEngine::close)
+        engines.clear()
     }
 
-    private fun engine(): EnhancedHandwritingEngine = engine ?: engineFactory().also {
-        // Model identifiers, Firebase registration, and native client setup are intentionally
-        // first touched on this worker; constructing them from a toolbar click blocked input.
-        engine = it
-    }
+    private fun engine(language: HandwritingLanguage): EnhancedHandwritingEngine =
+        engines[language] ?: engineFactory(language).also {
+            // Model identifiers, Firebase registration, and native client setup are intentionally
+            // first touched on this worker; constructing them from a toolbar click blocked input.
+            engines[language] = it
+        }
 }

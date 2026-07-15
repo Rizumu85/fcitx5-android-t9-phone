@@ -117,6 +117,34 @@ class T9EnglishDictionary {
     }
 
     @Synchronized
+    fun isLearned(rawWord: String): Boolean {
+        val word = normalizeLookupWord(rawWord) ?: return false
+        return word in learnedWordSet
+    }
+
+    @Synchronized
+    fun exactWordRank(rawWord: String): Int? {
+        val word = normalizeLookupWord(rawWord) ?: return null
+        val digits = word.toT9Digits()
+        var rank = 0
+        EssentialWordsByDigits[digits].orEmpty().forEach { candidate ->
+            if (candidate.equals(word, ignoreCase = true)) return rank
+            rank += 1
+        }
+        learnedExactWordsByDigits[digits].orEmpty().forEach { candidate ->
+            if (candidate.equals(word, ignoreCase = true)) return rank
+            rank += 1
+        }
+        if (builtInReady) {
+            builtInIndex.exactWords(digits).forEach { candidate ->
+                if (candidate.equals(word, ignoreCase = true)) return rank
+                rank += 1
+            }
+        }
+        return null
+    }
+
+    @Synchronized
     fun replaceLearnedWords(rawWords: Iterable<String>) {
         learnedWordSet.clear()
         rawWords
@@ -173,6 +201,11 @@ class T9EnglishDictionary {
             if (!word.all { it in 'a'..'z' }) return null
             if (word.all { it == word.first() }) return null
             return word
+        }
+
+        private fun normalizeLookupWord(rawWord: String): String? {
+            val word = rawWord.trim().lowercase(Locale.US)
+            return word.takeIf { it.isNotEmpty() && it.all { char -> char in 'a'..'z' } }
         }
 
         fun t9DigitsForWord(rawWord: String): String? =

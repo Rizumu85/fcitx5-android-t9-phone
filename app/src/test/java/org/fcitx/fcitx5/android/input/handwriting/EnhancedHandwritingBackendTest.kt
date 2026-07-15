@@ -20,8 +20,9 @@ class EnhancedHandwritingBackendTest {
         executor.asCoroutineDispatcher().use { dispatcher ->
             val engine = RecordingEngine(downloaded = true)
             var factoryCalls = 0
-            val backend = MlKitEnhancedHandwritingBackend(dispatcher) {
+            val backend = MlKitEnhancedHandwritingBackend(dispatcher) { language ->
                 factoryCalls++
+                assertEquals(HandwritingLanguage.CHINESE, language)
                 engine.recordFactoryThread()
                 engine
             }
@@ -29,10 +30,10 @@ class EnhancedHandwritingBackendTest {
             assertEquals(0, factoryCalls)
 
             runBlocking {
-                assertTrue(backend.prepare())
+                assertTrue(backend.prepare(HandwritingLanguage.CHINESE))
                 assertEquals(
                     listOf(HandwritingRecognition("字", 1f)),
-                    backend.recognize(listOf(stroke()), limit = 1)
+                    backend.recognize(request())
                 )
             }
 
@@ -55,7 +56,7 @@ class EnhancedHandwritingBackendTest {
             val backend = MlKitEnhancedHandwritingBackend(dispatcher) { engine }
 
             runBlocking {
-                assertFalse(backend.prepare())
+                assertFalse(backend.prepare(HandwritingLanguage.ENGLISH))
             }
 
             assertEquals(0, engine.warmupCalls)
@@ -85,12 +86,11 @@ class EnhancedHandwritingBackendTest {
         }
 
         override suspend fun recognize(
-            strokes: List<HandwritingStroke>,
-            limit: Int
+            request: HandwritingRecognitionRequest
         ): List<HandwritingRecognition> {
             workerThreads += Thread.currentThread().name
             recognitionCalls++
-            return listOf(HandwritingRecognition("字", 1f)).take(limit)
+            return listOf(HandwritingRecognition("字", 1f)).take(request.limit)
         }
 
         override fun close() = Unit
@@ -98,6 +98,14 @@ class EnhancedHandwritingBackendTest {
 
     private fun stroke() = HandwritingStroke(
         listOf(HandwritingPoint(1f, 1f, 0L))
+    )
+
+    private fun request() = HandwritingRecognitionRequest(
+        language = HandwritingLanguage.CHINESE,
+        strokes = listOf(stroke()),
+        writingArea = HandwritingWritingArea(240f, 180f),
+        preContext = "",
+        limit = 1
     )
 
     private companion object {

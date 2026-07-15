@@ -18,6 +18,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingLanguage
 import org.fcitx.fcitx5.android.input.handwriting.MlKitHandwritingModelManager
 import org.fcitx.fcitx5.android.ui.common.PaddingPreferenceFragment
 import org.fcitx.fcitx5.android.ui.main.modified.MySwitchPreference
@@ -47,13 +48,35 @@ abstract class SettingsHubFragment : PaddingPreferenceFragment() {
 class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
     private enum class HandwritingModelUiState { CHECKING, AVAILABLE, MISSING, DOWNLOADING, FAILED }
 
+    private data class HandwritingModelEntry(
+        val language: HandwritingLanguage,
+        val manager: MlKitHandwritingModelManager,
+        val preferenceKey: String,
+        var preference: Preference? = null,
+        var job: Job? = null,
+        var uiState: HandwritingModelUiState = HandwritingModelUiState.CHECKING,
+        var downloadRequestConsumed: Boolean = false
+    )
+
     private val prefs = AppPrefs.getInstance()
     private val route by lazyRoute<SettingsRoute.InputOptions>()
-    private val handwritingModelManager = MlKitHandwritingModelManager()
-    private var handwritingModelPreference: Preference? = null
-    private var handwritingModelJob: Job? = null
-    private var handwritingModelUiState = HandwritingModelUiState.CHECKING
-    private var handwritingDownloadRequestConsumed = false
+    private val handwritingModels by lazy {
+        HandwritingLanguage.values().associateWith { language ->
+            HandwritingModelEntry(
+                language = language,
+                manager = MlKitHandwritingModelManager(language),
+                preferenceKey = when (language) {
+                    HandwritingLanguage.CHINESE -> ChineseHandwritingModelPreferenceKey
+                    HandwritingLanguage.ENGLISH -> EnglishHandwritingModelPreferenceKey
+                }
+            )
+        }
+    }
+    private val requestedHandwritingLanguage by lazy {
+        route.requestedHandwritingModel?.let { rawLanguage ->
+            runCatching { HandwritingLanguage.valueOf(rawLanguage) }.getOrNull()
+        }
+    }
 
     override fun groups() = listOf(
         Group(
@@ -141,44 +164,52 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
         screen.findPreference<PreferenceCategory>(
             groupKey(R.string.handwriting_input)
         )?.apply {
-            addPreference(
-                Preference(screen.context).apply {
-                    key = HandwritingModelPreferenceKey
-                    setTitle(R.string.handwriting_enhanced_model)
-                    isIconSpaceReserved = false
-                    setOnPreferenceClickListener {
-                        if (
-                            handwritingModelJob?.isActive != true &&
-                            (handwritingModelUiState == HandwritingModelUiState.MISSING ||
-                                handwritingModelUiState == HandwritingModelUiState.FAILED)
-                        ) {
-                            downloadHandwritingModel()
+            handwritingModels.values.forEach { entry ->
+                addPreference(
+                    Preference(screen.context).apply {
+                        key = entry.preferenceKey
+                        setTitle(
+                            when (entry.language) {
+                                HandwritingLanguage.CHINESE -> R.string.handwriting_chinese_model
+                                HandwritingLanguage.ENGLISH -> R.string.handwriting_english_model
+                            }
+                        )
+                        isIconSpaceReserved = false
+                        setOnPreferenceClickListener {
+                            if (
+                                entry.job?.isActive != true &&
+                                (entry.uiState == HandwritingModelUiState.MISSING ||
+                                    entry.uiState == HandwritingModelUiState.FAILED)
+                            ) {
+                                downloadHandwritingModel(entry)
+                            }
+                            true
                         }
-                        true
+                        entry.preference = this
                     }
-                    handwritingModelPreference = this
-                }
-            )
+                )
+            }
         }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        if (route.requestHandwritingModelDownload) {
-            listView.post { scrollToPreference(HandwritingModelPreferenceKey) }
+        requestedHandwritingLanguage?.let { language ->
+            val preferenceKey = handwritingModels.getValue(language).preferenceKey
+            listView.post { scrollToPreference(preferenceKey) }
         }
     }
 
     override fun onResume() {
         super.onResume()
-        refreshHandwritingModelState()
+        handwritingModels.values.forEach(::refreshHandwritingModelState)
     }
 
-    private fun refreshHandwritingModelState() {
-        if (handwritingModelPreference == null || handwritingModelJob?.isActive == true) return
-        renderHandwritingModelState(HandwritingModelUiState.CHECKING)
-        handwritingModelJob = lifecycleScope.launch {
-            val state = runCatching { handwritingModelManager.isDownloaded() }
+    private fun refreshHandwritingModelState(entry: HandwritingModelEntry) {
+        if (entry.preference == null || entry.job?.isActive == true) return
+        renderHandwritingModelState(entry, HandwritingModelUiState.CHECKING)
+        entry.job = lifecycleScope.launch {
+            val state = runCatching { entry.manager.isDownloaded() }
                 .fold(
                     onSuccess = { downloaded ->
                         if (downloaded) HandwritingModelUiState.AVAILABLE
@@ -186,38 +217,44 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
                     },
                     onFailure = { HandwritingModelUiState.FAILED }
                 )
-            renderHandwritingModelState(state)
+            renderHandwritingModelState(entry, state)
             if (
-                route.requestHandwritingModelDownload &&
-                !handwritingDownloadRequestConsumed &&
+                requestedHandwritingLanguage == entry.language &&
+                !entry.downloadRequestConsumed &&
                 state == HandwritingModelUiState.MISSING
             ) {
-                handwritingDownloadRequestConsumed = true
-                downloadHandwritingModel()
+                entry.downloadRequestConsumed = true
+                downloadHandwritingModel(entry)
             }
         }
     }
 
-    private fun downloadHandwritingModel() {
-        renderHandwritingModelState(HandwritingModelUiState.DOWNLOADING)
-        handwritingModelJob = lifecycleScope.launch {
-            val state = runCatching { handwritingModelManager.download() }
+    private fun downloadHandwritingModel(entry: HandwritingModelEntry) {
+        renderHandwritingModelState(entry, HandwritingModelUiState.DOWNLOADING)
+        entry.job = lifecycleScope.launch {
+            val state = runCatching { entry.manager.download() }
                 .fold(
                     onSuccess = { HandwritingModelUiState.AVAILABLE },
                     onFailure = { HandwritingModelUiState.FAILED }
                 )
-            renderHandwritingModelState(state)
+            renderHandwritingModelState(entry, state)
         }
     }
 
-    private fun renderHandwritingModelState(state: HandwritingModelUiState) {
-        handwritingModelUiState = state
-        handwritingModelPreference?.apply {
+    private fun renderHandwritingModelState(
+        entry: HandwritingModelEntry,
+        state: HandwritingModelUiState
+    ) {
+        entry.uiState = state
+        entry.preference?.apply {
             summary = getString(
                 when (state) {
                     HandwritingModelUiState.CHECKING -> R.string.handwriting_model_checking
                     HandwritingModelUiState.AVAILABLE -> R.string.handwriting_model_available
-                    HandwritingModelUiState.MISSING -> R.string.handwriting_model_missing
+                    HandwritingModelUiState.MISSING -> when (entry.language) {
+                        HandwritingLanguage.CHINESE -> R.string.handwriting_chinese_model_missing
+                        HandwritingLanguage.ENGLISH -> R.string.handwriting_english_model_missing
+                    }
                     HandwritingModelUiState.DOWNLOADING -> R.string.handwriting_model_downloading
                     HandwritingModelUiState.FAILED -> R.string.handwriting_model_failed
                 }
@@ -228,7 +265,8 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
     }
 
     private companion object {
-        const val HandwritingModelPreferenceKey = "handwriting_enhanced_model"
+        const val ChineseHandwritingModelPreferenceKey = "handwriting_chinese_model"
+        const val EnglishHandwritingModelPreferenceKey = "handwriting_english_model"
     }
 }
 

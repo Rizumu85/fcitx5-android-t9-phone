@@ -5,25 +5,41 @@
 
 package org.fcitx.fcitx5.android.input.handwriting
 
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class HandwritingRecognitionTextPolicyTest {
     @Test
     fun acceptsHanziAndCommonPunctuation() {
-        assertTrue(HandwritingRecognitionTextPolicy.accepts("写"))
-        assertTrue(HandwritingRecognitionTextPolicy.accepts("，"))
-        assertTrue(HandwritingRecognitionTextPolicy.accepts("。"))
-        assertTrue(HandwritingRecognitionTextPolicy.accepts("?"))
-        assertTrue(HandwritingRecognitionTextPolicy.accepts("+"))
+        assertEquals("写", normalizeChinese("写"))
+        assertEquals("，", normalizeChinese("，"))
+        assertEquals("。", normalizeChinese("。"))
+        assertEquals("?", normalizeChinese("?"))
+        assertEquals("+", normalizeChinese("+"))
     }
 
     @Test
     fun rejectsLatinWordsEmojiAndUnknownSymbolSequences() {
-        assertFalse(HandwritingRecognitionTextPolicy.accepts("a"))
-        assertFalse(HandwritingRecognitionTextPolicy.accepts("hello"))
-        assertFalse(HandwritingRecognitionTextPolicy.accepts("🙂"))
-        assertFalse(HandwritingRecognitionTextPolicy.accepts("..."))
+        assertNull(normalizeChinese("a"))
+        assertNull(normalizeChinese("hello"))
+        assertNull(normalizeChinese("🙂"))
+        assertNull(normalizeChinese("..."))
     }
+
+    @Test
+    fun englishKeepsWordsAndCommonSymbolsWithoutLeakingHanziOrEmoji() {
+        assertEquals("hello", normalizeEnglish(" hello "))
+        assertEquals("don't", normalizeEnglish("don't"))
+        assertEquals("mother-in-law", normalizeEnglish("mother-in-law"))
+        assertEquals("?", normalizeEnglish("?"))
+        assertNull(normalizeEnglish("写"))
+        assertNull(normalizeEnglish("🙂"))
+    }
+
+    private fun normalizeChinese(text: String) =
+        HandwritingRecognitionTextPolicy.normalize(HandwritingLanguage.CHINESE, text)
+
+    private fun normalizeEnglish(text: String) =
+        HandwritingRecognitionTextPolicy.normalize(HandwritingLanguage.ENGLISH, text)
 }

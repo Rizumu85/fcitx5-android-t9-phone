@@ -6,14 +6,12 @@
 package org.fcitx.fcitx5.android.input.t9
 
 class SmartEnglishT9Controller private constructor(
-    private val dictionary: T9EnglishDictionary?,
-    private val predictionDictionary: SmartEnglishPredictionDictionary?,
+    private val preloadResources: (() -> Unit)?,
     private val resourcesReady: () -> Boolean,
     private val lifecycle: SmartEnglishLifecycle
 ) {
     constructor(
-        dictionary: T9EnglishDictionary = T9EnglishDictionary.Shared,
-        predictionDictionary: SmartEnglishPredictionDictionary = SmartEnglishPredictionDictionary.Shared,
+        suggestionEngine: EnglishSuggestionEngine = EnglishSuggestionEngine.Shared,
         candidateLimit: Int,
         noMatchText: String,
         isActive: () -> Boolean,
@@ -21,18 +19,17 @@ class SmartEnglishT9Controller private constructor(
         commitText: (String) -> Unit,
         refreshUi: () -> Unit
     ) : this(
-        dictionary = dictionary,
-        predictionDictionary = predictionDictionary,
-        resourcesReady = { dictionary.isReady && predictionDictionary.isReady },
+        preloadResources = suggestionEngine::preload,
+        resourcesReady = suggestionEngine::isReady,
         lifecycle = SmartEnglishLifecycle(
-            candidateProvider = dictionary::candidatesFor,
-            predictionProvider = predictionDictionary::predictionsAfter,
-            learnWord = dictionary::learn,
-            learnPredictionPair = predictionDictionary::learn,
-            dictionaryReady = dictionary::isReady,
-            predictionReady = predictionDictionary::isReady,
-            dictionaryGeneration = dictionary::generation,
-            predictionGeneration = predictionDictionary::generation,
+            candidateProvider = suggestionEngine::candidatesForDigits,
+            predictionProvider = suggestionEngine::predictionsAfter,
+            learnWord = suggestionEngine::learnWord,
+            learnPredictionPair = suggestionEngine::learnPair,
+            dictionaryReady = suggestionEngine::isReady,
+            predictionReady = suggestionEngine::isReady,
+            dictionaryGeneration = suggestionEngine::dictionaryGeneration,
+            predictionGeneration = suggestionEngine::predictionGeneration,
             candidateLimit = candidateLimit,
             noMatchText = noMatchText,
             isActive = isActive,
@@ -58,8 +55,7 @@ class SmartEnglishT9Controller private constructor(
         commitText: (String) -> Unit,
         refreshUi: () -> Unit
     ) : this(
-        dictionary = null,
-        predictionDictionary = null,
+        preloadResources = null,
         resourcesReady = { dictionaryReady() && predictionReady() },
         lifecycle = SmartEnglishLifecycle(
             candidateProvider = candidateProvider,
@@ -95,8 +91,7 @@ class SmartEnglishT9Controller private constructor(
         get() = lifecycle.shouldRefreshAfterWarmup
 
     fun preload() {
-        dictionary?.preload()
-        predictionDictionary?.preload()
+        preloadResources?.invoke()
     }
 
     fun appendDigit(digit: Int) =

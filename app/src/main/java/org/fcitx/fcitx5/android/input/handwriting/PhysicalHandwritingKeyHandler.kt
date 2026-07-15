@@ -110,7 +110,7 @@ class PhysicalHandwritingKeyHandler(
             2 to HandwritingAction.DELETE_TEXT,
             3 to HandwritingAction.OPEN_NUMBER,
             5 to HandwritingAction.INSERT_SPACE,
-            6 to HandwritingAction.SWITCH_INPUT_MODE,
+            6 to HandwritingAction.SWITCH_LANGUAGE,
             8 to HandwritingAction.INSERT_COMMA
         )
     }
