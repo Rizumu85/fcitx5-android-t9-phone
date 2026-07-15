@@ -28,6 +28,12 @@ class HandwritingCandidateStrip(
     private val candidateRow = LinearLayout(context).apply {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
+        setPadding(
+            context.dp(CandidateEdgeInsetDp),
+            0,
+            context.dp(CandidateEdgeInsetDp),
+            0
+        )
     }
     private val scroller = HorizontalScrollView(context).apply {
         isHorizontalScrollBarEnabled = false
@@ -77,7 +83,7 @@ class HandwritingCandidateStrip(
         val selected = cells.firstOrNull { cell ->
             cell.visibility == VISIBLE && cell.originalIndex == renderedPage.selectedOriginalIndex
         } ?: return
-        val safeMargin = context.dp(4)
+        val safeMargin = context.dp(CandidateEdgeInsetDp)
         val visibleLeft = scroller.scrollX + safeMargin
         val visibleRight = scroller.scrollX + scroller.width - safeMargin
         when {
@@ -93,8 +99,12 @@ class HandwritingCandidateStrip(
         val count = renderedPage.items.size
         if (count == 0 || scroller.width <= 0) return false
         // Sparse handwriting results should read as one balanced strip like the reference layout;
-        // dense pages retain a minimum cell width and become horizontally scrollable on narrow UI.
-        val width = max(context.dp(CandidateWidthDp), scroller.width / count)
+        // reserve the same edge inset before distributing cells so that adding breathing room does
+        // not make an otherwise fitting page overflow and scroll.
+        val contentWidth = (
+            scroller.width - context.dp(CandidateEdgeInsetDp * 2)
+        ).coerceAtLeast(0)
+        val width = max(context.dp(CandidateWidthDp), contentWidth / count)
         var changed = false
         cells.forEachIndexed { index, cell ->
             if (index >= count) return@forEachIndexed
@@ -161,6 +171,7 @@ class HandwritingCandidateStrip(
     private companion object {
         const val MaxCandidateCount = 10
         const val CandidateWidthDp = 34
+        const val CandidateEdgeInsetDp = 6
         const val ShortcutTextSizeSp = 8f
         const val CandidateWeight = 2.5f
         const val ShortcutWeight = 1f
