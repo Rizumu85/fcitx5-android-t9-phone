@@ -7,6 +7,8 @@ package org.fcitx.fcitx5.android.input.handwriting
 
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.Canvas
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
@@ -53,6 +55,8 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         private const val ActionRailWidthDp = 44
         private const val ActionSizeDp = 40
         private const val ActionSpacingDp = 4
+        private const val ActionTextSizeSp = 17f
+        private const val ActionPunctuationSizeSp = 21f
     }
 
     override val key: EssentialWindow.Key
@@ -155,13 +159,13 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             textActionButton(
                 text = context.getString(R.string.handwriting_number_shortcut),
                 description = R.string.handwriting_open_number_keyboard,
-                textSize = 15f,
+                textSize = ActionTextSizeSp,
                 action = ::openNumberKeyboard
             ),
             textActionButton(
                 text = context.getString(R.string.handwriting_chinese_shortcut),
                 description = R.string.handwriting_language_switch_placeholder,
-                textSize = 15f,
+                textSize = ActionTextSizeSp,
                 action = {}
             ).apply {
                 isEnabled = false
@@ -170,7 +174,7 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             textActionButton(
                 text = context.getString(R.string.handwriting_comma_shortcut),
                 description = R.string.handwriting_insert_comma,
-                textSize = 18f
+                textSize = ActionPunctuationSizeSp
             ) {
                 service.commitHandwritingLiteral(
                     context.getString(R.string.handwriting_comma_shortcut)
@@ -192,7 +196,7 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             textActionButton(
                 text = context.getString(R.string.handwriting_symbol_shortcut),
                 description = R.string.handwriting_open_symbol_keyboard,
-                textSize = 15f,
+                textSize = ActionTextSizeSp,
                 action = ::openSymbolKeyboard
             ),
             iconActionButton(
@@ -349,7 +353,7 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         description: Int,
         textSize: Float,
         action: () -> Unit
-    ) = TextView(context).apply {
+    ) = OpticallyCenteredActionTextView(context).apply {
         this.text = text
         this.textSize = textSize
         contentDescription = context.getString(description)
@@ -402,4 +406,19 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             cornerRadius = context.dp(radiusDp)
             setColor(color)
         }
+}
+
+private class OpticallyCenteredActionTextView(context: android.content.Context) : TextView(context) {
+    private val visualBounds = Rect()
+
+    override fun onDraw(canvas: Canvas) {
+        val value = text?.toString().orEmpty()
+        if (value.isEmpty()) return
+        // Font metrics center the em box, which leaves punctuation visibly low. Centering actual
+        // glyph bounds gives commas, Latin digits, and CJK labels one optical alignment rule.
+        paint.getTextBounds(value, 0, value.length, visualBounds)
+        val x = (width - paint.measureText(value)) / 2f
+        val baseline = height / 2f - (visualBounds.top + visualBounds.bottom) / 2f
+        canvas.drawText(value, x, baseline, paint)
+    }
 }
