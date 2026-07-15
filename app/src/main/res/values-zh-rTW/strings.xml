@@ -4,6 +4,7 @@
     <string name="settings">設定</string>
     <string name="input_options">輸入方式</string>
     <string name="keys_and_toolbar">按鍵與工具列</string>
+    <string name="key_tools">按鍵工具</string>
     <string name="toolbar">工具列</string>
     <string name="key_feedback">按鍵回饋</string>
     <string name="voice_input">語音輸入</string>
