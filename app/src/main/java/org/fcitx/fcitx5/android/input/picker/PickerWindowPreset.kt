@@ -5,20 +5,16 @@
 package org.fcitx.fcitx5.android.input.picker
 
 import org.fcitx.fcitx5.android.R
-import org.fcitx.fcitx5.android.input.keyboard.ImageLayoutSwitchKey
 import org.fcitx.fcitx5.android.input.keyboard.ImagePickerSwitchKey
 import org.fcitx.fcitx5.android.input.keyboard.NumberKeyboard
+import org.fcitx.fcitx5.android.input.keyboard.TextLayoutSwitchKey
 import org.fcitx.fcitx5.android.input.keyboard.TextPickerSwitchKey
 
 fun symbolPicker(): PickerWindow = PickerWindow(
     key = PickerWindow.Key.Symbol,
     data = PickerData.Symbol,
     density = PickerPageUi.Density.High,
-    switchKey = ImageLayoutSwitchKey(
-        R.drawable.ic_number_pad,
-        NumberKeyboard.Name,
-        previewText = "123"
-    )
+    switchKey = TextLayoutSwitchKey("123", NumberKeyboard.Name)
 )
 
 fun emojiPicker(): PickerWindow = PickerWindow(

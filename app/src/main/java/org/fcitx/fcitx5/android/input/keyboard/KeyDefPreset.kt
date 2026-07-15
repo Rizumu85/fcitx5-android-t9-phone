@@ -282,6 +282,30 @@ class ImageLayoutSwitchKey(
     previewText?.let { arrayOf(Popup.Preview(it, textSize = 16f)) }
 )
 
+class TextLayoutSwitchKey(
+    text: String,
+    to: String,
+    percentWidth: Float = 0.1f,
+    variant: Variant = Variant.AltForeground,
+    viewId: Int = -1
+) : KeyDef(
+    Appearance.Text(
+        displayText = text,
+        textSize = 16f,
+        percentWidth = percentWidth,
+        variant = variant,
+        viewId = viewId,
+        textStyle = Typeface.BOLD,
+        pressHighlight = false
+    ),
+    setOf(
+        Behavior.Press(KeyAction.LayoutSwitchAction(to))
+    ),
+    arrayOf(
+        Popup.Preview(text, textSize = 16f)
+    )
+)
+
 class ImagePickerSwitchKey(
     @DrawableRes
     icon: Int,
