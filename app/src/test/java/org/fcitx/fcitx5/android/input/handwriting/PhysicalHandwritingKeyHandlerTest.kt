@@ -64,6 +64,22 @@ class PhysicalHandwritingKeyHandlerTest {
     }
 
     @Test
+    fun shortZeroConfirmsHighlightedCandidateWhileLongZeroSelectsShortcutTen() {
+        val fixture = Fixture(hasCandidates = true)
+
+        fixture.keyDown(KeyEvent.KEYCODE_0)
+        fixture.keyUp(KeyEvent.KEYCODE_0)
+        assertEquals(1, fixture.commitCurrentCount)
+
+        fixture.keyDown(KeyEvent.KEYCODE_0)
+        fixture.keyDown(KeyEvent.KEYCODE_0, repeatCount = 1, eventTime = 600L)
+        fixture.keyUp(KeyEvent.KEYCODE_0)
+
+        assertEquals(1, fixture.commitCurrentCount)
+        assertEquals(listOf(9), fixture.shortcuts)
+    }
+
+    @Test
     fun directionAndConfirmKeysStayInsideHandwritingCandidateFlow() {
         val fixture = Fixture()
 

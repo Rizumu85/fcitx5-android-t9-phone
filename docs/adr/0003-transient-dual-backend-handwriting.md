@@ -81,7 +81,7 @@ matching must never block the UI thread.
   `HANDWRITING` source. Paging, original indices, focus, shortcut labels,
   preview, and commit use the existing candidate bubble and interaction
   controller.
-- Touching a candidate, OK, or short `#` with strokes commits the selected
+- Touching a candidate, OK, short `0`, or short `#` with strokes commits the selected
   character and clears the canvas while keeping handwriting open. Long number
   keys select visible shortcuts. Delete undoes one stroke; when the canvas is
   empty, delete continues to the editor deletion pipeline.

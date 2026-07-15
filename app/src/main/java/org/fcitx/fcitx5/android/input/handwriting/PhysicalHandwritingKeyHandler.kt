@@ -6,6 +6,7 @@
 package org.fcitx.fcitx5.android.input.handwriting
 
 import android.view.KeyEvent
+import org.fcitx.fcitx5.android.input.t9.PhysicalBottomCandidateKeyFlow
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
 
 class PhysicalHandwritingKeyHandler(
@@ -27,8 +28,7 @@ class PhysicalHandwritingKeyHandler(
         val eventTime: Long
     )
 
-    private var pendingShortcutKeyCode: Int? = null
-    private var shortcutLongPressTriggered = false
+    private val candidateKeyFlow = PhysicalBottomCandidateKeyFlow(longPressDelayMillis)
     private var pendingPoundKeyCode: Int? = null
 
     fun handleKeyDown(keyCode: Int, input: KeyInput): Result? {
@@ -39,49 +39,25 @@ class PhysicalHandwritingKeyHandler(
             }
             return null
         }
-        PhysicalT9KeyPolicy.candidateShortcutIndex(keyCode)?.let { shortcutIndex ->
-            if (input.repeatCount == 0) {
-                pendingShortcutKeyCode = keyCode
-                shortcutLongPressTriggered = false
-            } else if (pendingShortcutKeyCode == keyCode &&
-                !shortcutLongPressTriggered &&
-                input.eventTime - input.downTime >= longPressDelayMillis()
-            ) {
-                shortcutLongPressTriggered = true
-                if (hasCandidates()) commitShortcut(shortcutIndex)
-            }
-            // Short number presses have no text meaning on the canvas. Keeping them paired here
-            // prevents the underlying T9 mode from receiving half of a handwriting interaction.
-            return Result(handled = true)
+        candidateKeyFlow.handle(input.toCandidateInput(keyCode))?.let { decision ->
+            executeCandidateCommand(decision.command)
+            return Result(decision.handled, decision.consumeKeyUp)
         }
-        return when (PhysicalT9KeyPolicy.focusKey(keyCode)) {
-            PhysicalT9KeyPolicy.FocusKey.LEFT ->
-                Result(handled = true, consumeKeyUp = keyCode).also { moveCandidate(-1) }
-            PhysicalT9KeyPolicy.FocusKey.RIGHT ->
-                Result(handled = true, consumeKeyUp = keyCode).also { moveCandidate(1) }
-            PhysicalT9KeyPolicy.FocusKey.UP ->
-                Result(handled = true, consumeKeyUp = keyCode).also { offsetPage(-1) }
-            PhysicalT9KeyPolicy.FocusKey.DOWN ->
-                Result(handled = true, consumeKeyUp = keyCode).also { offsetPage(1) }
-            PhysicalT9KeyPolicy.FocusKey.OK ->
-                Result(handled = true, consumeKeyUp = keyCode).also { commitCurrentCandidate() }
-            null -> when (keyCode) {
-                KeyEvent.KEYCODE_POUND -> {
-                    if (input.repeatCount == 0) pendingPoundKeyCode = keyCode
-                    Result(handled = true)
-                }
-                KeyEvent.KEYCODE_STAR -> Result(handled = true, consumeKeyUp = keyCode)
-                else -> null
+        return when (keyCode) {
+            KeyEvent.KEYCODE_POUND -> {
+                if (input.repeatCount == 0) pendingPoundKeyCode = keyCode
+                Result(handled = true)
             }
+            KeyEvent.KEYCODE_STAR -> Result(handled = true, consumeKeyUp = keyCode)
+            else -> null
         }
     }
 
     fun handleKeyUp(keyCode: Int, input: KeyInput): Result? {
         if (input.action != KeyEvent.ACTION_UP) return null
-        if (pendingShortcutKeyCode == keyCode) {
-            pendingShortcutKeyCode = null
-            shortcutLongPressTriggered = false
-            return Result(handled = true)
+        candidateKeyFlow.handle(input.toCandidateInput(keyCode))?.let { decision ->
+            executeCandidateCommand(decision.command)
+            return Result(decision.handled, decision.consumeKeyUp)
         }
         if (pendingPoundKeyCode == keyCode) {
             pendingPoundKeyCode = null
@@ -96,8 +72,26 @@ class PhysicalHandwritingKeyHandler(
     }
 
     fun reset() {
-        pendingShortcutKeyCode = null
-        shortcutLongPressTriggered = false
+        candidateKeyFlow.reset()
         pendingPoundKeyCode = null
+    }
+
+    private fun KeyInput.toCandidateInput(keyCode: Int) = PhysicalBottomCandidateKeyFlow.Input(
+        keyCode = keyCode,
+        action = action,
+        repeatCount = repeatCount,
+        downTime = downTime,
+        eventTime = eventTime,
+        hasCandidates = hasCandidates()
+    )
+
+    private fun executeCandidateCommand(command: PhysicalBottomCandidateKeyFlow.Command?) {
+        when (command) {
+            is PhysicalBottomCandidateKeyFlow.Command.Move -> moveCandidate(command.delta)
+            is PhysicalBottomCandidateKeyFlow.Command.OffsetPage -> offsetPage(command.delta)
+            PhysicalBottomCandidateKeyFlow.Command.CommitCurrent -> commitCurrentCandidate()
+            is PhysicalBottomCandidateKeyFlow.Command.CommitShortcut -> commitShortcut(command.index)
+            null -> Unit
+        }
     }
 }
