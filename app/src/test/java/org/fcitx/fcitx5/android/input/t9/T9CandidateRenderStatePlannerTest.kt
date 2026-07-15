@@ -97,13 +97,6 @@ class T9CandidateRenderStatePlannerTest {
     }
 
     @Test
-    fun handwritingPlacesCandidatesBesideItsInputPanel() {
-        val planned = T9CandidateRenderStatePlanner.plan(input(usesHandwriting = true))
-
-        assertTrue(planned.preferAboveInputPanel)
-    }
-
-    @Test
     fun pinyinRowAloneKeepsUiVisible() {
         val planned = T9CandidateRenderStatePlanner.plan(
             input(
@@ -146,8 +139,7 @@ class T9CandidateRenderStatePlannerTest {
         chineseT9Active: Boolean = true,
         suppressEmptyCandidates: Boolean = false,
         presentationState: T9PresentationState? = null,
-        focus: T9CandidateFocus = T9CandidateFocus.BOTTOM,
-        usesHandwriting: Boolean = false
+        focus: T9CandidateFocus = T9CandidateFocus.BOTTOM
     ): T9CandidateRenderStatePlanner.Input =
         T9CandidateRenderStatePlanner.Input(
             inputPanel = inputPanel,
@@ -158,8 +150,7 @@ class T9CandidateRenderStatePlannerTest {
             chineseT9Active = chineseT9Active,
             suppressEmptyCandidates = suppressEmptyCandidates,
             presentationState = presentationState,
-            focus = focus,
-            usesHandwriting = usesHandwriting
+            focus = focus
         )
 
     private fun paged(text: String): FcitxEvent.PagedCandidateEvent.Data =

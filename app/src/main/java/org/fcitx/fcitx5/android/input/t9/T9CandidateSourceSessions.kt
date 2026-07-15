@@ -6,7 +6,6 @@
 package org.fcitx.fcitx5.android.input.t9
 
 import org.fcitx.fcitx5.android.core.FcitxEvent
-import org.fcitx.fcitx5.android.input.handwriting.HandwritingUiSnapshot
 
 class T9CandidateSourceSessions(
     private val characterBudget: () -> Int,
@@ -14,9 +13,6 @@ class T9CandidateSourceSessions(
     candidateMatchesPrefix: (candidate: FcitxEvent.Candidate, prefix: String) -> Boolean
 ) {
     private val smartEnglishPageCache = T9SmartEnglishPageCache(characterBudget, widthBudget)
-    private val handwritingPager = T9CandidatePager()
-    private var handwritingContentKey = ""
-    private var handwritingIndexedCandidates = emptyList<IndexedValue<FcitxEvent.Candidate>>()
     private val pendingPunctuationPager = T9CandidatePager()
     private val chineseCandidatePipeline = ChineseT9CandidatePipeline(
         characterBudget = characterBudget,
@@ -73,9 +69,6 @@ class T9CandidateSourceSessions(
 
     fun reset() {
         smartEnglishPageCache.reset()
-        handwritingPager.reset()
-        handwritingContentKey = ""
-        handwritingIndexedCandidates = emptyList()
         pendingPunctuationPager.reset()
         chineseCandidatePipeline.reset()
         currentShown = null
@@ -162,29 +155,6 @@ class T9CandidateSourceSessions(
         snapshot.paged?.let { data ->
             smartEnglishPageCache.build(data, snapshot.contentKey)
         }
-
-    fun buildHandwritingPaged(snapshot: HandwritingUiSnapshot): T9PagedCandidates? {
-        if (snapshot.candidates.isEmpty()) return null
-        if (snapshot.contentKey != handwritingContentKey) {
-            handwritingContentKey = snapshot.contentKey
-            handwritingIndexedCandidates = snapshot.candidates.mapIndexed { index, text ->
-                IndexedValue(index, FcitxEvent.Candidate(label = "", text = text, comment = ""))
-            }
-        }
-        val indexed = handwritingIndexedCandidates
-        handwritingPager.update(
-            signature = snapshot.contentKey,
-            candidates = indexed,
-            characterBudget = characterBudget(),
-            widthBudget = widthBudget()
-        )
-        val selected = snapshot.selectedIndex.coerceIn(indexed.indices)
-        val page = handwritingPager.selectPageContainingOriginalIndex(selected) ?: return null
-        return page.toPagedCandidates(
-            layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
-            cursorIndex = page.cursorIndexForOriginalIndex(selected)
-        )
-    }
 
     fun buildPendingPunctuationPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates {
         val signature = T9CandidateSnapshots.pagerContent(data, characterBudget(), widthBudget())
@@ -280,11 +250,6 @@ class T9CandidateSourceSessions(
                     previewOriginalIndex = shown.originalIndices.firstOrNull()
                 )
             }
-            T9CandidateUiSnapshotPipeline.ShownSource.HANDWRITING -> {
-                val page = handwritingPager.offset(delta) ?: return null
-                val nextOriginalIndex = page.originalIndices.firstOrNull() ?: return null
-                T9CandidateUiSnapshotPipeline.PageOffset.Handwriting(nextOriginalIndex)
-            }
             T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK -> {
                 val shown = currentShown ?: return null
                 if (!offsetChineseBulkFilteredPage(delta, shown.paged.layoutHint)) return null
@@ -337,8 +302,6 @@ class T9CandidateSourceSessions(
         return when (shown.source) {
             T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH ->
                 T9CandidateUiSnapshotPipeline.CommitBottomCandidate.SmartEnglish(originalIndex)
-            T9CandidateUiSnapshotPipeline.ShownSource.HANDWRITING ->
-                T9CandidateUiSnapshotPipeline.CommitBottomCandidate.Handwriting(originalIndex)
             T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION ->
                 T9CandidateUiSnapshotPipeline.CommitBottomCandidate.PendingPunctuation(originalIndex)
             T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK,
@@ -364,13 +327,6 @@ class T9CandidateSourceSessions(
         val originalIndex = shown.originalIndexAt(next) ?: next
         return when (shown.source) {
             T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH -> {
-                currentShown = shown.copy(paged = shown.paged.copy(cursorIndex = next))
-                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.LocalSelection(
-                    source = shown.source,
-                    originalIndex = originalIndex
-                )
-            }
-            T9CandidateUiSnapshotPipeline.ShownSource.HANDWRITING -> {
                 currentShown = shown.copy(paged = shown.paged.copy(cursorIndex = next))
                 T9CandidateUiSnapshotPipeline.MoveBottomCandidate.LocalSelection(
                     source = shown.source,

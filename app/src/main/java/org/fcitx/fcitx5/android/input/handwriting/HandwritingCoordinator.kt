@@ -23,8 +23,8 @@ class HandwritingCoordinator(
     context: Context,
     private val scope: CoroutineScope,
     private val commitText: (String) -> Unit,
-    private val refreshCandidates: () -> Unit,
-    private val hideCandidates: () -> Unit,
+    private val hideExternalCandidates: () -> Unit,
+    candidatePageSize: () -> Int,
     private val showPronunciationAfterCommit: () -> Boolean,
     private val lookupPronunciations: suspend (String) -> List<String>
 ) {
@@ -32,12 +32,10 @@ class HandwritingCoordinator(
 
     private val offlineRecognizer = OfflineHanziRecognizer(context.applicationContext)
     private val enhancedBackend: EnhancedHandwritingBackend = MlKitEnhancedHandwritingBackend()
+    private val candidateSession = HandwritingCandidateSession(candidatePageSize)
 
     private var active = false
     private var strokes: List<HandwritingStroke> = emptyList()
-    private var candidates: List<String> = emptyList()
-    private var selectedIndex = 0
-    private var revision = 0L
     private var generation = 0L
     private var activeBackend: Backend? = null
     private var offlineReady = false
@@ -60,6 +58,9 @@ class HandwritingCoordinator(
     val hasStrokes: Boolean
         get() = strokes.isNotEmpty()
 
+    val hasCandidates: Boolean
+        get() = candidateSession.hasCandidates
+
     fun begin() {
         if (active) return
         active = true
@@ -67,7 +68,7 @@ class HandwritingCoordinator(
         clearCharacter(publish = false)
         publishState()
         warmupRecognizers()
-        hideCandidates()
+        hideExternalCandidates()
     }
 
     fun end() {
@@ -78,7 +79,7 @@ class HandwritingCoordinator(
         invalidatePronunciationFeedback()
         clearCharacter(publish = false)
         stateListener = null
-        hideCandidates()
+        hideExternalCandidates()
     }
 
     fun setStateListener(listener: ((HandwritingViewState) -> Unit)?) {
@@ -103,11 +104,11 @@ class HandwritingCoordinator(
         // only an inter-stroke pause. Invalidate work here so stale results never reach the UI.
         generation++
         recognitionJob?.cancel()
-        val statusChanged = noMatch || pronunciation != null
+        val candidatesChanged = invalidatePublishedCandidates()
+        val visibleStateChanged = noMatch || pronunciation != null || candidatesChanged
         invalidatePronunciationFeedback()
-        invalidatePublishedCandidates()
         noMatch = false
-        if (statusChanged) publishState()
+        if (visibleStateChanged) publishState()
     }
 
     fun addStroke(stroke: HandwritingStroke) {
@@ -119,7 +120,6 @@ class HandwritingCoordinator(
         invalidatePublishedCandidates()
         recognizing = true
         noMatch = false
-        revision++
         publishState()
         scheduleRecognition()
     }
@@ -132,13 +132,10 @@ class HandwritingCoordinator(
         invalidatePublishedCandidates()
         recognizing = strokes.isNotEmpty()
         noMatch = false
-        revision++
         if (strokes.isEmpty()) {
             activeBackend = null
-            candidates = emptyList()
-            selectedIndex = 0
+            candidateSession.clear()
             publishState()
-            hideCandidates()
             scheduleEnhancedPreparation()
         } else {
             publishState()
@@ -148,43 +145,39 @@ class HandwritingCoordinator(
     }
 
     fun clear(): Boolean {
-        if (!active || strokes.isEmpty() && candidates.isEmpty() && pronunciation == null) {
+        if (!active || strokes.isEmpty() && !candidateSession.hasCandidates && pronunciation == null) {
             return false
         }
         invalidatePronunciationFeedback()
         clearCharacter(publish = true)
-        hideCandidates()
         scheduleEnhancedPreparation()
         return true
     }
 
-    fun snapshot(): HandwritingUiSnapshot? = if (active) {
-        HandwritingUiSnapshot(
-            revision = revision,
-            candidates = candidates,
-            selectedIndex = if (candidates.isEmpty()) 0 else selectedIndex.coerceIn(candidates.indices)
-        )
-    } else {
-        null
+    fun moveSelectionBy(delta: Int): Boolean {
+        if (!active || recognizing || !candidateSession.move(delta)) return false
+        publishState()
+        return true
     }
 
-    fun moveSelectionTo(index: Int): Boolean {
-        if (!active || recognizing || index !in candidates.indices) return false
-        if (selectedIndex == index) return true
-        selectedIndex = index
-        revision++
-        refreshCandidates()
+    fun offsetCandidatePage(delta: Int): Boolean {
+        if (!active || recognizing || !candidateSession.offsetPage(delta)) return false
+        publishState()
         return true
+    }
+
+    fun commitCurrentPageShortcut(shortcutIndex: Int): Boolean {
+        val originalIndex = candidateSession.originalIndexForShortcut(shortcutIndex) ?: return false
+        return commitCandidate(originalIndex)
     }
 
     fun commitCandidate(index: Int? = null): Boolean {
         if (!active || recognizing) return false
-        val resolvedIndex = index ?: selectedIndex
-        val text = candidates.getOrNull(resolvedIndex) ?: return false
+        val resolvedIndex = index ?: candidateSession.selectedOriginalIndex ?: return false
+        val text = candidateSession.candidateAt(resolvedIndex) ?: return false
         invalidatePronunciationFeedback()
         commitText(text)
         clearCharacter(publish = true)
-        hideCandidates()
         publishPronunciation(text)
         scheduleEnhancedPreparation()
         return true
@@ -208,7 +201,9 @@ class HandwritingCoordinator(
                 }.onSuccess {
                     offlineReady = true
                     updateAvailableModelState()
-                    if (active && strokes.isNotEmpty() && candidates.isEmpty()) scheduleRecognition()
+                    if (active && strokes.isNotEmpty() && !candidateSession.hasCandidates) {
+                        scheduleRecognition()
+                    }
                 }.onFailure { Timber.e(it, "Unable to prepare bundled handwriting recognizer") }
             }
         }
@@ -295,21 +290,21 @@ class HandwritingCoordinator(
                 }
             }
             if (!active || requestGeneration != generation || requestStrokes != strokes) return@launch
-            candidates = batch.candidates.map(HandwritingRecognition::text).distinct()
-            selectedIndex = 0
+            val recognizedCandidates = batch.candidates
+                .map(HandwritingRecognition::text)
+                .distinct()
+            candidateSession.replace(recognizedCandidates)
             recognizing = false
-            noMatch = candidates.isEmpty()
-            revision++
+            noMatch = recognizedCandidates.isEmpty()
             val elapsedMs = (SystemClock.elapsedRealtimeNanos() - started) / 1_000_000f
             Timber.d(
                 "Handwriting recognition backend=%s strokes=%d candidates=%d latency=%.2fms",
                 batch.backend,
                 requestStrokes.size,
-                candidates.size,
+                recognizedCandidates.size,
                 elapsedMs
             )
             publishState()
-            refreshCandidates()
         }
     }
 
@@ -330,22 +325,19 @@ class HandwritingCoordinator(
         generation++
         recognitionJob?.cancel()
         strokes = emptyList()
-        candidates = emptyList()
-        selectedIndex = 0
+        candidateSession.clear()
         activeBackend = null
         recognizing = false
         noMatch = false
-        revision++
         if (publish && active) publishState()
     }
 
-    private fun invalidatePublishedCandidates() {
-        if (candidates.isEmpty()) return
-        // Any stroke-set mutation changes the character's identity. Keeping the old bubble
+    private fun invalidatePublishedCandidates(): Boolean {
+        if (!candidateSession.hasCandidates) return false
+        // Any stroke-set mutation changes the character's identity. Keeping the old strip
         // interactive creates a visible-but-uncommittable state while recognition catches up.
-        candidates = emptyList()
-        selectedIndex = 0
-        hideCandidates()
+        candidateSession.clear()
+        return true
     }
 
     private fun publishPronunciation(character: String) {
@@ -385,6 +377,7 @@ class HandwritingCoordinator(
         stateListener?.invoke(
             HandwritingViewState(
                 strokes = strokes,
+                candidatePage = candidateSession.snapshot(),
                 modelState = modelState,
                 recognizing = recognizing,
                 noMatch = noMatch,

@@ -28,11 +28,40 @@ enum class HandwritingModelState {
 
 data class HandwritingViewState(
     val strokes: List<HandwritingStroke>,
+    val candidatePage: HandwritingCandidatePage,
     val modelState: HandwritingModelState,
     val recognizing: Boolean,
     val noMatch: Boolean,
     val pronunciation: HandwritingPronunciationFeedback?
 )
+
+data class HandwritingCandidateItem(
+    val originalIndex: Int,
+    val text: String,
+    val shortcutLabel: String
+)
+
+data class HandwritingCandidatePage(
+    val items: List<HandwritingCandidateItem>,
+    val selectedOriginalIndex: Int,
+    val pageIndex: Int,
+    val pageCount: Int
+) {
+    val hasPreviousPage: Boolean
+        get() = pageIndex > 0
+
+    val hasNextPage: Boolean
+        get() = pageIndex + 1 < pageCount
+
+    companion object {
+        val Empty = HandwritingCandidatePage(
+            items = emptyList(),
+            selectedOriginalIndex = 0,
+            pageIndex = 0,
+            pageCount = 0
+        )
+    }
+}
 
 data class HandwritingPronunciationFeedback(
     val character: String,
@@ -53,15 +82,4 @@ data class HandwritingPronunciationFeedback(
             }
         }
     }
-}
-
-data class HandwritingUiSnapshot(
-    val revision: Long,
-    val candidates: List<String>,
-    val selectedIndex: Int
-) {
-    val contentKey: String
-        // Selection revisions must not invalidate candidate pagination. The candidate sequence is
-        // the complete paging input; keeping this key independent lets focus moves reuse pages.
-        get() = candidates.joinToString("\u0001")
 }

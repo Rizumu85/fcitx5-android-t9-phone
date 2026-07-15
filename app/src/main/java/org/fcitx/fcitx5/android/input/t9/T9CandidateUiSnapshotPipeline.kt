@@ -6,7 +6,6 @@
 package org.fcitx.fcitx5.android.input.t9
 
 import org.fcitx.fcitx5.android.core.FcitxEvent
-import org.fcitx.fcitx5.android.input.handwriting.HandwritingUiSnapshot
 
 class T9CandidateUiSnapshotPipeline(
     characterBudget: () -> Int,
@@ -21,7 +20,6 @@ class T9CandidateUiSnapshotPipeline(
 ) {
     enum class ShownSource {
         SMART_ENGLISH,
-        HANDWRITING,
         PENDING_PUNCTUATION,
         CHINESE_BULK,
         CHINESE_LOCAL,
@@ -66,7 +64,6 @@ class T9CandidateUiSnapshotPipeline(
     sealed class PageOffset {
         data class SmartEnglish(val nextOriginalIndex: Int) : PageOffset()
         data class PendingPunctuation(val previewOriginalIndex: Int?) : PageOffset()
-        data class Handwriting(val nextOriginalIndex: Int) : PageOffset()
         object Refresh : PageOffset()
         data class ChineseEngine(val delta: Int) : PageOffset()
     }
@@ -82,7 +79,6 @@ class T9CandidateUiSnapshotPipeline(
     sealed class CommitBottomCandidate {
         data class SmartEnglish(val originalIndex: Int) : CommitBottomCandidate()
         data class PendingPunctuation(val originalIndex: Int) : CommitBottomCandidate()
-        data class Handwriting(val originalIndex: Int) : CommitBottomCandidate()
         data class Chinese(
             val originalIndex: Int,
             val candidate: FcitxEvent.Candidate,
@@ -103,9 +99,6 @@ class T9CandidateUiSnapshotPipeline(
     private val stateBuilder = T9CandidateUiStateBuilder(object : T9CandidateUiStateBuilder.Pipeline {
         override fun buildSmartEnglishPaged(snapshot: SmartEnglishUiSnapshot): T9PagedCandidates? =
             sourceSessions.buildSmartEnglishPaged(snapshot)
-
-        override fun buildHandwritingPaged(snapshot: HandwritingUiSnapshot): T9PagedCandidates? =
-            sourceSessions.buildHandwritingPaged(snapshot)
 
         override fun buildT9PendingPunctuationPaged(
             data: FcitxEvent.PagedCandidateEvent.Data

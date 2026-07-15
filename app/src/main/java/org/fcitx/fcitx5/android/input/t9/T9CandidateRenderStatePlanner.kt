@@ -19,8 +19,7 @@ object T9CandidateRenderStatePlanner {
         val chineseT9Active: Boolean,
         val suppressEmptyCandidates: Boolean,
         val presentationState: T9PresentationState?,
-        val focus: T9CandidateFocus,
-        val usesHandwriting: Boolean = false
+        val focus: T9CandidateFocus
     )
 
     fun plan(input: Input): T9CandidateRenderState {
@@ -58,18 +57,15 @@ object T9CandidateRenderStatePlanner {
             readingOptions = readingOptions,
             pinyinUseT9 = input.chineseT9Active,
             focus = input.focus,
-            // Handwriting choices stay adjacent to the tray. Key-driven modes retain their stable
-            // cursor placement because moving their established bubble would make modes jump.
-            preferAboveInputPanel = input.usesHandwriting,
+            preferAboveInputPanel = false,
             shouldShow = shouldShow(input)
         )
     }
 
     private fun shouldShowShortcutLabels(input: Input): Boolean =
-        input.candidates.candidates.isNotEmpty() &&
+            input.candidates.candidates.isNotEmpty() &&
             input.presentationState?.candidateStatus == null &&
-            (input.usesSmartEnglish || input.usesPendingPunctuation || input.chineseT9Active ||
-                input.usesHandwriting)
+            (input.usesSmartEnglish || input.usesPendingPunctuation || input.chineseT9Active)
 
     private fun shouldShow(input: Input): Boolean =
         !input.suppressEmptyCandidates && evaluateVisibility(

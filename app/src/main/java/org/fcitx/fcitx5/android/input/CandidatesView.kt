@@ -229,14 +229,8 @@ class CandidatesView(
             override fun moveSmartEnglishSelection(originalIndex: Int): Boolean =
                 service.moveSmartEnglishSelectionTo(originalIndex)
 
-            override fun moveHandwritingSelection(originalIndex: Int): Boolean =
-                service.moveHandwritingSelectionTo(originalIndex)
-
             override fun commitSmartEnglishCandidate(originalIndex: Int): Boolean =
                 service.commitSmartEnglishCandidate(originalIndex)
-
-            override fun commitHandwritingCandidate(originalIndex: Int): Boolean =
-                service.commitHandwritingCandidate(originalIndex)
 
             override fun commitPendingPunctuationCandidate(originalIndex: Int): Boolean =
                 service.commitPendingT9PunctuationCandidate(originalIndex)
@@ -596,8 +590,9 @@ class CandidatesView(
         when (it) {
             is FcitxEvent.InputPanelEvent -> {
                 inputPanel = it.data
+                if (service.isHandwritingInputActive()) return
                 val sourceReady = if (
-                    service.isChineseT9InputModeActive() && !service.isHandwritingInputActive()
+                    service.isChineseT9InputModeActive()
                 ) {
                     val ticket = service.getChineseT9InputSnapshot(inputPanel).compositionTicket()
                     chineseT9CandidateLoadingState.onEngineInputPanel(
@@ -612,8 +607,9 @@ class CandidatesView(
             }
             is FcitxEvent.PagedCandidateEvent -> {
                 paged = it.data
+                if (service.isHandwritingInputActive()) return
                 val sourceReady = if (
-                    service.isChineseT9InputModeActive() && !service.isHandwritingInputActive()
+                    service.isChineseT9InputModeActive()
                 ) {
                     val ticket = service.getChineseT9InputSnapshot(inputPanel).compositionTicket()
                     chineseT9CandidateLoadingState.onEngineCandidates(
@@ -816,9 +812,9 @@ class CandidatesView(
     }
 
     private fun buildT9CandidateUiState(): T9CandidateUiSnapshot? {
-        val handwritingActive = service.isHandwritingInputActive()
-        val chineseT9Active = !handwritingActive && service.isChineseT9InputModeActive()
-        val smartEnglishActive = !handwritingActive && !chineseT9Active &&
+        if (service.isHandwritingInputActive()) return null
+        val chineseT9Active = service.isChineseT9InputModeActive()
+        val smartEnglishActive = !chineseT9Active &&
             service.isSmartEnglishT9InputModeActive()
         val smartEnglishSnapshot = if (smartEnglishActive) {
             service.getSmartEnglishT9Snapshot()
@@ -837,18 +833,12 @@ class CandidatesView(
                 widthBudget = t9CandidateWidthBudget(),
                 chineseT9Active = chineseT9Active,
                 smartEnglishActive = smartEnglishActive,
-                handwritingActive = handwritingActive,
                 chineseSnapshot = if (chineseT9Active) {
                     service.getChineseT9InputSnapshot(inputPanel)
                 } else {
                     null
                 },
                 smartEnglishSnapshot = smartEnglishSnapshot,
-                handwritingSnapshot = if (handwritingActive) {
-                    service.getHandwritingUiSnapshot()
-                } else {
-                    null
-                },
                 pendingPunctuationRawPaged = if (chineseT9Active || smartEnglishActive) {
                     service.getPendingT9PunctuationPaged()
                 } else {

@@ -80,7 +80,6 @@ import org.fcitx.fcitx5.android.input.cursor.CursorRange
 import org.fcitx.fcitx5.android.input.cursor.CursorTracker
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingCoordinator
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingStroke
-import org.fcitx.fcitx5.android.input.handwriting.HandwritingUiSnapshot
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingViewState
 import org.fcitx.fcitx5.android.input.handwriting.PhysicalHandwritingKeyHandler
 import org.fcitx.fcitx5.android.input.status.PersistentStatusActionCoordinator
@@ -189,8 +188,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             context = this,
             scope = lifecycleScope,
             commitText = ::commitText,
-            refreshCandidates = { candidatesView?.refreshT9Ui() },
-            hideCandidates = { candidatesView?.hideT9CandidateUiImmediately() },
+            hideExternalCandidates = { candidatesView?.hideT9CandidateUiImmediately() },
+            candidatePageSize = { prefs.candidates.t9HanziCharacterBudget.getValue() },
             showPronunciationAfterCommit = {
                 prefs.keyboard.handwritingShowPronunciation.getValue()
             },
@@ -1766,12 +1765,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         PhysicalHandwritingKeyHandler(
             longPressDelayMillis = { physicalLongPressDelay },
             hasStrokes = { handwritingCoordinator.hasStrokes },
-            hasCandidates = { getHandwritingUiSnapshot()?.candidates?.isNotEmpty() == true },
+            hasCandidates = { handwritingCoordinator.hasCandidates },
             undoStroke = handwritingCoordinator::undoStroke,
-            moveCandidate = { delta -> candidatesView?.moveHighlightedT9BottomCandidate(delta) == true },
-            offsetPage = { delta -> candidatesView?.offsetT9BottomCandidatePage(delta) == true },
-            commitCurrentCandidate = { candidatesView?.commitHighlightedT9BottomCandidate() == true },
-            commitShortcut = { index -> candidatesView?.commitT9HanziShortcut(index) == true },
+            moveCandidate = handwritingCoordinator::moveSelectionBy,
+            offsetPage = handwritingCoordinator::offsetCandidatePage,
+            commitCurrentCandidate = { handwritingCoordinator.commitCandidate() },
+            commitShortcut = handwritingCoordinator::commitCurrentPageShortcut,
             sendReturn = ::handleReturnKey
         )
     }
@@ -2183,11 +2182,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     fun clearHandwritingCharacter(): Boolean = handwritingCoordinator.clear()
 
-    fun getHandwritingUiSnapshot(): HandwritingUiSnapshot? =
-        handwritingCoordinatorDelegate.takeIf { it.isInitialized() }?.value?.snapshot()
-
-    fun moveHandwritingSelectionTo(index: Int): Boolean =
-        handwritingCoordinator.moveSelectionTo(index)
+    fun offsetHandwritingCandidatePage(delta: Int): Boolean =
+        handwritingCoordinator.offsetCandidatePage(delta)
 
     fun commitHandwritingCandidate(index: Int? = null): Boolean =
         handwritingCoordinator.commitCandidate(index)

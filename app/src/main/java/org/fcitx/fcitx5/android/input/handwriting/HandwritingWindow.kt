@@ -19,6 +19,7 @@ import android.widget.TextView
 import androidx.annotation.DrawableRes
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
+import androidx.core.view.isVisible
 import com.google.android.material.snackbar.Snackbar
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
@@ -68,6 +69,8 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
     override val title: String
         get() = context.getString(R.string.handwriting_input)
 
+    override val showTitle: Boolean = false
+
     private lateinit var canvas: HandwritingCanvasView
     private lateinit var root: FrameLayout
     private lateinit var status: TextView
@@ -84,10 +87,60 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             service.clearHandwritingCharacter()
         }
     }
+    private val backButton by lazy {
+        toolButton(R.drawable.ic_baseline_arrow_back_24, R.string.back_to_keyboard) {
+            windowManager.attachWindow(KeyboardWindow)
+        }
+    }
+    private val titleLabel by lazy {
+        TextView(context).apply {
+            text = title
+            textSize = 16f
+            gravity = Gravity.CENTER_VERTICAL or Gravity.START
+            setTextColor(theme.altKeyTextColor)
+            setPadding(context.dp(8), 0, context.dp(8), 0)
+            InputUiFont.applyTo(this, Typeface.BOLD)
+        }
+    }
+    private val candidateStrip by lazy {
+        HandwritingCandidateStrip(
+            context = context,
+            theme = theme,
+            // The title bar is fixed at 40dp, so extreme candidate-font settings are clamped here
+            // rather than changing the bar height or clipping the physical shortcut labels.
+            candidateTextSizeSp = AppPrefs.getInstance().candidates.fontSize
+                .getValue()
+                .toFloat()
+                .coerceIn(16f, 22f),
+            onCandidateClick = service::commitHandwritingCandidate,
+            onPreviousPage = { service.offsetHandwritingCandidatePage(-1) },
+            onNextPage = { service.offsetHandwritingCandidatePage(1) }
+        )
+    }
     private val barExtension by lazy {
         LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL or Gravity.END
+            gravity = Gravity.CENTER_VERTICAL
+            addView(backButton, LinearLayout.LayoutParams(context.dp(40), context.dp(40)))
+            addView(
+                FrameLayout(context).apply {
+                    addView(
+                        titleLabel,
+                        FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            FrameLayout.LayoutParams.MATCH_PARENT
+                        )
+                    )
+                    addView(
+                        candidateStrip,
+                        FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            FrameLayout.LayoutParams.MATCH_PARENT
+                        )
+                    )
+                },
+                LinearLayout.LayoutParams(0, context.dp(40), 1f)
+            )
             addView(undoButton, LinearLayout.LayoutParams(context.dp(40), context.dp(40)))
             addView(clearButton, LinearLayout.LayoutParams(context.dp(40), context.dp(40)))
         }
@@ -279,6 +332,10 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
 
     private fun renderState(state: HandwritingViewState) {
         canvas.setCompletedStrokes(state.strokes)
+        candidateStrip.render(state.candidatePage)
+        // Once strokes exist, an empty center stays quiet until recognition publishes candidates;
+        // flashing the title between strokes would make the dedicated result strip feel unstable.
+        titleLabel.isVisible = state.strokes.isEmpty() && state.candidatePage.items.isEmpty()
         undoButton.isEnabled = state.strokes.isNotEmpty()
         clearButton.isEnabled = state.strokes.isNotEmpty()
         undoButton.alpha = if (undoButton.isEnabled) 1f else DisabledControlAlpha

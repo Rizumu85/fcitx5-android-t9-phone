@@ -169,8 +169,6 @@ class T9CandidateInteractionControllerTest {
 
         val smartEnglishSelections = mutableListOf<Int>()
         val smartEnglishCommits = mutableListOf<Int>()
-        val handwritingSelections = mutableListOf<Int>()
-        val handwritingCommits = mutableListOf<Int>()
         val punctuationCommits = mutableListOf<Int>()
         val punctuationPreviews = mutableListOf<Int>()
         val chineseSelections = mutableListOf<ChineseSelection>()
@@ -185,16 +183,6 @@ class T9CandidateInteractionControllerTest {
 
         override fun commitSmartEnglishCandidate(originalIndex: Int): Boolean {
             smartEnglishCommits += originalIndex
-            return true
-        }
-
-        override fun moveHandwritingSelection(originalIndex: Int): Boolean {
-            handwritingSelections += originalIndex
-            return true
-        }
-
-        override fun commitHandwritingCandidate(originalIndex: Int): Boolean {
-            handwritingCommits += originalIndex
             return true
         }
 
