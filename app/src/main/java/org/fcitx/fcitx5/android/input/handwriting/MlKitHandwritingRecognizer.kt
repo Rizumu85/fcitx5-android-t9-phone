@@ -46,9 +46,9 @@ internal class MlKitHandwritingRecognizer(
             }
         }.build()
         return recognizeInk(ink).candidates
-            // This surface is a Chinese-character input mode. ML Kit also ranks strokes and
-            // punctuation, but showing those here would displace the bundled Hanzi fallback.
-            .filter { candidate -> candidate.text.isSingleHanCharacter() }
+            // Keep the surface Chinese-first while allowing intentional punctuation drawings.
+            // A bounded symbol set avoids unrelated emoji and Latin guesses crowding out Hanzi.
+            .filter { candidate -> HandwritingRecognitionTextPolicy.accepts(candidate.text) }
             .take(limit)
             .mapIndexed { index, candidate ->
                 HandwritingRecognition(candidate.text, 1f / (index + 1f))
@@ -60,11 +60,6 @@ internal class MlKitHandwritingRecognizer(
     private fun client(): DigitalInkRecognizer = recognizer ?: DigitalInkRecognition.getClient(
         DigitalInkRecognizerOptions.builder(model).build()
     ).also { recognizer = it }
-
-    private fun String.isSingleHanCharacter(): Boolean {
-        if (codePointCount(0, length) != 1) return false
-        return Character.UnicodeScript.of(codePointAt(0)) == Character.UnicodeScript.HAN
-    }
 
     override fun close() {
         recognizer?.close()

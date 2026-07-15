@@ -2177,6 +2177,28 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun commitHandwritingCandidate(index: Int? = null): Boolean =
         handwritingCoordinator.commitCandidate(index)
 
+    fun commitHandwritingLiteral(text: String) {
+        // Punctuation and spacing continue the sentence the user just wrote. Commit a visible
+        // handwriting choice first so a shortcut never discards that character on its way out.
+        handwritingCoordinator.commitCandidate()
+        commitText(text)
+    }
+
+    fun deleteCommittedTextFromHandwriting() {
+        // The canvas already has separate stroke undo and clear controls. This action deliberately
+        // follows the normal editor backspace path instead of mutating the in-progress character.
+        handleBackspaceKey()
+    }
+
+    fun performHandwritingReturn() {
+        handwritingCoordinator.commitCandidate()
+        handleReturnKey()
+    }
+
+    fun commitHandwritingCandidateBeforeAuxiliaryInput() {
+        handwritingCoordinator.commitCandidate()
+    }
+
     private fun shouldLearnEnglishWords(): Boolean {
         return SmartEnglishLearningPolicy.shouldLearnWords(currentInputEditorInfo)
     }

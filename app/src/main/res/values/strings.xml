@@ -431,6 +431,17 @@
     <string name="handwriting_go_to_download">Download</string>
     <string name="handwriting_undo_stroke">Undo last stroke</string>
     <string name="handwriting_clear">Clear handwriting</string>
+    <string name="handwriting_delete_committed_text">Delete entered text</string>
+    <string name="handwriting_insert_comma">Insert comma</string>
+    <string name="handwriting_insert_period">Insert period</string>
+    <string name="handwriting_insert_space">Insert space</string>
+    <string name="handwriting_open_symbol_keyboard">Open symbol keyboard</string>
+    <string name="handwriting_open_number_keyboard">Open number keyboard</string>
+    <string name="handwriting_return">Send or return</string>
+    <string name="handwriting_comma_shortcut">，</string>
+    <string name="handwriting_period_shortcut">。</string>
+    <string name="handwriting_symbol_shortcut">符</string>
+    <string name="handwriting_number_shortcut">123</string>
     <string name="handwriting_brush_style">Stroke style</string>
     <string name="handwriting_brush_pen">Pen</string>
     <string name="handwriting_brush_calligraphy">Calligraphy brush</string>

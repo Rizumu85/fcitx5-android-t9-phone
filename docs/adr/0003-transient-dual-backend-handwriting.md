@@ -40,8 +40,9 @@ matching must never block the UI thread.
   deliberately uses the bundled backend rather than letting model JIT compete
   with drawing. If preparation has already completed, the enhanced backend is
   ready before the next character begins. ML Kit output is restricted to one
-  Han character; an empty or failed enhanced result falls back to the bundled
-  recognizer instead of exposing punctuation or Latin strokes as candidates.
+  Han character or an explicit set of common punctuation and operators; an
+  empty or failed enhanced result falls back to the bundled recognizer instead
+  of exposing Latin words or emoji as candidates.
 - The recognizer for one character is selected on its first down event, before
   the stroke has finished.
   A model that becomes ready halfway through that character is used only for
@@ -60,11 +61,15 @@ matching must never block the UI thread.
   never changes the recognition points. The style is resolved once when each
   stroke begins, because Android may hide and reuse the same IME window after a
   Settings change instead of attaching a new one.
+- The drawing tray remains the dominant surface. Two narrow external rails
+  expose text backspace, comma, period, space, symbol and number keyboard entry,
+  and the editor-specific return action. They reuse the normal editor and
+  keyboard routes rather than embedding duplicate symbol or number layouts.
 - AndroidX Ink completion callbacks and coordinator publications are reconciled
   by a render ledger. A local completion reserves its stroke identity before
   Ink is notified, preventing a synchronous callback from deleting the fresh
   stroke and preserving finish order when callbacks arrive out of order.
-- Recognition starts 420 ms after the most recently completed stroke. Every
+- Recognition starts 800 ms after the most recently completed stroke. Every
   stroke resets the same quiet-period timer; there is no first-stroke special
   case that can repeatedly interrupt a multi-stroke character. New strokes,
   undo, clear, commit, and window exit invalidate the previous generation so

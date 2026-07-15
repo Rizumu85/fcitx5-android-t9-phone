@@ -424,6 +424,17 @@
     <string name="handwriting_go_to_download">前往下載</string>
     <string name="handwriting_undo_stroke">還原上一筆</string>
     <string name="handwriting_clear">清除手寫</string>
+    <string name="handwriting_delete_committed_text">刪除已輸入文字</string>
+    <string name="handwriting_insert_comma">輸入逗號</string>
+    <string name="handwriting_insert_period">輸入句號</string>
+    <string name="handwriting_insert_space">輸入空格</string>
+    <string name="handwriting_open_symbol_keyboard">開啟符號鍵盤</string>
+    <string name="handwriting_open_number_keyboard">開啟數字鍵盤</string>
+    <string name="handwriting_return">傳送或換行</string>
+    <string name="handwriting_comma_shortcut">，</string>
+    <string name="handwriting_period_shortcut">。</string>
+    <string name="handwriting_symbol_shortcut">符</string>
+    <string name="handwriting_number_shortcut">123</string>
     <string name="handwriting_brush_style">筆觸樣式</string>
     <string name="handwriting_brush_pen">鋼筆</string>
     <string name="handwriting_brush_calligraphy">毛筆</string>

@@ -169,7 +169,11 @@ AndroidX Ink HWUI compatibility renderer with a stable finished-stroke layer,
 and discards uncommitted strokes as soon as the user leaves. The ordinary-view
 renderer is deliberate: target T9 phones may run modern Android over vendor
 graphics stacks that do not reliably present every SurfaceControl front-buffer
-update.
+update. Compact rails outside the drawing tray provide editor backspace,
+Chinese comma and period, space, symbol and number keyboard entry, and the
+editor-specific return action without shrinking the tray vertically. Stroke
+undo and canvas clear remain separate toolbar actions so deleting committed
+text cannot be confused with editing the current drawing.
 
 `HandwritingCoordinator` owns stroke generations, recognizer selection,
 candidate focus, commit, undo, clear, and model state. The bundled
@@ -178,9 +182,11 @@ candidate focus, commit, undo, clear, and model state. The bundled
 model. Model construction, availability checks, warmup, and recognition run on
 one background lane behind a quiet-period gate. A stroke during that gate
 cancels pending initialization and uses the offline floor instead of competing
-with model JIT or native loading. Only one-character Han results are accepted.
-A character keeps the backend chosen on its first down event so a completed
-model warmup cannot replace candidates halfway through input.
+with model JIT or native loading. Enhanced results accept one-character Hanzi
+plus a bounded set of common punctuation and operators; Latin words and emoji
+remain excluded from the Chinese candidate surface. A character keeps the
+backend chosen on its first down event so a completed model warmup cannot
+replace candidates halfway through input.
 
 Handwriting candidates join `T9CandidateUiSnapshotPipeline` through the
 `HANDWRITING` source. They reuse the existing bubble, paging, preview, shortcut,
