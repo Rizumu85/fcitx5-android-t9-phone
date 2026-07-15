@@ -31,6 +31,7 @@ class PhysicalBottomCandidateKeyFlow(
         data class OffsetPage(val delta: Int) : Command()
         data object CommitCurrent : Command()
         data class CommitShortcut(val index: Int) : Command()
+        data class ShortShortcut(val index: Int) : Command()
     }
 
     private var pendingShortcutKeyCode: Int? = null
@@ -81,8 +82,10 @@ class PhysicalBottomCandidateKeyFlow(
                 handled = true,
                 // Across Chinese, Smart English, and handwriting, short 0 means “accept the
                 // highlighted choice”; long 0 retains shortcut 10.
-                command = Command.CommitCurrent.takeIf {
-                    !wasLongPress && shortcutIndex == 9 && input.hasCandidates
+                command = when {
+                    wasLongPress -> null
+                    shortcutIndex == 9 && input.hasCandidates -> Command.CommitCurrent
+                    else -> Command.ShortShortcut(shortcutIndex)
                 }
             )
         }

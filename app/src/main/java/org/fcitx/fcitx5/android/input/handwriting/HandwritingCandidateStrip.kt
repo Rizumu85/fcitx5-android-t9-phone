@@ -6,16 +6,13 @@
 package org.fcitx.fcitx5.android.input.handwriting
 
 import android.content.Context
-import android.content.res.ColorStateList
 import android.graphics.Typeface
 import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.widget.HorizontalScrollView
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.InputUiFont
 import org.fcitx.fcitx5.android.utils.borderlessRippleDrawable
@@ -26,9 +23,7 @@ class HandwritingCandidateStrip(
     context: Context,
     private val theme: Theme,
     candidateTextSizeSp: Float,
-    private val onCandidateClick: (Int) -> Unit,
-    onPreviousPage: () -> Unit,
-    onNextPage: () -> Unit
+    private val onCandidateClick: (Int) -> Unit
 ) : LinearLayout(context) {
     private val candidateRow = LinearLayout(context).apply {
         orientation = HORIZONTAL
@@ -43,16 +38,6 @@ class HandwritingCandidateStrip(
             LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT)
         )
     }
-    private val previousButton = pageButton(
-        icon = R.drawable.ic_baseline_keyboard_arrow_left_24,
-        description = R.string.prev,
-        action = onPreviousPage
-    )
-    private val nextButton = pageButton(
-        icon = R.drawable.ic_baseline_keyboard_arrow_right_24,
-        description = R.string.next,
-        action = onNextPage
-    )
     private val cells = Array(MaxCandidateCount) {
         CandidateCell(context, theme, candidateTextSizeSp, onCandidateClick).also { cell ->
             candidateRow.addView(
@@ -67,26 +52,13 @@ class HandwritingCandidateStrip(
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         clipChildren = false
-        addView(previousButton, LayoutParams(context.dp(PageButtonWidthDp), LayoutParams.MATCH_PARENT))
         addView(scroller, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
-        addView(nextButton, LayoutParams(context.dp(PageButtonWidthDp), LayoutParams.MATCH_PARENT))
         visibility = GONE
     }
 
     fun render(page: HandwritingCandidatePage) {
         renderedPage = page
         visibility = if (page.items.isEmpty()) GONE else VISIBLE
-        val paged = page.pageCount > 1
-        previousButton.visibility = when {
-            !paged -> GONE
-            page.hasPreviousPage -> VISIBLE
-            else -> INVISIBLE
-        }
-        nextButton.visibility = when {
-            !paged -> GONE
-            page.hasNextPage -> VISIBLE
-            else -> INVISIBLE
-        }
         cells.forEachIndexed { index, cell ->
             val item = page.items.getOrNull(index)
             cell.visibility = if (item == null) GONE else VISIBLE
@@ -135,17 +107,6 @@ class HandwritingCandidateStrip(
         }
         return changed
     }
-
-    private fun pageButton(icon: Int, description: Int, action: () -> Unit) =
-        ImageView(context).apply {
-            setImageResource(icon)
-            imageTintList = ColorStateList.valueOf(theme.altKeyTextColor)
-            contentDescription = context.getString(description)
-            setPadding(context.dp(2), context.dp(8), context.dp(2), context.dp(8))
-            background = borderlessRippleDrawable(theme.keyPressHighlightColor, context.dp(14))
-            scaleType = ImageView.ScaleType.CENTER_INSIDE
-            setOnClickListener { action() }
-        }
 
     private class CandidateCell(
         context: Context,
@@ -200,7 +161,6 @@ class HandwritingCandidateStrip(
     private companion object {
         const val MaxCandidateCount = 10
         const val CandidateWidthDp = 34
-        const val PageButtonWidthDp = 24
         const val ShortcutTextSizeSp = 8f
         const val CandidateWeight = 2.5f
         const val ShortcutWeight = 1f

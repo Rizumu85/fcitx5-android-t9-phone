@@ -6,11 +6,14 @@
 package org.fcitx.fcitx5.android.input.handwriting
 
 import android.content.res.ColorStateList
-import android.graphics.Color
 import android.graphics.Canvas
 import android.graphics.Rect
 import android.graphics.Typeface
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
+import android.graphics.drawable.RippleDrawable
+import android.graphics.drawable.StateListDrawable
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
@@ -22,6 +25,7 @@ import androidx.core.graphics.ColorUtils
 import androidx.core.view.isVisible
 import com.google.android.material.snackbar.Snackbar
 import org.fcitx.fcitx5.android.R
+import org.fcitx.fcitx5.android.data.InputFeedbacks
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.input.FcitxInputMethodService
 import org.fcitx.fcitx5.android.input.InputUiFont
@@ -30,6 +34,7 @@ import org.fcitx.fcitx5.android.input.broadcast.InputBroadcastReceiver
 import org.fcitx.fcitx5.android.input.broadcast.ReturnKeyDrawableComponent
 import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.theme
+import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
 import org.fcitx.fcitx5.android.input.keyboard.NumberKeyboard
 import org.fcitx.fcitx5.android.input.picker.PickerWindow
@@ -37,7 +42,6 @@ import org.fcitx.fcitx5.android.input.wm.EssentialWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
 import org.fcitx.fcitx5.android.utils.AppUtil
-import org.fcitx.fcitx5.android.utils.rippleDrawable
 import org.mechdancer.dependency.manager.must
 import splitties.dimensions.dp
 
@@ -112,9 +116,7 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
                 .getValue()
                 .toFloat()
                 .coerceIn(16f, 22f),
-            onCandidateClick = service::commitHandwritingCandidate,
-            onPreviousPage = { service.offsetHandwritingCandidatePage(-1) },
-            onNextPage = { service.offsetHandwritingCandidatePage(1) }
+            onCandidateClick = service::commitHandwritingCandidate
         )
     }
     private val barExtension by lazy {
@@ -210,60 +212,56 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             iconActionButton(
                 icon = R.drawable.ic_baseline_tag_faces_24,
                 description = R.string.handwriting_open_emoji_keyboard,
-                action = ::openEmojiKeyboard
+                action = { performAction(HandwritingAction.OPEN_EMOJI) }
             ),
             textActionButton(
                 text = context.getString(R.string.handwriting_number_shortcut),
                 description = R.string.handwriting_open_number_keyboard,
                 targetVisualHeightDp = ActionLabelHeightDp,
                 maxTextSizeSp = ActionLabelMaxSizeSp,
-                action = ::openNumberKeyboard
+                action = { performAction(HandwritingAction.OPEN_NUMBER) }
             ),
             textActionButton(
                 text = context.getString(R.string.handwriting_chinese_shortcut),
-                description = R.string.handwriting_language_switch_placeholder,
+                description = R.string.handwriting_switch_input_mode,
                 targetVisualHeightDp = ActionLabelHeightDp,
                 maxTextSizeSp = ActionLabelMaxSizeSp,
-                action = {}
-            ).apply {
-                isEnabled = false
-                alpha = 0.55f
-            },
-            textActionButton(
-                text = context.getString(R.string.handwriting_comma_shortcut),
-                description = R.string.handwriting_insert_comma,
-                targetVisualHeightDp = ActionPunctuationHeightDp,
-                maxTextSizeSp = ActionPunctuationMaxSizeSp
-            ) {
-                service.commitHandwritingLiteral(
-                    context.getString(R.string.handwriting_comma_shortcut)
-                )
-            }
-        )
-        val rightRail = actionRail(
-            iconActionButton(
-                icon = R.drawable.ic_baseline_backspace_24,
-                description = R.string.handwriting_delete_committed_text,
-                action = service::deleteCommittedTextFromHandwriting
+                action = { performAction(HandwritingAction.SWITCH_INPUT_MODE) }
             ),
-            iconActionButton(
-                icon = R.drawable.ic_handwriting_space_bar_24,
-                description = R.string.handwriting_insert_space
-            ) {
-                service.commitHandwritingLiteral(" ")
-            },
             textActionButton(
                 text = context.getString(R.string.handwriting_symbol_shortcut),
                 description = R.string.handwriting_open_symbol_keyboard,
                 targetVisualHeightDp = ActionLabelHeightDp,
                 maxTextSizeSp = ActionLabelMaxSizeSp,
-                action = ::openSymbolKeyboard
+                action = { performAction(HandwritingAction.OPEN_SYMBOLS) }
+            )
+        )
+        val rightRail = actionRail(
+            iconActionButton(
+                icon = R.drawable.ic_baseline_backspace_24,
+                description = R.string.handwriting_delete_committed_text,
+                soundEffect = InputFeedbacks.SoundEffect.Delete,
+                action = { performAction(HandwritingAction.DELETE_TEXT) }
+            ),
+            iconActionButton(
+                icon = R.drawable.ic_handwriting_space_bar_24,
+                description = R.string.handwriting_insert_space,
+                soundEffect = InputFeedbacks.SoundEffect.SpaceBar,
+                action = { performAction(HandwritingAction.INSERT_SPACE) }
+            ),
+            textActionButton(
+                text = context.getString(R.string.handwriting_comma_shortcut),
+                description = R.string.handwriting_insert_comma,
+                targetVisualHeightDp = ActionPunctuationHeightDp,
+                maxTextSizeSp = ActionPunctuationMaxSizeSp,
+                action = { performAction(HandwritingAction.INSERT_COMMA) }
             ),
             iconActionButton(
                 icon = returnKeyDrawable.resourceId,
                 description = R.string.handwriting_return,
                 accent = true,
-                action = service::performHandwritingReturn
+                soundEffect = InputFeedbacks.SoundEffect.Return,
+                action = { performAction(HandwritingAction.RETURN) }
             ).also { returnButton = it }
         )
         root = FrameLayout(context).apply {
@@ -402,10 +400,12 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         @DrawableRes icon: Int,
         description: Int,
         accent: Boolean = false,
+        soundEffect: InputFeedbacks.SoundEffect = InputFeedbacks.SoundEffect.Standard,
         action: () -> Unit
     ) = ToolButton(context, icon, theme).apply {
         contentDescription = context.getString(description)
         applyActionSurface(this, accent)
+        this.soundEffect = soundEffect
         image.imageTintList = ColorStateList.valueOf(
             if (accent) theme.genericActiveForegroundColor else theme.altKeyTextColor
         )
@@ -417,32 +417,81 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         description: Int,
         targetVisualHeightDp: Int,
         maxTextSizeSp: Float,
+        soundEffect: InputFeedbacks.SoundEffect = InputFeedbacks.SoundEffect.Standard,
         action: () -> Unit
-    ) = OpticallyCenteredActionTextView(context).apply {
-        this.text = text
-        configureOpticalSize(
-            targetHeightPx = context.dp(targetVisualHeightDp),
-            maxWidthPx = context.dp(ActionLabelWidthDp),
-            maximumTextSizePx = maxTextSizeSp * resources.displayMetrics.scaledDensity
-        )
+    ) = CustomGestureView(context).apply {
         contentDescription = context.getString(description)
-        gravity = Gravity.CENTER
-        includeFontPadding = false
-        InputUiFont.applyTo(this, Typeface.BOLD)
-        setTextColor(theme.altKeyTextColor)
         applyActionSurface(this, accent = false)
+        this.soundEffect = soundEffect
+        addView(
+            OpticallyCenteredActionTextView(context).apply {
+                this.text = text
+                configureOpticalSize(
+                    targetHeightPx = context.dp(targetVisualHeightDp),
+                    maxWidthPx = context.dp(ActionLabelWidthDp),
+                    maximumTextSizePx = maxTextSizeSp * resources.displayMetrics.scaledDensity
+                )
+                gravity = Gravity.CENTER
+                includeFontPadding = false
+                isClickable = false
+                isFocusable = false
+                InputUiFont.applyTo(this, Typeface.BOLD)
+                setTextColor(theme.altKeyTextColor)
+            },
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
         setOnClickListener { action() }
     }
 
-    private fun applyActionSurface(view: View, accent: Boolean) {
-        view.background = roundedSurface(
-            ActionRadiusDp,
+    private fun applyActionSurface(view: CustomGestureView, accent: Boolean) {
+        view.background = actionSurface(accent)
+        view.foreground = null
+    }
+
+    private fun actionSurface(accent: Boolean): Drawable {
+        val backgroundColor =
             if (accent) theme.genericActiveBackgroundColor else theme.altKeyBackgroundColor
-        )
-        view.foreground = rippleDrawable(
-            theme.keyPressHighlightColor,
-            roundedSurface(ActionRadiusDp, Color.WHITE)
-        )
+        return if (ToolButton.disableAnimation) {
+            StateListDrawable().apply {
+                addState(
+                    intArrayOf(android.R.attr.state_pressed),
+                    LayerDrawable(
+                        arrayOf(
+                            roundedSurface(ActionRadiusDp, backgroundColor),
+                            roundedSurface(ActionRadiusDp, theme.keyPressHighlightColor)
+                        )
+                    )
+                )
+                addState(
+                    intArrayOf(),
+                    roundedSurface(ActionRadiusDp, backgroundColor)
+                )
+            }
+        } else {
+            RippleDrawable(
+                ColorStateList.valueOf(theme.keyPressHighlightColor),
+                roundedSurface(ActionRadiusDp, backgroundColor),
+                roundedSurface(ActionRadiusDp, android.graphics.Color.WHITE)
+            )
+        }
+    }
+
+    fun performAction(action: HandwritingAction) {
+        when (action) {
+            HandwritingAction.OPEN_EMOJI -> openEmojiKeyboard()
+            HandwritingAction.DELETE_TEXT -> service.deleteCommittedTextFromHandwriting()
+            HandwritingAction.OPEN_NUMBER -> openNumberKeyboard()
+            HandwritingAction.INSERT_SPACE -> service.commitHandwritingLiteral(" ")
+            HandwritingAction.SWITCH_INPUT_MODE -> switchInputMode()
+            HandwritingAction.INSERT_COMMA -> service.commitHandwritingLiteral(
+                context.getString(R.string.handwriting_comma_shortcut)
+            )
+            HandwritingAction.OPEN_SYMBOLS -> openSymbolKeyboard()
+            HandwritingAction.RETURN -> service.performHandwritingReturn()
+        }
     }
 
     private fun openSymbolKeyboard() {
@@ -467,6 +516,12 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         ContextCompat.getMainExecutor(context).execute {
             windowManager.attachWindow(KeyboardWindow)
         }
+    }
+
+    private fun switchInputMode() {
+        service.commitHandwritingCandidateBeforeAuxiliaryInput()
+        service.switchToNextT9Mode()
+        windowManager.attachWindow(KeyboardWindow)
     }
 
     private fun roundedSurface(radiusDp: Float, color: Int) =

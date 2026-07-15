@@ -53,6 +53,16 @@ class PhysicalBottomCandidateKeyFlowTest {
         assertNull(up(KeyEvent.KEYCODE_0).command)
     }
 
+    @Test
+    fun shortNumberReleaseRemainsAvailableToTheOwningSurface() {
+        down(KeyEvent.KEYCODE_3)
+
+        assertEquals(
+            PhysicalBottomCandidateKeyFlow.Command.ShortShortcut(2),
+            up(KeyEvent.KEYCODE_3).command
+        )
+    }
+
     private fun down(
         keyCode: Int,
         repeatCount: Int = 0,

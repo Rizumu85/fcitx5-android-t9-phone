@@ -438,7 +438,7 @@
     <string name="handwriting_open_symbol_keyboard">打开符号键盘</string>
     <string name="handwriting_open_number_keyboard">打开数字键盘</string>
     <string name="handwriting_open_emoji_keyboard">打开表情键盘</string>
-    <string name="handwriting_language_switch_placeholder">中英文手写切换暂不可用</string>
+    <string name="handwriting_switch_input_mode">切换输入模式</string>
     <string name="handwriting_chinese_shortcut">中</string>
     <string name="handwriting_return">发送或回车</string>
     <string name="handwriting_comma_shortcut">，</string>

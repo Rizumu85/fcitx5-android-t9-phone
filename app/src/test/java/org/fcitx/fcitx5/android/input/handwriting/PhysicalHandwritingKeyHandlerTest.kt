@@ -13,23 +13,24 @@ import org.junit.Test
 
 class PhysicalHandwritingKeyHandlerTest {
     @Test
-    fun deleteUndoesStrokeButFallsThroughWhenCanvasIsEmpty() {
-        val fixture = Fixture(hasStrokes = true)
+    fun deleteClearsThePendingCharacterThenFallsThroughToEditorDeletion() {
+        val fixture = Fixture(hasStrokes = true, hasCandidates = true)
 
         val handled = fixture.keyDown(KeyEvent.KEYCODE_DEL)
 
         assertTrue(requireNotNull(handled).handled)
         assertEquals(KeyEvent.KEYCODE_DEL, handled.consumeKeyUp)
-        assertEquals(1, fixture.undoCount)
+        assertEquals(1, fixture.clearCount)
+        assertEquals(false, fixture.hasStrokes)
+        assertEquals(false, fixture.hasCandidates)
 
-        fixture.hasStrokes = false
         assertNull(
             fixture.keyDown(KeyEvent.KEYCODE_DEL)
         )
     }
 
     @Test
-    fun poundCommitsCandidateWithStrokesAndSendsReturnWhenEmpty() {
+    fun poundCommitsCandidateWithStrokesAndPerformsReturnWhenEmpty() {
         val fixture = Fixture(hasStrokes = true)
 
         fixture.keyDown(KeyEvent.KEYCODE_POUND)
@@ -39,12 +40,33 @@ class PhysicalHandwritingKeyHandlerTest {
             ).handled
         )
         assertEquals(1, fixture.commitCurrentCount)
-        assertEquals(0, fixture.returnCount)
+        assertEquals(emptyList<HandwritingAction>(), fixture.actions)
 
         fixture.hasStrokes = false
         fixture.keyDown(KeyEvent.KEYCODE_POUND)
         fixture.keyUp(KeyEvent.KEYCODE_POUND)
-        assertEquals(1, fixture.returnCount)
+        assertEquals(listOf(HandwritingAction.RETURN), fixture.actions)
+    }
+
+    @Test
+    fun shortRailShortcutsPerformTheSameActionsAsTheTouchButtons() {
+        val fixture = Fixture(hasCandidates = true)
+
+        listOf(
+            KeyEvent.KEYCODE_1 to HandwritingAction.OPEN_EMOJI,
+            KeyEvent.KEYCODE_3 to HandwritingAction.DELETE_TEXT,
+            KeyEvent.KEYCODE_4 to HandwritingAction.OPEN_NUMBER,
+            KeyEvent.KEYCODE_6 to HandwritingAction.INSERT_SPACE,
+            KeyEvent.KEYCODE_7 to HandwritingAction.SWITCH_INPUT_MODE,
+            KeyEvent.KEYCODE_9 to HandwritingAction.INSERT_COMMA
+        ).forEach { (keyCode, expectedAction) ->
+            fixture.keyDown(keyCode)
+            fixture.keyUp(keyCode)
+            assertEquals(expectedAction, fixture.actions.last())
+        }
+
+        fixture.keyDown(KeyEvent.KEYCODE_STAR)
+        assertEquals(HandwritingAction.OPEN_SYMBOLS, fixture.actions.last())
     }
 
     @Test
@@ -54,6 +76,7 @@ class PhysicalHandwritingKeyHandlerTest {
         fixture.keyDown(KeyEvent.KEYCODE_2)
         fixture.keyUp(KeyEvent.KEYCODE_2)
         assertEquals(emptyList<Int>(), fixture.shortcuts)
+        assertEquals(emptyList<HandwritingAction>(), fixture.actions)
 
         fixture.keyDown(KeyEvent.KEYCODE_2)
         fixture.keyDown(KeyEvent.KEYCODE_2, repeatCount = 1, eventTime = 600L)
@@ -61,6 +84,18 @@ class PhysicalHandwritingKeyHandlerTest {
         fixture.keyUp(KeyEvent.KEYCODE_2)
 
         assertEquals(listOf(1), fixture.shortcuts)
+    }
+
+    @Test
+    fun longRailShortcutSelectsCandidateWithoutPerformingItsShortAction() {
+        val fixture = Fixture(hasCandidates = true)
+
+        fixture.keyDown(KeyEvent.KEYCODE_3)
+        fixture.keyDown(KeyEvent.KEYCODE_3, repeatCount = 1, eventTime = 600L)
+        fixture.keyUp(KeyEvent.KEYCODE_3)
+
+        assertEquals(listOf(2), fixture.shortcuts)
+        assertEquals(emptyList<HandwritingAction>(), fixture.actions)
     }
 
     @Test
@@ -109,25 +144,31 @@ class PhysicalHandwritingKeyHandlerTest {
         var hasStrokes: Boolean = false,
         var hasCandidates: Boolean = false
     ) {
-        var undoCount = 0
+        var clearCount = 0
         var commitCurrentCount = 0
-        var returnCount = 0
         val shortcuts = mutableListOf<Int>()
         val moves = mutableListOf<Int>()
         val pages = mutableListOf<Int>()
+        val actions = mutableListOf<HandwritingAction>()
 
         val handler = PhysicalHandwritingKeyHandler(
             longPressDelayMillis = { 500 },
             hasStrokes = { hasStrokes },
             hasCandidates = { hasCandidates },
-            undoStroke = {
-                hasStrokes.also { if (it) undoCount++ }
+            clearPendingCharacter = {
+                (hasStrokes || hasCandidates).also { cleared ->
+                    if (cleared) {
+                        clearCount++
+                        hasStrokes = false
+                        hasCandidates = false
+                    }
+                }
             },
             moveCandidate = { moves += it; true },
             offsetPage = { pages += it; true },
             commitCurrentCandidate = { commitCurrentCount++; true },
             commitShortcut = { shortcuts += it; true },
-            sendReturn = { returnCount++ }
+            performAction = actions::add
         )
 
         fun keyDown(

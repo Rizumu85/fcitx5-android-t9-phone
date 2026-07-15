@@ -48,6 +48,7 @@ import org.fcitx.fcitx5.android.input.broadcast.PreeditEmptyStateComponent
 import org.fcitx.fcitx5.android.input.broadcast.PunctuationComponent
 import org.fcitx.fcitx5.android.input.broadcast.ReturnKeyDrawableComponent
 import org.fcitx.fcitx5.android.input.candidates.horizontal.HorizontalCandidateComponent
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingAction
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingWindow
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
@@ -519,6 +520,11 @@ class InputView(
 
     fun isTemporaryTextKeyboardEnabled(): Boolean {
         return keyboardWindow.isTemporaryTextKeyboardEnabled()
+    }
+
+    fun performHandwritingAction(action: HandwritingAction) {
+        val window = windowManager.getEssentialWindow(HandwritingWindow) as HandwritingWindow
+        if (windowManager.isAttached(window)) window.performAction(action)
     }
 
     fun isTemporaryPasswordKeyboardVisible(): Boolean {

@@ -1766,12 +1766,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             longPressDelayMillis = { physicalLongPressDelay },
             hasStrokes = { handwritingCoordinator.hasStrokes },
             hasCandidates = { handwritingCoordinator.hasCandidates },
-            undoStroke = handwritingCoordinator::undoStroke,
+            clearPendingCharacter = {
+                if (handwritingCoordinator.hasStrokes || handwritingCoordinator.hasCandidates) {
+                    handwritingCoordinator.clear()
+                } else {
+                    false
+                }
+            },
             moveCandidate = handwritingCoordinator::moveSelectionBy,
             offsetPage = handwritingCoordinator::offsetCandidatePage,
             commitCurrentCandidate = { handwritingCoordinator.commitCandidate() },
             commitShortcut = handwritingCoordinator::commitCurrentPageShortcut,
-            sendReturn = ::handleReturnKey
+            performAction = { action -> inputView?.performHandwritingAction(action) }
         )
     }
 
