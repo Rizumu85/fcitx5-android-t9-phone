@@ -5,6 +5,7 @@
 
 package org.fcitx.fcitx5.android.input.handwriting
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.view.MotionEvent
 import android.widget.FrameLayout
@@ -31,7 +32,7 @@ class HandwritingCanvasView(
     var brushColor: Int = 0
 
     private val finishedStrokesView = FinishedHandwritingStrokesView(context)
-    private val inkView = InProgressStrokesView(context)
+    private val inkView = createInkView(context)
     private val motionPredictor = MotionEventPredictor.newInstance(this)
     private val activePoints = mutableListOf<HandwritingPoint>()
     private val renderLedger = HandwritingStrokeRenderLedger<InProgressStrokeId, Stroke>()
@@ -202,6 +203,16 @@ class HandwritingCanvasView(
         val color: Int,
         val minimumDimension: Int
     )
+
+    @SuppressLint("RestrictedApi")
+    @Suppress("DEPRECATION")
+    private fun createInkView(context: Context) = InProgressStrokesView(context).apply {
+        // Several target T9 phones expose Android 14 over older vendor graphics stacks. Ink's
+        // SurfaceControl front buffer can then show the first sample but defer later samples until
+        // handoff. The HWUI renderer keeps the same brush geometry while presenting every move in
+        // the ordinary view hierarchy, which is more important here than saving a single frame.
+        useHighLatencyRenderHelper = true
+    }
 
     private companion object {
         const val PenWidthRatio = 0.018f

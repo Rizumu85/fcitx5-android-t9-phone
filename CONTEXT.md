@@ -164,9 +164,12 @@ show feedback instead of failing silently. The full contract is recorded in
 ## Handwriting
 
 `HandwritingWindow` is a transient auxiliary surface reached from the
-configurable toolbar. It replaces the keyboard area while active, uses a
-low-latency AndroidX Ink front buffer with a stable finished-stroke layer, and
-discards uncommitted strokes as soon as the user leaves.
+configurable toolbar. It replaces the keyboard area while active, uses the
+AndroidX Ink HWUI compatibility renderer with a stable finished-stroke layer,
+and discards uncommitted strokes as soon as the user leaves. The ordinary-view
+renderer is deliberate: target T9 phones may run modern Android over vendor
+graphics stacks that do not reliably present every SurfaceControl front-buffer
+update.
 
 `HandwritingCoordinator` owns stroke generations, recognizer selection,
 candidate focus, commit, undo, clear, and model state. The bundled

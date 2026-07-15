@@ -78,6 +78,17 @@ class PhysicalHandwritingKeyHandlerTest {
         assertEquals(1, fixture.commitCurrentCount)
     }
 
+    @Test
+    fun confirmRequiresTheRawSelectKeyRatherThanItsInputModeSpaceMapping() {
+        val fixture = Fixture()
+
+        fixture.keyDown(KeyEvent.KEYCODE_DPAD_CENTER)
+        val mappedSpace = fixture.keyDown(KeyEvent.KEYCODE_SPACE)
+
+        assertEquals(1, fixture.commitCurrentCount)
+        assertNull(mappedSpace)
+    }
+
     private class Fixture(
         var hasStrokes: Boolean = false,
         var hasCandidates: Boolean = false

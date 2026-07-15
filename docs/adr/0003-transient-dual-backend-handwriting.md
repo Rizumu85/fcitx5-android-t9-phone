@@ -47,8 +47,14 @@ matching must never block the UI thread.
   A model that becomes ready halfway through that character is used only for
   the next character, preventing unexplained candidate replacement.
 - Completed strokes are copied into recognition data. AndroidX Ink renders a
-  separate low-latency path, so brush smoothing, motion prediction, and
+  separate presentation path, so brush smoothing, motion prediction, and
   pressure response never alter the geometry sent to either recognizer.
+- AndroidX Ink uses its HWUI compatibility renderer instead of the Android 13+
+  SurfaceControl front buffer. Some target phones pair modern Android releases
+  with older vendor graphics stacks that present the first wet-ink update but
+  defer later updates until stroke handoff. Ordinary-view rendering adds at
+  most one display frame while keeping every move visible and preserving the
+  same AndroidX Ink brush geometry.
 - Users can choose `Pen` or `Calligraphy` in Input Settings. Both styles use
   stock AndroidX Ink brush families; the setting changes presentation only and
   never changes the recognition points. The style is resolved once when each
@@ -90,14 +96,14 @@ matching must never block the UI thread.
 ## Performance Constraints
 
 - Pointer move handling performs no repository access, coroutine launch, or
-  model call. AndroidX Ink consumes unbuffered motion events through its
-  low-latency renderer and is eagerly initialized before the first stroke.
+  model call. AndroidX Ink consumes unbuffered motion events through its HWUI
+  compatibility renderer and is eagerly initialized before the first stroke.
   `MotionEventPredictor` supplies display-only predicted samples while
   recognition records actual events exclusively.
-- The front buffer owns only the active stroke. Finished Ink strokes move to a
-  stable normal view layer immediately, avoiding both front-buffer growth and
-  visible retract/reappear handoffs. Append, undo, and clear reconcile by
-  stroke identity; recognition state changes do not rebuild geometry.
+- The incremental Ink layer owns only the active stroke. Finished Ink strokes
+  move to a stable normal view layer immediately. Append, undo, and clear
+  reconcile by stroke identity; recognition state changes do not rebuild
+  geometry.
 - The bundled repository is compact binary data and is parsed once outside the
   first-stroke render path.
 - Offline matching runs on `Dispatchers.Default`, reuses dynamic-programming

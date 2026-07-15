@@ -2486,9 +2486,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         input: PhysicalInputRouter.Input
     ): PhysicalInputRouter.Result? {
         if (!isHandwritingInputActive()) return null
+        // Handwriting owns confirm semantics before input-mode mapping. Reading mappedKeyCode here
+        // would turn the phone's SELECT key into SPACE and make the visible candidate uncommittable.
         val result = physicalHandwritingKeyHandler.handleKeyDown(
-            input.mappedKeyCode,
-            input.mappedEvent.toHandwritingKeyInput()
+            input.keyCode,
+            input.event.toHandwritingKeyInput()
         )
             ?: return null
         return PhysicalInputRouter.Result(
@@ -2637,8 +2639,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     ): PhysicalInputRouter.Result? {
         if (!isHandwritingInputActive()) return null
         val result = physicalHandwritingKeyHandler.handleKeyUp(
-            input.mappedKeyCode,
-            input.mappedEvent.toHandwritingKeyInput()
+            input.keyCode,
+            input.event.toHandwritingKeyInput()
         )
             ?: return null
         return PhysicalInputRouter.Result(
