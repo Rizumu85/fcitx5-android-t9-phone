@@ -27,6 +27,14 @@ class HandwritingActionRailLayoutPolicyTest {
     }
 
     @Test
+    fun landscapeHeightAfterEdgeInsetsStillFitsEveryAction() {
+        val sizing = resolve(availableHeightPx = 156)
+
+        assertEquals(HandwritingActionRailSizing(buttonSizePx = 35, verticalMarginPx = 2), sizing)
+        assertTrue(sizing.occupiedHeight(ButtonCount) <= 156)
+    }
+
+    @Test
     fun extremeHeightNeverPlacesActionsOutsideTheRail() {
         val sizing = resolve(availableHeightPx = 120)
 

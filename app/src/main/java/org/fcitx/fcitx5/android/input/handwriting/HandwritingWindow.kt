@@ -64,6 +64,7 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         private const val ActionRailWidthDp = 44
         private const val ActionSizeDp = 40
         private const val ActionSpacingDp = 4
+        private const val ActionRailEdgeInsetDp = 2
         private const val MinimumActionSizeDp = 32
         private const val MinimumActionSpacingDp = 2
         private const val ActionLabelHeightDp = 18
@@ -130,7 +131,13 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(backButton, LinearLayout.LayoutParams(context.dp(40), context.dp(40)))
+            // Header actions share the same 44dp rail centers as the canvas actions. Keeping the
+            // coordinate system common prevents compact layouts from making undo look detached.
+            setPadding(context.dp(4), 0, context.dp(4), 0)
+            addView(
+                barActionSlot(backButton),
+                LinearLayout.LayoutParams(context.dp(ActionRailWidthDp), context.dp(40))
+            )
             addView(
                 FrameLayout(context).apply {
                     addView(
@@ -150,7 +157,10 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
                 },
                 LinearLayout.LayoutParams(0, context.dp(40), 1f)
             )
-            addView(undoButton, LinearLayout.LayoutParams(context.dp(40), context.dp(40)))
+            addView(
+                barActionSlot(undoButton),
+                LinearLayout.LayoutParams(context.dp(ActionRailWidthDp), context.dp(40))
+            )
         }
     }
 
@@ -475,6 +485,9 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         minimumButtonSizePx = context.dp(MinimumActionSizeDp),
         minimumMarginPx = context.dp(MinimumActionSpacingDp)
     ).apply {
+        // Compact landscape panels need a visible boundary around the first and last actions;
+        // otherwise a mathematically exact fit makes the return key appear fused to the screen.
+        setPadding(0, context.dp(ActionRailEdgeInsetDp), 0, context.dp(ActionRailEdgeInsetDp))
         buttons.forEach { button ->
             addView(
                 button,
@@ -487,6 +500,15 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
                 }
             )
         }
+    }
+
+    private fun barActionSlot(button: View) = FrameLayout(context).apply {
+        addView(
+            button,
+            FrameLayout.LayoutParams(context.dp(ActionSizeDp), context.dp(ActionSizeDp)).apply {
+                gravity = Gravity.CENTER
+            }
+        )
     }
 
     private fun iconActionButton(
