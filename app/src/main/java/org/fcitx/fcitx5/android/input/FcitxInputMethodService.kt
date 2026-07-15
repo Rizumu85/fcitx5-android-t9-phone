@@ -57,6 +57,7 @@ import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.BuildConfig
 import org.fcitx.fcitx5.android.core.CapabilityFlag
 import org.fcitx.fcitx5.android.core.CapabilityFlags
+import org.fcitx.fcitx5.android.core.Action
 import org.fcitx.fcitx5.android.core.FcitxAPI
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.core.FcitxKeyMapping
@@ -82,6 +83,7 @@ import org.fcitx.fcitx5.android.input.handwriting.HandwritingStroke
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingUiSnapshot
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingViewState
 import org.fcitx.fcitx5.android.input.handwriting.PhysicalHandwritingKeyHandler
+import org.fcitx.fcitx5.android.input.status.PersistentStatusActionCoordinator
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionCoordinator
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionLifecycle
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionTicket
@@ -152,6 +154,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var inputView: InputView? = null
     private var candidatesView: CandidatesView? = null
     private var modeIndicatorOverlay: TransientModeIndicatorOverlay? = null
+    private val persistentStatusActions by lazy { PersistentStatusActionCoordinator(this) }
     private val passwordInputPreviewBuffer = StringBuilder()
     private var passwordInputPreviewCursor = 0
     private val numberModeControllerDelegate = lazy {
@@ -719,6 +722,17 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
         jobs.trySend(job)
         return job
+    }
+
+    fun activateStatusAction(action: Action, fromSchemeMenu: Boolean = false) {
+        persistentStatusActions.recordUserActivation(action, fromSchemeMenu)
+        postFcitxJob { activateAction(action.id) }
+    }
+
+    fun restorePersistentStatusActions(actions: Array<Action>) {
+        persistentStatusActions.actionsNeedingRestore(actions).forEach { action ->
+            postFcitxJob { activateAction(action.id) }
+        }
     }
 
     override fun onCreate() {
@@ -1635,6 +1649,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         // make the area of keyboardView touchable so it can receive tap events.
         run {
             inputView?.keyboardView?.getLocationInWindow(inputViewLocation)
+            candidatesView?.updateInputPanelTop(inputViewLocation[1])
             outInsets.apply {
                 contentTopInsets = inputViewLocation[1]
                 visibleTopInsets = inputViewLocation[1]

@@ -12,7 +12,7 @@ class T9CandidateUiRenderer(
     private val delegate: Delegate
 ) {
     interface Delegate {
-        fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean)
+        fun setPreferAboveInputPanel(preferAboveInputPanel: Boolean)
         fun renderPreedit(panel: FcitxEvent.InputPanelEvent.Data, reserveRow: Boolean)
         fun renderCandidates(
             candidates: FcitxEvent.PagedCandidateEvent.Data,
@@ -42,7 +42,7 @@ class T9CandidateUiRenderer(
         previousVisibilityRequest = T9CandidateVisibilityPlanner.Request(
             shouldShow = false,
             contentReady = true,
-            preferAboveCursorAnchor = previousVisibilityRequest?.preferAboveCursorAnchor ?: false
+            preferAboveInputPanel = previousVisibilityRequest?.preferAboveInputPanel ?: false
         )
     }
 
@@ -69,8 +69,8 @@ class T9CandidateUiRenderer(
             previousState = next
             return
         }
-        if (previousState?.preferAboveCursorAnchor != next.preferAboveCursorAnchor) {
-            delegate.setPreferAboveCursorAnchor(next.preferAboveCursorAnchor)
+        if (previousState?.preferAboveInputPanel != next.preferAboveInputPanel) {
+            delegate.setPreferAboveInputPanel(next.preferAboveInputPanel)
         }
         if (patch.preedit) {
             T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderPreedit") {

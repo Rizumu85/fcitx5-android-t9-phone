@@ -58,10 +58,9 @@ object T9CandidateRenderStatePlanner {
             readingOptions = readingOptions,
             pinyinUseT9 = input.chineseT9Active,
             focus = input.focus,
-            // Product decision: Chinese T9 should use the same stable bubble placement as Smart
-            // English. Anchoring above the cursor made Chinese composition feel like a different
-            // UI surface and was called out as visually wrong after the layout-experiment revert.
-            preferAboveCursorAnchor = false,
+            // Handwriting choices stay adjacent to the tray. Key-driven modes retain their stable
+            // cursor placement because moving their established bubble would make modes jump.
+            preferAboveInputPanel = input.usesHandwriting,
             shouldShow = shouldShow(input)
         )
     }

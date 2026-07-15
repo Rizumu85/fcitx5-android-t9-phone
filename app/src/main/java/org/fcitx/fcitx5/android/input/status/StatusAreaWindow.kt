@@ -127,9 +127,7 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
     }
 
     private fun activateAction(action: Action) {
-        fcitx.launchOnReady {
-            it.activateAction(action.id)
-        }
+        service.activateStatusAction(action)
     }
 
     private fun onItemClick(entry: StatusAreaEntry) {

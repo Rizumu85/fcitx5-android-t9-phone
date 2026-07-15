@@ -81,7 +81,7 @@ class T9CandidateSelectionFramePlannerTest {
         readingOptions = readings,
         pinyinUseT9 = true,
         focus = T9CandidateFocus.BOTTOM,
-        preferAboveCursorAnchor = false,
+        preferAboveInputPanel = false,
         shouldShow = true
     )
 

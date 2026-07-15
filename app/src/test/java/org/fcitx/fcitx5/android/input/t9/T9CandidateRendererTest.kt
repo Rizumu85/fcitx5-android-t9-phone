@@ -107,7 +107,7 @@ class T9CandidateRendererTest {
             readingOptions = readingOptions,
             pinyinUseT9 = true,
             focus = T9CandidateFocus.BOTTOM,
-            preferAboveCursorAnchor = true,
+            preferAboveInputPanel = true,
             shouldShow = shouldShow
         )
 

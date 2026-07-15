@@ -505,7 +505,7 @@ class CandidatesView(
         },
         shortcutCandidateLayout = ::t9ShortcutCandidateLayout,
         onShortcutCandidateMeasured = t9CandidateSurfaceGeometry::observeCandidateVisualWidth,
-        setPreferAboveCursorAnchor = floatingWindowController::setPreferAboveCursorAnchor,
+        setPreferAboveInputPanel = floatingWindowController::setPreferAboveInputPanel,
         showWhenPositioned = floatingWindowController::showWhenPositioned,
         hideSurfaceImmediately = {
             // RecyclerView won't update its items when ancestor view is GONE.
@@ -1083,7 +1083,8 @@ class CandidatesView(
     private fun floatingWindowPositionConfig(): FloatingCandidateWindowController.PositionConfig =
         FloatingCandidateWindowController.PositionConfig(
             horizontalMarginPx = horizontalMarginPx,
-            shadowOutsetPx = candidateShadowOutsetPx
+            shadowOutsetPx = candidateShadowOutsetPx,
+            inputPanelGapPx = dp(4)
         )
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -1102,6 +1103,10 @@ class CandidatesView(
 
     fun updateCursorAnchor(@Size(4) anchor: FloatArray, @Size(2) parent: FloatArray) {
         floatingWindowController.updateCursorAnchor(anchor, parent, floatingWindowPositionConfig())
+    }
+
+    fun updateInputPanelTop(inputPanelTop: Int) {
+        floatingWindowController.setInputPanelTop(inputPanelTop)
     }
 
     init {

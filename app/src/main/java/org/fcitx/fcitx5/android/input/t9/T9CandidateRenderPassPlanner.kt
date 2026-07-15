@@ -38,7 +38,7 @@ object T9CandidateRenderPassPlanner {
             T9CandidateVisibilityPlanner.Request(
                 shouldShow = false,
                 contentReady = fallbackContentReady,
-                preferAboveCursorAnchor = input.nextState.preferAboveCursorAnchor
+                preferAboveInputPanel = input.nextState.preferAboveInputPanel
             )
         } else {
             null
@@ -61,7 +61,7 @@ object T9CandidateRenderPassPlanner {
         T9CandidateVisibilityPlanner.Request(
             shouldShow = nextState.shouldShow,
             contentReady = contentReady,
-            preferAboveCursorAnchor = nextState.preferAboveCursorAnchor
+            preferAboveInputPanel = nextState.preferAboveInputPanel
         )
 
     private fun pinyinAction(input: Input): PinyinAction {

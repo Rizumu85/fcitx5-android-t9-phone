@@ -165,7 +165,7 @@ class T9CandidateUiRendererTest {
         val candidateStatuses = mutableListOf<T9CandidateStatus?>()
         var selectionRenderCount = 0
 
-        override fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean) = Unit
+        override fun setPreferAboveInputPanel(preferAboveInputPanel: Boolean) = Unit
 
         override fun renderPreedit(panel: FcitxEvent.InputPanelEvent.Data, reserveRow: Boolean) = Unit
 
@@ -229,7 +229,7 @@ class T9CandidateUiRendererTest {
             readingOptions = readingOptions,
             pinyinUseT9 = pinyinUseT9,
             focus = T9CandidateFocus.BOTTOM,
-            preferAboveCursorAnchor = true,
+            preferAboveInputPanel = true,
             shouldShow = shouldShow
         )
 

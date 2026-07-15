@@ -565,6 +565,7 @@ class InputView(
             }
             is FcitxEvent.StatusAreaEvent -> {
                 punctuation.updatePunctuationMapping(it.data.actions)
+                service.restorePersistentStatusActions(it.data.actions)
                 broadcaster.onStatusAreaUpdate(it.data.actions)
             }
             else -> {}

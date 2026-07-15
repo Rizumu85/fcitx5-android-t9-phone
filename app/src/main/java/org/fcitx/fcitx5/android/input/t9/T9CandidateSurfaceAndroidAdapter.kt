@@ -22,7 +22,7 @@ class T9CandidateSurfaceAndroidAdapter(
     private val candidateStatusText: (T9CandidateStatus) -> CharSequence,
     private val shortcutCandidateLayout: (FcitxEvent.PagedCandidateEvent.Data) -> T9ShortcutCandidateLayout,
     private val onShortcutCandidateMeasured: (generationId: Long, widthPx: Int?) -> Unit,
-    private val setPreferAboveCursorAnchor: (Boolean) -> Unit,
+    private val setPreferAboveInputPanel: (Boolean) -> Unit,
     private val showWhenPositioned: (contentReady: Boolean) -> Unit,
     private val hideSurfaceImmediately: () -> Unit
 ) : T9CandidateUiRenderer.Delegate {
@@ -33,8 +33,8 @@ class T9CandidateSurfaceAndroidAdapter(
         activeGenerationId = generationId
     }
 
-    override fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean) {
-        setPreferAboveCursorAnchor.invoke(preferAboveCursorAnchor)
+    override fun setPreferAboveInputPanel(preferAboveInputPanel: Boolean) {
+        setPreferAboveInputPanel.invoke(preferAboveInputPanel)
     }
 
     override fun renderPreedit(panel: FcitxEvent.InputPanelEvent.Data, reserveRow: Boolean) {

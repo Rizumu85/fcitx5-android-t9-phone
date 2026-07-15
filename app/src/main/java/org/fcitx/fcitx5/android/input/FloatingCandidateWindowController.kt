@@ -29,7 +29,8 @@ class FloatingCandidateWindowController(
 
     data class PositionConfig(
         val horizontalMarginPx: Int,
-        val shadowOutsetPx: Int
+        val shadowOutsetPx: Int,
+        val inputPanelGapPx: Int
     )
 
     private val anchorPosition = floatArrayOf(0f, 0f, 0f)
@@ -38,7 +39,8 @@ class FloatingCandidateWindowController(
     private var shouldUpdatePosition = false
     private var showAfterPositioned = false
     private var showAfterPositionedContentReady = true
-    private var preferAboveCursorAnchor = false
+    private var preferAboveInputPanel = false
+    private var inputPanelTop = 0
     private var bottomInsets = 0
 
     val isWaitingForPosition: Boolean
@@ -47,12 +49,17 @@ class FloatingCandidateWindowController(
     val parentWidthPx: Int
         get() = parentSize[0].roundToInt()
 
-    fun setPreferAboveCursorAnchor(preferAboveCursorAnchor: Boolean) {
-        this.preferAboveCursorAnchor = preferAboveCursorAnchor
+    fun setPreferAboveInputPanel(preferAboveInputPanel: Boolean) {
+        this.preferAboveInputPanel = preferAboveInputPanel
     }
 
     fun setBottomInsets(bottomInsets: Int) {
         this.bottomInsets = bottomInsets
+    }
+
+    fun setInputPanelTop(inputPanelTop: Int) {
+        this.inputPanelTop = inputPanelTop
+        shouldUpdatePosition = true
     }
 
     fun requestPositionUpdate() {
@@ -144,9 +151,11 @@ class FloatingCandidateWindowController(
             .toFloat()
         val bottomLimit = parentHeight - bottomInsets
         val bottomSpace = bottomLimit - bottom
-        val translationY = if (preferAboveCursorAnchor) {
-            val maxY = (bottomLimit - selfHeight).coerceAtLeast(0f)
-            (top - selfHeight).coerceIn(0f, maxY)
+        val translationY = if (preferAboveInputPanel && inputPanelTop > 0) {
+            // Handwriting is operated at the bottom of the screen. Its choices belong next to the
+            // tray, not to a remote editor cursor that the user's hand is no longer watching.
+            (inputPanelTop - config.inputPanelGapPx - selfHeight)
+                .coerceIn(0f, (bottomLimit - selfHeight).coerceAtLeast(0f))
         } else if (
             bottom + selfHeight > bottomLimit &&
             top > bottomSpace

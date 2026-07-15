@@ -26,7 +26,7 @@ class T9CandidateUiStateBuilderTest {
 
         assertNotNull(result)
         assertEquals(1, pipeline.getT9PresentationCount)
-        assertFalse(result!!.renderState.preferAboveCursorAnchor)
+        assertFalse(result!!.renderState.preferAboveInputPanel)
     }
 
     @Test

@@ -7,10 +7,7 @@ package org.fcitx.fcitx5.android.input.status
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import org.fcitx.fcitx5.android.core.Action
-import org.fcitx.fcitx5.android.daemon.FcitxConnection
-import org.fcitx.fcitx5.android.daemon.launchOnReady
 import org.fcitx.fcitx5.android.input.FcitxInputMethodService
-import org.fcitx.fcitx5.android.input.dependency.fcitx
 import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.wm.InputWindow
@@ -25,7 +22,6 @@ class StatusActionMenuWindow(
 ) : InputWindow.ExtendedInputWindow<StatusActionMenuWindow>() {
 
     private val service: FcitxInputMethodService by manager.inputMethodService()
-    private val fcitx: FcitxConnection by manager.fcitx()
     private val theme by manager.theme()
     private val windowManager: InputWindowManager by manager.must()
 
@@ -46,11 +42,9 @@ class StatusActionMenuWindow(
     }
 
     private fun activateAction(action: Action) {
-        fcitx.launchOnReady { api ->
-            api.activateAction(action.id)
-            service.lifecycleScope.launch {
-                windowManager.attachWindow(StatusAreaWindow())
-            }
+        service.activateStatusAction(action, fromSchemeMenu = isRimeSchemeMenu)
+        service.lifecycleScope.launch {
+            windowManager.attachWindow(StatusAreaWindow())
         }
     }
 

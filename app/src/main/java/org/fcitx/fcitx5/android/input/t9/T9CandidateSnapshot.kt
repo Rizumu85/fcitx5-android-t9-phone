@@ -19,7 +19,7 @@ data class T9PinyinSnapshot(val signature: String)
 
 data class T9VisibilitySnapshot(
     val shouldShow: Boolean,
-    val preferAboveCursorAnchor: Boolean
+    val preferAboveInputPanel: Boolean
 )
 
 object T9CandidateSnapshots {
@@ -73,11 +73,11 @@ object T9CandidateSnapshots {
 
     fun visibility(
         shouldShow: Boolean,
-        preferAboveCursorAnchor: Boolean
+        preferAboveInputPanel: Boolean
     ): T9VisibilitySnapshot =
         T9VisibilitySnapshot(
             shouldShow = shouldShow,
-            preferAboveCursorAnchor = preferAboveCursorAnchor
+            preferAboveInputPanel = preferAboveInputPanel
         )
 
     private fun pagedContent(

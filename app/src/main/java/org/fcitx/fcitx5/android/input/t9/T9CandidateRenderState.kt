@@ -18,7 +18,7 @@ data class T9CandidateRenderState(
     val readingOptions: List<String>,
     val pinyinUseT9: Boolean,
     val focus: T9CandidateFocus,
-    val preferAboveCursorAnchor: Boolean,
+    val preferAboveInputPanel: Boolean,
     val shouldShow: Boolean,
     val candidateStatus: T9CandidateStatus? = null
 ) {
@@ -32,7 +32,7 @@ data class T9CandidateRenderState(
         T9CandidateSnapshots.pinyin(readingOptions, pinyinUseT9)
     }
     val visibilitySnapshot: T9VisibilitySnapshot by lazy(LazyThreadSafetyMode.NONE) {
-        T9CandidateSnapshots.visibility(shouldShow, preferAboveCursorAnchor)
+        T9CandidateSnapshots.visibility(shouldShow, preferAboveInputPanel)
     }
 }
 

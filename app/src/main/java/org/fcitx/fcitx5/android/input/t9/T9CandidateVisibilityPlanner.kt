@@ -9,7 +9,7 @@ object T9CandidateVisibilityPlanner {
     data class Request(
         val shouldShow: Boolean,
         val contentReady: Boolean,
-        val preferAboveCursorAnchor: Boolean
+        val preferAboveInputPanel: Boolean
     )
 
     enum class Action {
@@ -27,7 +27,7 @@ object T9CandidateVisibilityPlanner {
         }
         if (!next.shouldShow) return Action.NONE
         if (!previous.contentReady && next.contentReady) return Action.SHOW
-        if (next.preferAboveCursorAnchor != previous.preferAboveCursorAnchor) return Action.SHOW
+        if (next.preferAboveInputPanel != previous.preferAboveInputPanel) return Action.SHOW
         return Action.NONE
     }
 }

@@ -93,7 +93,14 @@ class T9CandidateRenderStatePlannerTest {
     fun chineseAndEnglishUseStableBubblePlacement() {
         val planned = T9CandidateRenderStatePlanner.plan(input(chineseT9Active = true))
 
-        assertFalse(planned.preferAboveCursorAnchor)
+        assertFalse(planned.preferAboveInputPanel)
+    }
+
+    @Test
+    fun handwritingPlacesCandidatesBesideItsInputPanel() {
+        val planned = T9CandidateRenderStatePlanner.plan(input(usesHandwriting = true))
+
+        assertTrue(planned.preferAboveInputPanel)
     }
 
     @Test
@@ -139,7 +146,8 @@ class T9CandidateRenderStatePlannerTest {
         chineseT9Active: Boolean = true,
         suppressEmptyCandidates: Boolean = false,
         presentationState: T9PresentationState? = null,
-        focus: T9CandidateFocus = T9CandidateFocus.BOTTOM
+        focus: T9CandidateFocus = T9CandidateFocus.BOTTOM,
+        usesHandwriting: Boolean = false
     ): T9CandidateRenderStatePlanner.Input =
         T9CandidateRenderStatePlanner.Input(
             inputPanel = inputPanel,
@@ -150,7 +158,8 @@ class T9CandidateRenderStatePlannerTest {
             chineseT9Active = chineseT9Active,
             suppressEmptyCandidates = suppressEmptyCandidates,
             presentationState = presentationState,
-            focus = focus
+            focus = focus,
+            usesHandwriting = usesHandwriting
         )
 
     private fun paged(text: String): FcitxEvent.PagedCandidateEvent.Data =

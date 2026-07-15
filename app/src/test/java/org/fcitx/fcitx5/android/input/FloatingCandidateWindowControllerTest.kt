@@ -105,6 +105,22 @@ class FloatingCandidateWindowControllerTest {
     }
 
     @Test
+    fun handwritingSurfaceTracksInputPanelInsteadOfEditorCursor() {
+        val host = FakeHost(visibility = View.VISIBLE, width = 120, height = 80)
+        val controller = FloatingCandidateWindowController(host)
+        controller.setPreferAboveInputPanel(true)
+        controller.setInputPanelTop(420)
+
+        controller.updateCursorAnchor(
+            anchor = floatArrayOf(10f, 80f, 0f, 40f),
+            parent = floatArrayOf(300f, 600f),
+            config = config(inputPanelGapPx = 8)
+        )
+
+        assertEquals(332f, host.translationY)
+    }
+
+    @Test
     fun hidesPendingSurfaceAndDismissesTouchReceiver() {
         val host = FakeHost(
             visibility = View.VISIBLE,
@@ -122,11 +138,13 @@ class FloatingCandidateWindowControllerTest {
 
     private fun config(
         horizontalMarginPx: Int = 12,
-        shadowOutsetPx: Int = 4
+        shadowOutsetPx: Int = 4,
+        inputPanelGapPx: Int = 4
     ): FloatingCandidateWindowController.PositionConfig =
         FloatingCandidateWindowController.PositionConfig(
             horizontalMarginPx = horizontalMarginPx,
-            shadowOutsetPx = shadowOutsetPx
+            shadowOutsetPx = shadowOutsetPx,
+            inputPanelGapPx = inputPanelGapPx
         )
 
     private class FakeHost(

@@ -100,7 +100,7 @@ class T9CandidateRenderPassPlannerTest {
         T9CandidateVisibilityPlanner.Request(
             shouldShow = true,
             contentReady = contentReady,
-            preferAboveCursorAnchor = false
+            preferAboveInputPanel = false
         )
 
     private fun state(
@@ -119,7 +119,7 @@ class T9CandidateRenderPassPlannerTest {
             readingOptions = readingOptions,
             pinyinUseT9 = pinyinUseT9,
             focus = T9CandidateFocus.BOTTOM,
-            preferAboveCursorAnchor = false,
+            preferAboveInputPanel = false,
             shouldShow = shouldShow
         )
 

@@ -59,8 +59,8 @@ class T9CandidateVisibilityPlannerTest {
         assertEquals(
             T9CandidateVisibilityPlanner.Action.SHOW,
             T9CandidateVisibilityPlanner.plan(
-                previous = request(shouldShow = true, preferAboveCursorAnchor = false),
-                next = request(shouldShow = true, preferAboveCursorAnchor = true)
+                previous = request(shouldShow = true, preferAboveInputPanel = false),
+                next = request(shouldShow = true, preferAboveInputPanel = true)
             )
         )
     }
@@ -68,11 +68,11 @@ class T9CandidateVisibilityPlannerTest {
     private fun request(
         shouldShow: Boolean,
         contentReady: Boolean = true,
-        preferAboveCursorAnchor: Boolean = false
+        preferAboveInputPanel: Boolean = false
     ): T9CandidateVisibilityPlanner.Request =
         T9CandidateVisibilityPlanner.Request(
             shouldShow = shouldShow,
             contentReady = contentReady,
-            preferAboveCursorAnchor = preferAboveCursorAnchor
+            preferAboveInputPanel = preferAboveInputPanel
         )
 }
