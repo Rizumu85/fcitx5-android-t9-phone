@@ -431,7 +431,6 @@
     <string name="handwriting_english_model_onboarding">下载英文手写识别模型；下载完成后可以完全离线使用。</string>
     <string name="handwriting_go_to_download">去下载</string>
     <string name="handwriting_undo_stroke">撤销上一笔</string>
-    <string name="handwriting_clear">清除手写</string>
     <string name="handwriting_delete_committed_text">删除已输入文本</string>
     <string name="handwriting_insert_comma">输入逗号</string>
     <string name="handwriting_insert_period">输入句号</string>

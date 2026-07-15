@@ -188,7 +188,7 @@ internal class HandwritingCoordinator(
         return true
     }
 
-    fun clear(): Boolean {
+    private fun clear(): Boolean {
         if (!active || strokes.isEmpty() && !candidateSession.hasCandidates && pronunciation == null) {
             return false
         }

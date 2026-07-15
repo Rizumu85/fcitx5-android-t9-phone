@@ -67,6 +67,7 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         private const val ActionLabelHeightDp = 18
         private const val ActionLabelWidthDp = 28
         private const val ActionLabelMaxSizeSp = 18f
+        private const val EnglishLanguageLabelScale = 0.84f
         private const val ActionPunctuationHeightDp = 16
         private const val ActionPunctuationMaxSizeSp = 24f
         private const val ModelPromptDurationMillis = 8_000L
@@ -93,11 +94,6 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
     private val undoButton by lazy {
         toolButton(R.drawable.ic_baseline_undo_24, R.string.handwriting_undo_stroke) {
             service.undoHandwritingStroke()
-        }
-    }
-    private val clearButton by lazy {
-        toolButton(R.drawable.ic_baseline_delete_sweep_24, R.string.handwriting_clear) {
-            service.clearHandwritingCharacter()
         }
     }
     private val backButton by lazy {
@@ -153,7 +149,6 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
                 LinearLayout.LayoutParams(0, context.dp(40), 1f)
             )
             addView(undoButton, LinearLayout.LayoutParams(context.dp(40), context.dp(40)))
-            addView(clearButton, LinearLayout.LayoutParams(context.dp(40), context.dp(40)))
         }
     }
 
@@ -346,10 +341,18 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         currentLanguage = state.language
         canvas.setCompletedStrokes(state.strokes)
         candidateStrip.render(state.candidatePage, state.language)
-        languageButtonLabel.text = context.getString(
-            when (state.language) {
-                HandwritingLanguage.CHINESE -> R.string.handwriting_chinese_shortcut
-                HandwritingLanguage.ENGLISH -> R.string.handwriting_english_shortcut
+        languageButtonLabel.setOpticalText(
+            value = context.getString(
+                when (state.language) {
+                    HandwritingLanguage.CHINESE -> R.string.handwriting_chinese_shortcut
+                    HandwritingLanguage.ENGLISH -> R.string.handwriting_english_shortcut
+                }
+            ),
+            // Two Latin glyphs occupy more of the square rail button than one Han glyph at the
+            // same nominal size. Balance their visible mass rather than their font metrics.
+            sizeScale = when (state.language) {
+                HandwritingLanguage.CHINESE -> 1f
+                HandwritingLanguage.ENGLISH -> EnglishLanguageLabelScale
             }
         )
         commaButtonLabel.text = context.getString(
@@ -362,9 +365,7 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         // flashing the title between strokes would make the dedicated result strip feel unstable.
         titleLabel.isVisible = state.strokes.isEmpty() && state.candidatePage.items.isEmpty()
         undoButton.isEnabled = state.strokes.isNotEmpty()
-        clearButton.isEnabled = state.strokes.isNotEmpty()
         undoButton.alpha = if (undoButton.isEnabled) 1f else DisabledControlAlpha
-        clearButton.alpha = if (clearButton.isEnabled) 1f else DisabledControlAlpha
         when {
             state.noMatch -> {
                 status.setText(R.string.handwriting_no_match)
@@ -625,12 +626,21 @@ private class OpticallyCenteredActionTextView(context: android.content.Context) 
     private var targetHeightPx = 0
     private var maxWidthPx = 0
     private var maximumTextSizePx = 0f
+    private var textSizeScale = 1f
     private var measuredSignature = 0
 
     fun configureOpticalSize(targetHeightPx: Int, maxWidthPx: Int, maximumTextSizePx: Float) {
         this.targetHeightPx = targetHeightPx
         this.maxWidthPx = maxWidthPx
         this.maximumTextSizePx = maximumTextSizePx
+        measuredSignature = 0
+        invalidate()
+    }
+
+    fun setOpticalText(value: String, sizeScale: Float = 1f) {
+        if (text?.toString() == value && textSizeScale == sizeScale) return
+        text = value
+        textSizeScale = sizeScale
         measuredSignature = 0
         invalidate()
     }
@@ -653,7 +663,8 @@ private class OpticallyCenteredActionTextView(context: android.content.Context) 
     private fun resolveOpticalTextSize(value: String) {
         val signature = 31 * value.hashCode() + 31 * width + (typeface?.hashCode() ?: 0)
         if (signature == measuredSignature || targetHeightPx <= 0 || maxWidthPx <= 0) return
-        paint.textSize = maximumTextSizePx
+        val scaledMaximumTextSizePx = maximumTextSizePx * textSizeScale
+        paint.textSize = scaledMaximumTextSizePx
         paint.getTextBounds(value, 0, value.length, visualBounds)
         val visibleHeight = visualBounds.height().coerceAtLeast(1).toFloat()
         val visibleWidth = paint.measureText(value).coerceAtLeast(1f)
@@ -662,7 +673,7 @@ private class OpticallyCenteredActionTextView(context: android.content.Context) 
             targetHeightPx / visibleHeight,
             maxWidthPx / visibleWidth
         )
-        paint.textSize = maximumTextSizePx * scale
+        paint.textSize = scaledMaximumTextSizePx * scale
         measuredSignature = signature
     }
 }

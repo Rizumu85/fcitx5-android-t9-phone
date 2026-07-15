@@ -2204,8 +2204,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     fun undoHandwritingStroke(): Boolean = handwritingCoordinator.undoStroke()
 
-    fun clearHandwritingCharacter(): Boolean = handwritingCoordinator.clear()
-
     fun offsetHandwritingCandidatePage(delta: Int): Boolean =
         handwritingCoordinator.offsetCandidatePage(delta)
 

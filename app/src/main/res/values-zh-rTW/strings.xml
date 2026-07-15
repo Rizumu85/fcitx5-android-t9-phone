@@ -424,7 +424,6 @@
     <string name="handwriting_english_model_onboarding">下載英文手寫辨識模型；下載完成後可以完全離線使用。</string>
     <string name="handwriting_go_to_download">前往下載</string>
     <string name="handwriting_undo_stroke">還原上一筆</string>
-    <string name="handwriting_clear">清除手寫</string>
     <string name="handwriting_delete_committed_text">刪除已輸入文字</string>
     <string name="handwriting_insert_comma">輸入逗號</string>
     <string name="handwriting_insert_period">輸入句號</string>

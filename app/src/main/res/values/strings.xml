@@ -431,7 +431,6 @@
     <string name="handwriting_english_model_onboarding">Download English handwriting recognition. After download, it works fully offline.</string>
     <string name="handwriting_go_to_download">Download</string>
     <string name="handwriting_undo_stroke">Undo last stroke</string>
-    <string name="handwriting_clear">Clear handwriting</string>
     <string name="handwriting_delete_committed_text">Delete entered text</string>
     <string name="handwriting_insert_comma">Insert comma</string>
     <string name="handwriting_insert_period">Insert period</string>
