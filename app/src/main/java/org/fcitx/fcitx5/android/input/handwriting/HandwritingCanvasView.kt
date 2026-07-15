@@ -38,6 +38,7 @@ class HandwritingCanvasView(
     private val renderLedger = HandwritingStrokeRenderLedger<InProgressStrokeId, Stroke>()
     private var activeStrokeId: InProgressStrokeId? = null
     private var activePointerId = MotionEvent.INVALID_POINTER_ID
+    private var activeBrushStyle = HandwritingBrushStyle.CALLIGRAPHY
     private var cachedBrushKey: BrushKey? = null
     private var cachedBrush: Brush? = null
 
@@ -106,15 +107,23 @@ class HandwritingCanvasView(
         activePoints.clear()
         val pointerIndex = event.actionIndex
         activePointerId = event.getPointerId(pointerIndex)
+        activeBrushStyle = brushStyleProvider()
         appendEventPoints(event, pointerIndex, includeHistory = false)
-        activeStrokeId = inkView.startStroke(event, activePointerId, createBrush())
+        activeStrokeId = inkView.startStroke(event, activePointerId, createBrush(activeBrushStyle))
     }
 
     private fun continueStroke(event: MotionEvent) {
         val strokeId = activeStrokeId ?: return
         val pointerIndex = event.findPointerIndex(activePointerId).takeIf { it >= 0 } ?: return
         appendEventPoints(event, pointerIndex, includeHistory = true)
-        val predictedEvent = motionPredictor.predict()
+        // pressurePen rebuilds variable-width geometry when predicted samples are replaced by real
+        // ones. On the HWUI compatibility renderer that extra work costs more than one-frame
+        // prediction saves, while the fixed-width pen still benefits from prediction.
+        val predictedEvent = if (HandwritingRenderPolicy.usesPrediction(activeBrushStyle)) {
+            motionPredictor.predict()
+        } else {
+            null
+        }
         try {
             // Prediction fills the display-frame gap without polluting recognition geometry.
             inkView.addToStroke(event, activePointerId, strokeId, predictedEvent)
@@ -176,11 +185,10 @@ class HandwritingCanvasView(
         activePoints += HandwritingPoint(x, y, timeMillis, pressure.coerceIn(0.2f, 1.5f))
     }
 
-    private fun createBrush(): Brush {
+    private fun createBrush(style: HandwritingBrushStyle = brushStyleProvider()): Brush {
         val minimumDimension = min(width, height)
         // Read once per stroke. This keeps move handling allocation-free while still honoring a
         // setting changed while Android merely hides, rather than recreates, the IME window.
-        val style = brushStyleProvider()
         val key = BrushKey(style, brushColor, minimumDimension)
         if (key == cachedBrushKey) return requireNotNull(cachedBrush)
         val (family, size) = when (style) {
