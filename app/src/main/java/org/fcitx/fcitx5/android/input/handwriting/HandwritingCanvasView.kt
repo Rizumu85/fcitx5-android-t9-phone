@@ -64,8 +64,9 @@ class HandwritingCanvasView(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        // AndroidX Ink initialization is intentionally paid before the user's first down event.
-        post(inkView::eagerInit)
+        // Entering handwriting is the point at which drawing becomes likely. Initialize
+        // synchronously here so a fast first down cannot overtake a queued warmup callback.
+        inkView.eagerInit()
     }
 
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean = true
