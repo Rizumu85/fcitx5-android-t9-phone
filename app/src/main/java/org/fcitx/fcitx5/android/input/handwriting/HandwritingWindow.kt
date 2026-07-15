@@ -439,6 +439,9 @@ private class OpticallyCenteredActionTextView(context: android.content.Context) 
         val value = text?.toString().orEmpty()
         if (value.isEmpty()) return
         resolveOpticalTextSize(value)
+        // Manual glyph drawing bypasses TextView's state-color application; keep custom themes and
+        // disabled states authoritative by applying the resolved color explicitly.
+        paint.color = currentTextColor
         // Font metrics center the em box, which leaves punctuation visibly low. Centering actual
         // glyph bounds gives commas, Latin digits, and CJK labels one optical alignment rule.
         paint.getTextBounds(value, 0, value.length, visualBounds)
