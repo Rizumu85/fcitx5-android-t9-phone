@@ -55,8 +55,11 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         private const val ActionRailWidthDp = 44
         private const val ActionSizeDp = 40
         private const val ActionSpacingDp = 4
-        private const val ActionTextSizeSp = 17f
-        private const val ActionPunctuationSizeSp = 21f
+        private const val ActionLabelHeightDp = 18
+        private const val ActionLabelWidthDp = 28
+        private const val ActionLabelMaxSizeSp = 18f
+        private const val ActionPunctuationHeightDp = 16
+        private const val ActionPunctuationMaxSizeSp = 24f
     }
 
     override val key: EssentialWindow.Key
@@ -159,13 +162,15 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             textActionButton(
                 text = context.getString(R.string.handwriting_number_shortcut),
                 description = R.string.handwriting_open_number_keyboard,
-                textSize = ActionTextSizeSp,
+                targetVisualHeightDp = ActionLabelHeightDp,
+                maxTextSizeSp = ActionLabelMaxSizeSp,
                 action = ::openNumberKeyboard
             ),
             textActionButton(
                 text = context.getString(R.string.handwriting_chinese_shortcut),
                 description = R.string.handwriting_language_switch_placeholder,
-                textSize = ActionTextSizeSp,
+                targetVisualHeightDp = ActionLabelHeightDp,
+                maxTextSizeSp = ActionLabelMaxSizeSp,
                 action = {}
             ).apply {
                 isEnabled = false
@@ -174,7 +179,8 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             textActionButton(
                 text = context.getString(R.string.handwriting_comma_shortcut),
                 description = R.string.handwriting_insert_comma,
-                textSize = ActionPunctuationSizeSp
+                targetVisualHeightDp = ActionPunctuationHeightDp,
+                maxTextSizeSp = ActionPunctuationMaxSizeSp
             ) {
                 service.commitHandwritingLiteral(
                     context.getString(R.string.handwriting_comma_shortcut)
@@ -196,7 +202,8 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
             textActionButton(
                 text = context.getString(R.string.handwriting_symbol_shortcut),
                 description = R.string.handwriting_open_symbol_keyboard,
-                textSize = ActionTextSizeSp,
+                targetVisualHeightDp = ActionLabelHeightDp,
+                maxTextSizeSp = ActionLabelMaxSizeSp,
                 action = ::openSymbolKeyboard
             ),
             iconActionButton(
@@ -351,11 +358,16 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
     private fun textActionButton(
         text: String,
         description: Int,
-        textSize: Float,
+        targetVisualHeightDp: Int,
+        maxTextSizeSp: Float,
         action: () -> Unit
     ) = OpticallyCenteredActionTextView(context).apply {
         this.text = text
-        this.textSize = textSize
+        configureOpticalSize(
+            targetHeightPx = context.dp(targetVisualHeightDp),
+            maxWidthPx = context.dp(ActionLabelWidthDp),
+            maximumTextSizePx = maxTextSizeSp * resources.displayMetrics.scaledDensity
+        )
         contentDescription = context.getString(description)
         gravity = Gravity.CENTER
         includeFontPadding = false
@@ -410,15 +422,44 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
 
 private class OpticallyCenteredActionTextView(context: android.content.Context) : TextView(context) {
     private val visualBounds = Rect()
+    private var targetHeightPx = 0
+    private var maxWidthPx = 0
+    private var maximumTextSizePx = 0f
+    private var measuredSignature = 0
+
+    fun configureOpticalSize(targetHeightPx: Int, maxWidthPx: Int, maximumTextSizePx: Float) {
+        this.targetHeightPx = targetHeightPx
+        this.maxWidthPx = maxWidthPx
+        this.maximumTextSizePx = maximumTextSizePx
+        measuredSignature = 0
+        invalidate()
+    }
 
     override fun onDraw(canvas: Canvas) {
         val value = text?.toString().orEmpty()
         if (value.isEmpty()) return
+        resolveOpticalTextSize(value)
         // Font metrics center the em box, which leaves punctuation visibly low. Centering actual
         // glyph bounds gives commas, Latin digits, and CJK labels one optical alignment rule.
         paint.getTextBounds(value, 0, value.length, visualBounds)
         val x = (width - paint.measureText(value)) / 2f
         val baseline = height / 2f - (visualBounds.top + visualBounds.bottom) / 2f
         canvas.drawText(value, x, baseline, paint)
+    }
+
+    private fun resolveOpticalTextSize(value: String) {
+        val signature = 31 * value.hashCode() + 31 * width + (typeface?.hashCode() ?: 0)
+        if (signature == measuredSignature || targetHeightPx <= 0 || maxWidthPx <= 0) return
+        paint.textSize = maximumTextSizePx
+        paint.getTextBounds(value, 0, value.length, visualBounds)
+        val visibleHeight = visualBounds.height().coerceAtLeast(1).toFloat()
+        val visibleWidth = paint.measureText(value).coerceAtLeast(1f)
+        val scale = minOf(
+            1f,
+            targetHeightPx / visibleHeight,
+            maxWidthPx / visibleWidth
+        )
+        paint.textSize = maximumTextSizePx * scale
+        measuredSignature = signature
     }
 }
