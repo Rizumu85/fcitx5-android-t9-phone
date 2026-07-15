@@ -176,6 +176,41 @@ class ImePerformanceDriver(
 
     fun backspace() = physicalKey(KEYCODE_DEL)
 
+    fun exerciseHandwriting() {
+        val targetPid = requireNotNull(waitForTargetProcess())
+        val previousOccurrences = targetLogs(targetPid).countOccurrences(HANDWRITING_READY_MESSAGE)
+        val width = device.displayWidth
+        val height = device.displayHeight
+        // IME child windows are absent from UiAutomator's accessibility hierarchy on this target.
+        // The benchmark variant owns the default toolbar, so its fourth fixed slot is more
+        // deterministic than a lookup that can never resolve. Orientation changes its row offset.
+        val handwritingXPercent = if (width > height) 46 else 44
+        val toolbarYPercent = if (width > height) 79 else 86
+        device.click(width * handwritingXPercent / 100, height * toolbarYPercent / 100)
+        val deadline = SystemClock.uptimeMillis() + HANDWRITING_UI_TIMEOUT_MS
+        while (SystemClock.uptimeMillis() < deadline) {
+            if (targetLogs(targetPid).countOccurrences(HANDWRITING_READY_MESSAGE) >
+                previousOccurrences
+            ) {
+                break
+            }
+            SystemClock.sleep(HARNESS_STATE_POLL_MS)
+        }
+        check(targetLogs(targetPid).countOccurrences(HANDWRITING_READY_MESSAGE) >
+            previousOccurrences
+        ) { "Handwriting window did not open from the performance toolbar" }
+        SystemClock.sleep(HANDWRITING_WINDOW_SETTLE_MS)
+
+        // Relative coordinates keep profile collection independent of the physical test phone;
+        // the handwriting tray intentionally owns the lower half of every portrait viewport.
+        device.swipe(width * 28 / 100, height * 68 / 100, width * 72 / 100, height * 68 / 100, 18)
+        device.swipe(width * 50 / 100, height * 60 / 100, width * 50 / 100, height * 82 / 100, 18)
+        device.swipe(width * 38 / 100, height * 74 / 100, width * 63 / 100, height * 82 / 100, 14)
+        SystemClock.sleep(HANDWRITING_RECOGNITION_SETTLE_MS)
+        device.pressBack()
+        SystemClock.sleep(HANDWRITING_WINDOW_SETTLE_MS)
+    }
+
     fun clearComposition() {
         // Candidate confirmation can legitimately be a no-op for a dictionary miss. Repeated
         // Backspace gives the next scheme journey a composition-free boundary without a test hook.
@@ -262,6 +297,10 @@ class ImePerformanceDriver(
         const val KEYCODE_POUND = 18
         const val KEYCODE_DPAD_CENTER = 23
         const val KEYCODE_DEL = 67
+        const val HANDWRITING_READY_MESSAGE = "Handwriting ready"
+        const val HANDWRITING_UI_TIMEOUT_MS = 5_000L
+        const val HANDWRITING_WINDOW_SETTLE_MS = 300L
+        const val HANDWRITING_RECOGNITION_SETTLE_MS = 1_200L
 
         const val KEY_SETTLE_MS = 140L
         const val MODE_SETTLE_MS = 900L

@@ -1,0 +1,3 @@
+HPLorg/fcitx/fcitx5/android/input/handwriting/**->**(**)**
+HPLandroidx/ink/**->**(**)**
+HPLandroidx/input/motionprediction/**->**(**)**

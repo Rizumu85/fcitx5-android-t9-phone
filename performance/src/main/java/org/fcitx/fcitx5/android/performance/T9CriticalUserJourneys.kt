@@ -7,6 +7,7 @@ package org.fcitx.fcitx5.android.performance
 
 object T9CriticalUserJourneys {
     fun exercise(driver: ImePerformanceDriver) {
+        handwriting(driver)
         pinyin(driver)
         stroke(driver)
         zhuyin(driver)
@@ -55,5 +56,9 @@ object T9CriticalUserJourneys {
         driver.switchMode("NUMBER")
         driver.keySequence("123")
         driver.switchMode("CHINESE")
+    }
+
+    private fun handwriting(driver: ImePerformanceDriver) {
+        driver.exerciseHandwriting()
     }
 }

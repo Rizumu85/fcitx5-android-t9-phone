@@ -2135,6 +2135,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         clearTransientInputUiState()
         moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
         handwritingCoordinator.begin()
+        if (BuildConfig.PERFORMANCE_HARNESS) {
+            Log.i(PERFORMANCE_HARNESS_LOG_TAG, "Handwriting ready")
+        }
         if (hadChineseComposition) {
             postFcitxJob { focusOutIn() }
         }
