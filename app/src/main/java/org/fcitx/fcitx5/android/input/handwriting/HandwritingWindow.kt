@@ -23,6 +23,8 @@ import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.input.FcitxInputMethodService
 import org.fcitx.fcitx5.android.input.InputUiFont
 import org.fcitx.fcitx5.android.input.bar.ui.ToolButton
+import org.fcitx.fcitx5.android.input.broadcast.InputBroadcastReceiver
+import org.fcitx.fcitx5.android.input.broadcast.ReturnKeyDrawableComponent
 import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
@@ -36,10 +38,12 @@ import org.fcitx.fcitx5.android.utils.rippleDrawable
 import org.mechdancer.dependency.manager.must
 import splitties.dimensions.dp
 
-class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), EssentialWindow {
+class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), EssentialWindow,
+    InputBroadcastReceiver {
     private val service: FcitxInputMethodService by manager.inputMethodService()
     private val theme by manager.theme()
     private val windowManager: InputWindowManager by manager.must()
+    private val returnKeyDrawable: ReturnKeyDrawableComponent by manager.must()
     private val promptPref = AppPrefs.getInstance().internal.handwritingEnhancedPromptShown
     private val brushStylePref = AppPrefs.getInstance().keyboard.handwritingBrushStyle
 
@@ -60,6 +64,7 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
     private lateinit var canvas: HandwritingCanvasView
     private lateinit var root: FrameLayout
     private lateinit var status: TextView
+    private lateinit var returnButton: ToolButton
     private var modelPrompt: Snackbar? = null
 
     private val undoButton by lazy {
@@ -84,7 +89,7 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
     override fun onCreateView(): View {
         canvas = HandwritingCanvasView(context, brushStylePref::getValue).apply {
             brushColor = theme.keyTextColor
-            background = roundedSurface(21f, theme.keyboardColor, withBorder = true)
+            background = roundedSurface(21f, theme.keyboardColor)
             clipToOutline = true
             onStrokeStarted = service::beginHandwritingStroke
             onStrokeFinished = service::addHandwritingStroke
@@ -189,7 +194,13 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
                 description = R.string.handwriting_open_symbol_keyboard,
                 textSize = 15f,
                 action = ::openSymbolKeyboard
-            )
+            ),
+            iconActionButton(
+                icon = returnKeyDrawable.resourceId,
+                description = R.string.handwriting_return,
+                accent = true,
+                action = service::performHandwritingReturn
+            ).also { returnButton = it }
         )
         root = FrameLayout(context).apply {
             setBackgroundColor(theme.barColor)
@@ -197,6 +208,9 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
                 LinearLayout(context).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
+                    // The rails are direct-touch controls, so they need the same breathing room
+                    // from the display edge that the tray already receives from its inner margin.
+                    setPadding(context.dp(4), 0, context.dp(4), 0)
                     addView(
                         leftRail,
                         LinearLayout.LayoutParams(
@@ -246,6 +260,10 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         // Leaving handwriting is an explicit cancellation boundary. Uncommitted strokes are
         // discarded immediately so returning to T9 never revives an accidental character.
         service.endHandwritingInput()
+    }
+
+    override fun onReturnKeyDrawableUpdate(resourceId: Int) {
+        if (::returnButton.isInitialized) returnButton.setIcon(resourceId)
     }
 
     private fun renderState(state: HandwritingViewState) {
@@ -346,8 +364,7 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
     private fun applyActionSurface(view: View, accent: Boolean) {
         view.background = roundedSurface(
             ActionRadiusDp,
-            if (accent) theme.genericActiveBackgroundColor else theme.altKeyBackgroundColor,
-            withBorder = !accent
+            if (accent) theme.genericActiveBackgroundColor else theme.altKeyBackgroundColor
         )
         view.foreground = rippleDrawable(
             theme.keyPressHighlightColor,
@@ -379,16 +396,10 @@ class HandwritingWindow : InputWindow.ExtendedInputWindow<HandwritingWindow>(), 
         }
     }
 
-    private fun roundedSurface(radiusDp: Float, color: Int, withBorder: Boolean = false) =
+    private fun roundedSurface(radiusDp: Float, color: Int) =
         GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = context.dp(radiusDp)
             setColor(color)
-            if (withBorder) {
-                setStroke(
-                    context.dp(1),
-                    ColorUtils.setAlphaComponent(theme.keyTextColor, (0.07f * 255).toInt())
-                )
-            }
         }
 }
