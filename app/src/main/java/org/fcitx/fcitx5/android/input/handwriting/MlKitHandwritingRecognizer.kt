@@ -10,17 +10,15 @@ import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognizer
 import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognizerOptions
 import com.google.mlkit.vision.digitalink.recognition.Ink
 
-class MlKitHandwritingRecognizer(
+internal class MlKitHandwritingRecognizer(
     private val modelManager: MlKitHandwritingModelManager = MlKitHandwritingModelManager()
-) {
-    private val model = modelManager.model
+) : EnhancedHandwritingEngine {
+    private val model by lazy(modelManager::model)
     private var recognizer: DigitalInkRecognizer? = null
 
-    suspend fun isDownloaded(): Boolean = modelManager.isDownloaded()
+    override suspend fun isDownloaded(): Boolean = modelManager.isDownloaded()
 
-    suspend fun download() = modelManager.download()
-
-    suspend fun warmup() {
+    override suspend fun warmup() {
         recognizeInk(
             Ink.builder()
                 .addStroke(
@@ -33,7 +31,7 @@ class MlKitHandwritingRecognizer(
         )
     }
 
-    suspend fun recognize(
+    override suspend fun recognize(
         strokes: List<HandwritingStroke>,
         limit: Int
     ): List<HandwritingRecognition> {
@@ -68,7 +66,7 @@ class MlKitHandwritingRecognizer(
         return Character.UnicodeScript.of(codePointAt(0)) == Character.UnicodeScript.HAN
     }
 
-    fun close() {
+    override fun close() {
         recognizer?.close()
         recognizer = null
     }

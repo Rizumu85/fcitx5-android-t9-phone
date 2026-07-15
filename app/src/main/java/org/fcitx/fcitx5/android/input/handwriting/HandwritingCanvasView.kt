@@ -37,6 +37,8 @@ class HandwritingCanvasView(
     private val renderLedger = HandwritingStrokeRenderLedger<InProgressStrokeId, Stroke>()
     private var activeStrokeId: InProgressStrokeId? = null
     private var activePointerId = MotionEvent.INVALID_POINTER_ID
+    private var cachedBrushKey: BrushKey? = null
+    private var cachedBrush: Brush? = null
 
     init {
         addView(
@@ -67,6 +69,15 @@ class HandwritingCanvasView(
         // Entering handwriting is the point at which drawing becomes likely. Initialize
         // synchronously here so a fast first down cannot overtake a queued warmup callback.
         inkView.eagerInit()
+    }
+
+    override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
+        super.onSizeChanged(width, height, oldWidth, oldHeight)
+        if (width > 0 && height > 0) {
+            // Geometry is known before the tray becomes interactive. Paying the immutable brush
+            // setup here keeps AndroidX Ink class loading and JNI work out of ACTION_DOWN.
+            createBrush()
+        }
     }
 
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean = true
@@ -168,15 +179,29 @@ class HandwritingCanvasView(
         val minimumDimension = min(width, height)
         // Read once per stroke. This keeps move handling allocation-free while still honoring a
         // setting changed while Android merely hides, rather than recreates, the IME window.
-        val (family, size) = when (brushStyleProvider()) {
+        val style = brushStyleProvider()
+        val key = BrushKey(style, brushColor, minimumDimension)
+        if (key == cachedBrushKey) return requireNotNull(cachedBrush)
+        val (family, size) = when (style) {
             HandwritingBrushStyle.PEN -> StockBrushes.marker() to
                 (minimumDimension * PenWidthRatio).coerceIn(MinPenWidthPx, MaxPenWidthPx)
             HandwritingBrushStyle.CALLIGRAPHY -> StockBrushes.pressurePen() to
                 (minimumDimension * CalligraphyWidthRatio)
                     .coerceIn(MinCalligraphyWidthPx, MaxCalligraphyWidthPx)
         }
-        return Brush.createWithColorIntArgb(family, brushColor, size, BrushEpsilon)
+        return Brush.createWithColorIntArgb(family, brushColor, size, BrushEpsilon).also {
+            // Brush construction crosses the Ink JNI seam. Cache the immutable result so the
+            // first-down path only pays again after a visible style, color, or size change.
+            cachedBrushKey = key
+            cachedBrush = it
+        }
     }
+
+    private data class BrushKey(
+        val style: HandwritingBrushStyle,
+        val color: Int,
+        val minimumDimension: Int
+    )
 
     private companion object {
         const val PenWidthRatio = 0.018f

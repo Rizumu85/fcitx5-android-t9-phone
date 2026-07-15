@@ -10,21 +10,32 @@ import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.common.model.RemoteModelManager
 import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognitionModel
 import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognitionModelIdentifier
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import java.util.concurrent.Executor
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /** Owns the downloadable model independently from an input-session recognizer. */
-class MlKitHandwritingModelManager {
-    val model: DigitalInkRecognitionModel = DigitalInkRecognitionModel.builder(
-        requireNotNull(DigitalInkRecognitionModelIdentifier.fromLanguageTag(ModelLanguageTag))
-    ).build()
+class MlKitHandwritingModelManager(
+    private val dispatcher: CoroutineDispatcher = MlKitHandwritingDispatcher
+) {
+    private val model by lazy {
+        DigitalInkRecognitionModel.builder(
+            requireNotNull(DigitalInkRecognitionModelIdentifier.fromLanguageTag(ModelLanguageTag))
+        ).build()
+    }
 
-    private val remoteModelManager = RemoteModelManager.getInstance()
+    private val remoteModelManager by lazy(RemoteModelManager::getInstance)
 
-    suspend fun isDownloaded(): Boolean = remoteModelManager.isModelDownloaded(model).await()
+    internal fun model(): DigitalInkRecognitionModel = model
 
-    suspend fun download() {
+    suspend fun isDownloaded(): Boolean = withContext(dispatcher) {
+        remoteModelManager.isModelDownloaded(model).await()
+    }
+
+    suspend fun download() = withContext(dispatcher) {
         remoteModelManager.download(model, DownloadConditions.Builder().build()).await()
     }
 
@@ -34,11 +45,16 @@ class MlKitHandwritingModelManager {
 }
 
 internal suspend fun <T> Task<T>.await(): T = suspendCancellableCoroutine { continuation ->
-    addOnSuccessListener { value ->
-        if (continuation.isActive) continuation.resume(value)
+    addOnCompleteListener(DirectExecutor) { task ->
+        if (!continuation.isActive) return@addOnCompleteListener
+        when {
+            task.isCanceled -> continuation.cancel()
+            task.isSuccessful -> continuation.resume(task.result)
+            else -> continuation.resumeWithException(
+                task.exception ?: IllegalStateException("Google Task failed without an exception")
+            )
+        }
     }
-    addOnFailureListener { error ->
-        if (continuation.isActive) continuation.resumeWithException(error)
-    }
-    addOnCanceledListener { continuation.cancel() }
 }
+
+private val DirectExecutor = Executor(Runnable::run)

@@ -31,12 +31,19 @@ matching must never block the UI thread.
   model download and retry belong to Input Settings. The first missing-model
   session shows one transient action that deep-links to that setting, while the
   drawing surface never displays model lifecycle status.
-- A downloaded ML Kit model is warmed after a short idle delay and is marked
-  ready only after initialization. This keeps native model startup from
-  competing with the first visible stroke. ML Kit output is restricted to one
+- Model construction, availability checks, Ink conversion, native warmup, and
+  enhanced recognition are serialized on one background lane. Merely opening
+  handwriting does not construct ML Kit objects on the input thread.
+- A downloaded ML Kit model is prepared only after a two-second stroke-free
+  quiet period and is marked ready after native initialization. A down event
+  during that gate cancels preparation before ML Kit is touched; that character
+  deliberately uses the bundled backend rather than letting model JIT compete
+  with drawing. If preparation has already completed, the enhanced backend is
+  ready before the next character begins. ML Kit output is restricted to one
   Han character; an empty or failed enhanced result falls back to the bundled
   recognizer instead of exposing punctuation or Latin strokes as candidates.
-- The recognizer for one character is selected when its first stroke begins.
+- The recognizer for one character is selected on its first down event, before
+  the stroke has finished.
   A model that becomes ready halfway through that character is used only for
   the next character, preventing unexplained candidate replacement.
 - Completed strokes are copied into recognition data. AndroidX Ink renders a
@@ -94,8 +101,11 @@ matching must never block the UI thread.
 - The bundled repository is compact binary data and is parsed once outside the
   first-stroke render path.
 - Offline matching runs on `Dispatchers.Default`, reuses dynamic-programming
-  buffers, and exits superseded jobs cooperatively; ML Kit tasks are awaited
-  asynchronously.
+  buffers, and exits superseded jobs cooperatively. ML Kit objects are lazy,
+  all Google tasks resume through a direct callback executor onto the model
+  lane, and cancellation is never converted into fallback recognition work.
+- Immutable AndroidX Ink brushes are cached by style, color, and tray size so
+  the first-down path does not repeatedly cross the brush-construction JNI seam.
 - Candidate publication is generation checked and goes through the existing
   snapshot diff renderer.
 - Pronunciation lookup runs on the Fcitx dispatcher, loads Pinyin Helper only on

@@ -171,10 +171,13 @@ discards uncommitted strokes as soon as the user leaves.
 `HandwritingCoordinator` owns stroke generations, recognizer selection,
 candidate focus, commit, undo, clear, and model state. The bundled
 `OfflineHanziRecognizer` provides a 9,507-character no-network floor;
-`MlKitHandwritingRecognizer` adds an optional runtime-downloaded enhanced model.
-The enhanced model is warmed before use and only one-character Han results are
-accepted. A character keeps the backend chosen on its first stroke so a
-completed model download cannot replace candidates halfway through input.
+`MlKitEnhancedHandwritingBackend` adds an optional runtime-downloaded enhanced
+model. Model construction, availability checks, warmup, and recognition run on
+one background lane behind a quiet-period gate. A stroke during that gate
+cancels pending initialization and uses the offline floor instead of competing
+with model JIT or native loading. Only one-character Han results are accepted.
+A character keeps the backend chosen on its first down event so a completed
+model warmup cannot replace candidates halfway through input.
 
 Handwriting candidates join `T9CandidateUiSnapshotPipeline` through the
 `HANDWRITING` source. They reuse the existing bubble, paging, preview, shortcut,

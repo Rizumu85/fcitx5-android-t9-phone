@@ -8,6 +8,7 @@ package org.fcitx.fcitx5.android.input.handwriting
 import android.content.Context
 import android.os.SystemClock
 import android.os.Trace
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -30,7 +31,7 @@ class HandwritingCoordinator(
     private enum class Backend { OFFLINE, ENHANCED }
 
     private val offlineRecognizer = OfflineHanziRecognizer(context.applicationContext)
-    private val enhancedRecognizer = MlKitHandwritingRecognizer()
+    private val enhancedBackend: EnhancedHandwritingBackend = MlKitEnhancedHandwritingBackend()
 
     private var active = false
     private var strokes: List<HandwritingStroke> = emptyList()
@@ -87,6 +88,17 @@ class HandwritingCoordinator(
 
     fun beginStroke() {
         if (!active) return
+        if (strokes.isEmpty() && activeBackend == null) {
+            // Backend choice belongs to ACTION_DOWN, not stroke completion. Native warmup can
+            // finish while the pen is moving, but it must not change this character's results.
+            activeBackend = if (enhancedReady) Backend.ENHANCED else Backend.OFFLINE
+        }
+        if (!enhancedReady) {
+            // The ML Kit runtime performs substantial class and native initialization. Cancel the
+            // quiet-period job before it can compete with the latency-sensitive drawing path.
+            enhancedModelJob?.cancel()
+            enhancedModelJob = null
+        }
         // A new down event is the earliest reliable evidence that the previous quiet period was
         // only an inter-stroke pause. Invalidate work here so stale results never reach the UI.
         generation++
@@ -103,12 +115,7 @@ class HandwritingCoordinator(
         // Pronunciation is learning feedback for the character just committed. The first stroke
         // of the next character dismisses it without making the user wait for a timeout.
         invalidatePronunciationFeedback()
-        if (strokes.isEmpty()) {
-            // A character keeps one recognizer for its entire lifetime. Switching to a model that
-            // finishes downloading mid-character makes candidates jump for no user action.
-            activeBackend = if (enhancedReady) Backend.ENHANCED else Backend.OFFLINE
-        }
-        strokes = strokes + HandwritingStroke(stroke.points.toList())
+        strokes = strokes + stroke
         invalidatePublishedCandidates()
         recognizing = true
         noMatch = false
@@ -132,6 +139,7 @@ class HandwritingCoordinator(
             selectedIndex = 0
             publishState()
             hideCandidates()
+            scheduleEnhancedPreparation()
         } else {
             publishState()
             scheduleRecognition()
@@ -146,6 +154,7 @@ class HandwritingCoordinator(
         invalidatePronunciationFeedback()
         clearCharacter(publish = true)
         hideCandidates()
+        scheduleEnhancedPreparation()
         return true
     }
 
@@ -177,6 +186,7 @@ class HandwritingCoordinator(
         clearCharacter(publish = true)
         hideCandidates()
         publishPronunciation(text)
+        scheduleEnhancedPreparation()
         return true
     }
 
@@ -185,7 +195,7 @@ class HandwritingCoordinator(
         invalidatePronunciationFeedback()
         offlineWarmupJob?.cancel()
         enhancedModelJob?.cancel()
-        enhancedRecognizer.close()
+        enhancedBackend.close()
     }
 
     private fun warmupRecognizers() {
@@ -202,44 +212,42 @@ class HandwritingCoordinator(
                 }.onFailure { Timber.e(it, "Unable to prepare bundled handwriting recognizer") }
             }
         }
-        if (enhancedModelJob?.isActive != true && !enhancedReady) {
-            prepareEnhancedModelIfAvailable()
-        }
+        scheduleEnhancedPreparation(recheckMissingModel = true)
     }
 
-    private fun prepareEnhancedModelIfAvailable() {
-        enhancedModelMissing = false
+    private fun scheduleEnhancedPreparation(recheckMissingModel: Boolean = false) {
+        if (enhancedReady || enhancedModelJob?.isActive == true || strokes.isNotEmpty()) return
+        if (enhancedModelMissing && !recheckMissingModel) return
+        if (recheckMissingModel) enhancedModelMissing = false
         updateAvailableModelState()
         enhancedModelJob = scope.launch {
-            val downloaded = runCatching { enhancedRecognizer.isDownloaded() }
-                .onFailure { Timber.w(it, "Unable to check enhanced handwriting model") }
-                .getOrDefault(false)
-            if (!downloaded) {
-                enhancedModelMissing = true
-                updateAvailableModelState()
-                return@launch
-            }
-            runCatching {
-                // Do not let native model initialization contend with the first visible stroke.
-                // The bundled backend handles any character started during this quiet window.
+            try {
+                // Model identifiers, Firebase registration, and native warmup all stay behind the
+                // same quiet period. A stroke cancels this delay before ML Kit is first touched.
                 delay(EnhancedWarmupDelayMillis)
-                enhancedRecognizer.warmup()
-            }.onSuccess {
-                enhancedReady = true
-            }.onFailure {
-                Timber.w(it, "Unable to prepare enhanced handwriting model; bundled recognizer remains active")
+                enhancedReady = enhancedBackend.prepare()
+                enhancedModelMissing = !enhancedReady
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                Timber.w(
+                    error,
+                    "Unable to prepare enhanced handwriting model; bundled recognizer remains active"
+                )
             }
             updateAvailableModelState()
         }
     }
 
     private fun updateAvailableModelState() {
-        modelState = when {
+        val updatedState = when {
             enhancedReady -> HandwritingModelState.ENHANCED_READY
             enhancedModelMissing -> HandwritingModelState.ENHANCED_MODEL_MISSING
             !offlineReady -> HandwritingModelState.PREPARING_OFFLINE
             else -> HandwritingModelState.OFFLINE_READY
         }
+        if (modelState == updatedState) return
+        modelState = updatedState
         if (active) publishState()
     }
 
@@ -253,10 +261,10 @@ class HandwritingCoordinator(
             // character boundary avoids repeated ML Kit work and popup relayouts while drawing.
             delay(RecognitionIdleMillis)
             val started = SystemClock.elapsedRealtimeNanos()
-            val batch = runCatching {
+            val batch = try {
                 when (requestBackend) {
                     Backend.ENHANCED -> {
-                        val enhanced = enhancedRecognizer.recognize(requestStrokes, CandidateLimit)
+                        val enhanced = enhancedBackend.recognize(requestStrokes, CandidateLimit)
                         if (enhanced.isNotEmpty()) {
                             RecognitionBatch(enhanced, Backend.ENHANCED)
                         } else {
@@ -268,13 +276,23 @@ class HandwritingCoordinator(
                         Backend.OFFLINE
                     )
                 }
-            }.recoverCatching { error ->
-                if (requestBackend != Backend.ENHANCED) throw error
-                Timber.w(error, "Enhanced handwriting recognition failed; using bundled recognizer")
-                RecognitionBatch(recognizeOffline(requestStrokes), Backend.OFFLINE)
-            }.getOrElse {
-                Timber.e(it, "Handwriting recognition failed")
-                RecognitionBatch(emptyList(), requestBackend)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                if (requestBackend == Backend.ENHANCED) {
+                    Timber.w(error, "Enhanced handwriting recognition failed; using bundled recognizer")
+                    try {
+                        RecognitionBatch(recognizeOffline(requestStrokes), Backend.OFFLINE)
+                    } catch (fallbackError: CancellationException) {
+                        throw fallbackError
+                    } catch (fallbackError: Throwable) {
+                        Timber.e(fallbackError, "Bundled handwriting recognition failed")
+                        RecognitionBatch(emptyList(), Backend.OFFLINE)
+                    }
+                } else {
+                    Timber.e(error, "Handwriting recognition failed")
+                    RecognitionBatch(emptyList(), requestBackend)
+                }
             }
             if (!active || requestGeneration != generation || requestStrokes != strokes) return@launch
             candidates = batch.candidates.map(HandwritingRecognition::text).distinct()
@@ -392,7 +410,7 @@ class HandwritingCoordinator(
     private companion object {
         const val RecognitionIdleMillis = 800L
         const val PronunciationDisplayMillis = 4_500L
-        const val EnhancedWarmupDelayMillis = 750L
+        const val EnhancedWarmupDelayMillis = 2_000L
         const val CandidateLimit = 30
     }
 }
