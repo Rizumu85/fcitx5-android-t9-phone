@@ -4,18 +4,13 @@
  */
 package org.fcitx.fcitx5.android.input.clipboard
 
-import android.os.Build
 import android.view.ViewGroup
-import android.widget.PopupMenu
 import androidx.paging.PagingDataAdapter
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.clipboard.db.ClipboardEntry
 import org.fcitx.fcitx5.android.data.theme.Theme
-import org.fcitx.fcitx5.android.utils.DeviceUtil
-import org.fcitx.fcitx5.android.utils.item
-import splitties.resources.styledColor
 import kotlin.math.min
 
 abstract class ClipboardAdapter(
@@ -81,7 +76,7 @@ abstract class ClipboardAdapter(
         }
     }
 
-    private var popupMenu: PopupMenu? = null
+    private var actionMenu: ClipboardActionMenu? = null
 
     class ViewHolder(val entryUi: ClipboardEntryUi) : RecyclerView.ViewHolder(entryUi.root)
 
@@ -96,36 +91,47 @@ abstract class ClipboardAdapter(
                 onPaste(entry)
             }
             root.setOnLongClickListener {
-                val popup = PopupMenu(ctx, root)
-                val menu = popup.menu
-                val iconTint = ctx.styledColor(android.R.attr.colorControlNormal)
-                if (entry.pinned) {
-                    menu.item(R.string.unpin, R.drawable.ic_outline_push_pin_24, iconTint) {
-                        onUnpin(entry.id)
+                actionMenu?.dismiss()
+                actionMenu = ClipboardActionMenu(
+                    anchor = root,
+                    theme = theme,
+                    actions = buildList {
+                        add(
+                            ClipboardActionMenu.Action(
+                                label = if (entry.pinned) R.string.unpin else R.string.pin,
+                                icon = if (entry.pinned) {
+                                    R.drawable.ic_outline_push_pin_24
+                                } else {
+                                    R.drawable.ic_baseline_push_pin_24
+                                },
+                                invoke = {
+                                    if (entry.pinned) onUnpin(entry.id) else onPin(entry.id)
+                                }
+                            )
+                        )
+                        add(
+                            ClipboardActionMenu.Action(
+                                R.string.edit,
+                                R.drawable.ic_baseline_edit_24
+                            ) { onEdit(entry.id) }
+                        )
+                        add(
+                            ClipboardActionMenu.Action(
+                                R.string.share,
+                                R.drawable.ic_baseline_share_24
+                            ) { onShare(entry) }
+                        )
+                        add(
+                            ClipboardActionMenu.Action(
+                                R.string.delete,
+                                R.drawable.ic_baseline_delete_24
+                            ) { onDelete(entry.id) }
+                        )
+                    },
+                    onDismiss = { dismissed ->
+                        if (dismissed === actionMenu) actionMenu = null
                     }
-                } else {
-                    menu.item(R.string.pin, R.drawable.ic_baseline_push_pin_24, iconTint) {
-                        onPin(entry.id)
-                    }
-                }
-                menu.item(R.string.edit, R.drawable.ic_baseline_edit_24, iconTint) {
-                    onEdit(entry.id)
-                }
-                menu.item(R.string.share, R.drawable.ic_baseline_share_24, iconTint) {
-                    onShare(entry)
-                }
-                menu.item(R.string.delete, R.drawable.ic_baseline_delete_24, iconTint) {
-                    onDelete(entry.id)
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !DeviceUtil.isSamsungOneUI && !DeviceUtil.isFlyme) {
-                    popup.setForceShowIcon(true)
-                }
-                popup.setOnDismissListener {
-                    if (it === popupMenu) popupMenu = null
-                }
-                popupMenu?.dismiss()
-                popupMenu = popup
-                popup.show()
+                ).also(ClipboardActionMenu::show)
                 true
             }
         }
@@ -134,8 +140,8 @@ abstract class ClipboardAdapter(
     fun getEntryAt(position: Int) = getItem(position)
 
     fun onDetached() {
-        popupMenu?.dismiss()
-        popupMenu = null
+        actionMenu?.dismiss()
+        actionMenu = null
     }
 
     abstract fun onPaste(entry: ClipboardEntry)

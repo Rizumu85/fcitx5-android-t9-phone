@@ -172,6 +172,8 @@ class TextEditingUi(
 
     fun updateSelection(hasSelection: Boolean, userSelection: Boolean) {
         selectButton.isActivated = (hasSelection || userSelection)
+        copyButton.isEnabled = hasSelection
+        cutButton.isEnabled = hasSelection
         if (hasSelection) {
             selectAllButton.apply {
                 visibility = View.GONE

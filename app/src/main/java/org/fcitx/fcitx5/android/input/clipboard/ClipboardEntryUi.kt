@@ -9,8 +9,10 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
+import android.graphics.drawable.StateListDrawable
 import android.text.TextUtils
 import android.view.View
+import androidx.core.graphics.ColorUtils
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.InputUiFont
@@ -71,9 +73,27 @@ class ClipboardEntryUi(override val ctx: Context, private val theme: Theme, radi
                 setColor(Color.WHITE)
             }
         )
-        background = GradientDrawable().apply {
-            cornerRadius = radius
-            setColor(theme.clipboardEntryColor)
+        background = StateListDrawable().apply {
+            addState(
+                intArrayOf(android.R.attr.state_activated),
+                GradientDrawable().apply {
+                    cornerRadius = radius
+                    setColor(
+                        ColorUtils.blendARGB(
+                            theme.clipboardEntryColor,
+                            theme.genericActiveBackgroundColor,
+                            0.22f
+                        )
+                    )
+                }
+            )
+            addState(
+                intArrayOf(),
+                GradientDrawable().apply {
+                    cornerRadius = radius
+                    setColor(theme.clipboardEntryColor)
+                }
+            )
         }
         add(layout, lParams(matchParent, matchParent))
     }
