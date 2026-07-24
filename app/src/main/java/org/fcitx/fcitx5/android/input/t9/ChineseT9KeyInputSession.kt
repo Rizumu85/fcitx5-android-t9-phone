@@ -18,9 +18,8 @@ sealed interface ChineseT9KeyCommand<out KeyStroke> {
         override val receipt: ChineseT9InputReceipt
     ) : ChineseT9KeyCommand<KeyStroke>
 
-    data class Press<KeyStroke>(
-        val down: KeyStroke,
-        val up: KeyStroke,
+    data class TextInput<KeyStroke>(
+        val keyDown: KeyStroke,
         override val receipt: ChineseT9InputReceipt
     ) : ChineseT9KeyCommand<KeyStroke>
 }
@@ -39,10 +38,7 @@ class ChineseT9KeyInputSession<Engine, KeyStroke>(
             try {
                 when (command) {
                     is ChineseT9KeyCommand.Stroke -> dispatchKeyStroke(command.stroke)
-                    is ChineseT9KeyCommand.Press -> {
-                        dispatchKeyStroke(command.down)
-                        dispatchKeyStroke(command.up)
-                    }
+                    is ChineseT9KeyCommand.TextInput -> dispatchKeyStroke(command.keyDown)
                 }
             } finally {
                 onDispatchCompleted(command.receipt)

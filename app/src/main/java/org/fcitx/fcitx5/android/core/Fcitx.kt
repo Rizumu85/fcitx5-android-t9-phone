@@ -453,7 +453,10 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
         @JvmStatic
         fun handleFcitxEvent(type: Int, params: Array<Any>) {
             val event = FcitxEvent.create(type, params)
-            Timber.d("Handling $event")
+            // Candidate events can contain an entire page. Serializing them on every native
+            // callback used to make debug input materially slower and still cost release builds
+            // before Timber rejected the message.
+            Timber.d("Handling %s", event::class.simpleName)
             fcitxEventHandlers.forEach { it.invoke(event) }
             eventFlow_.tryEmit(event)
         }

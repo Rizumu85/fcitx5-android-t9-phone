@@ -2251,26 +2251,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             input.flags,
             input.source
         )
-        val up = KeyEvent(
-            input.downTime,
-            input.eventTime,
-            KeyEvent.ACTION_UP,
-            keyCode,
-            0,
-            input.metaState,
-            input.deviceId,
-            input.scanCode,
-            input.flags,
-            input.source
-        )
-        return forwardChineseT9KeyPair(down, up)
+        return forwardChineseT9TextInput(down)
     }
 
-    private fun forwardChineseT9KeyPair(down: KeyEvent, up: KeyEvent): Boolean {
+    private fun forwardChineseT9TextInput(down: KeyEvent): Boolean {
         val downSym = KeySym.fromKeyEvent(down) ?: return false
-        val upSym = KeySym.fromKeyEvent(up) ?: return false
         val downTimestamp = cacheFcitxKeyEvent(down)
-        val upTimestamp = cacheFcitxKeyEvent(up)
 
         val forwardedAction = chineseT9Composition.handleForwardedKeyDown(down.keyCode)
         val receipt = currentChineseT9InputReceipt()
@@ -2283,25 +2269,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
 
         val downStates = KeyStates.fromKeyEvent(down)
-        val upStates = KeyStates.fromKeyEvent(up)
-        // A physical T9 short press is one engine transaction. Dispatching its synthetic down
-        // and up halves as separate jobs made fast typing queue an empty release operation ahead
-        // of the next useful digit and delayed the matching Rime candidate frame.
+        // Physical T9 already owns press/release classification. Fcitx ignores the release before
+        // its input-method phase, but AndroidFrontend still republishes unchanged input-panel and
+        // candidate events for it. Submit only the semantic text input so one key produces one
+        // Rime calculation and one candidate frame.
         chineseT9KeyInputSession.submit(
-            ChineseT9KeyCommand.Press(
-                down = ChineseT9FcitxKeyStroke(
+            ChineseT9KeyCommand.TextInput(
+                keyDown = ChineseT9FcitxKeyStroke(
                     downSym,
                     downStates,
                     down.scanCode,
                     up = false,
                     timestamp = downTimestamp
-                ),
-                up = ChineseT9FcitxKeyStroke(
-                    upSym,
-                    upStates,
-                    up.scanCode,
-                    up = true,
-                    timestamp = upTimestamp
                 ),
                 receipt = receipt
             )

@@ -13,7 +13,7 @@ import org.junit.Test
 class ChineseT9KeyInputSessionTest {
 
     @Test
-    fun pressDispatchesDownAndUpInsideOneEngineOperation() = runBlocking {
+    fun semanticTextInputDispatchesOnlyTheKeyDown() = runBlocking {
         val pending = mutableListOf<suspend FakeEngine.() -> Unit>()
         val engine = FakeEngine()
         val receipt = receipt(traceInputId = 7L)
@@ -22,11 +22,11 @@ class ChineseT9KeyInputSessionTest {
             dispatchKeyStroke = { strokes += it }
         )
 
-        session.submit(ChineseT9KeyCommand.Press("down", "up", receipt))
+        session.submit(ChineseT9KeyCommand.TextInput("down", receipt))
 
         assertEquals(1, pending.size)
         pending.single().invoke(engine)
-        assertEquals(listOf("down", "up"), engine.strokes)
+        assertEquals(listOf("down"), engine.strokes)
     }
 
     @Test
@@ -39,10 +39,10 @@ class ChineseT9KeyInputSessionTest {
         )
 
         session.submit(ChineseT9KeyCommand.Stroke("first", receipt(1L)))
-        session.submit(ChineseT9KeyCommand.Press("second-down", "second-up", receipt(2L)))
+        session.submit(ChineseT9KeyCommand.TextInput("second-down", receipt(2L)))
 
         pending.forEach { it.invoke(engine) }
-        assertEquals(listOf("first", "second-down", "second-up"), engine.strokes)
+        assertEquals(listOf("first", "second-down"), engine.strokes)
     }
 
     @Test

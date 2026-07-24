@@ -78,9 +78,10 @@ behind the coordinator.
 
 `ChineseT9EngineOperation` serializes Fcitx submission, candidate reads,
 selection, and replay. `ChineseT9KeyInputSession` is the only typed-key entry
-into that lane: it keeps strokes lossless and ordered, treats a physical
-down/up pair as one operation, and carries one composition/trace receipt from
-dispatch through candidate acceptance. Presentation may conflate obsolete
+into that lane: it keeps semantic inputs lossless and ordered, omits physical
+release events that Fcitx ignores but would republish as duplicate candidate
+frames, and carries one composition/trace receipt from dispatch through
+candidate acceptance. Presentation may conflate obsolete
 generations, but engine input must not. Operations carry composition/source
 tickets and reject stale work before publishing UI effects. `ChineseT9CandidateFreshness` and
 `ChineseT9CandidateFrameGate` prevent a new preview from being displayed with

@@ -159,8 +159,9 @@ generation-owned transaction. Chinese engine-source wait is further split:
 
 - `queue`: time after the input effect until its typed command starts in the
   serialized Fcitx operation lane.
-- `engine`: time spent dispatching that command to Fcitx/Rime. A physical
-  short press includes both down and up in this one transaction.
+- `engine`: time spent dispatching that command to Fcitx/Rime. Physical T9
+  text input sends only its semantic key-down because press classification is
+  already complete and Fcitx ignores the release before the input-method phase.
 - `callback`: time from dispatch completion until the matching candidate frame
   is accepted.
 
