@@ -3,12 +3,14 @@
 /app/src/main/assets/usr/
 # Generated asset descriptor
 /app/src/main/assets/descriptor.json
+/app/src/main/assets/descriptor.json.sha256
 
 # Plugins
 # Installed data
 /plugin/*/src/main/assets/usr/
 # Generated asset descriptor
 /plugin/*/src/main/assets/descriptor.json
+/plugin/*/src/main/assets/descriptor.json.sha256
 
 # Intellij
 .idea/*
