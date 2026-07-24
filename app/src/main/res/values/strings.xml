@@ -67,7 +67,7 @@
     <string name="chinese_t9_output_traditional">Traditional Chinese</string>
     <string name="t9_no_matches">No matches</string>
     <string name="t9_rime_preparing">Chinese dictionary is getting ready…</string>
-    <string name="t9_rime_unavailable">Chinese dictionary unavailable. Redeploy it in settings.</string>
+    <string name="t9_rime_unavailable">Chinese dictionary is not ready yet. It will recover automatically.</string>
     <string name="reloading">Reloading</string>
     <string name="importing">Importing</string>
     <string name="import_error">Import Error</string>

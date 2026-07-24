@@ -24,6 +24,7 @@ import org.fcitx.fcitx5.android.data.clipboard.ClipboardManager
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.ui.main.LogActivity
+import org.fcitx.fcitx5.android.update.RimeConfigProvisioner
 import org.fcitx.fcitx5.android.utils.AppUtil
 import org.fcitx.fcitx5.android.utils.Locales
 import org.fcitx.fcitx5.android.utils.setupForest
@@ -199,6 +200,11 @@ class FcitxApplication : Application() {
         }
         StartupPerformanceTrace.endStage(applicationCreateStage)
         StartupPerformanceTrace.mark(StartupPerformanceTrace.Milestone.APPLICATION_CREATED)
+        if (!isDirectBootMode) {
+            // Provisioning is deliberately outside the measured IME startup stages. Its healthy
+            // path reads only a receipt and three files; download and installation stay deferred.
+            RimeConfigProvisioner.ensureRequiredConfig(this)
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

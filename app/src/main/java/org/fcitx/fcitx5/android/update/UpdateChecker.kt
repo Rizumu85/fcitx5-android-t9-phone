@@ -7,6 +7,7 @@ package org.fcitx.fcitx5.android.update
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.util.AtomicFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -82,7 +83,10 @@ object InstalledUpdateVersionsResolver {
     fun resolve(context: Context): InstalledUpdateVersions = InstalledUpdateVersions(
         app = BuildConfig.VERSION_NAME,
         rimePlugin = context.packageManager.versionNameOrNull(ReleaseRimePackage),
-        rimeConfig = RimeConfigVersionStore.currentVersion(context)
+        rimeConfig = listOfNotNull(
+            RimeConfigVersionStore.currentVersion(context),
+            UpdateDownloader.pendingVersion(context, UpdateComponent.RIME_CONFIG)
+        ).maxWithOrNull(Comparator(UpdateVersion::compare))
     )
 
     fun supportedComponents(): Set<UpdateComponent> = if (BuildConfig.DEBUG) {
@@ -101,7 +105,15 @@ object InstalledUpdateVersionsResolver {
 object RimeConfigVersionStore {
     private const val PreferenceName = "rime_config_update"
     private const val VersionKey = "installed_version"
+    private const val ArchiveSha256Key = "installed_archive_sha256"
     private const val VersionMarker = ".rime-ice-t9-version"
+    private const val InstallInProgressMarker = ".rime-config-installing"
+    private const val LegacyUntrackedVersion = "3.0.0"
+    private val RequiredSchemas = listOf(
+        "t9.schema.yaml",
+        "t9_stroke.schema.yaml",
+        "t9_zhuyin.schema.yaml"
+    )
 
     fun currentVersion(context: Context): String? {
         val preferences = context.getSharedPreferences(PreferenceName, Context.MODE_PRIVATE)
@@ -109,20 +121,56 @@ object RimeConfigVersionStore {
         val rimeDir = rimeDir(context)
         rimeDir.resolve(VersionMarker).takeIf(File::isFile)?.readText()?.trim()
             ?.takeIf(String::isNotEmpty)?.let { return it }
-        // v4.3.0 was distributed with rime-ice-t9-phone v3.0.0 before in-app tracking existed.
-        // Recognizing that documented baseline avoids advertising the same package as an update.
-        return BuildConfig.RIME_CONFIG_BASELINE_VERSION.takeIf {
+        // Untracked copies predate provisioning and are known to be v3.0.0. Using the current app
+        // baseline here would falsely bless old files whenever a future app raises its requirement.
+        return LegacyUntrackedVersion.takeIf {
             rimeDir.resolve("t9.schema.yaml").isFile
         }
     }
 
-    fun record(context: Context, version: String) {
-        val rimeDir = rimeDir(context).apply(File::mkdirs)
-        rimeDir.resolve(VersionMarker).writeText(version)
+    fun isHealthy(context: Context): Boolean {
+        val rimeDir = rimeDir(context)
+        return !rimeDir.resolve(InstallInProgressMarker).exists() &&
+            RequiredSchemas.all { rimeDir.resolve(it).isFile }
+    }
+
+    fun currentArchiveSha256(context: Context): String? =
         context.getSharedPreferences(PreferenceName, Context.MODE_PRIVATE)
+            .getString(ArchiveSha256Key, null)
+
+    fun beginInstall(context: Context, version: String) {
+        writeMarker(rimeDir(context).resolve(InstallInProgressMarker), version)
+    }
+
+    fun record(context: Context, version: String, archiveSha256: String? = null) {
+        val rimeDir = rimeDir(context).apply(File::mkdirs)
+        writeMarker(rimeDir.resolve(VersionMarker), version)
+        val receiptCommitted = context
+            .getSharedPreferences(PreferenceName, Context.MODE_PRIVATE)
             .edit()
             .putString(VersionKey, version)
-            .apply()
+            .apply {
+                if (archiveSha256 == null) remove(ArchiveSha256Key)
+                else putString(ArchiveSha256Key, archiveSha256)
+            }
+            .commit()
+        check(receiptCommitted) { "Unable to record the Rime configuration receipt" }
+        check(rimeDir.resolve(InstallInProgressMarker).delete()) {
+            "Unable to complete the Rime configuration transaction"
+        }
+    }
+
+    private fun writeMarker(file: File, value: String) {
+        file.parentFile?.mkdirs()
+        val marker = AtomicFile(file)
+        val output = marker.startWrite()
+        try {
+            output.write(value.toByteArray())
+            marker.finishWrite(output)
+        } catch (error: Throwable) {
+            marker.failWrite(output)
+            throw error
+        }
     }
 
     fun rimeDir(context: Context): File =

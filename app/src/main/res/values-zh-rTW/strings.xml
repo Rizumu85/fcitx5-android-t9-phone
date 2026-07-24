@@ -36,7 +36,7 @@
     <string name="chinese_t9_output_traditional">繁體中文</string>
     <string name="t9_no_matches">無相符結果</string>
     <string name="t9_rime_preparing">中文詞庫正在準備…</string>
-    <string name="t9_rime_unavailable">中文詞庫無法使用，請在設定中重新部署</string>
+    <string name="t9_rime_unavailable">中文詞庫尚未就緒，輸入法會自動恢復</string>
     <string name="add_input_method">新增輸入法</string>
     <string name="addons">附加元件</string>
     <string name="conf">設定</string>

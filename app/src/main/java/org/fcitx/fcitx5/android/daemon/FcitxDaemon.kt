@@ -18,6 +18,7 @@ import org.fcitx.fcitx5.android.core.FcitxAPI
 import org.fcitx.fcitx5.android.core.FcitxLifecycle
 import org.fcitx.fcitx5.android.core.lifeCycleScope
 import org.fcitx.fcitx5.android.core.whenReady
+import org.fcitx.fcitx5.android.core.whenStopped
 import org.fcitx.fcitx5.android.daemon.FcitxDaemon.connect
 import org.fcitx.fcitx5.android.daemon.FcitxDaemon.disconnect
 import org.fcitx.fcitx5.android.utils.appContext
@@ -173,6 +174,29 @@ object FcitxDaemon {
      */
     fun startFcitx() {
         realFcitx.start()
+    }
+
+    /**
+     * Rime configuration is a multi-file graph, so native startup and client attachment must not
+     * cross its update boundary.
+     */
+    fun <T> withFcitxStopped(block: () -> T): T = lock.withLock {
+        val shouldRestart = clients.isNotEmpty()
+        when (realFcitx.lifecycle.currentState) {
+            FcitxLifecycle.State.STARTING -> {
+                runBlocking { realFcitx.lifecycle.whenReady {} }
+                realFcitx.stop()
+            }
+            FcitxLifecycle.State.READY -> realFcitx.stop()
+            FcitxLifecycle.State.STOPPING ->
+                runBlocking { realFcitx.lifecycle.whenStopped {} }
+            FcitxLifecycle.State.STOPPED -> Unit
+        }
+        try {
+            block()
+        } finally {
+            if (shouldRestart) realFcitx.start()
+        }
     }
 
     init {

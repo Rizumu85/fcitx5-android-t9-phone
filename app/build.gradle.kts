@@ -25,6 +25,18 @@ android {
         buildConfigField("String", "PERFORMANCE_PLUGIN_PACKAGE", "\"\"")
         buildConfigField("String", "PERFORMANCE_RIME_SCHEMA", "\"\"")
         buildConfigField("String", "RIME_CONFIG_BASELINE_VERSION", "\"3.0.0\"")
+        buildConfigField(
+            "String",
+            "RIME_CONFIG_BASELINE_URL",
+            "\"https://github.com/Rizumu85/rime-ice-t9-phone/releases/download/" +
+                "v3.0.0/rime-ice-t9-phone-main.zip\""
+        )
+        buildConfigField(
+            "String",
+            "RIME_CONFIG_BASELINE_SHA256",
+            "\"141ec54175146c93879dbf653e2fc91889825d8b90c4b4d434c932c8cfcaf3dd\""
+        )
+        buildConfigField("long", "RIME_CONFIG_BASELINE_SIZE", "16041068L")
         manifestPlaceholders["pluginManifestAction"] =
             "org.fcitx.fcitx5.android.plugin.MANIFEST"
 

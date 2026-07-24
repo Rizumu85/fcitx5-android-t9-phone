@@ -12,8 +12,18 @@ import java.util.zip.ZipInputStream
 object RimeConfigArchive {
     private const val MaxEntries = 2_000
     private const val MaxExpandedBytes = 256L * 1024L * 1024L
+    private val RequiredSchemas = listOf(
+        "t9.schema.yaml",
+        "t9_stroke.schema.yaml",
+        "t9_zhuyin.schema.yaml"
+    )
 
-    fun install(source: InputStream, stagingDir: File, destinationDir: File) {
+    fun install(
+        source: InputStream,
+        stagingDir: File,
+        destinationDir: File,
+        beforeOverlay: () -> Unit = {}
+    ) {
         stagingDir.deleteRecursively()
         stagingDir.mkdirs()
         val roots = linkedSetOf<String>()
@@ -55,9 +65,13 @@ object RimeConfigArchive {
             ?.let { stagingDir.resolve(it) }
             ?.takeIf(File::isDirectory)
             ?: stagingDir
-        require(contentRoot.resolve("t9.schema.yaml").isFile) {
-            "Archive does not contain the T9 Rime configuration"
+        val missingSchemas = RequiredSchemas.filterNot { contentRoot.resolve(it).isFile }
+        require(missingSchemas.isEmpty()) {
+            "Archive is missing required T9 Rime schemas: ${missingSchemas.joinToString()}"
         }
+        // Callers journal the transaction only after the complete archive has passed validation,
+        // but before the first managed file can replace a working copy.
+        beforeOverlay()
         destinationDir.mkdirs()
         contentRoot.listFiles().orEmpty().forEach { sourceFile ->
             copyOverlay(sourceFile, destinationDir.resolve(sourceFile.name))
