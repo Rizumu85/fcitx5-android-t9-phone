@@ -13,6 +13,29 @@ import org.junit.Test
 class ChineseT9CandidateLoadingStateTest {
 
     @Test
+    fun cachedFreshFrameRestoresLateAttachedCandidateSurface() {
+        val state = ChineseT9CandidateLoadingState()
+        val ticket = ticket(ChineseT9Scheme.PINYIN, "94664")
+
+        assertTrue(
+            state.restoreCachedFrame(
+                data = paged("中", "zhong"),
+                ticket = ticket,
+                enginePreedit = "zhong"
+            )
+        )
+        assertFalse(
+            state.shouldWaitForCandidates(
+                chineseT9Active = true,
+                compositionKeyCount = 5,
+                hasPendingPunctuation = false,
+                pendingPinyinSelection = false,
+                rawCandidatesEmpty = false
+            )
+        )
+    }
+
+    @Test
     fun waitsAfterChineseCompositionStartsUntilEngineCandidatesArrive() {
         val state = ChineseT9CandidateLoadingState()
 

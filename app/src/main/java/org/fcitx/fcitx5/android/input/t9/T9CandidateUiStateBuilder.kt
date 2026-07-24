@@ -22,7 +22,8 @@ data class T9CandidateUiInputSnapshot(
     val chineseSnapshot: ChineseT9InputSnapshot?,
     val smartEnglishSnapshot: SmartEnglishUiSnapshot?,
     val pendingPunctuationRawPaged: FcitxEvent.PagedCandidateEvent.Data?,
-    val currentFocus: T9CandidateFocus
+    val currentFocus: T9CandidateFocus,
+    val chineseEngineStatus: T9CandidateStatus? = null
 )
 
 data class T9CandidateInteractionState(
@@ -161,7 +162,8 @@ class T9CandidateUiStateBuilder(
                     invalidReading = chineseSnapshot?.hasInvalidReading == true
                 )
             )
-            if (sourcePlan.deferRender) {
+            val showChineseEngineStatus = chineseSurface && input.chineseEngineStatus != null
+            if (sourcePlan.deferRender && !showChineseEngineStatus) {
                 return@measure null
             }
             when (sourcePlan.bulkAction) {
@@ -176,7 +178,7 @@ class T9CandidateUiStateBuilder(
             if (ChineseT9CandidateFrameGate.shouldDefer(
                     ChineseT9CandidateFrameGate.Input(
                         chineseSurface = chineseSurface,
-                        engineCandidatesPending = sourcePlan.deferRender,
+                        engineCandidatesPending = sourcePlan.deferRender && !showChineseEngineStatus,
                         bulkCandidatesPending = bulkFilterState.pending,
                         hasBulkCandidatePage = bulkFilterState.paged != null
                     )
@@ -240,7 +242,7 @@ class T9CandidateUiStateBuilder(
             val t9State = T9ResponsivenessTrace.measure("CandidatesView.updateUi.presentationState") {
                 when (surface) {
                     T9CandidateSourceControlPlanner.Surface.CHINESE -> {
-                        if (sourcePlan.suppressEmptyCandidates) {
+                        if (sourcePlan.suppressEmptyCandidates && !showChineseEngineStatus) {
                             clearChinesePresentationState()
                             null
                         } else {
@@ -253,7 +255,11 @@ class T9CandidateUiStateBuilder(
                                 inputPanel = input.inputPanel,
                                 paged = effectivePaged
                             )
-                            getChinesePresentationState(key)
+                            getChinesePresentationState(key).let { presentation ->
+                                input.chineseEngineStatus?.let { status ->
+                                    presentation.copy(candidateStatus = status)
+                                } ?: presentation
+                            }
                         }
                     }
                     T9CandidateSourceControlPlanner.Surface.SMART_ENGLISH -> {
@@ -270,7 +276,9 @@ class T9CandidateUiStateBuilder(
                     }
                 }
             }
-            if (sourcePlan.suppressEmptyCandidates) {
+            val suppressEmptyCandidates =
+                sourcePlan.suppressEmptyCandidates && !showChineseEngineStatus
+            if (suppressEmptyCandidates) {
                 pipeline.clearHiddenChineseT9CompositionIfCandidateUiSuppressed()
             }
             val readingOptions = t9State?.readingOptions ?: emptyList()
@@ -297,7 +305,7 @@ class T9CandidateUiStateBuilder(
                         usesSmartEnglish = shownState.usesSmartEnglish,
                         usesPendingPunctuation = shownState.usesPendingPunctuation,
                         chineseT9Active = chineseSurface,
-                        suppressEmptyCandidates = sourcePlan.suppressEmptyCandidates,
+                        suppressEmptyCandidates = suppressEmptyCandidates,
                         presentationState = t9State,
                         focus = focusPlan.focus
                     )

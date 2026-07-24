@@ -65,6 +65,22 @@ class ChineseT9PresentationSourceTest {
         assertEquals(emptyList<String>(), state.readingOptions)
     }
 
+    @Test
+    fun longCandidateCommentPreservesTheWholeTypedReading() {
+        val digits = "946649366674494233"
+        val state = source().build(
+            key(
+                rawSequence = digits,
+                digitSequence = digits,
+                currentSegment = digits,
+                fullComposition = digits,
+                candidateComment = "zhong wen mo shi xia de"
+            )
+        )
+
+        assertEquals("zhong wen mo shi xia de", state.topReading?.toString())
+    }
+
     private fun source(): ChineseT9PresentationSource =
         ChineseT9PresentationSource(
             formatText = ::text,

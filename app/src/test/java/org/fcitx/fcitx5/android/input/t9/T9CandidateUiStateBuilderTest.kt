@@ -167,6 +167,29 @@ class T9CandidateUiStateBuilderTest {
     }
 
     @Test
+    fun preparingEngineReplacesIndefiniteCandidateWaitWithVisibleStatus() {
+        val loadingState = ChineseT9CandidateLoadingState().apply {
+            startIfNeeded(
+                chineseT9Active = true,
+                ticket = defaultChineseSnapshot().compositionTicket()
+            )
+        }
+
+        val result = T9CandidateUiStateBuilder(FakePipeline()).build(
+            input(
+                rawPaged = FcitxEvent.PagedCandidateEvent.Data.Empty,
+                chineseActive = true,
+                loadingState = loadingState,
+                chineseEngineStatus = T9CandidateStatus.RIME_PREPARING
+            )
+        )
+
+        assertNotNull(result)
+        assertEquals(T9CandidateStatus.RIME_PREPARING, result!!.renderState.candidateStatus)
+        assertTrue(result.renderState.shouldShow)
+    }
+
+    @Test
     fun emptyChineseCompositionSuppressesStaleCandidatesAndPresentation() {
         val pipeline = FakePipeline(
             chinesePresentation = T9PresentationState(
@@ -345,7 +368,8 @@ class T9CandidateUiStateBuilderTest {
         pendingPunctuationPaged: FcitxEvent.PagedCandidateEvent.Data? = null,
         currentlyVisible: Boolean = false,
         loadingState: ChineseT9CandidateLoadingState = ChineseT9CandidateLoadingState(),
-        currentFocus: T9CandidateFocus = T9CandidateFocus.BOTTOM
+        currentFocus: T9CandidateFocus = T9CandidateFocus.BOTTOM,
+        chineseEngineStatus: T9CandidateStatus? = null
     ): T9CandidateUiInputSnapshot =
         T9CandidateUiInputSnapshot(
             inputPanel = FcitxEvent.InputPanelEvent.Data(),
@@ -370,7 +394,8 @@ class T9CandidateUiStateBuilderTest {
                 null
             },
             pendingPunctuationRawPaged = pendingPunctuationPaged,
-            currentFocus = currentFocus
+            currentFocus = currentFocus,
+            chineseEngineStatus = chineseEngineStatus
         )
 
     private fun defaultChineseSnapshot(): ChineseT9InputSnapshot =

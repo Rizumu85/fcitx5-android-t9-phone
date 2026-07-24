@@ -36,6 +36,8 @@ interface FcitxAPI {
 
     val inputPanelCached: FcitxEvent.InputPanelEvent.Data
 
+    val pagedCandidatesCached: FcitxEvent.PagedCandidateEvent.Data
+
     val rimeAvailabilityCached: FcitxEvent.RimeAvailabilityEvent.Data
 
     fun setLogRule(verbose: Boolean)

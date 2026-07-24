@@ -40,5 +40,7 @@ data class T9PresentationState(
 }
 
 enum class T9CandidateStatus {
-    NO_MATCH
+    NO_MATCH,
+    RIME_PREPARING,
+    RIME_UNAVAILABLE
 }

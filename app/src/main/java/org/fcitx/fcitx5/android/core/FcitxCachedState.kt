@@ -10,6 +10,8 @@ data class FcitxCachedState(
     val statusAreaActions: Array<Action> = emptyArray(),
     val clientPreedit: FormattedText = FormattedText.Empty,
     val inputPanel: FcitxEvent.InputPanelEvent.Data = FcitxEvent.InputPanelEvent.Data(),
+    val pagedCandidates: FcitxEvent.PagedCandidateEvent.Data =
+        FcitxEvent.PagedCandidateEvent.Data.Empty,
     val rimeAvailability: FcitxEvent.RimeAvailabilityEvent.Data =
         FcitxEvent.RimeAvailabilityEvent.Data.Unavailable,
     val revision: Long = 0L

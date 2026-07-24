@@ -57,6 +57,9 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
     override val inputPanelCached: FcitxEvent.InputPanelEvent.Data
         get() = cachedState.inputPanel
 
+    override val pagedCandidatesCached: FcitxEvent.PagedCandidateEvent.Data
+        get() = cachedState.pagedCandidates
+
     override val rimeAvailabilityCached: FcitxEvent.RimeAvailabilityEvent.Data
         get() = cachedState.rimeAvailability
 
@@ -601,6 +604,9 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
             is FcitxEvent.InputPanelEvent -> updateCachedState {
                 it.copy(inputPanel = event.data)
             }
+            is FcitxEvent.PagedCandidateEvent -> updateCachedState {
+                it.copy(pagedCandidates = event.data)
+            }
             is FcitxEvent.RimeAvailabilityEvent -> {
                 if (event.data.state == FcitxEvent.RimeAvailabilityEvent.State.Ready) {
                     StartupPerformanceTrace.mark(StartupPerformanceTrace.Milestone.RIME_READY)
@@ -627,6 +633,7 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
             registerFcitxEventHandler(::handleFirstRunEvent)
         }
         registerFcitxEventHandler(::handleFcitxEvent)
+        clearCachedInputPresentation()
         publishRimeLifecycleState(FcitxEvent.RimeAvailabilityEvent.State.Deploying)
         lifecycleRegistry.postEvent(FcitxLifecycle.Event.ON_START)
         ClipboardManager.addOnUpdateListener(onClipboardUpdate)
@@ -644,6 +651,7 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
             return
         }
         lifecycleRegistry.postEvent(FcitxLifecycle.Event.ON_STOP)
+        clearCachedInputPresentation()
         publishRimeLifecycleState(FcitxEvent.RimeAvailabilityEvent.State.Unavailable)
         Timber.i("Fcitx stop()")
         ClipboardManager.removeOnUpdateListener(onClipboardUpdate)
@@ -666,6 +674,16 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
         )
         updateCachedState { it.copy(rimeAvailability = data) }
         eventFlow_.tryEmit(FcitxEvent.RimeAvailabilityEvent(data))
+    }
+
+    private fun clearCachedInputPresentation() {
+        updateCachedState {
+            it.copy(
+                clientPreedit = FormattedText.Empty,
+                inputPanel = FcitxEvent.InputPanelEvent.Data(),
+                pagedCandidates = FcitxEvent.PagedCandidateEvent.Data.Empty
+            )
+        }
     }
 
 }

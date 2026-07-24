@@ -109,6 +109,7 @@ import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9ModeController
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishUiSnapshot
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocusController
+import org.fcitx.fcitx5.android.input.t9.T9CandidateStatus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateShortcutCommitter
 import org.fcitx.fcitx5.android.input.t9.T9InputMode
 import org.fcitx.fcitx5.android.input.t9.T9ModeCoordinator
@@ -446,6 +447,16 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     fun isChineseT9InputModeActive(): Boolean =
         currentT9Mode == T9InputMode.CHINESE
+
+    fun getChineseT9EngineStatus(): T9CandidateStatus? =
+        when (rimeAvailabilitySession.current.state) {
+            FcitxEvent.RimeAvailabilityEvent.State.Ready -> null
+            FcitxEvent.RimeAvailabilityEvent.State.Deploying ->
+                T9CandidateStatus.RIME_PREPARING
+            FcitxEvent.RimeAvailabilityEvent.State.Failed,
+            FcitxEvent.RimeAvailabilityEvent.State.Unavailable ->
+                T9CandidateStatus.RIME_UNAVAILABLE.takeIf { rimeInputBlocked }
+        }
 
     fun getChineseT9Scheme(): ChineseT9Scheme = activeChineseT9Scheme
 
@@ -1846,7 +1857,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             engineAvailable = {
                 rimeAvailabilityCached.state == FcitxEvent.RimeAvailabilityEvent.State.Ready
             },
-            onPendingDropped = ::discardChineseCompositionForUnavailableRime
+            onPendingDropped = ::handleUnavailableRimeOperation
         )
     }
     private val chineseT9SchemeCycle = ChineseT9SchemeCycleSession()
@@ -1854,6 +1865,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var activeChineseT9Scheme = ChineseT9Scheme.PINYIN
     private var activeChineseT9SubModeIdentity: String? = null
     private var rimeInputMethodActive = false
+    private var rimeInputBlocked = false
     private var performanceHarnessReadyLogged = false
 
     private fun handleRimeAvailability(data: FcitxEvent.RimeAvailabilityEvent.Data) {
@@ -1863,6 +1875,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (!transition.changed) return
         when (transition.current.state) {
             FcitxEvent.RimeAvailabilityEvent.State.Ready -> {
+                rimeInputBlocked = false
                 chineseT9EngineOperation.onAvailabilityChanged(true)
                 if (rimeInputMethodActive) {
                     enqueueChineseT9OutputScript(
@@ -1880,23 +1893,38 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 chineseT9OutputScriptSession.invalidate()
                 if (transition.leftReady) {
                     chineseT9EngineOperation.discardPending()
-                    discardChineseCompositionForUnavailableRime()
+                    discardChineseCompositionForUnavailableRime(showUnavailableStatus = false)
                 }
             }
             FcitxEvent.RimeAvailabilityEvent.State.Failed,
             FcitxEvent.RimeAvailabilityEvent.State.Unavailable -> {
                 chineseT9OutputScriptSession.invalidate()
                 chineseT9EngineOperation.discardPending()
-                discardChineseCompositionForUnavailableRime()
+                discardChineseCompositionForUnavailableRime(
+                    showUnavailableStatus = chineseT9Composition.hasState() || composing.isNotEmpty()
+                )
             }
         }
+        candidatesView?.refreshT9Ui()
     }
 
-    private fun discardChineseCompositionForUnavailableRime() {
-        if (!chineseT9Composition.hasState() && composing.isEmpty()) return
-        resetComposingState()
-        clearTransientInputUiState()
-        currentInputConnection?.finishComposingText()
+    private fun handleUnavailableRimeOperation() {
+        discardChineseCompositionForUnavailableRime(showUnavailableStatus = true)
+    }
+
+    private fun discardChineseCompositionForUnavailableRime(showUnavailableStatus: Boolean) {
+        val hadComposition = chineseT9Composition.hasState() || composing.isNotEmpty()
+        if (hadComposition) {
+            resetComposingState()
+            clearTransientInputUiState()
+            currentInputConnection?.finishComposingText()
+        }
+        if (showUnavailableStatus) {
+            // A failed engine must remain visible as an engine state, not masquerade as a
+            // successful empty composition that makes physical keys appear broken.
+            rimeInputBlocked = true
+            candidatesView?.refreshT9Ui()
+        }
     }
 
     private fun observeChineseT9InputMethod(uniqueName: String, subModeName: String) {

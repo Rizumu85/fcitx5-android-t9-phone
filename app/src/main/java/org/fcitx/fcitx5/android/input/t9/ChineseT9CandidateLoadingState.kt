@@ -74,6 +74,22 @@ class ChineseT9CandidateLoadingState {
         return releaseIfFresh(data, ticket, enginePreedit)
     }
 
+    fun restoreCachedFrame(
+        data: FcitxEvent.PagedCandidateEvent.Data,
+        ticket: ChineseT9CompositionTicket,
+        enginePreedit: String
+    ): Boolean {
+        if (ticket.digitSequence.isEmpty()) {
+            reset()
+            return true
+        }
+        expectedTicket = ticket
+        candidateEventTicket = ticket
+        state = State.WAITING_FOR_ENGINE
+        engineResultObserved = false
+        return releaseIfFresh(data, ticket, enginePreedit)
+    }
+
     private fun releaseIfFresh(
         data: FcitxEvent.PagedCandidateEvent.Data,
         ticket: ChineseT9CompositionTicket,

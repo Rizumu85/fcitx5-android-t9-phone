@@ -10,6 +10,7 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.text.TextPaint
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -199,6 +200,10 @@ class CandidatesView(
         minHeight = preeditRowHeightPx
         gravity = Gravity.CENTER_VERTICAL or Gravity.START
         includeFontPadding = false
+        // The top bubble is deliberately one row high. Keeping the active tail visible makes
+        // long composition previews useful without allowing TextView wrapping to be clipped.
+        setSingleLine(true)
+        ellipsize = TextUtils.TruncateAt.START
     }
 
     private val preeditUi = PreeditUi(
@@ -495,6 +500,8 @@ class CandidatesView(
         candidateStatusText = { status ->
             when (status) {
                 T9CandidateStatus.NO_MATCH -> ctx.getText(R.string.t9_no_matches)
+                T9CandidateStatus.RIME_PREPARING -> ctx.getText(R.string.t9_rime_preparing)
+                T9CandidateStatus.RIME_UNAVAILABLE -> ctx.getText(R.string.t9_rime_unavailable)
             }
         },
         shortcutCandidateLayout = ::t9ShortcutCandidateLayout,
@@ -582,8 +589,21 @@ class CandidatesView(
     }
 
     override fun onStartHandleFcitxEvent() {
-        val inputPanelData = fcitx.cachedState.inputPanel
-        handleFcitxEvent(FcitxEvent.InputPanelEvent(inputPanelData))
+        val cached = fcitx.cachedState
+        inputPanel = cached.inputPanel
+        paged = cached.pagedCandidates
+        if (service.isChineseT9InputModeActive()) {
+            val ticket = service.getChineseT9InputSnapshot(inputPanel).compositionTicket()
+            chineseT9CandidateLoadingState.restoreCachedFrame(
+                data = paged,
+                ticket = ticket,
+                enginePreedit = inputPanel.preedit.toString()
+            )
+        }
+        // Candidate and preedit events form one presentation frame. Restoring both from the
+        // same cache revision prevents a late-attached IME view from waiting for an event that
+        // Rime already emitted before the surface subscribed.
+        refreshT9Ui()
     }
 
     override fun handleFcitxEvent(it: FcitxEvent<*>) {
@@ -844,7 +864,12 @@ class CandidatesView(
                 } else {
                     null
                 },
-                currentFocus = service.getT9CandidateFocus()
+                currentFocus = service.getT9CandidateFocus(),
+                chineseEngineStatus = if (chineseT9Active) {
+                    service.getChineseT9EngineStatus()
+                } else {
+                    null
+                }
             )
         )
     }
