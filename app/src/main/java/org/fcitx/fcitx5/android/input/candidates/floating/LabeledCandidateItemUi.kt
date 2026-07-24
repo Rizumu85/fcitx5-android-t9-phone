@@ -96,11 +96,18 @@ class LabeledCandidateItemUi(
         t9InputModeEnabled: Boolean = false,
         shortcutLabel: String? = null,
         shortcutMaxWidthPx: Int? = null,
+        shortcutEdgeAlignedStart: Boolean = false,
         shortcutEdgeAlignedEnd: Boolean = false
     ) {
         val usesShortcutLabel = t9InputModeEnabled && shortcutLabel != null
         lastUsesShortcutLabel = usesShortcutLabel
         lastShortcutEdgeAlignedEnd = usesShortcutLabel && shortcutEdgeAlignedEnd
+        if (usesShortcutLabel && shortcutEdgeAlignedStart) {
+            // The first focused chip grows into the row, not through the bubble's leading inset.
+            // This preserves the accepted left margin without adding width that would disturb
+            // measured paging or the pinyin row.
+            root.pivotX = 0f
+        }
         applyShortcutWidthLimit(if (usesShortcutLabel) shortcutMaxWidthPx else null)
         applyShortcutLineMetrics(usesShortcutLabel)
         root.gravity = if (usesShortcutLabel) Gravity.CENTER else Gravity.CENTER_VERTICAL

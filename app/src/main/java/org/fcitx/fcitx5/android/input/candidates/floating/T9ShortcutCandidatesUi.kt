@@ -246,6 +246,7 @@ class T9ShortcutCandidatesUi(
                 t9InputModeEnabled = true,
                 shortcutLabel = row.shortcutLabel,
                 shortcutMaxWidthPx = layout.maxCandidateWidthPx,
+                shortcutEdgeAlignedStart = displayIndex == 0,
                 shortcutEdgeAlignedEnd = edgeAlignedEnd
             )
             root.setOnClickListener {
