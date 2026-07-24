@@ -13,6 +13,7 @@ import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognitionModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.util.concurrent.Executor
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -34,14 +35,24 @@ class MlKitHandwritingModelManager(
 
     internal fun model(): DigitalInkRecognitionModel = model
 
-    suspend fun isDownloaded(): Boolean = withContext(dispatcher) {
-        remoteModelManager.isModelDownloaded(model).await()
+    suspend fun isDownloaded(): Boolean = withTimeout(ModelStatusTimeoutMillis) {
+        withContext(dispatcher) {
+            remoteModelManager.isModelDownloaded(model).await()
+        }
     }
 
-    suspend fun download() = withContext(dispatcher) {
-        remoteModelManager.download(model, DownloadConditions.Builder().build()).await()
+    suspend fun download() = withTimeout(ModelDownloadTimeoutMillis) {
+        withContext(dispatcher) {
+            remoteModelManager.download(model, DownloadConditions.Builder().build()).await()
+        }
     }
 
+    private companion object {
+        // ML Kit delegates to its own downloader, which can leave a Google Task unresolved on
+        // restricted networks. Bounds keep Settings retryable without constraining normal models.
+        const val ModelStatusTimeoutMillis = 2 * 60 * 1000L
+        const val ModelDownloadTimeoutMillis = 15 * 60 * 1000L
+    }
 }
 
 private val HandwritingLanguage.modelLanguageTag: String

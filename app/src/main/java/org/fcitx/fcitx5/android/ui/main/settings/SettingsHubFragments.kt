@@ -6,6 +6,7 @@
 package org.fcitx.fcitx5.android.ui.main.settings
 
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.View
 import android.widget.Toast
 import androidx.annotation.DrawableRes
@@ -14,7 +15,10 @@ import androidx.lifecycle.lifecycleScope
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceScreen
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
@@ -28,6 +32,20 @@ import org.fcitx.fcitx5.android.utils.buildDocumentsProviderIntent
 import org.fcitx.fcitx5.android.utils.lazyRoute
 import org.fcitx.fcitx5.android.utils.navigateWithAnim
 import org.fcitx.fcitx5.android.utils.toast
+import timber.log.Timber
+
+internal enum class HandwritingModelUiState {
+    CHECKING,
+    AVAILABLE,
+    MISSING,
+    DOWNLOADING,
+    FAILED
+}
+
+internal object HandwritingModelRequestPolicy {
+    fun canDownload(state: HandwritingModelUiState): Boolean =
+        state == HandwritingModelUiState.MISSING || state == HandwritingModelUiState.FAILED
+}
 
 abstract class SettingsHubFragment : PaddingPreferenceFragment() {
     protected fun PreferenceCategory.addDestination(
@@ -46,8 +64,6 @@ abstract class SettingsHubFragment : PaddingPreferenceFragment() {
 }
 
 class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
-    private enum class HandwritingModelUiState { CHECKING, AVAILABLE, MISSING, DOWNLOADING, FAILED }
-
     private data class HandwritingModelEntry(
         val language: HandwritingLanguage,
         val manager: MlKitHandwritingModelManager,
@@ -55,7 +71,8 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
         var preference: Preference? = null,
         var job: Job? = null,
         var uiState: HandwritingModelUiState = HandwritingModelUiState.CHECKING,
-        var downloadRequestConsumed: Boolean = false
+        var downloadRequestConsumed: Boolean = false,
+        var requestGeneration: Long = 0L
     )
 
     private val prefs = AppPrefs.getInstance()
@@ -176,11 +193,7 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
                         )
                         isIconSpaceReserved = false
                         setOnPreferenceClickListener {
-                            if (
-                                entry.job?.isActive != true &&
-                                (entry.uiState == HandwritingModelUiState.MISSING ||
-                                    entry.uiState == HandwritingModelUiState.FAILED)
-                            ) {
+                            if (HandwritingModelRequestPolicy.canDownload(entry.uiState)) {
                                 downloadHandwritingModel(entry)
                             }
                             true
@@ -207,38 +220,66 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
 
     private fun refreshHandwritingModelState(entry: HandwritingModelEntry) {
         if (entry.preference == null || entry.job?.isActive == true) return
-        renderHandwritingModelState(entry, HandwritingModelUiState.CHECKING)
-        entry.job = lifecycleScope.launch {
-            val state = runCatching { entry.manager.isDownloaded() }
-                .fold(
-                    onSuccess = { downloaded ->
-                        if (downloaded) HandwritingModelUiState.AVAILABLE
-                        else HandwritingModelUiState.MISSING
-                    },
-                    onFailure = { HandwritingModelUiState.FAILED }
-                )
-            renderHandwritingModelState(entry, state)
+        launchHandwritingModelRequest(
+            entry = entry,
+            initialState = HandwritingModelUiState.CHECKING
+        ) {
+            val downloaded = entry.manager.isDownloaded()
+            if (downloaded) HandwritingModelUiState.AVAILABLE
+            else HandwritingModelUiState.MISSING
+        }.invokeOnCompletion {
+            val state = entry.uiState
             if (
                 requestedHandwritingLanguage == entry.language &&
                 !entry.downloadRequestConsumed &&
                 state == HandwritingModelUiState.MISSING
             ) {
                 entry.downloadRequestConsumed = true
-                downloadHandwritingModel(entry)
+                view?.post { downloadHandwritingModel(entry) }
             }
         }
     }
 
     private fun downloadHandwritingModel(entry: HandwritingModelEntry) {
-        renderHandwritingModelState(entry, HandwritingModelUiState.DOWNLOADING)
-        entry.job = lifecycleScope.launch {
-            val state = runCatching { entry.manager.download() }
-                .fold(
-                    onSuccess = { HandwritingModelUiState.AVAILABLE },
-                    onFailure = { HandwritingModelUiState.FAILED }
-                )
-            renderHandwritingModelState(entry, state)
+        launchHandwritingModelRequest(
+            entry = entry,
+            initialState = HandwritingModelUiState.DOWNLOADING,
+            minimumStateDurationMillis = DownloadFeedbackMillis
+        ) {
+            entry.manager.download()
+            HandwritingModelUiState.AVAILABLE
         }
+    }
+
+    private fun launchHandwritingModelRequest(
+        entry: HandwritingModelEntry,
+        initialState: HandwritingModelUiState,
+        minimumStateDurationMillis: Long = 0,
+        request: suspend () -> HandwritingModelUiState
+    ): Job {
+        val generation = ++entry.requestGeneration
+        entry.job?.cancel()
+        renderHandwritingModelState(entry, initialState)
+        val job = lifecycleScope.launch(start = CoroutineStart.LAZY) {
+            val startedAt = SystemClock.elapsedRealtime()
+            val result = try {
+                request()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Throwable) {
+                Timber.w(error, "ML Kit handwriting model request failed for ${entry.language}")
+                HandwritingModelUiState.FAILED
+            }
+            val remainingFeedback = minimumStateDurationMillis -
+                (SystemClock.elapsedRealtime() - startedAt)
+            if (remainingFeedback > 0) delay(remainingFeedback)
+            if (entry.requestGeneration == generation) {
+                renderHandwritingModelState(entry, result)
+            }
+        }
+        entry.job = job
+        job.start()
+        return job
     }
 
     private fun renderHandwritingModelState(
@@ -265,6 +306,7 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
     }
 
     private companion object {
+        const val DownloadFeedbackMillis = 400L
         const val ChineseHandwritingModelPreferenceKey = "handwriting_chinese_model"
         const val EnglishHandwritingModelPreferenceKey = "handwriting_english_model"
     }
