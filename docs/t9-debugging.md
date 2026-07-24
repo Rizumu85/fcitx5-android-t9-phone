@@ -49,6 +49,22 @@ When there are duplicate wireless-debugging transports, pass `-s` explicitly:
 adb -s 192.168.x.x:PORT shell input keyboard keyevent KEYCODE_4
 ```
 
+For repeatable text cases, focus a safe unsent draft and run the smoke harness.
+It injects paced keyboard-source digits and captures the resulting frame, but
+never clears, commits, presses Return, or sends:
+
+```bash
+ADB_SERIAL=192.168.x.x:PORT ./scripts/t9-text-smoke.sh pinyin-nihao
+ADB_SERIAL=192.168.x.x:PORT ./scripts/t9-text-smoke.sh pinyin-separator
+ADB_SERIAL=192.168.x.x:PORT ./scripts/t9-text-smoke.sh pinyin-long
+ADB_SERIAL=192.168.x.x:PORT ./scripts/t9-text-smoke.sh pinyin-folded
+ADB_SERIAL=192.168.x.x:PORT ./scripts/t9-text-smoke.sh english-hello
+```
+
+The first four cases expect Pinyin mode. `english-hello` expects Smart English.
+Use `T9_KEY_DELAY_SECONDS` only to compare realistic slow-device pacing; do not
+remove the delay and mistake ADB command saturation for a physical-key bug.
+
 ## ADB Rime Data Imports
 
 Files copied into the debug Rime directory with `adb push` are owned by
@@ -75,6 +91,13 @@ cannot reach Rime. If inline preedit exists but the candidate bubble is absent,
 capture both `InputPanelEvent` and `PagedCandidateEvent`: they are cached and
 restored together, so a missing half indicates an engine publication problem
 rather than a view-subscription timing issue.
+
+Rime `Ready` is not sufficient to release queued T9 digits. The active input
+method must be Rime and its schema must be exactly `t9`, `t9_stroke`, or
+`t9_zhuyin`. A generic schema such as Rime Ice Pinyin is a recovery state, not a
+Pinyin T9 alias. The app activates Rime, selects the intended schema through the
+typed plugin API, and only then drains queued physical input. This also recovers
+when Android binds the plugin after an early `Unavailable` callback.
 
 ## Release-like Rime Performance Fixture
 
