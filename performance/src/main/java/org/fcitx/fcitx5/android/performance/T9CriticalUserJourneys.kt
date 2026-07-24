@@ -19,6 +19,8 @@ object T9CriticalUserJourneys {
     private fun pinyin(driver: ImePerformanceDriver) {
         driver.keySequence("435")
         driver.confirm()
+        driver.pacedKeySequence("946649366674494233")
+        driver.clearComposition()
     }
 
     private fun stroke(driver: ImePerformanceDriver) {

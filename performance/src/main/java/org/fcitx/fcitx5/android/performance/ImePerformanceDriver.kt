@@ -165,6 +165,18 @@ class ImePerformanceDriver(
         sequence.forEach { key(it.digitToInt()) }
     }
 
+    fun pacedKeySequence(sequence: String, delayMs: Int = FAST_KEY_DELAY_MS) {
+        require(sequence.isNotEmpty() && sequence.all(Char::isDigit))
+        require(delayMs >= 0)
+        val keyCodes = sequence.asIterable().joinToString(separator = " ") { digit ->
+            (KEYCODE_0 + digit.digitToInt()).toString()
+        }
+        // One shell process preserves the requested cadence. Launching adb/input once per key
+        // adds host scheduling gaps that hide queue pressure in the real physical-key path.
+        shell("input keyboard keyevent --delay $delayMs $keyCodes")
+        SystemClock.sleep(KEY_SETTLE_MS)
+    }
+
     fun key(digit: Int) {
         require(digit in 0..9)
         physicalKey(KEYCODE_0 + digit)
@@ -303,6 +315,7 @@ class ImePerformanceDriver(
         const val HANDWRITING_RECOGNITION_SETTLE_MS = 1_200L
 
         const val KEY_SETTLE_MS = 140L
+        const val FAST_KEY_DELAY_MS = 55
         const val MODE_SETTLE_MS = 900L
         const val IME_SELECTION_SETTLE_MS = 250L
         const val DEVICE_WAKE_SETTLE_MS = 300L

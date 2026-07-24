@@ -155,10 +155,41 @@ Useful trace names to compare:
 
 The primary report measures physical-key decision, engine-source wait,
 snapshot construction, render work, and the following frame callback as one
-generation-owned transaction. The developer report exposes a partial window
-immediately; logcat emits aggregate summaries every 20 completed inputs. Test
-with a short, repeatable sequence first, such as one first-letter Chinese T9
-case, one folded pinyin-row case, and `43556` for Smart English `hello`.
+generation-owned transaction. Chinese engine-source wait is further split:
+
+- `queue`: time after the input effect until its typed command starts in the
+  serialized Fcitx operation lane.
+- `engine`: time spent dispatching that command to Fcitx/Rime. A physical
+  short press includes both down and up in this one transaction.
+- `callback`: time from dispatch completion until the matching candidate frame
+  is accepted.
+
+The accepted candidate frame carries the same composition/trace receipt as the
+command, so an old callback cannot finish a newer key's trace. The developer
+report exposes a partial window immediately; logcat emits aggregate summaries
+every 20 completed inputs. Test with a short, repeatable sequence first, such as
+one first-letter Chinese T9 case, one folded pinyin-row case, and `43556` for
+Smart English `hello`.
+
+The maintained Rime configuration keeps `menu/page_size` at 10, matching the
+ten physical shortcuts. The visible T9 page still applies the user's independent
+character/width budget locally, while cross-page reading filters fetch further
+engine pages when needed. On the reference phone, the same 20-key Pinyin burst
+reduced average source wait from about 34.5 ms to 24.5 ms after changing the
+engine page from 24 to 10; native dispatch fell from roughly 25-28 ms to 18 ms.
+Repeat this comparison with the isolated Rime fixture before changing the
+engine page again, not against a user's formal dictionary.
+
+The performance module uses one keyboard-source shell process for sustained
+input:
+
+```text
+input keyboard keyevent --delay 55 <keycodes...>
+```
+
+This avoids per-command ADB process gaps and exercises queue pressure at a
+realistic fast-typing cadence. `ChineseT9TypingBenchmark` covers the maintained
+long Pinyin sequence with `FrameTimingMetric` and `ArtMetric`.
 
 ## Screen Recording and Frame Analysis
 
