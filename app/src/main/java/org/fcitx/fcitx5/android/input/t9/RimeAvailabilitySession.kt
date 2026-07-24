@@ -11,6 +11,14 @@ class RimeAvailabilitySession(
     initial: FcitxEvent.RimeAvailabilityEvent.Data =
         FcitxEvent.RimeAvailabilityEvent.Data.Unavailable
 ) {
+    enum class EngineReadiness {
+        DEPLOYING,
+        ACTIVATING_INPUT_METHOD,
+        SELECTING_SCHEMA,
+        READY,
+        UNAVAILABLE
+    }
+
     data class Snapshot(
         val state: FcitxEvent.RimeAvailabilityEvent.State,
         val activeSchema: String,
@@ -44,7 +52,13 @@ class RimeAvailabilitySession(
 
     fun update(data: FcitxEvent.RimeAvailabilityEvent.Data): Transition {
         val previous = current
-        val schema = data.activeSchema.trim().ifEmpty { previous.activeSchema }
+        val publishedSchema = data.activeSchema.trim()
+        val schema = when {
+            publishedSchema.isNotEmpty() -> publishedSchema
+            data.state == FcitxEvent.RimeAvailabilityEvent.State.Ready ->
+                previous.activeSchema
+            else -> ""
+        }
         if (previous.state == data.state && previous.activeSchema == schema) {
             return Transition(previous, previous)
         }
@@ -59,7 +73,7 @@ class RimeAvailabilitySession(
     fun observeActiveSchema(schema: String): Transition {
         val previous = current
         val normalized = schema.trim()
-        if (normalized.isEmpty() || normalized == previous.activeSchema) {
+        if (normalized == previous.activeSchema) {
             return Transition(previous, previous)
         }
         current = previous.copy(
@@ -67,5 +81,25 @@ class RimeAvailabilitySession(
             generation = previous.generation + 1L
         )
         return Transition(previous, current)
+    }
+
+    fun engineReadiness(
+        rimeInputMethodActive: Boolean,
+        expectedScheme: ChineseT9Scheme
+    ): EngineReadiness {
+        if (current.state == FcitxEvent.RimeAvailabilityEvent.State.Deploying) {
+            return EngineReadiness.DEPLOYING
+        }
+        if (!rimeInputMethodActive) return EngineReadiness.ACTIVATING_INPUT_METHOD
+        if (
+            current.state == FcitxEvent.RimeAvailabilityEvent.State.Ready &&
+            expectedScheme.matchesRimeIdentity(current.activeSchema)
+        ) {
+            return EngineReadiness.READY
+        }
+        // An exact IMChange can arrive after an early Unavailable callback when Android binds the
+        // plugin late. A typed schema selection is the proof that separates that race from a
+        // genuinely unavailable or outdated plugin.
+        return EngineReadiness.SELECTING_SCHEMA
     }
 }

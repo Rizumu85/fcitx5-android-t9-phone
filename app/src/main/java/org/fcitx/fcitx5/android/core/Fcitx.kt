@@ -149,6 +149,8 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
     ): Boolean = withFcitxContext { Fcitx.replaceRimeInput(start, length, text, caretPos) }
     override suspend fun setRimeOption(name: String, enabled: Boolean): Boolean =
         withFcitxContext { Fcitx.setRimeOption(name, enabled) }
+    override suspend fun setRimeSchema(schema: String): Boolean =
+        withFcitxContext { Fcitx.setRimeSchema(schema) }
     override suspend fun availableIme() =
         withFcitxContext { availableInputMethods() ?: emptyArray() }
 
@@ -338,6 +340,9 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
 
         @JvmStatic
         external fun setRimeOption(name: String, enabled: Boolean): Boolean
+
+        @JvmStatic
+        external fun setRimeSchema(schema: String): Boolean
 
         @JvmStatic
         external fun toggleInputMethod()

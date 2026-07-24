@@ -7563,7 +7563,7 @@ HSPLorg/fcitx/fcitx5/android/input/t9/ChineseT9Scheme;->values()[Lorg/fcitx/fcit
 Lorg/fcitx/fcitx5/android/input/t9/ChineseT9Scheme$Companion;
 HSPLorg/fcitx/fcitx5/android/input/t9/ChineseT9Scheme$Companion;-><init>()V
 HSPLorg/fcitx/fcitx5/android/input/t9/ChineseT9Scheme$Companion;-><init>(Lkotlin/jvm/internal/DefaultConstructorMarker;)V
-HSPLorg/fcitx/fcitx5/android/input/t9/ChineseT9Scheme$Companion;->fromRimeIdentity(Ljava/lang/String;)Lorg/fcitx/fcitx5/android/input/t9/ChineseT9Scheme;
+HSPLorg/fcitx/fcitx5/android/input/t9/ChineseT9Scheme$Companion;->fromRimeIdentityOrNull(Ljava/lang/String;)Lorg/fcitx/fcitx5/android/input/t9/ChineseT9Scheme;
 PLorg/fcitx/fcitx5/android/input/t9/ChineseT9SchemeCycle;-><clinit>()V
 PLorg/fcitx/fcitx5/android/input/t9/ChineseT9SchemeCycle;-><init>()V
 PLorg/fcitx/fcitx5/android/input/t9/ChineseT9SchemeCycle;->findAction([Lorg/fcitx/fcitx5/android/core/Action;Lorg/fcitx/fcitx5/android/input/t9/ChineseT9Scheme;)Lorg/fcitx/fcitx5/android/core/Action;

@@ -38,6 +38,77 @@ class RimeAvailabilitySessionTest {
     }
 
     @Test
+    fun deploymentClearsTheSchemaFromThePreviousEngineGeneration() {
+        val session = RimeAvailabilitySession(
+            data(FcitxEvent.RimeAvailabilityEvent.State.Ready, "t9_stroke")
+        )
+
+        session.update(data(FcitxEvent.RimeAvailabilityEvent.State.Deploying))
+        session.update(data(FcitxEvent.RimeAvailabilityEvent.State.Ready))
+
+        assertEquals("", session.current.activeSchema)
+        assertEquals(
+            RimeAvailabilitySession.EngineReadiness.SELECTING_SCHEMA,
+            session.engineReadiness(
+                rimeInputMethodActive = true,
+                expectedScheme = ChineseT9Scheme.STROKE
+            )
+        )
+    }
+
+    @Test
+    fun genericPinyinIsNotReadyForPhysicalT9Digits() {
+        val session = RimeAvailabilitySession(
+            data(FcitxEvent.RimeAvailabilityEvent.State.Ready, "雾凇拼音")
+        )
+
+        assertEquals(
+            RimeAvailabilitySession.EngineReadiness.SELECTING_SCHEMA,
+            session.engineReadiness(
+                rimeInputMethodActive = true,
+                expectedScheme = ChineseT9Scheme.PINYIN
+            )
+        )
+    }
+
+    @Test
+    fun exactT9SchemaAndActiveRimeAreBothRequired() {
+        val session = RimeAvailabilitySession(
+            data(FcitxEvent.RimeAvailabilityEvent.State.Ready, "t9")
+        )
+
+        assertEquals(
+            RimeAvailabilitySession.EngineReadiness.ACTIVATING_INPUT_METHOD,
+            session.engineReadiness(
+                rimeInputMethodActive = false,
+                expectedScheme = ChineseT9Scheme.PINYIN
+            )
+        )
+        assertEquals(
+            RimeAvailabilitySession.EngineReadiness.READY,
+            session.engineReadiness(
+                rimeInputMethodActive = true,
+                expectedScheme = ChineseT9Scheme.PINYIN
+            )
+        )
+    }
+
+    @Test
+    fun exactImeObservationCanRecoverFromAnEarlyUnavailableCallback() {
+        val session = RimeAvailabilitySession(
+            data(FcitxEvent.RimeAvailabilityEvent.State.Unavailable, "t9")
+        )
+
+        assertEquals(
+            RimeAvailabilitySession.EngineReadiness.SELECTING_SCHEMA,
+            session.engineReadiness(
+                rimeInputMethodActive = true,
+                expectedScheme = ChineseT9Scheme.PINYIN
+            )
+        )
+    }
+
+    @Test
     fun repeatedPublicationDoesNotAdvanceGeneration() {
         val initial = data(FcitxEvent.RimeAvailabilityEvent.State.Ready, "t9_stroke")
         val session = RimeAvailabilitySession(initial)

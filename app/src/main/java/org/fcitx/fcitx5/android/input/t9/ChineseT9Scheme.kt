@@ -10,7 +10,7 @@ import org.fcitx.fcitx5.android.R
 
 enum class ChineseT9Scheme(
     @StringRes val compactLabelRes: Int,
-    private val rimeSchemaId: String,
+    val rimeSchemaId: String,
     private val rimeSubModeNames: Set<String>,
     val compositionDigits: IntRange,
     val supportsReadingFilter: Boolean
@@ -48,9 +48,7 @@ enum class ChineseT9Scheme(
         identity.trim().let { it == rimeSchemaId || it in rimeSubModeNames }
 
     companion object {
-        fun fromRimeIdentity(identity: String): ChineseT9Scheme =
+        fun fromRimeIdentityOrNull(identity: String): ChineseT9Scheme? =
             entries.firstOrNull { scheme -> scheme.matchesRimeIdentity(identity) }
-                // Existing third-party Pinyin schema names must retain the old T9 behavior.
-                ?: PINYIN
     }
 }

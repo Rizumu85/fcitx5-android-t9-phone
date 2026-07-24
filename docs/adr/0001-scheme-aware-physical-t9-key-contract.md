@@ -207,6 +207,15 @@ case the original change event was missed. Stroke and Zhuyin raw sessions store
 only their digit codes; short `#` is a terminal literal-code commit and does not
 add a second boundary syntax that local Backspace would need to mirror.
 
+Engine readiness requires three proofs: the app is in Chinese mode, Rime owns
+the active Fcitx input context, and the exact intended T9 schema is active.
+Generic Rime Pinyin and an empty schema are transition states, never aliases for
+Pinyin T9. Physical operations remain queued while the service activates Rime
+and selects the intended schema through a typed plugin API. The typed selection
+also repairs an Android plugin-bind race where an early `Unavailable` callback
+is followed by a valid Rime input-method event; no translated status-action
+label or legacy fallback participates in that recovery.
+
 ### 7. Keep key latency independent of dictionary size
 
 The physical-key reducer performs O(1) classification and compact session

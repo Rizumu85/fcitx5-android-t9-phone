@@ -85,6 +85,10 @@ one revisioned presentation source so a recreated candidate surface can restore
 the last complete engine state instead of waiting for an event already emitted.
 While Rime is deploying or unavailable, the candidate snapshot shows the
 engine state explicitly rather than presenting an unexplained empty surface.
+Engine readiness requires the active Rime input method and the exact intended
+T9 schema. Generic or empty Rime schemas remain recovery states; the service
+activates Rime, uses the typed plugin schema API, and drains queued physical
+input only after that exact selection succeeds.
 
 Each Chinese scheme has an independent Simplified/Traditional default.
 `ChineseT9OutputScriptPolicy` hides Rime option polarity, while

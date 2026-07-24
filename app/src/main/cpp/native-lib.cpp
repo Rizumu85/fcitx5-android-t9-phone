@@ -487,6 +487,20 @@ public:
         }
     }
 
+    bool setRimeSchema(const std::string &schema) {
+        if (!p_frontend || !p_rime) return false;
+        auto *ic = p_frontend->call<fcitx::IAndroidFrontend::activeInputContext>();
+        if (!ic) return false;
+        try {
+            return p_rime->call<fcitx::IRimeEngine::setSchema>(ic, schema);
+        } catch (const std::exception &error) {
+            // The app and plugin are independently installed. Refuse physical T9 input when an
+            // older plugin cannot prove that it selected the requested T9 schema.
+            FCITX_ERROR() << "Rime schema API unavailable: " << error.what();
+            return false;
+        }
+    }
+
     void setRimeAvailabilityCallback(fcitx::RimeAvailabilityCallback callback) {
         if (!p_rime) {
             callback(fcitx::RimeAvailability::Unavailable);
@@ -934,6 +948,13 @@ JNIEXPORT jboolean JNICALL
 Java_org_fcitx_fcitx5_android_core_Fcitx_setRimeOption(JNIEnv *env, jclass clazz, jstring name, jboolean enabled) {
     RETURN_VALUE_IF_NOT_RUNNING(false)
     return Fcitx::Instance().setRimeOption(CString(env, name), enabled);
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_org_fcitx_fcitx5_android_core_Fcitx_setRimeSchema(JNIEnv *env, jclass clazz, jstring schema) {
+    RETURN_VALUE_IF_NOT_RUNNING(false)
+    return Fcitx::Instance().setRimeSchema(CString(env, schema));
 }
 
 extern "C"
