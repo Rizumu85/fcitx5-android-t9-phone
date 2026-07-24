@@ -69,6 +69,13 @@ unchanged configuration should not report `failed to save config to stream`,
 and Rime-ready should follow Fcitx-ready without another maintenance pass. Use
 the release package path without `.debug` when diagnosing the release IME.
 
+The candidate surface now reports **Chinese dictionary is getting ready** while
+Rime deploys and **Chinese dictionary unavailable** after an attempted input
+cannot reach Rime. If inline preedit exists but the candidate bubble is absent,
+capture both `InputPanelEvent` and `PagedCandidateEvent`: they are cached and
+restored together, so a missing half indicates an engine publication problem
+rather than a view-subscription timing issue.
+
 ## Release-like Rime Performance Fixture
 
 Performance collection must not borrow the already-deployed formal or debug

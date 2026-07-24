@@ -80,7 +80,11 @@ behind the coordinator.
 selection, and replay. Operations carry composition/source tickets and reject
 stale work before publishing UI effects. `ChineseT9CandidateFreshness` and
 `ChineseT9CandidateFrameGate` prevent a new preview from being displayed with
-an old candidate page.
+an old candidate page. Fcitx caches input-panel and paged-candidate events as
+one revisioned presentation source so a recreated candidate surface can restore
+the last complete engine state instead of waiting for an event already emitted.
+While Rime is deploying or unavailable, the candidate snapshot shows the
+engine state explicitly rather than presenting an unexplained empty surface.
 
 Each Chinese scheme has an independent Simplified/Traditional default.
 `ChineseT9OutputScriptPolicy` hides Rime option polarity, while
@@ -132,6 +136,8 @@ Replaced callbacks cannot consume a newer trace or render request.
 `T9CandidateUiRenderer` chooses the minimal region changes for one snapshot.
 `T9CandidateSurfaceAndroidAdapter` renders the top, reading, candidate, and
 shortcut rows; `CandidatesView` remains the floating Android window host.
+The compact top preview is always a single-line viewport and keeps the active
+tail visible when a long reading exceeds the screen width.
 
 Geometry is centralized:
 
