@@ -7,6 +7,9 @@ package org.fcitx.fcitx5.android.input.t9
 
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -17,10 +20,10 @@ class ChineseT9CandidateLoadingStateTest {
         val state = ChineseT9CandidateLoadingState()
         val ticket = ticket(ChineseT9Scheme.PINYIN, "94664")
 
-        assertTrue(
+        assertNotNull(
             state.restoreCachedFrame(
                 data = paged("中", "zhong"),
-                ticket = ticket,
+                receipt = receipt(ticket),
                 enginePreedit = "zhong"
             )
         )
@@ -39,9 +42,9 @@ class ChineseT9CandidateLoadingStateTest {
     fun longPinyinFrameReleasesFromCurrentEnginePreeditDespiteAmbiguousComment() {
         val state = ChineseT9CandidateLoadingState()
         val ticket = ticket(ChineseT9Scheme.PINYIN, "946649366674494233")
-        state.startIfNeeded(chineseT9Active = true, ticket = ticket)
+        state.startIfNeeded(chineseT9Active = true, receipt = receipt(ticket))
 
-        assertTrue(
+        assertNotNull(
             state.onEngineCandidates(
                 data = paged("中叶弄湿下的", "zhong ye nong shi xia de"),
                 ticket = ticket,
@@ -57,7 +60,7 @@ class ChineseT9CandidateLoadingStateTest {
 
         state.startIfNeeded(
             chineseT9Active = true,
-            ticket = ticket(ChineseT9Scheme.PINYIN, "64")
+            receipt = receipt(ticket(ChineseT9Scheme.PINYIN, "64"))
         )
 
         assertTrue(state.shouldWaitForCandidates(
@@ -74,7 +77,7 @@ class ChineseT9CandidateLoadingStateTest {
             enginePreedit = "ni"
         )
 
-        assertTrue(sourceReady)
+        assertNotNull(sourceReady)
         assertFalse(state.shouldWaitForCandidates(
             chineseT9Active = true,
             compositionKeyCount = 1,
@@ -102,7 +105,7 @@ class ChineseT9CandidateLoadingStateTest {
         val state = ChineseT9CandidateLoadingState()
         state.startIfNeeded(
             chineseT9Active = true,
-            ticket = ticket(ChineseT9Scheme.PINYIN, "64")
+            receipt = receipt(ticket(ChineseT9Scheme.PINYIN, "64"))
         )
 
         assertFalse(state.shouldWaitForCandidates(
@@ -127,7 +130,7 @@ class ChineseT9CandidateLoadingStateTest {
 
         state.startIfNeeded(
             chineseT9Active = true,
-            ticket = ticket(ChineseT9Scheme.PINYIN, "435")
+            receipt = receipt(ticket(ChineseT9Scheme.PINYIN, "435"))
         )
         val staleSourceReady = state.onEngineCandidates(
             data = paged("个", comment = "ge"),
@@ -135,7 +138,7 @@ class ChineseT9CandidateLoadingStateTest {
             enginePreedit = "ge"
         )
 
-        assertFalse(staleSourceReady)
+        assertNull(staleSourceReady)
         assertTrue(state.shouldWaitForCandidates(
             chineseT9Active = true,
             compositionKeyCount = 3,
@@ -165,7 +168,7 @@ class ChineseT9CandidateLoadingStateTest {
 
         state.startIfNeeded(
             chineseT9Active = true,
-            ticket = ticket(ChineseT9Scheme.STROKE, "12")
+            receipt = receipt(ticket(ChineseT9Scheme.STROKE, "12"))
         )
         state.onEngineCandidates(
             data = paged("一"),
@@ -183,7 +186,7 @@ class ChineseT9CandidateLoadingStateTest {
 
         state.startIfNeeded(
             chineseT9Active = true,
-            ticket = ticket(ChineseT9Scheme.STROKE, "16", revision = 2)
+            receipt = receipt(ticket(ChineseT9Scheme.STROKE, "16", revision = 2))
         )
         state.onEngineCandidates(
             data = paged("不"),
@@ -199,7 +202,7 @@ class ChineseT9CandidateLoadingStateTest {
 
         state.startIfNeeded(
             chineseT9Active = true,
-            ticket = ticket(ChineseT9Scheme.ZHUYIN, "38")
+            receipt = receipt(ticket(ChineseT9Scheme.ZHUYIN, "38"))
         )
         state.onEngineCandidates(
             data = paged("个", comment = "ㄍㄜ"),
@@ -222,7 +225,7 @@ class ChineseT9CandidateLoadingStateTest {
 
         state.startIfNeeded(
             chineseT9Active = true,
-            ticket = ticket(ChineseT9Scheme.STROKE, "12")
+            receipt = receipt(ticket(ChineseT9Scheme.STROKE, "12"))
         )
         state.onEngineCandidates(
             data = emptyPaged(),
@@ -246,8 +249,8 @@ class ChineseT9CandidateLoadingStateTest {
         val state = ChineseT9CandidateLoadingState()
         val old = ticket(ChineseT9Scheme.STROKE, "1", revision = 1)
         val current = ticket(ChineseT9Scheme.STROKE, "12", revision = 2)
-        state.startIfNeeded(chineseT9Active = true, ticket = old)
-        state.startIfNeeded(chineseT9Active = true, ticket = current)
+        state.startIfNeeded(chineseT9Active = true, receipt = receipt(old))
+        state.startIfNeeded(chineseT9Active = true, receipt = receipt(current))
 
         state.onEngineCandidates(
             data = paged("一"),
@@ -263,7 +266,7 @@ class ChineseT9CandidateLoadingStateTest {
         val state = ChineseT9CandidateLoadingState()
         val ticket = ticket(ChineseT9Scheme.STROKE, "12")
         val candidates = paged("下")
-        state.startIfNeeded(chineseT9Active = true, ticket = ticket)
+        state.startIfNeeded(chineseT9Active = true, receipt = receipt(ticket))
         state.onEngineCandidates(
             data = candidates,
             ticket = ticket,
@@ -277,7 +280,7 @@ class ChineseT9CandidateLoadingStateTest {
             enginePreedit = "一丨"
         )
 
-        assertTrue(sourceReady)
+        assertNotNull(sourceReady)
         assertFalse(waiting(state, compositionKeyCount = 2))
     }
 
@@ -285,7 +288,7 @@ class ChineseT9CandidateLoadingStateTest {
     fun inputPanelAloneCannotReuseCandidatesFromBeforeTicket() {
         val state = ChineseT9CandidateLoadingState()
         val ticket = ticket(ChineseT9Scheme.STROKE, "12")
-        state.startIfNeeded(chineseT9Active = true, ticket = ticket)
+        state.startIfNeeded(chineseT9Active = true, receipt = receipt(ticket))
 
         state.onEngineInputPanel(
             data = paged("下"),
@@ -293,6 +296,65 @@ class ChineseT9CandidateLoadingStateTest {
             enginePreedit = "一丨"
         )
 
+        assertTrue(waiting(state, compositionKeyCount = 2))
+    }
+
+    @Test
+    fun acceptedFrameReturnsTheReceiptThatStartedItsGeneration() {
+        val state = ChineseT9CandidateLoadingState()
+        val ticket = ticket(ChineseT9Scheme.PINYIN, "64")
+        val receipt = receipt(ticket, traceInputId = 42L)
+        state.startIfNeeded(chineseT9Active = true, receipt = receipt)
+
+        val accepted = state.onEngineCandidates(
+            data = paged("你", comment = "ni"),
+            ticket = ticket,
+            enginePreedit = "ni"
+        )
+
+        assertSame(receipt, accepted)
+    }
+
+    @Test
+    fun acceptedGenerationCannotPublishASecondSourceFrame() {
+        val state = ChineseT9CandidateLoadingState()
+        val ticket = ticket(ChineseT9Scheme.PINYIN, "64")
+        state.startIfNeeded(
+            chineseT9Active = true,
+            receipt = receipt(ticket, traceInputId = 42L)
+        )
+        state.onEngineCandidates(
+            data = paged("你", comment = "ni"),
+            ticket = ticket,
+            enginePreedit = "ni"
+        )
+
+        val duplicate = state.onEngineInputPanel(
+            data = paged("你", comment = "ni"),
+            ticket = ticket,
+            enginePreedit = "ni"
+        )
+
+        assertNull(duplicate)
+    }
+
+    @Test
+    fun staleFrameCannotClaimTheCurrentReceipt() {
+        val state = ChineseT9CandidateLoadingState()
+        val staleTicket = ticket(ChineseT9Scheme.PINYIN, "4", revision = 1)
+        val currentTicket = ticket(ChineseT9Scheme.PINYIN, "43", revision = 2)
+        state.startIfNeeded(
+            chineseT9Active = true,
+            receipt = receipt(currentTicket, traceInputId = 9L)
+        )
+
+        val accepted = state.onEngineCandidates(
+            data = paged("个", comment = "ge"),
+            ticket = staleTicket,
+            enginePreedit = "ge"
+        )
+
+        assertNull(accepted)
         assertTrue(waiting(state, compositionKeyCount = 2))
     }
 
@@ -317,6 +379,11 @@ class ChineseT9CandidateLoadingStateTest {
         digitSequence = digits,
         sessionRevision = revision
     )
+
+    private fun receipt(
+        ticket: ChineseT9CompositionTicket,
+        traceInputId: Long? = null
+    ): ChineseT9InputReceipt = ChineseT9InputReceipt(ticket, traceInputId)
 
     private fun paged(text: String, comment: String = ""): FcitxEvent.PagedCandidateEvent.Data =
         FcitxEvent.PagedCandidateEvent.Data(

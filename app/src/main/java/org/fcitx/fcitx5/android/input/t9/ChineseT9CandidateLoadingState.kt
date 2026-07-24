@@ -16,31 +16,32 @@ class ChineseT9CandidateLoadingState {
     var state: State = State.IDLE
         private set
     private var engineResultObserved = false
-    private var expectedTicket: ChineseT9CompositionTicket? = null
+    private var expectedReceipt: ChineseT9InputReceipt? = null
     private var candidateEventTicket: ChineseT9CompositionTicket? = null
 
     fun reset() {
         state = State.IDLE
         engineResultObserved = false
-        expectedTicket = null
+        expectedReceipt = null
         candidateEventTicket = null
     }
 
     fun startIfNeeded(
         chineseT9Active: Boolean,
-        ticket: ChineseT9CompositionTicket
+        receipt: ChineseT9InputReceipt
     ): Boolean {
+        val ticket = receipt.compositionTicket
         val hasCompositionCode = ticket.digitSequence.any { token ->
             token.isDigit() && ticket.scheme.acceptsCompositionDigit(token.digitToInt())
         }
         state = if (chineseT9Active && hasCompositionCode) {
             engineResultObserved = false
-            expectedTicket = ticket
+            expectedReceipt = receipt
             candidateEventTicket = null
             State.WAITING_FOR_ENGINE
         } else {
             engineResultObserved = false
-            expectedTicket = null
+            expectedReceipt = null
             candidateEventTicket = null
             State.IDLE
         }
@@ -51,50 +52,56 @@ class ChineseT9CandidateLoadingState {
         data: FcitxEvent.PagedCandidateEvent.Data,
         ticket: ChineseT9CompositionTicket,
         enginePreedit: String
-    ): Boolean {
+    ): ChineseT9InputReceipt? {
         if (ticket.digitSequence.isEmpty()) {
+            val accepted = expectedReceipt
             reset()
-            return true
+            return accepted
         }
-        if (ticket != expectedTicket) return false
+        val receipt = expectedReceipt ?: return null
+        if (ticket != receipt.compositionTicket) return null
         candidateEventTicket = ticket
-        return releaseIfFresh(data, ticket, enginePreedit)
+        return releaseIfFresh(data, receipt, enginePreedit)
     }
 
     fun onEngineInputPanel(
         data: FcitxEvent.PagedCandidateEvent.Data,
         ticket: ChineseT9CompositionTicket,
         enginePreedit: String
-    ): Boolean {
+    ): ChineseT9InputReceipt? {
         if (ticket.digitSequence.isEmpty()) {
+            val accepted = expectedReceipt
             reset()
-            return true
+            return accepted
         }
-        if (ticket != expectedTicket || candidateEventTicket != ticket) return false
-        return releaseIfFresh(data, ticket, enginePreedit)
+        val receipt = expectedReceipt ?: return null
+        if (ticket != receipt.compositionTicket || candidateEventTicket != ticket) return null
+        return releaseIfFresh(data, receipt, enginePreedit)
     }
 
     fun restoreCachedFrame(
         data: FcitxEvent.PagedCandidateEvent.Data,
-        ticket: ChineseT9CompositionTicket,
+        receipt: ChineseT9InputReceipt,
         enginePreedit: String
-    ): Boolean {
+    ): ChineseT9InputReceipt? {
+        val ticket = receipt.compositionTicket
         if (ticket.digitSequence.isEmpty()) {
             reset()
-            return true
+            return receipt
         }
-        expectedTicket = ticket
+        expectedReceipt = receipt
         candidateEventTicket = ticket
         state = State.WAITING_FOR_ENGINE
         engineResultObserved = false
-        return releaseIfFresh(data, ticket, enginePreedit)
+        return releaseIfFresh(data, receipt, enginePreedit)
     }
 
     private fun releaseIfFresh(
         data: FcitxEvent.PagedCandidateEvent.Data,
-        ticket: ChineseT9CompositionTicket,
+        receipt: ChineseT9InputReceipt,
         enginePreedit: String
-    ): Boolean {
+    ): ChineseT9InputReceipt? {
+        val ticket = receipt.compositionTicket
         val accepted = ChineseT9CandidateFreshness.matches(
                 data = data,
                 scheme = ticket.scheme,
@@ -104,8 +111,10 @@ class ChineseT9CandidateLoadingState {
         if (accepted) {
             state = State.IDLE
             engineResultObserved = true
+            expectedReceipt = null
+            candidateEventTicket = null
         }
-        return accepted
+        return receipt.takeIf { accepted }
     }
 
     fun shouldWaitForCandidates(

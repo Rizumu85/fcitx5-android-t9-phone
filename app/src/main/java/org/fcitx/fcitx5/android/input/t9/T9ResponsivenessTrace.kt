@@ -40,6 +40,9 @@ object T9ResponsivenessTrace {
         val averageDecisionNanos: Long,
         val averageEffectNanos: Long,
         val averageSourceWaitNanos: Long,
+        val averageEngineQueueNanos: Long,
+        val averageEngineDispatchNanos: Long,
+        val averageSourceCallbackNanos: Long,
         val averageSnapshotNanos: Long,
         val averageRenderNanos: Long,
         val averageFrameWaitNanos: Long
@@ -86,6 +89,8 @@ object T9ResponsivenessTrace {
         val requiresSourceEvent: Boolean,
         var decisionCompleteNanos: Long? = null,
         var effectAppliedNanos: Long? = null,
+        var engineDispatchStartedNanos: Long? = null,
+        var engineDispatchCompletedNanos: Long? = null,
         var sourceEventNanos: Long? = null,
         var snapshotReadyNanos: Long? = null,
         var renderCompleteNanos: Long? = null
@@ -96,6 +101,9 @@ object T9ResponsivenessTrace {
         val decisionNanos: Long,
         val effectNanos: Long,
         val sourceWaitNanos: Long,
+        val engineQueueNanos: Long,
+        val engineDispatchNanos: Long,
+        val sourceCallbackNanos: Long,
         val snapshotNanos: Long,
         val renderNanos: Long,
         val frameWaitNanos: Long
@@ -217,11 +225,29 @@ object T9ResponsivenessTrace {
         }
     }
 
-    fun markSourceEvent() {
+    fun markEngineDispatchStarted(inputId: Long?) {
+        mark(inputId) { transaction, now ->
+            if (transaction.engineDispatchStartedNanos == null) {
+                transaction.engineDispatchStartedNanos = now
+            }
+        }
+    }
+
+    fun markEngineDispatchCompleted(inputId: Long?) {
+        mark(inputId) { transaction, now ->
+            if (transaction.engineDispatchCompletedNanos == null) {
+                transaction.engineDispatchCompletedNanos = now
+            }
+        }
+    }
+
+    fun markSourceEvent() = markSourceEvent(activeInputId())
+
+    fun markSourceEvent(inputId: Long?) {
         val activeConfig = config
-        if (!activeConfig.enabled) return
+        if (!activeConfig.enabled || inputId == null) return
         synchronized(lock) {
-            val transaction = activeInput ?: return
+            val transaction = activeInput?.takeIf { it.id == inputId } ?: return
             if (!transaction.requiresSourceEvent) return
             if (transaction.sourceEventNanos == null) {
                 transaction.sourceEventNanos = activeConfig.nanoTime()
@@ -379,7 +405,9 @@ object T9ResponsivenessTrace {
         // Clamp the stage boundary to preserve an additive, non-overlapping latency breakdown.
         val decision = minOf(decisionCompleteNanos ?: startedNanos, source ?: Long.MAX_VALUE)
         val effect = maxOf(effectAppliedNanos ?: decision, decision)
-        val sourceBoundary = maxOf(source ?: effect, effect)
+        val engineStart = maxOf(engineDispatchStartedNanos ?: effect, effect)
+        val engineEnd = maxOf(engineDispatchCompletedNanos ?: engineStart, engineStart)
+        val sourceBoundary = maxOf(source ?: engineEnd, engineEnd)
         val snapshot = maxOf(requireNotNull(snapshotReadyNanos), sourceBoundary)
         val render = maxOf(requireNotNull(renderCompleteNanos), snapshot)
         return InputLatencySample(
@@ -387,6 +415,9 @@ object T9ResponsivenessTrace {
             decisionNanos = (decision - startedNanos).coerceAtLeast(0L),
             effectNanos = (effect - decision).coerceAtLeast(0L),
             sourceWaitNanos = if (source == null) 0L else sourceBoundary - effect,
+            engineQueueNanos = if (source == null) 0L else engineStart - effect,
+            engineDispatchNanos = if (source == null) 0L else engineEnd - engineStart,
+            sourceCallbackNanos = if (source == null) 0L else sourceBoundary - engineEnd,
             snapshotNanos = snapshot - sourceBoundary,
             renderNanos = (render - snapshot).coerceAtLeast(0L),
             frameWaitNanos = (frameNanos - render).coerceAtLeast(0L)
@@ -400,6 +431,9 @@ object T9ResponsivenessTrace {
             decisionNanos = (decision - startedNanos).coerceAtLeast(0L),
             effectNanos = (completedNanos - decision).coerceAtLeast(0L),
             sourceWaitNanos = 0L,
+            engineQueueNanos = 0L,
+            engineDispatchNanos = 0L,
+            sourceCallbackNanos = 0L,
             snapshotNanos = 0L,
             renderNanos = 0L,
             frameWaitNanos = 0L
@@ -415,6 +449,9 @@ object T9ResponsivenessTrace {
             decisionNanos = (decision - startedNanos).coerceAtLeast(0L),
             effectNanos = (effect - decision).coerceAtLeast(0L),
             sourceWaitNanos = 0L,
+            engineQueueNanos = 0L,
+            engineDispatchNanos = 0L,
+            sourceCallbackNanos = 0L,
             snapshotNanos = 0L,
             renderNanos = 0L,
             frameWaitNanos = (frameNanos - effect).coerceAtLeast(0L)
@@ -434,6 +471,9 @@ object T9ResponsivenessTrace {
             averageDecisionNanos = samples.averageOf(InputLatencySample::decisionNanos),
             averageEffectNanos = samples.averageOf(InputLatencySample::effectNanos),
             averageSourceWaitNanos = samples.averageOf(InputLatencySample::sourceWaitNanos),
+            averageEngineQueueNanos = samples.averageOf(InputLatencySample::engineQueueNanos),
+            averageEngineDispatchNanos = samples.averageOf(InputLatencySample::engineDispatchNanos),
+            averageSourceCallbackNanos = samples.averageOf(InputLatencySample::sourceCallbackNanos),
             averageSnapshotNanos = samples.averageOf(InputLatencySample::snapshotNanos),
             averageRenderNanos = samples.averageOf(InputLatencySample::renderNanos),
             averageFrameWaitNanos = samples.averageOf(InputLatencySample::frameWaitNanos)
@@ -474,7 +514,7 @@ object T9ResponsivenessTrace {
 
     private fun logInputSummary(summary: InputLatencySummary) {
         Timber.d(
-            "T9 input latency: path=%s count=%d replaced=%d avg=%.2f ms p50=%.2f ms p95=%.2f ms max=%.2f ms stages[decision=%.2f effect=%.2f source=%.2f snapshot=%.2f render=%.2f frame=%.2f]",
+            "T9 input latency: path=%s count=%d replaced=%d avg=%.2f ms p50=%.2f ms p95=%.2f ms max=%.2f ms stages[decision=%.2f effect=%.2f source=%.2f(queue=%.2f engine=%.2f callback=%.2f) snapshot=%.2f render=%.2f frame=%.2f]",
             summary.path,
             summary.count,
             summary.replacedCount,
@@ -485,6 +525,9 @@ object T9ResponsivenessTrace {
             summary.averageDecisionNanos / 1_000_000.0,
             summary.averageEffectNanos / 1_000_000.0,
             summary.averageSourceWaitNanos / 1_000_000.0,
+            summary.averageEngineQueueNanos / 1_000_000.0,
+            summary.averageEngineDispatchNanos / 1_000_000.0,
+            summary.averageSourceCallbackNanos / 1_000_000.0,
             summary.averageSnapshotNanos / 1_000_000.0,
             summary.averageRenderNanos / 1_000_000.0,
             summary.averageFrameWaitNanos / 1_000_000.0

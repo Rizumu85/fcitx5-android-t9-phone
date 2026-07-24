@@ -88,6 +88,9 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionCoordinator
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionLifecycle
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionTicket
 import org.fcitx.fcitx5.android.input.t9.ChineseT9EngineOperation
+import org.fcitx.fcitx5.android.input.t9.ChineseT9InputReceipt
+import org.fcitx.fcitx5.android.input.t9.ChineseT9KeyCommand
+import org.fcitx.fcitx5.android.input.t9.ChineseT9KeyInputSession
 import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSnapshotKey
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSource
@@ -132,6 +135,14 @@ import splitties.resources.styledColor
 import timber.log.Timber
 import kotlin.math.max
 import kotlin.math.min
+
+internal data class ChineseT9FcitxKeyStroke(
+    val sym: KeySym,
+    val states: KeyStates,
+    val scanCode: Int,
+    val up: Boolean,
+    val timestamp: Int
+)
 
 class FcitxInputMethodService : LifecycleInputMethodService() {
 
@@ -1874,6 +1885,20 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             onPendingDropped = ::handleUnavailableRimeOperation
         )
     }
+    private val chineseT9KeyInputSession by lazy {
+        ChineseT9KeyInputSession<FcitxAPI, ChineseT9FcitxKeyStroke>(
+            enqueueEngineOperation = chineseT9EngineOperation::enqueue,
+            dispatchKeyStroke = { key ->
+                sendKey(key.sym, key.states, key.scanCode, key.up, key.timestamp)
+            },
+            onDispatchStarted = { receipt ->
+                T9ResponsivenessTrace.markEngineDispatchStarted(receipt.traceInputId)
+            },
+            onDispatchCompleted = { receipt ->
+                T9ResponsivenessTrace.markEngineDispatchCompleted(receipt.traceInputId)
+            }
+        )
+    }
     private val chineseT9SchemeCycle = ChineseT9SchemeCycleSession()
     private val chineseT9OutputScriptSession = ChineseT9OutputScriptSession()
     private var activeChineseT9Scheme = ChineseT9Scheme.PINYIN
@@ -1965,7 +1990,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                     )
                 )
                 if (chineseT9Composition.keyCount() > 0) {
-                    candidatesView?.waitForT9EngineCandidatesThenRefresh()
+                    candidatesView?.waitForT9EngineCandidatesThenRefresh(
+                        currentChineseT9InputReceipt()
+                    )
                 }
             }
         } else {
@@ -2245,10 +2272,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         val downTimestamp = cacheFcitxKeyEvent(down)
         val upTimestamp = cacheFcitxKeyEvent(up)
 
-        when (chineseT9Composition.handleForwardedKeyDown(down.keyCode)) {
+        val forwardedAction = chineseT9Composition.handleForwardedKeyDown(down.keyCode)
+        val receipt = currentChineseT9InputReceipt()
+        when (forwardedAction) {
             ChineseT9CompositionLifecycle.ForwardedKeyAction.NONE -> Unit
             ChineseT9CompositionLifecycle.ForwardedKeyAction.REFRESH_AFTER_ENGINE_CANDIDATES ->
-                candidatesView?.waitForT9EngineCandidatesThenRefresh()
+                candidatesView?.waitForT9EngineCandidatesThenRefresh(receipt)
             ChineseT9CompositionLifecycle.ForwardedKeyAction.HIDE_CANDIDATE_UI_IMMEDIATELY ->
                 candidatesView?.hideT9CandidateUiImmediately()
         }
@@ -2258,10 +2287,25 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         // A physical T9 short press is one engine transaction. Dispatching its synthetic down
         // and up halves as separate jobs made fast typing queue an empty release operation ahead
         // of the next useful digit and delayed the matching Rime candidate frame.
-        chineseT9EngineOperation.enqueue {
-            sendKey(downSym, downStates, down.scanCode, false, downTimestamp)
-            sendKey(upSym, upStates, up.scanCode, true, upTimestamp)
-        }
+        chineseT9KeyInputSession.submit(
+            ChineseT9KeyCommand.Press(
+                down = ChineseT9FcitxKeyStroke(
+                    downSym,
+                    downStates,
+                    down.scanCode,
+                    up = false,
+                    timestamp = downTimestamp
+                ),
+                up = ChineseT9FcitxKeyStroke(
+                    upSym,
+                    upStates,
+                    up.scanCode,
+                    up = true,
+                    timestamp = upTimestamp
+                ),
+                receipt = receipt
+            )
+        )
         return true
     }
 
@@ -2473,30 +2517,53 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         val timestamp = cacheFcitxKeyEvent(event)
         val sym = KeySym.fromKeyEvent(event)
         if (sym != null) {
-            if (currentT9Mode == T9InputMode.CHINESE && event.action == KeyEvent.ACTION_DOWN) {
-                when (chineseT9Composition.handleForwardedKeyDown(event.keyCode)) {
+            val chineseReceipt = if (currentT9Mode == T9InputMode.CHINESE) {
+                val forwardedAction = if (event.action == KeyEvent.ACTION_DOWN) {
+                    chineseT9Composition.handleForwardedKeyDown(event.keyCode)
+                } else {
+                    ChineseT9CompositionLifecycle.ForwardedKeyAction.NONE
+                }
+                val receipt = currentChineseT9InputReceipt()
+                when (forwardedAction) {
                     ChineseT9CompositionLifecycle.ForwardedKeyAction.NONE -> Unit
                     ChineseT9CompositionLifecycle.ForwardedKeyAction.REFRESH_AFTER_ENGINE_CANDIDATES ->
-                        candidatesView?.waitForT9EngineCandidatesThenRefresh()
+                        candidatesView?.waitForT9EngineCandidatesThenRefresh(receipt)
                     ChineseT9CompositionLifecycle.ForwardedKeyAction.HIDE_CANDIDATE_UI_IMMEDIATELY ->
                         candidatesView?.hideT9CandidateUiImmediately()
                 }
-            }
+                receipt
+            } else null
             val states = KeyStates.fromKeyEvent(event)
             val up = event.action == KeyEvent.ACTION_UP
-            val send: suspend FcitxAPI.() -> Unit = {
-                sendKey(sym, states, event.scanCode, up, timestamp)
-            }
-            if (currentT9Mode == T9InputMode.CHINESE) {
-                chineseT9EngineOperation.enqueue(send)
+            if (chineseReceipt != null) {
+                chineseT9KeyInputSession.submit(
+                    ChineseT9KeyCommand.Stroke(
+                        stroke = ChineseT9FcitxKeyStroke(
+                            sym,
+                            states,
+                            event.scanCode,
+                            up,
+                            timestamp
+                        ),
+                        receipt = chineseReceipt
+                    )
+                )
             } else {
-                postFcitxJob(send)
+                postFcitxJob {
+                    sendKey(sym, states, event.scanCode, up, timestamp)
+                }
             }
             return true
         }
         Timber.d("Skipped KeyEvent: $event")
         return false
     }
+
+    private fun currentChineseT9InputReceipt(): ChineseT9InputReceipt =
+        ChineseT9InputReceipt(
+            compositionTicket = chineseT9Composition.compositionTicket(),
+            traceInputId = T9ResponsivenessTrace.activeInputId()
+        )
 
     private fun cacheFcitxKeyEvent(event: KeyEvent): Int =
         cachedKeyEventIndex++.also { timestamp ->

@@ -77,8 +77,12 @@ reading-filter content. Scheme-specific resolvers and the Rime bridge stay
 behind the coordinator.
 
 `ChineseT9EngineOperation` serializes Fcitx submission, candidate reads,
-selection, and replay. Operations carry composition/source tickets and reject
-stale work before publishing UI effects. `ChineseT9CandidateFreshness` and
+selection, and replay. `ChineseT9KeyInputSession` is the only typed-key entry
+into that lane: it keeps strokes lossless and ordered, treats a physical
+down/up pair as one operation, and carries one composition/trace receipt from
+dispatch through candidate acceptance. Presentation may conflate obsolete
+generations, but engine input must not. Operations carry composition/source
+tickets and reject stale work before publishing UI effects. `ChineseT9CandidateFreshness` and
 `ChineseT9CandidateFrameGate` prevent a new preview from being displayed with
 an old candidate page. Fcitx caches input-panel and paged-candidate events as
 one revisioned presentation source so a recreated candidate surface can restore
@@ -240,8 +244,12 @@ The complete decision is recorded in
 ## Startup And Performance
 
 `T9ResponsivenessTrace` measures one physical input through decision, effect,
-engine wait, snapshot, render, and first complete frame. It is enabled only by
-the developer preference and emits aggregate input summaries every 20 samples.
+engine wait, snapshot, render, and first complete frame. Engine wait is split
+into operation-queue delay, native key dispatch, and source-callback delay.
+Source events close only the trace receipt whose composition generation they
+actually satisfy; a stale engine frame cannot claim a newer input. The trace is
+enabled only by the developer preference and emits aggregate input summaries
+every 20 samples.
 
 `StartupPerformanceTrace` owns semantic process-start stages. Input components
 use concrete runtime classes for dependency identity, avoiding generic

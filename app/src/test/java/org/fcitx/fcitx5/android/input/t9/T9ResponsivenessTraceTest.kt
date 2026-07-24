@@ -116,9 +116,85 @@ class T9ResponsivenessTraceTest {
         assertEquals(1_000_000L, summary.averageDecisionNanos)
         assertEquals(0L, summary.averageEffectNanos)
         assertEquals(3_000_000L, summary.averageSourceWaitNanos)
+        assertEquals(0L, summary.averageEngineQueueNanos)
+        assertEquals(0L, summary.averageEngineDispatchNanos)
+        assertEquals(3_000_000L, summary.averageSourceCallbackNanos)
         assertEquals(3_000_000L, summary.averageSnapshotNanos)
         assertEquals(2_000_000L, summary.averageRenderNanos)
         assertEquals(3_000_000L, summary.averageFrameWaitNanos)
+    }
+
+    @Test
+    fun engineSourceWaitSeparatesQueueDispatchAndCallbackLatency() {
+        var now = 0L
+        T9ResponsivenessTrace.configure(
+            enabled = true,
+            aggregationWindow = 1,
+            nanoTime = { now }
+        )
+
+        val inputId = T9ResponsivenessTrace.beginInput(
+            path = "CHINESE/PINYIN",
+            requiresSourceEvent = true
+        )
+        now = 1L
+        T9ResponsivenessTrace.markDecisionComplete(inputId)
+        now = 2L
+        T9ResponsivenessTrace.markEffectApplied(inputId)
+        now = 5L
+        T9ResponsivenessTrace.markEngineDispatchStarted(inputId)
+        now = 9L
+        T9ResponsivenessTrace.markEngineDispatchCompleted(inputId)
+        now = 12L
+        T9ResponsivenessTrace.markSourceEvent(inputId)
+        now = 14L
+        T9ResponsivenessTrace.markSnapshotReady(inputId)
+        now = 16L
+        T9ResponsivenessTrace.markRenderComplete(inputId)
+        now = 20L
+
+        val summary = T9ResponsivenessTrace.completeFrame(inputId)!!
+
+        assertEquals(10L, summary.averageSourceWaitNanos)
+        assertEquals(3L, summary.averageEngineQueueNanos)
+        assertEquals(4L, summary.averageEngineDispatchNanos)
+        assertEquals(3L, summary.averageSourceCallbackNanos)
+    }
+
+    @Test
+    fun staleSourceReceiptCannotCompleteTheNewerInput() {
+        var now = 0L
+        T9ResponsivenessTrace.configure(
+            enabled = true,
+            aggregationWindow = 1,
+            nanoTime = { now }
+        )
+
+        val staleId = T9ResponsivenessTrace.beginInput(
+            path = "CHINESE/PINYIN",
+            requiresSourceEvent = true
+        )
+        now = 1L
+        val currentId = T9ResponsivenessTrace.beginInput(
+            path = "CHINESE/PINYIN",
+            requiresSourceEvent = true
+        )
+        now = 2L
+        T9ResponsivenessTrace.markSourceEvent(staleId)
+        now = 3L
+        T9ResponsivenessTrace.markSnapshotReady(currentId)
+        T9ResponsivenessTrace.markRenderComplete(currentId)
+
+        assertNull(T9ResponsivenessTrace.completeFrame(currentId))
+
+        now = 4L
+        T9ResponsivenessTrace.markSourceEvent(currentId)
+        now = 5L
+        T9ResponsivenessTrace.markSnapshotReady(currentId)
+        T9ResponsivenessTrace.markRenderComplete(currentId)
+        now = 6L
+
+        assertEquals(5L, T9ResponsivenessTrace.completeFrame(currentId)!!.averageNanos)
     }
 
     @Test

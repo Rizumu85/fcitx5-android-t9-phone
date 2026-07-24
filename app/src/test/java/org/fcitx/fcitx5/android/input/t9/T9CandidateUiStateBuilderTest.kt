@@ -115,7 +115,10 @@ class T9CandidateUiStateBuilderTest {
         val loadingState = ChineseT9CandidateLoadingState().apply {
             startIfNeeded(
                 chineseT9Active = true,
-                ticket = defaultChineseSnapshot().compositionTicket()
+                receipt = ChineseT9InputReceipt(
+                    defaultChineseSnapshot().compositionTicket(),
+                    traceInputId = null
+                )
             )
         }
         val pipeline = FakePipeline(
@@ -143,7 +146,10 @@ class T9CandidateUiStateBuilderTest {
         val loadingState = ChineseT9CandidateLoadingState().apply {
             startIfNeeded(
                 chineseT9Active = true,
-                ticket = defaultChineseSnapshot().compositionTicket()
+                receipt = ChineseT9InputReceipt(
+                    defaultChineseSnapshot().compositionTicket(),
+                    traceInputId = null
+                )
             )
         }
         val pipeline = FakePipeline(
@@ -171,7 +177,10 @@ class T9CandidateUiStateBuilderTest {
         val loadingState = ChineseT9CandidateLoadingState().apply {
             startIfNeeded(
                 chineseT9Active = true,
-                ticket = defaultChineseSnapshot().compositionTicket()
+                receipt = ChineseT9InputReceipt(
+                    defaultChineseSnapshot().compositionTicket(),
+                    traceInputId = null
+                )
             )
         }
 

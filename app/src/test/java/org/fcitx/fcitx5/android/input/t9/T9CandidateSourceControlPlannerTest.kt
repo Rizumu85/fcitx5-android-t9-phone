@@ -39,11 +39,14 @@ class T9CandidateSourceControlPlannerTest {
         val loadingState = ChineseT9CandidateLoadingState().apply {
             startIfNeeded(
                 chineseT9Active = true,
-                ticket = ChineseT9CompositionTicket(
-                    scheme = ChineseT9Scheme.PINYIN,
-                    rawSequence = "2",
-                    digitSequence = "2",
-                    sessionRevision = 1
+                receipt = ChineseT9InputReceipt(
+                    compositionTicket = ChineseT9CompositionTicket(
+                        scheme = ChineseT9Scheme.PINYIN,
+                        rawSequence = "2",
+                        digitSequence = "2",
+                        sessionRevision = 1
+                    ),
+                    traceInputId = null
                 )
             )
         }
@@ -140,11 +143,14 @@ class T9CandidateSourceControlPlannerTest {
         val loadingState = ChineseT9CandidateLoadingState().apply {
             startIfNeeded(
                 chineseT9Active = true,
-                ticket = ChineseT9CompositionTicket(
-                    scheme = ChineseT9Scheme.ZHUYIN,
-                    rawSequence = "3",
-                    digitSequence = "3",
-                    sessionRevision = 1
+                receipt = ChineseT9InputReceipt(
+                    compositionTicket = ChineseT9CompositionTicket(
+                        scheme = ChineseT9Scheme.ZHUYIN,
+                        rawSequence = "3",
+                        digitSequence = "3",
+                        sessionRevision = 1
+                    ),
+                    traceInputId = null
                 )
             )
         }

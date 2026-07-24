@@ -36,6 +36,7 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidateLoadingState
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionTicket
 import org.fcitx.fcitx5.android.input.t9.ChineseT9EngineOperation
 import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
+import org.fcitx.fcitx5.android.input.t9.ChineseT9InputReceipt
 import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateInteractionController
@@ -596,7 +597,7 @@ class CandidatesView(
             val ticket = service.getChineseT9InputSnapshot(inputPanel).compositionTicket()
             chineseT9CandidateLoadingState.restoreCachedFrame(
                 data = paged,
-                ticket = ticket,
+                receipt = ChineseT9InputReceipt(ticket, traceInputId = null),
                 enginePreedit = inputPanel.preedit.toString()
             )
         }
@@ -611,7 +612,7 @@ class CandidatesView(
             is FcitxEvent.InputPanelEvent -> {
                 inputPanel = it.data
                 if (service.isHandwritingInputActive()) return
-                val sourceReady = if (
+                val acceptedReceipt = if (
                     service.isChineseT9InputModeActive()
                 ) {
                     val ticket = service.getChineseT9InputSnapshot(inputPanel).compositionTicket()
@@ -621,14 +622,14 @@ class CandidatesView(
                         enginePreedit = inputPanel.preedit.toString()
                     )
                 } else {
-                    false
+                    null
                 }
-                refreshAfterSourceEvent(sourceReady)
+                refreshAfterSourceEvent(acceptedReceipt)
             }
             is FcitxEvent.PagedCandidateEvent -> {
                 paged = it.data
                 if (service.isHandwritingInputActive()) return
-                val sourceReady = if (
+                val acceptedReceipt = if (
                     service.isChineseT9InputModeActive()
                 ) {
                     val ticket = service.getChineseT9InputSnapshot(inputPanel).compositionTicket()
@@ -638,9 +639,9 @@ class CandidatesView(
                         enginePreedit = inputPanel.preedit.toString()
                     )
                 } else {
-                    false
+                    null
                 }
-                refreshAfterSourceEvent(sourceReady)
+                refreshAfterSourceEvent(acceptedReceipt)
             }
             else -> {}
         }
@@ -717,21 +718,19 @@ class CandidatesView(
         t9RefreshGeneration.requestRefresh(T9ResponsivenessTrace.activeInputId())
     }
 
-    private fun refreshAfterSourceEvent(sourceReady: Boolean) {
-        val traceId = T9ResponsivenessTrace.activeInputId()
-        if (sourceReady) {
-            T9ResponsivenessTrace.markSourceEvent()
-            t9RefreshGeneration.publishReady(traceId)
+    private fun refreshAfterSourceEvent(acceptedReceipt: ChineseT9InputReceipt?) {
+        if (acceptedReceipt != null) {
+            T9ResponsivenessTrace.markSourceEvent(acceptedReceipt.traceInputId)
+            t9RefreshGeneration.publishReady(acceptedReceipt.traceInputId)
         } else {
-            t9RefreshGeneration.requestRefresh(traceId)
+            t9RefreshGeneration.requestRefresh(T9ResponsivenessTrace.activeInputId())
         }
     }
 
-    fun waitForT9EngineCandidatesThenRefresh() {
-        val ticket = service.getChineseT9InputSnapshot(inputPanel).compositionTicket()
+    fun waitForT9EngineCandidatesThenRefresh(receipt: ChineseT9InputReceipt) {
         val waiting = chineseT9CandidateLoadingState.startIfNeeded(
             chineseT9Active = service.isChineseT9InputModeActive(),
-            ticket = ticket
+            receipt = receipt
         )
         if (waiting) t9CandidateUiSnapshotPipeline.invalidateShownInteraction()
         refreshT9Ui()
