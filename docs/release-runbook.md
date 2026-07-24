@@ -61,8 +61,14 @@ Update all version-controlled version surfaces before building:
 
 3. In `app/build.gradle.kts`:
    - Set `RIME_CONFIG_BASELINE_VERSION` to the exact `rime-ice-t9-phone` release
-     distributed with this app version. The updater uses this only to recognize
-     configurations installed before version tracking existed.
+     required by this app version.
+   - Set `RIME_CONFIG_BASELINE_URL` to that release's immutable archive.
+   - Download the release archive independently and set
+     `RIME_CONFIG_BASELINE_SHA256` to its SHA-256. Automatic provisioning must
+     never ship an unverified URL or reuse the digest of another archive.
+   - Set `RIME_CONFIG_BASELINE_SIZE` to the exact archive byte count. The
+     provisioner uses size as a cheap gate before hashing an OEM
+     DownloadManager destination that may still be growing.
 
 4. In docs and release files:
    - Create or update `release-notes-vX.Y.Z.md`.

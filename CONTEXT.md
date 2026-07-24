@@ -262,6 +262,15 @@ offer configuration updates because release APKs cannot replace debug package
 IDs. Configuration archives are overlaid without deleting user files while
 Fcitx is stopped, then their release version is recorded before Rime restarts.
 
+`RimeConfigProvisioner` owns the app release's required configuration version,
+immutable URL, digest, health check, single-lane download deduplication, bounded
+retry, independent DownloadManager destination verification, and a verified
+cache checkpoint. Its healthy path performs no network or deployment work.
+Application startup and matching Rime plugin package changes may request
+provisioning, but only this Module decides whether work is required. Automatic
+failure is quiet and preserves the previous tree. Rime synchronization remains
+explicit user-data maintenance and is never part of installation.
+
 `DataInstallationState` and `DataInstallationStateCodec` provide the bounded,
 atomic native-data fast path. Any version, descriptor, plugin, checksum, or
 corruption mismatch falls back to a complete installation; there is no partial
