@@ -36,6 +36,22 @@ class ChineseT9CandidateLoadingStateTest {
     }
 
     @Test
+    fun longPinyinFrameReleasesFromCurrentEnginePreeditDespiteAmbiguousComment() {
+        val state = ChineseT9CandidateLoadingState()
+        val ticket = ticket(ChineseT9Scheme.PINYIN, "946649366674494233")
+        state.startIfNeeded(chineseT9Active = true, ticket = ticket)
+
+        assertTrue(
+            state.onEngineCandidates(
+                data = paged("中叶弄湿下的", "zhong ye nong shi xia de"),
+                ticket = ticket,
+                enginePreedit = "94664 93 666 744 942 33"
+            )
+        )
+        assertFalse(waiting(state, compositionKeyCount = 18))
+    }
+
+    @Test
     fun waitsAfterChineseCompositionStartsUntilEngineCandidatesArrive() {
         val state = ChineseT9CandidateLoadingState()
 

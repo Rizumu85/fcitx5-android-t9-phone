@@ -16,7 +16,8 @@ object ChineseT9CandidateFreshness {
     ): Boolean = when {
         digitSequence.isEmpty() -> true
         scheme == ChineseT9Scheme.PINYIN ->
-            data.candidates.isNotEmpty() && matchesPinyin(data, digitSequence)
+            data.candidates.isNotEmpty() &&
+                matchesPinyin(data, digitSequence, enginePreedit)
         scheme == ChineseT9Scheme.STROKE -> matchesStroke(digitSequence, enginePreedit)
         else -> matchesZhuyin(data, digitSequence, enginePreedit)
     }
@@ -33,9 +34,11 @@ object ChineseT9CandidateFreshness {
 
     private fun matchesPinyin(
         data: FcitxEvent.PagedCandidateEvent.Data,
-        digitSequence: String
+        digitSequence: String,
+        enginePreedit: String
     ): Boolean {
         val digits = digitSequence.filter { it in '2'..'9' }
+        if (enginePreedit.toPinyinT9Digits() == digits) return true
         return data.candidates.any { candidate ->
             candidate.comment.matchesPinyinDigits(digits) ||
                 candidate.text.matchesPinyinDigits(digits)
@@ -48,7 +51,10 @@ object ChineseT9CandidateFreshness {
     private fun String.toPinyinT9Digits(): String =
         buildString {
             this@toPinyinT9Digits.forEach { char ->
-                letterToT9Digit(char)?.let(::append)
+                when (char) {
+                    in '2'..'9' -> append(char)
+                    else -> letterToT9Digit(char)?.let(::append)
+                }
             }
         }
 

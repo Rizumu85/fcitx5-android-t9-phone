@@ -81,6 +81,22 @@ class ChineseT9PresentationSourceTest {
         assertEquals("zhong wen mo shi xia de", state.topReading?.toString())
     }
 
+    @Test
+    fun longAmbiguousCandidatePreviewDoesNotDropTrailingTypedDigits() {
+        val digits = "946649366674494233"
+        val state = source().build(
+            key(
+                rawSequence = digits,
+                digitSequence = digits,
+                currentSegment = digits,
+                fullComposition = digits,
+                candidateComment = "zhong ye nong shi xia de"
+            )
+        )
+
+        assertEquals(digits, previewDigits(state.topReading.toString()))
+    }
+
     private fun source(): ChineseT9PresentationSource =
         ChineseT9PresentationSource(
             formatText = ::text,
@@ -105,6 +121,24 @@ class ChineseT9PresentationSourceTest {
                 token
             }
         }
+
+    private fun previewDigits(preview: String): String = buildString {
+        preview.forEach { char ->
+            append(
+                when (char) {
+                    in 'a'..'c' -> '2'
+                    in 'd'..'f' -> '3'
+                    in 'g'..'i' -> '4'
+                    in 'j'..'l' -> '5'
+                    in 'm'..'o' -> '6'
+                    in 'p'..'s' -> '7'
+                    in 't'..'v' -> '8'
+                    in 'w'..'z' -> '9'
+                    else -> return@forEach
+                }
+            )
+        }
+    }
 
     private fun key(
         pendingPunctuationText: String? = null,

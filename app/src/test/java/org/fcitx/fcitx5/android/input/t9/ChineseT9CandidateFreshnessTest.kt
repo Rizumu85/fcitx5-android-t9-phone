@@ -56,6 +56,18 @@ class ChineseT9CandidateFreshnessTest {
     }
 
     @Test
+    fun currentEnginePreeditAcceptsAmbiguousLongCandidateComment() {
+        assertTrue(
+            ChineseT9CandidateFreshness.matches(
+                data = paged(candidate("中叶弄湿下的", comment = "zhong ye nong shi xia de")),
+                scheme = ChineseT9Scheme.PINYIN,
+                digitSequence = "946649366674494233",
+                enginePreedit = "94664 93 666 744 942 33"
+            )
+        )
+    }
+
+    @Test
     fun strokeUsesEnginePreeditBecauseCompletionCommentsOnlyContainSuffixes() {
         assertFalse(
             ChineseT9CandidateFreshness.matches(
