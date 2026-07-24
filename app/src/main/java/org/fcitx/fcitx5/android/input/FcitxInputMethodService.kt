@@ -2236,9 +2236,33 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             input.flags,
             input.source
         )
-        val sentDown = forwardKeyEvent(down)
-        val sentUp = forwardKeyEvent(up)
-        return sentDown || sentUp
+        return forwardChineseT9KeyPair(down, up)
+    }
+
+    private fun forwardChineseT9KeyPair(down: KeyEvent, up: KeyEvent): Boolean {
+        val downSym = KeySym.fromKeyEvent(down) ?: return false
+        val upSym = KeySym.fromKeyEvent(up) ?: return false
+        val downTimestamp = cacheFcitxKeyEvent(down)
+        val upTimestamp = cacheFcitxKeyEvent(up)
+
+        when (chineseT9Composition.handleForwardedKeyDown(down.keyCode)) {
+            ChineseT9CompositionLifecycle.ForwardedKeyAction.NONE -> Unit
+            ChineseT9CompositionLifecycle.ForwardedKeyAction.REFRESH_AFTER_ENGINE_CANDIDATES ->
+                candidatesView?.waitForT9EngineCandidatesThenRefresh()
+            ChineseT9CompositionLifecycle.ForwardedKeyAction.HIDE_CANDIDATE_UI_IMMEDIATELY ->
+                candidatesView?.hideT9CandidateUiImmediately()
+        }
+
+        val downStates = KeyStates.fromKeyEvent(down)
+        val upStates = KeyStates.fromKeyEvent(up)
+        // A physical T9 short press is one engine transaction. Dispatching its synthetic down
+        // and up halves as separate jobs made fast typing queue an empty release operation ahead
+        // of the next useful digit and delayed the matching Rime candidate frame.
+        chineseT9EngineOperation.enqueue {
+            sendKey(downSym, downStates, down.scanCode, false, downTimestamp)
+            sendKey(upSym, upStates, up.scanCode, true, upTimestamp)
+        }
+        return true
     }
 
     private fun forwardChineseT9SeparatorShortPress(): Boolean {
@@ -2446,8 +2470,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun forwardKeyEvent(event: KeyEvent): Boolean {
         // reason to use a self increment index rather than timestamp:
         // KeyUp and KeyDown events actually can happen on the same time
-        val timestamp = cachedKeyEventIndex++
-        cachedKeyEvents.put(timestamp, event)
+        val timestamp = cacheFcitxKeyEvent(event)
         val sym = KeySym.fromKeyEvent(event)
         if (sym != null) {
             if (currentT9Mode == T9InputMode.CHINESE && event.action == KeyEvent.ACTION_DOWN) {
@@ -2474,6 +2497,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         Timber.d("Skipped KeyEvent: $event")
         return false
     }
+
+    private fun cacheFcitxKeyEvent(event: KeyEvent): Int =
+        cachedKeyEventIndex++.also { timestamp ->
+            cachedKeyEvents.put(timestamp, event)
+        }
 
     // ==================== T9 Pinyin selection bar ====================
 
