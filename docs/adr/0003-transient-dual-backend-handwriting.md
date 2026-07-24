@@ -41,6 +41,13 @@ matching must never block the UI thread.
 - Model construction, availability checks, Ink conversion, native warmup, and
   enhanced recognition are serialized on one background lane. Merely opening
   handwriting does not construct ML Kit objects on the input thread.
+- Settings model requests use a generation-owned state transition rather than
+  treating a coroutine `Job` as UI truth. An explicit retry from `Missing` or
+  `Failed` always supersedes stale wrapper work, immediately exposes visible
+  download feedback, and ignores late results from the superseded request.
+  Availability checks and downloads have generous upper bounds because ML
+  Kit's internal downloader can otherwise leave an unresolved Google task
+  blocking retry forever on restricted networks.
 - A downloaded ML Kit model is prepared only after a two-second stroke-free
   quiet period and is marked ready after native initialization. A down event
   during that gate cancels preparation before ML Kit is touched; that character
