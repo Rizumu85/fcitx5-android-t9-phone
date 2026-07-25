@@ -15,9 +15,10 @@ object ChineseT9CandidateFreshness {
         enginePreedit: String
     ): Boolean = when {
         digitSequence.isEmpty() -> true
+        // An empty result is still a completed frame when the engine preedit proves that it
+        // belongs to this receipt; otherwise a valid no-match input waits as "preparing" forever.
         scheme == ChineseT9Scheme.PINYIN ->
-            data.candidates.isNotEmpty() &&
-                matchesPinyin(data, digitSequence, enginePreedit)
+            matchesPinyin(data, digitSequence, enginePreedit)
         scheme == ChineseT9Scheme.STROKE -> matchesStroke(digitSequence, enginePreedit)
         else -> matchesZhuyin(data, digitSequence, enginePreedit)
     }

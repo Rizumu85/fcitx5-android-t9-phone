@@ -128,7 +128,7 @@ class ChineseT9CandidateFreshnessTest {
     }
 
     @Test
-    fun rawSchemesCanFinishWithAnEmptyCandidatePageButPinyinStillWaits() {
+    fun matchingEnginePreeditCanFinishWithAnEmptyCandidatePage() {
         assertTrue(
             ChineseT9CandidateFreshness.matches(
                 data = paged(),
@@ -145,11 +145,19 @@ class ChineseT9CandidateFreshnessTest {
                 enginePreedit = "38"
             )
         )
-        assertFalse(
+        assertTrue(
             ChineseT9CandidateFreshness.matches(
                 data = paged(),
                 scheme = ChineseT9Scheme.PINYIN,
                 digitSequence = "64",
+                enginePreedit = "ni"
+            )
+        )
+        assertFalse(
+            ChineseT9CandidateFreshness.matches(
+                data = paged(),
+                scheme = ChineseT9Scheme.PINYIN,
+                digitSequence = "644",
                 enginePreedit = "ni"
             )
         )
