@@ -45,8 +45,17 @@ device serial to every ADB command.
 3. Enable and select the debug IME through Android settings.
 4. Do not copy Rime files, deploy manually, synchronize, or switch to another
    system IME to repair state.
-5. Open a new text field and allow the automatic first-install download,
-   overlay, and native compilation to finish.
+5. Open a new text field and wait for the debug service's actual
+   `onStartInputView` log. Do not treat a retained `mInputShown` window as proof
+   that the new service is bound.
+6. Exercise physical T9 with an explicit keyboard source:
+
+   ```bash
+   adb -s "$SERIAL" shell input keyboard keyevent KEYCODE_7
+   ```
+
+7. Allow the automatic first-install download, overlay, and native compilation
+   to finish.
 
 ## Required Rime Scenarios
 
@@ -62,7 +71,9 @@ device serial to every ADB command.
    while Rime is transitioning.
 5. Inspect logcat for uncaught exceptions, repeated provisioning, stale
    `Deploying` state after native `Ready`, LevelDB lock failures, or retry
-   exhaustion.
+   exhaustion. The completed download must not fail with
+   `ACCESS_ALL_DOWNLOADS`, and a successful Chinese key must publish both
+   `InputPanelEvent` and `PagedCandidateEvent`.
 
 ## Global Physical Key Sound Scenario
 

@@ -40,6 +40,9 @@ verified, installed, and activated without another confirmation.
   vendor builds can leave redirected downloads indefinitely pending after
   writing the complete file. A bounded direct transfer is the fallback when the
   system destination never becomes valid. Repeated IME starts are deduplicated.
+  Completion receivers read the archive with
+  `DownloadManager.openDownloadedFile`; a vendor `content://downloads/all_downloads`
+  URI may require system-only permissions even for the requesting app.
 - Every automatic archive is verified against its release SHA-256 before Rime
   is stopped. The archive must contain the Pinyin, Stroke, and Zhuyin T9
   schemas. Invalid or unavailable downloads leave the last working
@@ -73,6 +76,11 @@ verified, installed, and activated without another confirmation.
   Rime intentionally ignores those actions during maintenance.
 - Rime user-data synchronization remains an explicit maintenance action. It is
   not called by installation or application upgrades.
+- Native Fcitx generations invalidate the Android frontend's input context and
+  in-memory candidate paging mode even when Android keeps the input service
+  bound. The service restores editor activation, paging mode, capabilities, and
+  focus before queued T9 input is released. Recovery must not depend on toggling
+  the system IME.
 
 ## Upgrade Flow
 
@@ -83,9 +91,11 @@ verified, installed, and activated without another confirmation.
 3. Otherwise, the immutable matching archive is downloaded in the background.
    Existing healthy configuration remains usable while an upgrade downloads.
 4. The completed archive is verified, overlaid while Fcitx is stopped, and
-   recorded.
+   recorded with a durable deployment-required marker.
 5. If the daemon was active, it restarts once. Librime observes changed source
-   files and performs its normal maintenance automatically.
+   files and performs the owned full deployment.
+6. The final native `Ready` clears the marker. Only then may readiness consumers
+   release queued Chinese input.
 
 On an ordinary process restart with a healthy receipt, steps 3-5 do not run.
 Librime still initializes its runtime session and checks its durable workspace.

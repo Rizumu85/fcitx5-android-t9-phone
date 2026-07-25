@@ -43,6 +43,13 @@ adb shell settings get secure default_input_method
 adb shell ime set org.fcitx.fcitx5.android.debug/org.fcitx.fcitx5.android.input.FcitxInputMethodService
 ```
 
+After installing or selecting the debug IME, focus a real text editor and wait
+for the debug service's `onStartInputView` log before injection. Do not use
+`mInputShown=true` as a readiness proof: it can describe the previous IME
+window. For provisioning tests, also wait until the bound service has observed
+Rime `Deploying` or exact-schema `Ready`; otherwise a key can be sent before the
+test input context exists.
+
 When there are duplicate wireless-debugging transports, pass `-s` explicitly:
 
 ```bash
@@ -98,6 +105,21 @@ method must be Rime and its schema must be exactly `t9`, `t9_stroke`, or
 Pinyin T9 alias. The app activates Rime, selects the intended schema through the
 typed plugin API, and only then drains queued physical input. This also recovers
 when Android binds the plugin after an early `Unavailable` callback.
+
+To reproduce native-generation recovery without toggling the system IME, keep a
+text field focused and restart only the debug Fcitx instance:
+
+```bash
+adb -s "$SERIAL" shell am broadcast \
+  -a org.fcitx.fcitx5.android.debug.action.RESTART_FCITX_INSTANCE
+adb -s "$SERIAL" shell input keyboard keyevent KEYCODE_7
+```
+
+Wait for `Restoring Fcitx input context after restart` before the key unless the
+case intentionally exercises queued input. A successful Chinese result must
+publish both `InputPanelEvent` and `PagedCandidateEvent`. If only the input
+panel appears, inspect restoration of `AndroidFrontend` candidate paging mode;
+that mode is process-local and resets on every native restart.
 
 ## Release-like Rime Performance Fixture
 

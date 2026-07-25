@@ -104,6 +104,13 @@ Readiness handling also compares each queued lifecycle event with
 overwrite a newer native `Ready` snapshot merely because the Android main
 thread receives it later.
 
+An internal native Fcitx restart creates a new `AndroidFrontend` while the
+Android input service can remain bound to the same editor. The new frontend has
+no input context and resets process-local policies such as candidate paging.
+`FcitxInputContextGenerationSession` therefore restores the editor binding,
+candidate paging mode, capability flags, and focus for each native generation
+before queued T9 input is released. A system IME toggle is not part of recovery.
+
 Each Chinese scheme has an independent Simplified/Traditional default.
 `ChineseT9OutputScriptPolicy` hides Rime option polarity, while
 `ChineseT9OutputScriptSession` rejects stale asynchronous assignments. The
@@ -288,10 +295,17 @@ Fcitx is stopped, then their release version is recorded before Rime restarts.
 immutable URL, digest, health check, single-lane download deduplication, bounded
 retry, independent DownloadManager destination verification, and a verified
 cache checkpoint. Its healthy path performs no network or deployment work.
+Download completion is read through the requesting app's
+`DownloadManager.openDownloadedFile` handle; vendor `all_downloads` content
+URIs are not assumed to be reopenable by the app.
 Application startup and matching Rime plugin package changes may request
 provisioning, but only this Module decides whether work is required. Automatic
 failure is quiet and preserves the previous tree. Rime synchronization remains
 explicit user-data maintenance and is never part of installation.
+Source overlay and native compilation form one durable transaction: installation
+writes a deployment-required marker, native startup owns the full deployment,
+and only the final Rime `Ready` clears the marker and becomes visible to input
+readiness consumers.
 Native Rime process startup still performs a lightweight source-change check
 against its durable compiled workspace. That temporary maintenance state is
 engine initialization, not repeated application provisioning or a reason to
