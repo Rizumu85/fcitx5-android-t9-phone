@@ -151,9 +151,10 @@ tail visible when a long reading exceeds the screen width.
 Geometry is centralized:
 
 - `T9CandidateSurfaceGeometry` owns measured candidate and reading-row sizing.
-- `T9CandidateFocusEnvelope` reserves focus growth at every candidate boundary
-  before selection, so long labels cannot overlap and focus movement does not
-  resize the candidate row.
+- `T9CandidateFocusEnvelope` reserves focus growth at internal candidate
+  boundaries before selection. The first and last candidates grow inward, so
+  focus movement does not resize the row and both bubble edge insets remain
+  visually equal.
 - `T9ShortcutTailPolicy` owns only the compact final-candidate style decision.
 - `T9PinyinRowSurfacePlanner` owns folded/full viewport and whole-chip windows.
 - `T9PinyinRowAndroidAdapter` owns row reveal, focus, and scroll publication.

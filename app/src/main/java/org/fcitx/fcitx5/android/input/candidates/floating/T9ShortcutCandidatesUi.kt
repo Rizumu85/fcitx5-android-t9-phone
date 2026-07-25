@@ -54,7 +54,6 @@ class T9ShortcutCandidatesUi(
         rowWidthPx = 0,
         edgePaddingPx = 0,
         maxRowWidthPx = 0,
-        trailingPaddingPx = 0,
         focusScalePercent = T9CandidateFocusEnvelope.DEFAULT_SCALE_PERCENT
     )
     private var renderRows: List<Row> = emptyList()
@@ -138,21 +137,19 @@ class T9ShortcutCandidatesUi(
 
     private fun updateRootBounds(layout: T9ShortcutCandidateLayout) {
         val edgePadding = layout.edgePaddingPx.coerceAtLeast(0)
-        val trailingPadding = layout.trailingPaddingPx.coerceAtLeast(0)
         val verticalPadding = edgePadding
-        val rightPadding = edgePadding + trailingPadding
         if (
             root.paddingLeft != edgePadding ||
             root.paddingTop != verticalPadding ||
-            root.paddingRight != rightPadding ||
+            root.paddingRight != edgePadding ||
             root.paddingBottom != verticalPadding
         ) {
-            // Product decision: T9 shortcut candidates are a compact toolbar. The toolbar owns
-            // its fixed trailing breath so the last candidate does not inherit text-width noise.
+            // Product decision: the first and last candidate use the same visual inset. Focus
+            // growth is anchored inward at both edges instead of being hidden in extra tail space.
             root.setPadding(
                 edgePadding,
                 verticalPadding,
-                rightPadding,
+                edgePadding,
                 verticalPadding
             )
         }
@@ -175,11 +172,12 @@ class T9ShortcutCandidatesUi(
                     is Row.Candidate -> candidateView(
                         displayIndex = index,
                         row = row,
-                        edgeAlignedEnd = T9ShortcutTailPolicy.edgeAlignsCandidateToBubbleTail(
+                        usesNaturalTailWidth = T9ShortcutTailPolicy.edgeAlignsCandidateToBubbleTail(
                             isCandidate = true,
                             isLastVisibleItem = index == rows.lastIndex,
                             preserveUniformMinimumWidth = style == T9ShortcutCandidateStyle.UNIFORM_COMPACT
-                        )
+                        ),
+                        focusAnchoredEnd = index == rows.lastIndex
                     )
                     is Row.Pagination -> paginationView(row)
                 }
@@ -234,7 +232,8 @@ class T9ShortcutCandidatesUi(
     private fun candidateView(
         displayIndex: Int,
         row: Row.Candidate,
-        edgeAlignedEnd: Boolean
+        usesNaturalTailWidth: Boolean,
+        focusAnchoredEnd: Boolean
     ): View {
         val item = candidateItems.getOrNull(displayIndex)
             ?: LabeledCandidateItemUi(ctx, theme, setupTextView, highlightCornerRadiusPx).also {
@@ -248,8 +247,9 @@ class T9ShortcutCandidatesUi(
                 t9InputModeEnabled = true,
                 shortcutLabel = row.shortcutLabel,
                 shortcutMaxWidthPx = layout.maxCandidateWidthPx,
-                shortcutEdgeAlignedStart = displayIndex == 0,
-                shortcutEdgeAlignedEnd = edgeAlignedEnd,
+                shortcutUsesNaturalTailWidth = usesNaturalTailWidth,
+                shortcutFocusAnchoredStart = displayIndex == 0,
+                shortcutFocusAnchoredEnd = focusAnchoredEnd,
                 shortcutFocusScalePercent = layout.focusScalePercent
             )
             root.setOnClickListener {

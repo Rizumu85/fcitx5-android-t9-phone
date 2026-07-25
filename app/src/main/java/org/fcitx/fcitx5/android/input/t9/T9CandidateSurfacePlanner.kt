@@ -12,7 +12,6 @@ object T9CandidateSurfacePlanner {
         val candidates: FcitxEvent.PagedCandidateEvent.Data,
         val widthBudget: T9CandidateWidthBudget,
         val rowHorizontalPaddingPx: Int,
-        val trailingPaddingPx: Int,
         val showPaginationArrows: Boolean,
         val paginationWidthPx: Int,
         val candidateVisualWidthPx: Int?,
@@ -38,7 +37,6 @@ object T9CandidateSurfacePlanner {
                 data = input.candidates,
                 widthBudget = input.widthBudget,
                 rowHorizontalPaddingPx = input.rowHorizontalPaddingPx,
-                trailingPaddingPx = input.trailingPaddingPx,
                 showPaginationArrows = input.showPaginationArrows,
                 paginationWidthPx = input.paginationWidthPx
             )
@@ -50,7 +48,6 @@ object T9CandidateSurfacePlanner {
             rowWidthPx = 0,
             edgePaddingPx = input.rowHorizontalPaddingPx,
             maxRowWidthPx = input.widthBudget.maxWidthPx,
-            trailingPaddingPx = input.trailingPaddingPx,
             focusScalePercent = input.widthBudget.activeScalePercent
         )
         val pinyinSurface = pinyinSurface(input, input.candidateVisualWidthPx ?: candidatePolicyWidth)

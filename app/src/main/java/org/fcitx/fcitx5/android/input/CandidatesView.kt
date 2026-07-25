@@ -1068,7 +1068,6 @@ class CandidatesView(
                 .roundToInt()
                 .coerceAtLeast(1),
             rowHorizontalPaddingPx = t9ShortcutRowPaddingPx(),
-            trailingPaddingPx = t9ShortcutTrailingPaddingPx(),
             showPaginationArrows = showPaginationArrows,
             paginationWidthPx = dp(T9_PAGINATION_WIDTH_DP),
             pinyinChipHorizontalPaddingPx = dpCandidates(itemPaddingHorizontal),
@@ -1081,9 +1080,6 @@ class CandidatesView(
 
     private fun t9ShortcutRowPaddingPx(): Int =
         (dp(windowRadius) * 0.35f).roundToInt().coerceAtLeast(dp(2))
-
-    private fun t9ShortcutTrailingPaddingPx(): Int =
-        dp(candidateItemSpacing)
 
     private fun t9CandidateWidthBudget() =
         t9CandidateSurfaceGeometry.widthBudget(t9CandidateSurfaceGeometryMetrics())

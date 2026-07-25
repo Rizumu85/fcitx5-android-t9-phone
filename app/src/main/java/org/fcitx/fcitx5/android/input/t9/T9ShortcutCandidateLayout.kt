@@ -10,6 +10,5 @@ data class T9ShortcutCandidateLayout(
     val rowWidthPx: Int,
     val edgePaddingPx: Int,
     val maxRowWidthPx: Int,
-    val trailingPaddingPx: Int,
     val focusScalePercent: Int
 )

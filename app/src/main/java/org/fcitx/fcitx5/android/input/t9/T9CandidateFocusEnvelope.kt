@@ -26,8 +26,9 @@ object T9CandidateFocusEnvelope {
     fun scaleFactor(scalePercent: Int = DEFAULT_SCALE_PERCENT): Float =
         scalePercent.coerceAtLeast(100) / 100f
 
-    fun overflows(
+    private fun overflows(
         candidateWidthsPx: List<Int>,
+        edgeAlignLastCandidate: Boolean,
         scalePercent: Int = DEFAULT_SCALE_PERCENT
     ): List<Overflow> =
         candidateWidthsPx.mapIndexed { index, widthPx ->
@@ -36,13 +37,25 @@ object T9CandidateFocusEnvelope {
                     (scalePercent.coerceAtLeast(100) - 100) /
                     100f
             ).toInt()
-            if (index == 0) {
-                // The leading candidate grows only toward the row so its accepted left inset stays
-                // fixed. Its entire focus growth therefore belongs to the following boundary.
-                Overflow(startPx = 0, endPx = growthPx)
-            } else {
-                val startPx = growthPx / 2
-                Overflow(startPx = startPx, endPx = growthPx - startPx)
+            when {
+                candidateWidthsPx.size == 1 && edgeAlignLastCandidate -> {
+                    val startPx = growthPx / 2
+                    Overflow(startPx = startPx, endPx = growthPx - startPx)
+                }
+                index == 0 -> {
+                    // The leading candidate grows only toward the row so its accepted left inset
+                    // stays fixed. Its entire focus growth belongs to the following boundary.
+                    Overflow(startPx = 0, endPx = growthPx)
+                }
+                edgeAlignLastCandidate && index == candidateWidthsPx.lastIndex -> {
+                    // The final candidate mirrors the first one: focus grows into the row instead
+                    // of requiring a content-dependent reserve after the last visible word.
+                    Overflow(startPx = growthPx, endPx = 0)
+                }
+                else -> {
+                    val startPx = growthPx / 2
+                    Overflow(startPx = startPx, endPx = growthPx - startPx)
+                }
             }
         }
 
@@ -54,12 +67,15 @@ object T9CandidateFocusEnvelope {
     ): List<Int> {
         if (candidateWidthsPx.isEmpty()) return emptyList()
         val spacing = itemSpacingPx.coerceAtLeast(0)
-        val overflow = overflows(candidateWidthsPx, scalePercent)
+        val edgeAlignLastCandidate = !hasTrailingItem
+        val overflow = overflows(candidateWidthsPx, edgeAlignLastCandidate, scalePercent)
         return overflow.indices.map { index ->
             if (index < overflow.lastIndex) {
                 spacing + max(overflow[index].endPx, overflow[index + 1].startPx)
+            } else if (edgeAlignLastCandidate) {
+                0
             } else {
-                (if (hasTrailingItem) spacing else 0) + overflow[index].endPx
+                spacing + overflow[index].endPx
             }
         }
     }

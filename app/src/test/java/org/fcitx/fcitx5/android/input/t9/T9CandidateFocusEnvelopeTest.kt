@@ -18,7 +18,7 @@ class T9CandidateFocusEnvelopeTest {
             scalePercent = 150
         )
 
-        assertEquals(listOf(54, 5), margins)
+        assertEquals(listOf(54, 0), margins)
     }
 
     @Test
@@ -31,5 +31,29 @@ class T9CandidateFocusEnvelopeTest {
         )
 
         assertEquals(listOf(24), margins)
+    }
+
+    @Test
+    fun trailingCandidateGrowsInwardWithoutChangingBubbleTailInset() {
+        val margins = T9CandidateFocusEnvelope.candidateEndMarginsPx(
+            candidateWidthsPx = listOf(40, 100),
+            itemSpacingPx = 4,
+            hasTrailingItem = false,
+            scalePercent = 150
+        )
+
+        assertEquals(listOf(54, 0), margins)
+    }
+
+    @Test
+    fun singleCandidateUsesSymmetricBubbleEdgePadding() {
+        val margins = T9CandidateFocusEnvelope.candidateEndMarginsPx(
+            candidateWidthsPx = listOf(100),
+            itemSpacingPx = 4,
+            hasTrailingItem = false,
+            scalePercent = 150
+        )
+
+        assertEquals(listOf(0), margins)
     }
 }

@@ -16,17 +16,15 @@ class T9CandidateSurfacePlannerTest {
     fun plansShortcutTailCandidatePolicyAndFoldedPinyinTogether() {
         val plan = T9CandidateSurfacePlanner.plan(
             input(
-                candidates = listOf("好", "的"),
-                trailingPaddingPx = 7
+                candidates = listOf("好", "的")
             )
         )
 
-        assertEquals(7, plan.shortcutLayout.trailingPaddingPx)
         assertEquals(5, plan.shortcutLayout.edgePaddingPx)
         assertEquals(0, plan.shortcutLayout.rowWidthPx)
         assertEquals(296, plan.shortcutLayout.maxCandidateWidthPx)
         assertEquals(300, plan.shortcutLayout.maxRowWidthPx)
-        assertEquals(73, plan.candidatePolicyWidthPx)
+        assertEquals(66, plan.candidatePolicyWidthPx)
         val pinyinSurface = requireNotNull(plan.pinyinSurface)
         assertEquals(150, pinyinSurface.rowWidthPx)
         assertTrue(pinyinSurface.contentReady)
@@ -67,7 +65,6 @@ class T9CandidateSurfacePlannerTest {
 
     private fun input(
         candidates: List<String>,
-        trailingPaddingPx: Int = 0,
         pinyinFallbackViewportWidthPx: Int? = null,
         candidateVisualWidthPx: Int? = null,
         maxRowWidthPx: Int = 320
@@ -91,7 +88,6 @@ class T9CandidateSurfacePlannerTest {
                 measureTextWidthPx = { it.length * 20 }
             ),
             rowHorizontalPaddingPx = 5,
-            trailingPaddingPx = trailingPaddingPx,
             showPaginationArrows = true,
             paginationWidthPx = 20,
             candidateVisualWidthPx = candidateVisualWidthPx,

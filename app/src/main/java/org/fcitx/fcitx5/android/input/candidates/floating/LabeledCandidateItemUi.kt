@@ -40,7 +40,9 @@ class LabeledCandidateItemUi(
     private var lastCandidateText = ""
     private var lastCandidateComment = ""
     private var lastUsesShortcutLabel = false
-    private var lastShortcutEdgeAlignedEnd = false
+    private var lastShortcutUsesNaturalTailWidth = false
+    private var lastShortcutFocusAnchoredStart = false
+    private var lastShortcutFocusAnchoredEnd = false
     private var lastFocusScalePercent = T9CandidateFocusEnvelope.DEFAULT_SCALE_PERCENT
 
     private val candidateText = T9SemanticTextView(ctx).apply {
@@ -74,6 +76,9 @@ class LabeledCandidateItemUi(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             defaultFocusHighlightEnabled = false
         }
+        addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            updateShortcutPivot()
+        }
         candidateText.setPadding(0, 0, 0, 0)
         addView(
             candidateText,
@@ -98,25 +103,23 @@ class LabeledCandidateItemUi(
         t9InputModeEnabled: Boolean = false,
         shortcutLabel: String? = null,
         shortcutMaxWidthPx: Int? = null,
-        shortcutEdgeAlignedStart: Boolean = false,
-        shortcutEdgeAlignedEnd: Boolean = false,
+        shortcutUsesNaturalTailWidth: Boolean = false,
+        shortcutFocusAnchoredStart: Boolean = false,
+        shortcutFocusAnchoredEnd: Boolean = false,
         shortcutFocusScalePercent: Int = T9CandidateFocusEnvelope.DEFAULT_SCALE_PERCENT
     ) {
         val usesShortcutLabel = t9InputModeEnabled && shortcutLabel != null
         lastUsesShortcutLabel = usesShortcutLabel
-        lastShortcutEdgeAlignedEnd = usesShortcutLabel && shortcutEdgeAlignedEnd
+        lastShortcutUsesNaturalTailWidth = usesShortcutLabel && shortcutUsesNaturalTailWidth
+        lastShortcutFocusAnchoredStart = usesShortcutLabel && shortcutFocusAnchoredStart
+        lastShortcutFocusAnchoredEnd = usesShortcutLabel && shortcutFocusAnchoredEnd
         lastFocusScalePercent = shortcutFocusScalePercent
-        if (usesShortcutLabel && shortcutEdgeAlignedStart) {
-            // The first focused chip grows into the row, not through the bubble's leading inset.
-            // This preserves the accepted left margin without adding width that would disturb
-            // measured paging or the pinyin row.
-            root.pivotX = 0f
-        }
+        updateShortcutPivot()
         applyShortcutWidthLimit(if (usesShortcutLabel) shortcutMaxWidthPx else null)
         applyShortcutLineMetrics(usesShortcutLabel)
         root.gravity = if (usesShortcutLabel) Gravity.CENTER else Gravity.CENTER_VERTICAL
         root.minimumWidth = if (usesShortcutLabel) {
-            if (lastShortcutEdgeAlignedEnd) {
+            if (lastShortcutUsesNaturalTailWidth) {
                 // Product decision: the final visible T9 shortcut chip is measured by its text.
                 // Otherwise the minimum tap target becomes visible as inconsistent blank space
                 // between the last word and the bubble edge.
@@ -218,6 +221,16 @@ class LabeledCandidateItemUi(
         activeBackground.alpha = targetAlpha
         root.scaleX = targetScale
         root.scaleY = targetScaleY
+    }
+
+    private fun updateShortcutPivot() {
+        if (root.width <= 0) return
+        root.pivotX = when {
+            lastShortcutFocusAnchoredStart && lastShortcutFocusAnchoredEnd -> root.width / 2f
+            lastShortcutFocusAnchoredStart -> 0f
+            lastShortcutFocusAnchoredEnd -> root.width.toFloat()
+            else -> root.width / 2f
+        }
     }
 
     private fun applyShortcutWidthLimit(maxRootWidthPx: Int?) {

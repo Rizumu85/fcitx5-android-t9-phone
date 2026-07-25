@@ -12,7 +12,6 @@ object T9CandidateRowWidthCalculator {
         val data: FcitxEvent.PagedCandidateEvent.Data,
         val widthBudget: T9CandidateWidthBudget,
         val rowHorizontalPaddingPx: Int,
-        val trailingPaddingPx: Int,
         val showPaginationArrows: Boolean,
         val paginationWidthPx: Int
     )
@@ -35,8 +34,7 @@ object T9CandidateRowWidthCalculator {
             candidateWidths.sum() +
                 focusMargins.sum() +
                 paginationWidth +
-                input.rowHorizontalPaddingPx * 2 +
-                input.trailingPaddingPx.coerceAtLeast(0)
+                input.rowHorizontalPaddingPx * 2
             )
             .coerceAtMost(input.widthBudget.maxWidthPx)
             .coerceAtLeast(1)
