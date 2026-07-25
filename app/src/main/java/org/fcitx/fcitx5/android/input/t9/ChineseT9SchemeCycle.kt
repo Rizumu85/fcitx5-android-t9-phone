@@ -5,8 +5,6 @@
 
 package org.fcitx.fcitx5.android.input.t9
 
-import org.fcitx.fcitx5.android.core.Action
-
 object ChineseT9SchemeCycle {
     fun next(
         current: ChineseT9Scheme,
@@ -19,19 +17,6 @@ object ChineseT9SchemeCycle {
         if (cycle.size < 2) return null
         return cycle[(currentIndex + 1) % cycle.size]
     }
-
-    fun findAction(
-        actions: Array<Action>,
-        target: ChineseT9Scheme
-    ): Action? = actions
-        .firstOrNull { action -> action.name == RimeSchemeActionName }
-        ?.menu
-        ?.firstOrNull { action ->
-            target.matchesRimeIdentity(action.shortText) ||
-                target.matchesRimeIdentity(action.longText)
-        }
-
-    private const val RimeSchemeActionName = "fcitx-rime-im"
 }
 
 class ChineseT9SchemeCycleSession {
@@ -55,9 +40,5 @@ class ChineseT9SchemeCycleSession {
         val pending = requested ?: return ActivationPresentation.SHOW_CONFIRMATION
         if (pending == scheme) requested = null
         return ActivationPresentation.KEEP_REQUEST_ACKNOWLEDGEMENT
-    }
-
-    fun reject(target: ChineseT9Scheme) {
-        if (requested == target) requested = null
     }
 }

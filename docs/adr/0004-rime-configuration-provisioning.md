@@ -58,6 +58,19 @@ verified, installed, and activated without another confirmation.
 - Installing or upgrading the Rime plugin invalidates the native plugin data
   snapshot and restarts an active daemon. The next native start discovers the
   new plugin without requiring the user to switch system input methods.
+- Native Rime startup may publish a short maintenance state while librime checks
+  whether source files changed. Compiled dictionaries remain durable; this check
+  is not an application-triggered redeployment and must be presented as a
+  temporary engine-readiness transition.
+- Readiness consumers accept a lifecycle event only when it still equals
+  `FcitxCachedState.rimeAvailability`. The native cache may already be newer
+  than an event queued for the Android main thread, so an older synthetic
+  maintenance event must never replace a newer native `Ready` state.
+- A Chinese scheme request made during maintenance is durable until the typed
+  Rime schema API accepts it. Transient selection failures use bounded backoff,
+  reject stale results by generation, and resume after the next native engine
+  generation. Runtime scheme switching must not use status-menu actions because
+  Rime intentionally ignores those actions during maintenance.
 - Rime user-data synchronization remains an explicit maintenance action. It is
   not called by installation or application upgrades.
 
@@ -73,6 +86,12 @@ verified, installed, and activated without another confirmation.
    recorded.
 5. If the daemon was active, it restarts once. Librime observes changed source
    files and performs its normal maintenance automatically.
+
+On an ordinary process restart with a healthy receipt, steps 3-5 do not run.
+Librime still initializes its runtime session and checks its durable workspace.
+The input service queues the intended Pinyin, Stroke, or Zhuyin schema across
+that short transition instead of asking the user to deploy or switch system
+input methods.
 
 ## Future Distribution
 
@@ -93,7 +112,8 @@ without changing input or UI code.
 Users still approve installation of the main and Rime APKs through Android.
 After those package installs, configuration download, repair, activation, and
 future app-matched upgrades require no manual copying, deploy action, sync
-action, or input-method toggle.
+action, or input-method toggle. A process restart can briefly initialize the
+native engine, but it does not recompile a healthy configuration.
 
 GitHub remains the initial archive host, so a completely offline first install
 is not guaranteed. The design keeps that transport detail behind one Module and

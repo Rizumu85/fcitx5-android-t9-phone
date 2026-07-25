@@ -51,6 +51,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.consumeEach
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.R
@@ -105,6 +106,7 @@ import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHostAdapter
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
 import org.fcitx.fcitx5.android.input.t9.PhysicalInputRouter
 import org.fcitx.fcitx5.android.input.t9.RimeAvailabilitySession
+import org.fcitx.fcitx5.android.input.t9.RimeSchemaSelectionSession
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishT9Coordinator
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishCaseCoordinator
 import org.fcitx.fcitx5.android.input.t9.SmartEnglishLearningPolicy
@@ -1739,7 +1741,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             },
             onModeLabelChanged = {
                 onT9ModeChanged?.invoke(getCurrentT9ModeLabel())
-                reconcileChineseT9EngineReadiness()
+                if (currentT9Mode == T9InputMode.CHINESE) {
+                    reconcileChineseT9EngineReadiness()
+                } else {
+                    suspendRimeSchemaSelection()
+                }
                 if (BuildConfig.PERFORMANCE_HARNESS) {
                     Log.i(PERFORMANCE_HARNESS_LOG_TAG, "T9 mode: ${currentT9Mode.name}")
                 }
@@ -1900,6 +1906,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         )
     }
     private val chineseT9SchemeCycle = ChineseT9SchemeCycleSession()
+    private val rimeSchemaSelectionSession = RimeSchemaSelectionSession()
     private val chineseT9OutputScriptSession = ChineseT9OutputScriptSession()
     private var activeChineseT9Scheme = ChineseT9Scheme.PINYIN
     private var activeChineseT9SubModeIdentity: String? = null
@@ -1908,12 +1915,15 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     @Volatile
     private var chineseT9EngineReadiness =
         RimeAvailabilitySession.EngineReadiness.UNAVAILABLE
-    private var pendingRimeSchemaSelection: ChineseT9Scheme? = null
+    private var rimeSchemaSelectionRetryJob: Job? = null
     private var rimeInputMethodActivationPending = false
     private var performanceHarnessReadyLogged = false
 
     private fun handleRimeAvailability(data: FcitxEvent.RimeAvailabilityEvent.Data) {
-        rimeAvailabilitySession.update(data)
+        rimeAvailabilitySession.updateIfAuthoritative(
+            event = data,
+            authoritative = fcitx.cachedState.rimeAvailability
+        ) ?: return
         val activeSchema = rimeAvailabilitySession.current.activeSchema
         if (ChineseT9Scheme.fromRimeIdentityOrNull(activeSchema) != null) {
             activateChineseT9Scheme(activeSchema)
@@ -1971,15 +1981,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun reconcileChineseT9EngineReadiness() {
         if (currentT9Mode != T9InputMode.CHINESE) return
         val previous = chineseT9EngineReadiness
+        val expectedScheme =
+            rimeSchemaSelectionSession.desiredTarget ?: activeChineseT9Scheme
         val current = rimeAvailabilitySession.engineReadiness(
             rimeInputMethodActive = rimeInputMethodActive,
-            expectedScheme = activeChineseT9Scheme
+            expectedScheme = expectedScheme
         )
         chineseT9EngineReadiness = current
 
         if (current == RimeAvailabilitySession.EngineReadiness.READY) {
             rimeInputMethodActivationPending = false
-            pendingRimeSchemaSelection = null
+            cancelRimeSchemaSelectionRetry()
+            rimeSchemaSelectionSession.observeActive(expectedScheme)
             rimeInputBlocked = false
             if (previous != current) {
                 chineseT9EngineOperation.onAvailabilityChanged(true)
@@ -2000,6 +2013,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             if (current == RimeAvailabilitySession.EngineReadiness.DEPLOYING) {
                 // A new deployment is a fresh recovery attempt, so a previous typed-selection
                 // failure must not keep presenting the engine as permanently unavailable.
+                if (previous != current) {
+                    suspendRimeSchemaSelection()
+                }
                 rimeInputBlocked = false
             }
             if (previous == RimeAvailabilitySession.EngineReadiness.READY) {
@@ -2010,13 +2026,15 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 RimeAvailabilitySession.EngineReadiness.ACTIVATING_INPUT_METHOD ->
                     requestRimeInputMethodActivation()
                 RimeAvailabilitySession.EngineReadiness.SELECTING_SCHEMA ->
-                    requestRimeSchemaSelection()
+                    requestRimeSchemaSelection(expectedScheme)
                 else -> {
                     rimeInputMethodActivationPending = false
-                    pendingRimeSchemaSelection = null
                 }
             }
             if (current == RimeAvailabilitySession.EngineReadiness.UNAVAILABLE) {
+                if (previous != current) {
+                    suspendRimeSchemaSelection()
+                }
                 chineseT9EngineOperation.discardPending()
                 discardChineseCompositionForUnavailableRime(
                     showUnavailableStatus =
@@ -2053,35 +2071,81 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
     }
 
-    private fun requestRimeSchemaSelection() {
-        if (!rimeInputMethodActive || pendingRimeSchemaSelection != null) return
-        val target = activeChineseT9Scheme
-        pendingRimeSchemaSelection = target
+    private fun requestRimeSchemaSelection(target: ChineseT9Scheme) {
+        val attempt = rimeSchemaSelectionSession.request(
+            target = target,
+            engineReady = rimeInputMethodActive && rimeAvailabilitySession.current.isReady
+        )
+        attempt ?: return
         rimeInputBlocked = false
+        executeRimeSchemaSelection(attempt)
+    }
+
+    private fun executeRimeSchemaSelection(attempt: RimeSchemaSelectionSession.Attempt) {
         postFcitxJob {
-            val selected = setRimeSchema(target.rimeSchemaId)
+            val maySelect = withContext(Dispatchers.Main.immediate) {
+                currentT9Mode == T9InputMode.CHINESE &&
+                    rimeInputMethodActive &&
+                    rimeAvailabilitySession.current.isReady &&
+                    rimeSchemaSelectionSession.isCurrent(attempt)
+            }
+            if (!maySelect) return@postFcitxJob
+            val selected = setRimeSchema(attempt.target.rimeSchemaId)
             withContext(Dispatchers.Main.immediate) {
-                if (pendingRimeSchemaSelection != target) return@withContext
                 if (selected) {
+                    if (!rimeSchemaSelectionSession.onSuccess(attempt)) {
+                        return@withContext
+                    }
+                    cancelRimeSchemaSelectionRetry()
                     // The typed plugin call returns true only after Rime reports this exact schema.
                     // Publish that proof directly instead of waiting for a lossy status-area edge.
                     rimeAvailabilitySession.update(
                         FcitxEvent.RimeAvailabilityEvent.Data(
                             FcitxEvent.RimeAvailabilityEvent.State.Ready,
-                            target.rimeSchemaId
+                            attempt.target.rimeSchemaId
                         )
                     )
                     observeChineseT9InputMethod(
                         RIME_INPUT_METHOD,
-                        target.rimeSchemaId
+                        attempt.target.rimeSchemaId
                     )
                 } else {
-                    pendingRimeSchemaSelection = null
-                    chineseT9EngineOperation.discardPending()
-                    discardChineseCompositionForUnavailableRime(showUnavailableStatus = true)
+                    when (val failure = rimeSchemaSelectionSession.onFailure(attempt)) {
+                        RimeSchemaSelectionSession.Failure.Stale -> Unit
+                        is RimeSchemaSelectionSession.Failure.Retry ->
+                            scheduleRimeSchemaSelectionRetry(failure)
+                        RimeSchemaSelectionSession.Failure.Exhausted -> {
+                            chineseT9EngineOperation.discardPending()
+                            discardChineseCompositionForUnavailableRime(
+                                showUnavailableStatus = true
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+
+    private fun scheduleRimeSchemaSelectionRetry(
+        failure: RimeSchemaSelectionSession.Failure.Retry
+    ) {
+        cancelRimeSchemaSelectionRetry()
+        rimeSchemaSelectionRetryJob = lifecycleScope.launch {
+            delay(failure.delayMs)
+            if (!rimeSchemaSelectionSession.isCurrent(failure.attempt)) return@launch
+            rimeSchemaSelectionRetryJob = null
+            executeRimeSchemaSelection(failure.attempt)
+        }
+    }
+
+    private fun cancelRimeSchemaSelectionRetry() {
+        rimeSchemaSelectionRetryJob?.cancel()
+        rimeSchemaSelectionRetryJob = null
+    }
+
+    private fun suspendRimeSchemaSelection() {
+        cancelRimeSchemaSelectionRetry()
+        rimeSchemaSelectionSession.suspendForEngineTransition()
     }
 
     private fun maybeLogPerformanceHarnessReady() {
@@ -2133,6 +2197,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun activateChineseT9Scheme(subModeName: String) {
         val identity = subModeName.trim()
         val next = ChineseT9Scheme.fromRimeIdentityOrNull(identity) ?: return
+        if (rimeSchemaSelectionSession.observeActive(next)) {
+            cancelRimeSchemaSelectionRetry()
+            rimeInputBlocked = false
+        }
         val previousIdentity = activeChineseT9SubModeIdentity
         if (previousIdentity == identity) return
         // IMChange is the source of truth so physical keys and UI snapshots never block on an
@@ -2156,7 +2224,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             onT9ModeChanged?.invoke(label)
             if (activationPresentation ==
                 ChineseT9SchemeCycleSession.ActivationPresentation.SHOW_CONFIRMATION &&
-                pendingRimeSchemaSelection != next
+                rimeSchemaSelectionSession.desiredTarget != next
             ) {
                 showModeIndicatorBadge(label)
             }
@@ -2187,20 +2255,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         // Rime confirms the actual scheme asynchronously. Acknowledge the requested target now
         // so long-* feels like long-#, while the space-bar label stays source-of-truth driven.
         showModeIndicatorBadge(getString(target.compactLabelRes))
-        // Rime already owns schema availability and activation. Reuse its cached menu action so
-        // the quick path does not create a second schema state store or touch dictionary data.
-        postFcitxJob {
-            val currentActions = statusAreaActionsCached
-            val action = ChineseT9SchemeCycle.findAction(currentActions, target)
-                ?: ChineseT9SchemeCycle.findAction(statusArea(), target)
-            if (action != null) {
-                activateAction(action.id)
-            } else {
-                withContext(Dispatchers.Main.immediate) {
-                    chineseT9SchemeCycle.reject(target)
-                }
-            }
-        }
+        // A menu action is unavailable during Rime maintenance and silently loses the request.
+        // Keep the user's target in the typed recovery session until the native engine accepts it.
+        requestRimeSchemaSelection(target)
+        reconcileChineseT9EngineReadiness()
         return true
     }
 
@@ -3461,6 +3519,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     override fun onDestroy() {
+        cancelRimeSchemaSelectionRetry()
         if (handwritingCoordinatorDelegate.isInitialized()) handwritingCoordinator.close()
         updateSelectionBackCallback(false)
         recreateInputViewPrefs.forEach {

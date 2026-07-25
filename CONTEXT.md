@@ -93,7 +93,16 @@ engine state explicitly rather than presenting an unexplained empty surface.
 Engine readiness requires the active Rime input method and the exact intended
 T9 schema. Generic or empty Rime schemas remain recovery states; the service
 activates Rime, uses the typed plugin schema API, and drains queued physical
-input only after that exact selection succeeds.
+input only after that exact selection succeeds. `RimeSchemaSelectionSession`
+preserves the user's intended scheme across native maintenance, retries
+transient typed-selection failures with bounded backoff, and rejects stale
+results by generation. Runtime scheme switching never depends on Rime's
+status-menu actions because those actions are intentionally unavailable during
+maintenance.
+Readiness handling also compares each queued lifecycle event with
+`FcitxCachedState.rimeAvailability`; an older synthetic maintenance event cannot
+overwrite a newer native `Ready` snapshot merely because the Android main
+thread receives it later.
 
 Each Chinese scheme has an independent Simplified/Traditional default.
 `ChineseT9OutputScriptPolicy` hides Rime option polarity, while
@@ -283,6 +292,10 @@ Application startup and matching Rime plugin package changes may request
 provisioning, but only this Module decides whether work is required. Automatic
 failure is quiet and preserves the previous tree. Rime synchronization remains
 explicit user-data maintenance and is never part of installation.
+Native Rime process startup still performs a lightweight source-change check
+against its durable compiled workspace. That temporary maintenance state is
+engine initialization, not repeated application provisioning or a reason to
+ask the user to deploy again.
 
 `DataInstallationState` and `DataInstallationStateCodec` provide the bounded,
 atomic native-data fast path. Any version, descriptor, plugin, checksum, or

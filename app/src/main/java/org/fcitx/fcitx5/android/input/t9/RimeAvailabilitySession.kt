@@ -70,6 +70,16 @@ class RimeAvailabilitySession(
         return Transition(previous, current)
     }
 
+    fun updateIfAuthoritative(
+        event: FcitxEvent.RimeAvailabilityEvent.Data,
+        authoritative: FcitxEvent.RimeAvailabilityEvent.Data
+    ): Transition? {
+        // A service can attach from the cached snapshot while an older SharedFlow item is still
+        // queued for Main. Only the latest cache value may move readiness backwards.
+        if (event != authoritative) return null
+        return update(event)
+    }
+
     fun observeActiveSchema(schema: String): Transition {
         val previous = current
         val normalized = schema.trim()

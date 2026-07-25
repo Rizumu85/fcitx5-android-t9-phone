@@ -120,6 +120,22 @@ class RimeAvailabilitySessionTest {
     }
 
     @Test
+    fun staleLifecycleEventCannotReplaceTheLatestCachedNativeState() {
+        val ready = data(FcitxEvent.RimeAvailabilityEvent.State.Ready, "t9_stroke")
+        val staleDeploying = data(FcitxEvent.RimeAvailabilityEvent.State.Deploying)
+        val session = RimeAvailabilitySession(ready)
+
+        val transition = session.updateIfAuthoritative(
+            event = staleDeploying,
+            authoritative = ready
+        )
+
+        assertEquals(null, transition)
+        assertEquals(FcitxEvent.RimeAvailabilityEvent.State.Ready, session.current.state)
+        assertEquals("t9_stroke", session.current.activeSchema)
+    }
+
+    @Test
     fun failureLeavesReadyAndIsExplicitlyClassified() {
         val session = RimeAvailabilitySession(
             data(FcitxEvent.RimeAvailabilityEvent.State.Ready, "t9_pinyin")
