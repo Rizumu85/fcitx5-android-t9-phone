@@ -147,7 +147,7 @@ object FcitxDaemon {
             .setProgress(100, 0, true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build().let { appContext.notificationManager.notify(id, it) }
-        realFcitx.stop()
+        realFcitx.stopForRestart()
         realFcitx.start()
         FcitxApplication.getInstance().coroutineScope.launch {
             // cancel notification on ready
@@ -185,9 +185,9 @@ object FcitxDaemon {
         when (realFcitx.lifecycle.currentState) {
             FcitxLifecycle.State.STARTING -> {
                 runBlocking { realFcitx.lifecycle.whenReady {} }
-                realFcitx.stop()
+                realFcitx.stopForRestart()
             }
-            FcitxLifecycle.State.READY -> realFcitx.stop()
+            FcitxLifecycle.State.READY -> realFcitx.stopForRestart()
             FcitxLifecycle.State.STOPPING ->
                 runBlocking { realFcitx.lifecycle.whenStopped {} }
             FcitxLifecycle.State.STOPPED -> Unit

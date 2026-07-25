@@ -20,6 +20,7 @@ import org.fcitx.fcitx5.android.core.data.DataManager
 import org.fcitx.fcitx5.android.core.performance.StartupPerformanceTrace
 import org.fcitx.fcitx5.android.data.clipboard.ClipboardManager
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
+import org.fcitx.fcitx5.android.update.RimeConfigVersionStore
 import org.fcitx.fcitx5.android.utils.ImmutableGraph
 import org.fcitx.fcitx5.android.utils.Locales
 import org.fcitx.fcitx5.android.utils.appContext
@@ -33,6 +34,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
 
     private val lifecycleRegistry = FcitxLifecycleRegistry()
+    private val rimeConfigDeploymentSession = RimeConfigDeploymentSession()
 
     override val eventFlow = eventFlow_.asSharedFlow()
 
@@ -268,7 +270,8 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
 
         // we may need to modify the list during iteration
         // eg. remove the "first run" listener after first ReadyEvent
-        private val fcitxEventHandlers = CopyOnWriteArrayList<(FcitxEvent<*>) -> Unit>()
+        private val fcitxEventHandlers =
+            CopyOnWriteArrayList<(FcitxEvent<*>) -> Boolean>()
 
         init {
             System.loadLibrary("native-lib")
@@ -457,8 +460,15 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
             // callback used to make debug input materially slower and still cost release builds
             // before Timber rejected the message.
             Timber.d("Handling %s", event::class.simpleName)
-            fcitxEventHandlers.forEach { it.invoke(event) }
-            eventFlow_.tryEmit(event)
+            var shouldPublish = true
+            fcitxEventHandlers.forEach {
+                if (!it.invoke(event)) {
+                    shouldPublish = false
+                }
+            }
+            if (shouldPublish) {
+                eventFlow_.tryEmit(event)
+            }
         }
 
         // will be called in fcitx main thread
@@ -478,12 +488,12 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
         /**
          * register a [FcitxEvent] handler that will fire before events go into [eventFlow_]
          */
-        private fun registerFcitxEventHandler(handler: (FcitxEvent<*>) -> Unit) {
+        private fun registerFcitxEventHandler(handler: (FcitxEvent<*>) -> Boolean) {
             if (fcitxEventHandlers.contains(handler)) return
             fcitxEventHandlers.add(handler)
         }
 
-        private fun unregisterFcitxEventHandler(handler: (FcitxEvent<*>) -> Unit) {
+        private fun unregisterFcitxEventHandler(handler: (FcitxEvent<*>) -> Boolean) {
             fcitxEventHandlers.remove(handler)
         }
 
@@ -572,20 +582,21 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
 
     private var firstRun by AppPrefs.getInstance().internal.firstRun
 
-    private fun handleFirstRunEvent(event: FcitxEvent<*>) {
-        if (!firstRun) return
+    private fun handleFirstRunEvent(event: FcitxEvent<*>): Boolean {
+        if (!firstRun) return true
         val engineCanBeConfigured = event is FcitxEvent.ReadyEvent ||
             event is FcitxEvent.RimeAvailabilityEvent &&
             event.data.state == FcitxEvent.RimeAvailabilityEvent.State.Ready
-        if (!engineCanBeConfigured) return
+        if (!engineCanBeConfigured) return true
         // This handler runs on the Fcitx thread. Completing only after Rime appears avoids
         // persisting an English-only profile when deployment finishes after core readiness.
-        if (!onFirstRun()) return
+        if (!onFirstRun()) return true
         firstRun = false
         unregisterFcitxEventHandler(::handleFirstRunEvent)
+        return true
     }
 
-    private fun handleFcitxEvent(event: FcitxEvent<*>) {
+    private fun handleFcitxEvent(event: FcitxEvent<*>): Boolean {
         when (event) {
             is FcitxEvent.ReadyEvent -> {
                 StartupPerformanceTrace.mark(StartupPerformanceTrace.Milestone.FCITX_READY)
@@ -616,6 +627,31 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
                 it.copy(pagedCandidates = event.data)
             }
             is FcitxEvent.RimeAvailabilityEvent -> {
+                when (
+                    rimeConfigDeploymentSession.onAvailability(
+                        state = event.data.state,
+                        requirement = RimeConfigVersionStore.deploymentRequirement(context)
+                    )
+                ) {
+                    RimeConfigDeploymentSession.Effect.FORWARD -> Unit
+                    RimeConfigDeploymentSession.Effect.HOLD_READY -> return false
+                    RimeConfigDeploymentSession.Effect.REQUEST_FULL_DEPLOYMENT -> {
+                        // A lightweight Rime Ready event proves only that librime started. Hide it
+                        // until the archive's newly introduced schemas finish their owned compile.
+                        Timber.i("Starting required full Rime configuration deployment")
+                        runCatching {
+                            setFcitxAddonSubConfig("rime", "deploy", RawConfig())
+                        }.onFailure {
+                            Timber.e(it, "Unable to start required Rime deployment")
+                        }
+                        return false
+                    }
+                    RimeConfigDeploymentSession.Effect.COMPLETE_FULL_DEPLOYMENT -> {
+                        if (!RimeConfigVersionStore.completeDeployment(context)) {
+                            Timber.w("Unable to clear completed Rime deployment marker")
+                        }
+                    }
+                }
                 if (event.data.state == FcitxEvent.RimeAvailabilityEvent.State.Ready) {
                     StartupPerformanceTrace.mark(StartupPerformanceTrace.Milestone.RIME_READY)
                 }
@@ -625,6 +661,7 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
             }
             else -> {}
         }
+        return true
     }
 
     private inline fun updateCachedState(update: (FcitxCachedState) -> FcitxCachedState) {
@@ -640,6 +677,7 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
         if (firstRun) {
             registerFcitxEventHandler(::handleFirstRunEvent)
         }
+        rimeConfigDeploymentSession.reset()
         registerFcitxEventHandler(::handleFcitxEvent)
         clearCachedInputPresentation()
         publishRimeLifecycleState(FcitxEvent.RimeAvailabilityEvent.State.Deploying)
@@ -654,13 +692,21 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
     }
 
     fun stop() {
+        stop(FcitxEvent.RimeAvailabilityEvent.State.Unavailable)
+    }
+
+    fun stopForRestart() {
+        stop(FcitxEvent.RimeAvailabilityEvent.State.Deploying)
+    }
+
+    private fun stop(rimeLifecycleState: FcitxEvent.RimeAvailabilityEvent.State) {
         if (lifecycle.currentState != FcitxLifecycle.State.READY) {
             Timber.w("Skip stopping fcitx: not at ready state!")
             return
         }
         lifecycleRegistry.postEvent(FcitxLifecycle.Event.ON_STOP)
         clearCachedInputPresentation()
-        publishRimeLifecycleState(FcitxEvent.RimeAvailabilityEvent.State.Unavailable)
+        publishRimeLifecycleState(rimeLifecycleState)
         Timber.i("Fcitx stop()")
         ClipboardManager.removeOnUpdateListener(onClipboardUpdate)
         FcitxPluginServices.disconnectAll()

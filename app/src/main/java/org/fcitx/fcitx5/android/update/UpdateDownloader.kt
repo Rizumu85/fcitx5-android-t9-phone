@@ -12,6 +12,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.ParcelFileDescriptor
 import android.widget.Toast
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -191,11 +192,11 @@ class UpdateDownloadReceiver : BroadcastReceiver() {
         val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
         val pending = id.takeIf { it >= 0 }?.let { UpdateDownloader.consumePending(context, it) }
             ?: return
-        val uri = context.getSystemService(DownloadManager::class.java)
-            .getUriForDownloadedFile(id) ?: return
+        val manager = context.getSystemService(DownloadManager::class.java)
         if (pending.component == UpdateComponent.RIME_CONFIG) {
-            installRimeConfig(context.applicationContext, uri, pending)
+            installRimeConfig(context.applicationContext, manager, id, pending)
         } else {
+            val uri = manager.getUriForDownloadedFile(id) ?: return
             context.startActivity(
                 Intent(Intent.ACTION_VIEW, uri)
                     .setDataAndType(uri, "application/vnd.android.package-archive")
@@ -204,10 +205,21 @@ class UpdateDownloadReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun installRimeConfig(context: Context, uri: Uri, pending: UpdateDownloader.Pending) {
+    private fun installRimeConfig(
+        context: Context,
+        manager: DownloadManager,
+        downloadId: Long,
+        pending: UpdateDownloader.Pending
+    ) {
         val result = goAsync()
         Thread({
-            val installed = RimeConfigInstaller.install(context, uri, pending).isSuccess
+            // Some vendor DownloadProviders return an all_downloads URI that the requesting app
+            // cannot reopen. DownloadManager retains the caller-authorized file handle instead.
+            val installed = RimeConfigInstaller.install(context, pending) {
+                ParcelFileDescriptor.AutoCloseInputStream(
+                    manager.openDownloadedFile(downloadId)
+                )
+            }.isSuccess
             if (!pending.automatic) android.os.Handler(context.mainLooper).post {
                 Toast.makeText(
                     context,

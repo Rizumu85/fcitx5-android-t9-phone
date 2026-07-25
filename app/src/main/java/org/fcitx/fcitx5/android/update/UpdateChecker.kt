@@ -102,18 +102,46 @@ object InstalledUpdateVersionsResolver {
         runCatching { getPackageInfo(packageName, 0).versionName }.getOrNull()
 }
 
-object RimeConfigVersionStore {
-    private const val PreferenceName = "rime_config_update"
-    private const val VersionKey = "installed_version"
-    private const val ArchiveSha256Key = "installed_archive_sha256"
-    private const val VersionMarker = ".rime-ice-t9-version"
-    private const val InstallInProgressMarker = ".rime-config-installing"
-    private const val LegacyUntrackedVersion = "3.0.0"
+internal enum class RimeConfigDeploymentRequirement {
+    NONE,
+    WAIT_FOR_SOURCE,
+    REQUIRED
+}
+
+internal object RimeConfigDeploymentHealth {
+    const val InstallInProgressMarker = ".rime-config-installing"
+    const val DeploymentRequiredMarker = ".rime-config-deployment-required"
+
     private val RequiredSchemas = listOf(
         "t9.schema.yaml",
         "t9_stroke.schema.yaml",
         "t9_zhuyin.schema.yaml"
     )
+    private val RequiredCompiledSchemas = listOf(
+        "build/t9.prism.bin",
+        "build/t9_stroke.prism.bin",
+        "build/t9_zhuyin.prism.bin"
+    )
+
+    fun sourceHealthy(rimeDir: File): Boolean =
+        !rimeDir.resolve(InstallInProgressMarker).exists() &&
+            RequiredSchemas.all { rimeDir.resolve(it).isFile }
+
+    fun deploymentRequirement(rimeDir: File): RimeConfigDeploymentRequirement = when {
+        !sourceHealthy(rimeDir) -> RimeConfigDeploymentRequirement.WAIT_FOR_SOURCE
+        rimeDir.resolve(DeploymentRequiredMarker).exists() ||
+            RequiredCompiledSchemas.any { !rimeDir.resolve(it).isFile } ->
+            RimeConfigDeploymentRequirement.REQUIRED
+        else -> RimeConfigDeploymentRequirement.NONE
+    }
+}
+
+object RimeConfigVersionStore {
+    private const val PreferenceName = "rime_config_update"
+    private const val VersionKey = "installed_version"
+    private const val ArchiveSha256Key = "installed_archive_sha256"
+    private const val VersionMarker = ".rime-ice-t9-version"
+    private const val LegacyUntrackedVersion = "3.0.0"
 
     fun currentVersion(context: Context): String? {
         val preferences = context.getSharedPreferences(PreferenceName, Context.MODE_PRIVATE)
@@ -129,17 +157,21 @@ object RimeConfigVersionStore {
     }
 
     fun isHealthy(context: Context): Boolean {
-        val rimeDir = rimeDir(context)
-        return !rimeDir.resolve(InstallInProgressMarker).exists() &&
-            RequiredSchemas.all { rimeDir.resolve(it).isFile }
+        return RimeConfigDeploymentHealth.sourceHealthy(rimeDir(context))
     }
+
+    internal fun deploymentRequirement(context: Context): RimeConfigDeploymentRequirement =
+        RimeConfigDeploymentHealth.deploymentRequirement(rimeDir(context))
 
     fun currentArchiveSha256(context: Context): String? =
         context.getSharedPreferences(PreferenceName, Context.MODE_PRIVATE)
             .getString(ArchiveSha256Key, null)
 
     fun beginInstall(context: Context, version: String) {
-        writeMarker(rimeDir(context).resolve(InstallInProgressMarker), version)
+        writeMarker(
+            rimeDir(context).resolve(RimeConfigDeploymentHealth.InstallInProgressMarker),
+            version
+        )
     }
 
     fun record(context: Context, version: String, archiveSha256: String? = null) {
@@ -155,9 +187,22 @@ object RimeConfigVersionStore {
             }
             .commit()
         check(receiptCommitted) { "Unable to record the Rime configuration receipt" }
-        check(rimeDir.resolve(InstallInProgressMarker).delete()) {
+        // Source installation and native compilation are separate transactions. Keeping this
+        // durable handoff before clearing the install marker prevents a process death from ever
+        // presenting an uncompiled schema tree as ready.
+        writeMarker(
+            rimeDir.resolve(RimeConfigDeploymentHealth.DeploymentRequiredMarker),
+            version
+        )
+        check(rimeDir.resolve(RimeConfigDeploymentHealth.InstallInProgressMarker).delete()) {
             "Unable to complete the Rime configuration transaction"
         }
+    }
+
+    internal fun completeDeployment(context: Context): Boolean {
+        val marker = rimeDir(context)
+            .resolve(RimeConfigDeploymentHealth.DeploymentRequiredMarker)
+        return !marker.exists() || marker.delete()
     }
 
     private fun writeMarker(file: File, value: String) {

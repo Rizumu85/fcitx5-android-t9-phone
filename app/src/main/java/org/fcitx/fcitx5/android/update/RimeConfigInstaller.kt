@@ -6,7 +6,6 @@
 package org.fcitx.fcitx5.android.update
 
 import android.content.Context
-import android.net.Uri
 import org.fcitx.fcitx5.android.daemon.FcitxDaemon
 import timber.log.Timber
 import java.io.File
@@ -17,16 +16,6 @@ import kotlin.concurrent.withLock
 
 object RimeConfigInstaller {
     private val installLock = ReentrantLock()
-
-    fun install(
-        context: Context,
-        uri: Uri,
-        pending: UpdateDownloader.Pending
-    ): Result<Unit> = install(context, pending) {
-        requireNotNull(context.contentResolver.openInputStream(uri)) {
-            "Downloaded Rime configuration is unavailable"
-        }
-    }
 
     fun install(
         context: Context,
@@ -44,7 +33,7 @@ object RimeConfigInstaller {
         openArchive = archive::inputStream
     )
 
-    private fun install(
+    internal fun install(
         context: Context,
         pending: UpdateDownloader.Pending,
         openArchive: () -> InputStream
