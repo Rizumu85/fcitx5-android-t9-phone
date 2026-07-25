@@ -5,38 +5,10 @@
 
 package org.fcitx.fcitx5.android.input.t9
 
-import kotlin.math.ceil
-import kotlin.math.max
-
 object T9ShortcutTailPolicy {
     fun edgeAlignsCandidateToBubbleTail(
         isCandidate: Boolean,
         isLastVisibleItem: Boolean,
         preserveUniformMinimumWidth: Boolean = false
     ): Boolean = isCandidate && isLastVisibleItem && !preserveUniformMinimumWidth
-
-    fun stabilizedToolbarWidthPx(
-        naturalWidthPx: Int,
-        lastChildMeasuredRightPx: Int?,
-        lastChildMeasuredWidthPx: Int?,
-        lastChildScaleX: Float,
-        edgePaddingPx: Int,
-        trailingPaddingPx: Int,
-        maxRowWidthPx: Int
-    ): Int {
-        val naturalWidth = naturalWidthPx.coerceAtLeast(0)
-        val childRight = lastChildMeasuredRightPx ?: return naturalWidth
-        val childWidth = lastChildMeasuredWidthPx ?: return naturalWidth
-        val scaleOverflow = ceil(childWidth * (lastChildScaleX - 1f).coerceAtLeast(0f) / 2f)
-            .toInt()
-            .coerceAtLeast(0)
-        val targetWidth = childRight +
-            scaleOverflow +
-            edgePaddingPx.coerceAtLeast(0) +
-            trailingPaddingPx.coerceAtLeast(0)
-        val cappedWidth = max(naturalWidth, targetWidth)
-        return maxRowWidthPx.takeIf { it > 0 }
-            ?.let { cappedWidth.coerceAtMost(it) }
-            ?: cappedWidth
-    }
 }

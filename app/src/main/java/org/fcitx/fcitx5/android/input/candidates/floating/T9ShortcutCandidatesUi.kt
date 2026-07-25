@@ -17,6 +17,7 @@ import android.widget.TextView
 import androidx.core.view.updateLayoutParams
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.data.theme.Theme
+import org.fcitx.fcitx5.android.input.t9.T9CandidateFocusEnvelope
 import org.fcitx.fcitx5.android.input.t9.T9ResponsivenessTrace
 import org.fcitx.fcitx5.android.input.t9.T9ShortcutCandidateLayout
 import org.fcitx.fcitx5.android.input.t9.T9ShortcutCandidateStyle
@@ -53,11 +54,12 @@ class T9ShortcutCandidatesUi(
         rowWidthPx = 0,
         edgePaddingPx = 0,
         maxRowWidthPx = 0,
-        trailingPaddingPx = 0
+        trailingPaddingPx = 0,
+        focusScalePercent = T9CandidateFocusEnvelope.DEFAULT_SCALE_PERCENT
     )
     private var renderRows: List<Row> = emptyList()
     private var renderStructure: RenderStructure? = null
-    private var measureStructure: MeasureStructure? = null
+    private var measureStructure: RenderStructure? = null
     var measuredToolbarWidthPx: Int? = null
         private set
 
@@ -194,7 +196,7 @@ class T9ShortcutCandidatesUi(
         }
         renderRows = rows
         renderStructure = structure
-        measureStructure = measureStructureFor(rows, structure)
+        measureStructure = structure
     }
 
     private fun renderSelection(rows: List<Row>) {
@@ -221,7 +223,7 @@ class T9ShortcutCandidatesUi(
         rows: List<Row>,
         structure: RenderStructure
     ) {
-        val nextMeasure = measureStructureFor(rows, structure)
+        val nextMeasure = structure
         if (nextMeasure == measureStructure) return
         T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutMeasure") {
             measureToolbar(rows)
@@ -247,7 +249,8 @@ class T9ShortcutCandidatesUi(
                 shortcutLabel = row.shortcutLabel,
                 shortcutMaxWidthPx = layout.maxCandidateWidthPx,
                 shortcutEdgeAlignedStart = displayIndex == 0,
-                shortcutEdgeAlignedEnd = edgeAlignedEnd
+                shortcutEdgeAlignedEnd = edgeAlignedEnd,
+                shortcutFocusScalePercent = layout.focusScalePercent
             )
             root.setOnClickListener {
                 onCandidateClick.invoke(row.position)
@@ -266,7 +269,8 @@ class T9ShortcutCandidatesUi(
         val params = (view.layoutParams as? LinearLayout.LayoutParams)
             ?: LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
         val rightMargin = if (last) 0 else itemSpacingPx
-        if (params.rightMargin != rightMargin) {
+        if (params.leftMargin != 0 || params.rightMargin != rightMargin) {
+            params.leftMargin = 0
             params.rightMargin = rightMargin
             view.layoutParams = params
         }
@@ -290,28 +294,21 @@ class T9ShortcutCandidatesUi(
         T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutMeasureNatural") {
             measureRoot()
         }
-        val naturalWidth = root.measuredWidth
-        val lastBounds = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutLastBounds") {
-            measuredLastChildBounds(rows)
+        val marginsChanged = T9ResponsivenessTrace.measure(
+            "CandidatesView.updateUi.renderCandidates.shortcutFocusEnvelope"
+        ) {
+            applyFocusEnvelopeMargins(rows)
         }
-        val stableWidth = T9ResponsivenessTrace.measure("CandidatesView.updateUi.renderCandidates.shortcutTailPolicy") {
-            T9ShortcutTailPolicy.stabilizedToolbarWidthPx(
-                naturalWidthPx = naturalWidth,
-                lastChildMeasuredRightPx = lastBounds?.right,
-                lastChildMeasuredWidthPx = lastBounds?.width,
-                lastChildScaleX = lastBounds?.scaleX ?: 1f,
-                edgePaddingPx = layout.edgePaddingPx,
-                trailingPaddingPx = layout.trailingPaddingPx,
-                maxRowWidthPx = layout.maxRowWidthPx
-            )
+        if (marginsChanged) {
+            T9ResponsivenessTrace.measure(
+                "CandidatesView.updateUi.renderCandidates.shortcutMeasureEnvelope"
+            ) {
+                measureRoot()
+            }
         }
-        if (stableWidth != naturalWidth) {
-            root.minimumWidth = stableWidth
-        }
-        // The natural measure already produced exact child geometry. Android's upcoming layout
-        // pass applies this minimum; publishing the same width now avoids measuring every child a
-        // second time only to inform the sibling reading row.
-        measuredToolbarWidthPx = maxOf(naturalWidth, stableWidth).takeIf { it > 0 }
+        measuredToolbarWidthPx = root.measuredWidth
+            .coerceAtMost(layout.maxRowWidthPx.takeIf { it > 0 } ?: Int.MAX_VALUE)
+            .takeIf { it > 0 }
     }
 
     private fun measureRoot() {
@@ -321,27 +318,31 @@ class T9ShortcutCandidatesUi(
         )
     }
 
-    private data class MeasuredChildBounds(
-        val right: Int,
-        val width: Int,
-        val scaleX: Float
-    )
-
-    private fun measuredLastChildBounds(rows: List<Row>): MeasuredChildBounds? {
-        if (rows.isEmpty() || root.childCount == 0) return null
-        var cursor = root.paddingLeft
-        var last: MeasuredChildBounds? = null
-        val count = minOf(rows.size, root.childCount)
-        for (index in 0 until count) {
-            val child = root.getChildAt(index)
-            val params = child.layoutParams as? LinearLayout.LayoutParams
-            cursor += params?.leftMargin ?: 0
-            val width = child.measuredWidth.coerceAtLeast(0)
-            val right = cursor + width
-            last = MeasuredChildBounds(right = right, width = width, scaleX = child.scaleX)
-            cursor = right + (params?.rightMargin ?: 0)
+    private fun applyFocusEnvelopeMargins(rows: List<Row>): Boolean {
+        val candidateCount = rows.count { it is Row.Candidate }
+        if (candidateCount <= 0) return false
+        val widths = (0 until candidateCount).map { index ->
+            root.getChildAt(index).measuredWidth.coerceAtLeast(0)
         }
-        return last
+        val margins = T9CandidateFocusEnvelope.candidateEndMarginsPx(
+            candidateWidthsPx = widths,
+            itemSpacingPx = itemSpacingPx,
+            hasTrailingItem = rows.lastOrNull() is Row.Pagination,
+            scalePercent = layout.focusScalePercent
+        )
+        var changed = false
+        margins.forEachIndexed { index, rightMargin ->
+            val child = root.getChildAt(index)
+            val params = child.layoutParams as? LinearLayout.LayoutParams ?: return@forEachIndexed
+            if (params.leftMargin == 0 && params.rightMargin == rightMargin) {
+                return@forEachIndexed
+            }
+            params.leftMargin = 0
+            params.rightMargin = rightMargin
+            child.layoutParams = params
+            changed = true
+        }
+        return changed
     }
 
     private fun rowsFor(data: FcitxEvent.PagedCandidateEvent.Data): List<Row> {
@@ -376,11 +377,6 @@ class T9ShortcutCandidatesUi(
         data class Pagination(val hasPrev: Boolean, val hasNext: Boolean) : RowStructure()
     }
 
-    private data class MeasureStructure(
-        val renderStructure: RenderStructure,
-        val tailCandidateActive: Boolean
-    )
-
     private fun renderStructureFor(
         rows: List<Row>,
         layout: T9ShortcutCandidateLayout,
@@ -403,17 +399,6 @@ class T9ShortcutCandidatesUi(
                     )
                 }
             }
-        )
-
-    private fun measureStructureFor(
-        rows: List<Row>,
-        structure: RenderStructure
-    ): MeasureStructure =
-        MeasureStructure(
-            renderStructure = structure,
-            // The focused tail chip can draw wider than its measured width; only that visual
-            // state needs a second pass after a selection-only update.
-            tailCandidateActive = (rows.lastOrNull() as? Row.Candidate)?.active == true
         )
 
     companion object {

@@ -50,7 +50,8 @@ object T9CandidateSurfacePlanner {
             rowWidthPx = 0,
             edgePaddingPx = input.rowHorizontalPaddingPx,
             maxRowWidthPx = input.widthBudget.maxWidthPx,
-            trailingPaddingPx = input.trailingPaddingPx
+            trailingPaddingPx = input.trailingPaddingPx,
+            focusScalePercent = input.widthBudget.activeScalePercent
         )
         val pinyinSurface = pinyinSurface(input, input.candidateVisualWidthPx ?: candidatePolicyWidth)
         return Plan(

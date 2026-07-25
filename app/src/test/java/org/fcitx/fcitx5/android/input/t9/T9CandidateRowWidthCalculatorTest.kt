@@ -59,7 +59,7 @@ class T9CandidateRowWidthCalculatorTest {
     }
 
     @Test
-    fun focusScaleDoesNotChangeLayoutWidth() {
+    fun focusEnvelopeIsReservedWithoutDependingOnCurrentSelection() {
         val width = T9CandidateRowWidthCalculator.calculate(
             input(
                 candidates = listOf("好", "的", "长词"),
@@ -67,7 +67,7 @@ class T9CandidateRowWidthCalculatorTest {
             )
         )
 
-        assertEquals(116, width)
+        assertEquals(152, width)
     }
 
     @Test

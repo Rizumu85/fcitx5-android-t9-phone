@@ -13,7 +13,7 @@ class T9CandidateWidthBudget(
     val candidateSpacingPx: Int,
     private val candidateHorizontalPaddingPx: Int,
     private val minimumCandidateWidthPx: Int,
-    private val activeScalePercent: Int = ACTIVE_SCALE_PERCENT,
+    val activeScalePercent: Int = T9CandidateFocusEnvelope.DEFAULT_SCALE_PERCENT,
     private val measureTextWidthPx: (String) -> Int
 ) {
     val signature: String =
@@ -26,22 +26,21 @@ class T9CandidateWidthBudget(
     val maxCandidateWidthPx: Int
         get() = (maxWidthPx - candidateSpacingPx).coerceAtLeast(minimumCandidateWidthPx)
 
+    fun naturalCandidateWidthPx(candidate: FcitxEvent.Candidate): Int =
+        (measureTextWidthPx(candidate.text) + candidateHorizontalPaddingPx * 2)
+            .coerceAtLeast(minimumCandidateWidthPx)
+            .coerceAtMost(maxCandidateWidthPx)
+
     fun candidateWidthPx(candidate: FcitxEvent.Candidate): Int =
         candidateWidthPx(candidate, active = true)
 
     fun candidateWidthPx(candidate: FcitxEvent.Candidate, active: Boolean): Int {
-        val naturalWidth = (measureTextWidthPx(candidate.text) + candidateHorizontalPaddingPx * 2)
-            .coerceAtLeast(minimumCandidateWidthPx)
-            .coerceAtMost(maxCandidateWidthPx)
+        val naturalWidth = naturalCandidateWidthPx(candidate)
         val scaledWidth = if (active) {
             ceil(naturalWidth * activeScalePercent / 100f).toInt()
         } else {
             naturalWidth
         }
         return scaledWidth + candidateSpacingPx
-    }
-
-    companion object {
-        private const val ACTIVE_SCALE_PERCENT = 107
     }
 }

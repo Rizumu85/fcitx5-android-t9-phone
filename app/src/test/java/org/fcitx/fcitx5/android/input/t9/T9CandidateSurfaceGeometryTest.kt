@@ -28,7 +28,7 @@ class T9CandidateSurfaceGeometryTest {
         assertEquals(7, plan.shortcutLayout.trailingPaddingPx)
         assertEquals(5, plan.shortcutLayout.edgePaddingPx)
         assertEquals(296, plan.shortcutLayout.maxCandidateWidthPx)
-        assertEquals(73, plan.candidatePolicyWidthPx)
+        assertEquals(76, plan.candidatePolicyWidthPx)
         val pinyinSurface = requireNotNull(plan.pinyinSurface)
         assertTrue(pinyinSurface.showOverflowHint)
         assertEquals(144, pinyinSurface.rowWidthPx)

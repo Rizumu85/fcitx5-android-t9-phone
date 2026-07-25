@@ -18,6 +18,7 @@ import androidx.core.text.buildSpannedString
 import androidx.core.text.color
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.data.theme.Theme
+import org.fcitx.fcitx5.android.input.t9.T9CandidateFocusEnvelope
 import org.fcitx.fcitx5.android.input.t9.T9SemanticTextView
 import splitties.views.dsl.core.Ui
 import kotlin.math.roundToInt
@@ -40,6 +41,7 @@ class LabeledCandidateItemUi(
     private var lastCandidateComment = ""
     private var lastUsesShortcutLabel = false
     private var lastShortcutEdgeAlignedEnd = false
+    private var lastFocusScalePercent = T9CandidateFocusEnvelope.DEFAULT_SCALE_PERCENT
 
     private val candidateText = T9SemanticTextView(ctx).apply {
         setupTextView(this)
@@ -97,11 +99,13 @@ class LabeledCandidateItemUi(
         shortcutLabel: String? = null,
         shortcutMaxWidthPx: Int? = null,
         shortcutEdgeAlignedStart: Boolean = false,
-        shortcutEdgeAlignedEnd: Boolean = false
+        shortcutEdgeAlignedEnd: Boolean = false,
+        shortcutFocusScalePercent: Int = T9CandidateFocusEnvelope.DEFAULT_SCALE_PERCENT
     ) {
         val usesShortcutLabel = t9InputModeEnabled && shortcutLabel != null
         lastUsesShortcutLabel = usesShortcutLabel
         lastShortcutEdgeAlignedEnd = usesShortcutLabel && shortcutEdgeAlignedEnd
+        lastFocusScalePercent = shortcutFocusScalePercent
         if (usesShortcutLabel && shortcutEdgeAlignedStart) {
             // The first focused chip grows into the row, not through the bubble's leading inset.
             // This preserves the accepted left margin without adding width that would disturb
@@ -197,7 +201,11 @@ class LabeledCandidateItemUi(
 
     private fun updateHighlight(active: Boolean) {
         val targetAlpha = if (active) 255 else 0
-        val targetScale = if (active) ACTIVE_HIGHLIGHT_SCALE else 1f
+        val targetScale = if (active) {
+            T9CandidateFocusEnvelope.scaleFactor(lastFocusScalePercent)
+        } else {
+            1f
+        }
         // T9 shortcut chips are two measured rows. Scaling only horizontally keeps the familiar
         // focus width without lying to the parent layout about vertical bounds.
         val targetScaleY = if (lastUsesShortcutLabel) 1f else targetScale
@@ -250,7 +258,6 @@ class LabeledCandidateItemUi(
     }
 
     companion object {
-        private const val ACTIVE_HIGHLIGHT_SCALE = 1.07f
         private const val SHORTCUT_LABEL_SCALE = 0.45f
         private const val SHORTCUT_CANDIDATE_MIN_WIDTH_EM = 1.35f
         private const val SHORTCUT_CANDIDATE_LINE_HEIGHT_EM = 1.45f
