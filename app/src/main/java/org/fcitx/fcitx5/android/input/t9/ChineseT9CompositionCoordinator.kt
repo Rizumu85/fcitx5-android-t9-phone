@@ -67,6 +67,12 @@ class ChineseT9CompositionCoordinator(
         state == ChineseT9CompositionLifecycle.InputState.COMPOSING || hasState()
     )
 
+    fun shouldPreserveDeferredComposition(
+        isActive: Boolean,
+        engineWaiting: Boolean
+    ): Boolean =
+        isActive && engineWaiting && hasState()
+
     fun shouldClearHiddenComposition(isActive: Boolean, hasPendingPunctuation: Boolean): Boolean =
         isActive && !hasPendingPunctuation && keyCount() <= 0
 

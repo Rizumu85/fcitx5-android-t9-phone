@@ -17,6 +17,25 @@ import org.junit.Test
 class ChineseT9CompositionCoordinatorTest {
 
     @Test
+    fun cursorUpdatePreservesLocalCompositionWhileEngineIsRecovering() {
+        val coordinator = coordinator()
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_6)
+
+        assertTrue(
+            coordinator.shouldPreserveDeferredComposition(
+                isActive = true,
+                engineWaiting = true
+            )
+        )
+        assertFalse(
+            coordinator.shouldPreserveDeferredComposition(
+                isActive = true,
+                engineWaiting = false
+            )
+        )
+    }
+
+    @Test
     fun snapshotKeepsForwardedDigitsAuthoritativeOverConvertedPreedit() {
         val coordinator = coordinator()
 

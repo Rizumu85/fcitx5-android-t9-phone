@@ -147,10 +147,18 @@ internal data class ChineseT9FcitxKeyStroke(
 )
 
 class FcitxInputMethodService : LifecycleInputMethodService() {
+    private data class FcitxInputContextRecovery(
+        val capabilityFlags: CapabilityFlags,
+        val focusRequested: Boolean,
+        val candidatePagingMode: Int
+    )
 
     private lateinit var fcitx: FcitxConnection
 
     private var jobs = Channel<Job>(capacity = Channel.UNLIMITED)
+    private val fcitxInputContextGenerationSession = FcitxInputContextGenerationSession()
+    private var fcitxInputFocusRequested = false
+    private var activeFcitxCapabilityFlags = CapabilityFlags.DefaultFlags
 
     private val cachedKeyEvents = LruCache<Int, KeyEvent>(78)
     private var cachedKeyEventIndex = 0
@@ -755,6 +763,47 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return job
     }
 
+    private fun handleFcitxReady() {
+        rimeInputMethodActive = false
+        activeChineseT9SubModeIdentity = null
+        rimeInputMethodActivationPending = false
+        cancelRimeSchemaSelectionRetry()
+        rimeSchemaSelectionSession.suspendForEngineTransition()
+
+        val request = fcitxInputContextGenerationSession.onFcitxReady() ?: return
+        postFcitxJob {
+            val recovery = withContext(Dispatchers.Main.immediate) {
+                if (!fcitxInputContextGenerationSession.isRestoreRequired(request)) {
+                    null
+                } else {
+                    FcitxInputContextRecovery(
+                        capabilityFlags = activeFcitxCapabilityFlags,
+                        focusRequested = fcitxInputFocusRequested,
+                        candidatePagingMode = candidatePagingModeForCurrentInputDevice()
+                    )
+                }
+            } ?: return@postFcitxJob
+
+            Timber.d(
+                "Restoring Fcitx input context after restart: generation=%d package=%s",
+                request.generation,
+                request.binding.packageName
+            )
+            activate(request.binding.uid, request.binding.packageName)
+            // AndroidFrontend owns paging mode only in memory. Reapply it before releasing queued
+            // T9 input so a native restart cannot silently publish bulk candidates to the paged UI.
+            setCandidatePagingMode(recovery.candidatePagingMode)
+            if (recovery.focusRequested) {
+                setCapFlags(recovery.capabilityFlags)
+                focus(true)
+                enforceHalfWidthForT9()
+            }
+            withContext(Dispatchers.Main.immediate) {
+                fcitxInputContextGenerationSession.completeRestore(request)
+            }
+        }
+    }
+
     fun activateStatusAction(action: Action, fromSchemeMenu: Boolean = false) {
         persistentStatusActions.recordUserActivation(action, fromSchemeMenu)
         postFcitxJob { activateAction(action.id) }
@@ -908,6 +957,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 val (before, after) = event.data
                 handleDeleteSurrounding(before, after)
             }
+            is FcitxEvent.ReadyEvent -> handleFcitxReady()
             is FcitxEvent.IMChangeEvent -> {
                 observeChineseT9InputMethod(event.data.uniqueName, event.data.subMode.name)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -3047,10 +3097,17 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     override fun onBindInput() {
         val uid = currentInputBinding.uid
         val pkgName = pkgNameCache.forUid(uid)
+        val binding = fcitxInputContextGenerationSession.bind(uid, pkgName)
         Timber.d("onBindInput: uid=$uid pkg=$pkgName")
         postFcitxJob {
+            val activation = withContext(Dispatchers.Main.immediate) {
+                fcitxInputContextGenerationSession.beginActivation(binding)
+            } ?: return@postFcitxJob
             // ensure InputContext has been created before focusing it
             activate(uid, pkgName)
+            withContext(Dispatchers.Main.immediate) {
+                fcitxInputContextGenerationSession.completeActivation(activation)
+            }
             if (BuildConfig.PERFORMANCE_HARNESS) {
                 preparePerformanceHarnessRime()
             }
@@ -3120,6 +3177,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             flags
         }
         capabilityFlags = flags
+        activeFcitxCapabilityFlags = fcitxFlags
         updateVoiceInputEditorPolicy(attribute, flags)
         // EditorInfo may change between onStartInput and onStartInputView
         inputDeviceMgr.notifyOnStartInput(attribute)
@@ -3130,6 +3188,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 "imeOptions=${attribute.imeOptions}, privateImeOptions=${attribute.privateImeOptions}"
         )
         val isNullType = attribute.isTypeNull()
+        fcitxInputFocusRequested = !isNullType && !inputDeviceMgr.isPassthroughInput
         // wait until InputContext created/activated
         postFcitxJob {
             if (restarting) {
@@ -3153,6 +3212,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         Timber.d("onStartInputView: restarting=$restarting")
         capabilityFlags = CapabilityFlags.fromEditorInfo(info)
         updateVoiceInputEditorPolicy(info, capabilityFlags)
+        fcitxInputFocusRequested = true
         postFcitxJob {
             focus(true)
         }
@@ -3281,6 +3341,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (newSelStart != newSelEnd) return
         // do reset if composing is empty && input panel is not empty
         if (composing.isEmpty()) {
+            val preserveDeferredComposition =
+                chineseT9Composition.shouldPreserveDeferredComposition(
+                    isActive = currentT9Mode == T9InputMode.CHINESE,
+                    engineWaiting =
+                    chineseT9EngineReadiness != RimeAvailabilitySession.EngineReadiness.READY &&
+                        !rimeInputBlocked
+                )
+            if (preserveDeferredComposition) return
             if (currentT9Mode == T9InputMode.CHINESE) {
                 clearT9CompositionState()
                 clearTransientInputUiState()
@@ -3480,6 +3548,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     override fun onFinishInput() {
         Timber.d("onFinishInput")
+        fcitxInputFocusRequested = false
         endHandwritingInput()
         resetNumberModeIfInitialized()
         updateSelectionBackCallback(false)
@@ -3497,6 +3566,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     override fun onUnbindInput() {
+        fcitxInputFocusRequested = false
+        fcitxInputContextGenerationSession.unbind()
         cachedKeyEvents.evictAll()
         cachedKeyEventIndex = 0
         cursorUpdateIndex = 0
