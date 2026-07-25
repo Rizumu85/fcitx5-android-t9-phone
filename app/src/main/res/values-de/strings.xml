@@ -161,4 +161,8 @@
     <string name="following_system_settings">Wie Systemeinstellungen</string>
     <string name="button_sound">Ton bei Tastendruck</string>
     <string name="button_sound_volume">Ton Tastendruck Lautstärke</string>
+    <string name="global_physical_key_sound">Vollständige physische Tastentöne</string>
+    <string name="global_physical_key_sound_enabled_summary">Aktiv für Zurück, Menü, Annehmen und Auflegen außerhalb von Textfeldern</string>
+    <string name="global_physical_key_sound_disabled_summary">Leichten Tastenbeobachter in den Android-Bedienungshilfen aktivieren</string>
+    <string name="global_physical_key_sound_service_description">Gibt den gewählten Tastenton für physische Systemtasten wieder. Liest keine Bildschirminhalte und fängt keine Tastendrücke ab.</string>
     </resources>

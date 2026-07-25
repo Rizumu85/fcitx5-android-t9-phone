@@ -315,6 +315,10 @@
     <string name="key_sound_preview_space">空格 / 功能鍵</string>
     <string name="key_sound_preview_delete">刪除 / Enter</string>
     <string name="physical_key_sound">實體按鍵音效</string>
+    <string name="global_physical_key_sound">完整實體按鍵音</string>
+    <string name="global_physical_key_sound_enabled_summary">已涵蓋文字框外的返回、選單、接聽和掛斷鍵</string>
+    <string name="global_physical_key_sound_disabled_summary">在系統無障礙設定中啟用輕量按鍵觀察服務</string>
+    <string name="global_physical_key_sound_service_description">為實體系統按鍵播放所選按鍵音；不會讀取螢幕內容，也不會攔截按鍵。</string>
     <string name="check_for_updates">檢查更新</string>
     <string name="check_for_updates_summary">統一檢查應用程式、Rime 外掛和九鍵 Rime 設定</string>
     <string name="checking_for_updates">正在檢查…</string>

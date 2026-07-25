@@ -320,4 +320,8 @@
     <string name="emoji_skin_tone_type_6">🏿 Type-6</string>
     <string name="hide_unsupported_emojis">Скрыть неподдерживаемые эмодзи</string>
     <string name="key_border_stroke">Включить обводку для границы клавиши</string>
+    <string name="global_physical_key_sound">Полные звуки физических клавиш</string>
+    <string name="global_physical_key_sound_enabled_summary">Работает для клавиш «Назад», «Меню», ответа и завершения вызова вне текстовых полей</string>
+    <string name="global_physical_key_sound_disabled_summary">Включите лёгкую службу наблюдения за клавишами в настройках специальных возможностей Android</string>
+    <string name="global_physical_key_sound_service_description">Воспроизводит выбранный звук для физических системных клавиш. Не читает содержимое экрана и не перехватывает нажатия.</string>
 </resources>

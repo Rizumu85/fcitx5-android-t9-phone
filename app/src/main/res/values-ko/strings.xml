@@ -91,4 +91,8 @@
     <string name="quickphrase_phrase">구문</string>
     <string name="reload_config">구성 새로고침</string>
     <string name="input_method_options">입력기 옵션</string>
+    <string name="global_physical_key_sound">전체 물리 키 소리</string>
+    <string name="global_physical_key_sound_enabled_summary">텍스트 입력란 밖에서도 뒤로, 메뉴, 통화, 종료 키를 지원합니다</string>
+    <string name="global_physical_key_sound_disabled_summary">Android 접근성 설정에서 경량 키 관찰 서비스를 사용 설정하세요</string>
+    <string name="global_physical_key_sound_service_description">물리 시스템 키에 선택한 키 소리를 재생합니다. 화면 내용을 읽거나 키 입력을 가로채지 않습니다.</string>
     </resources>

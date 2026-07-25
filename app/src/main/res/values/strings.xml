@@ -321,6 +321,10 @@
     <string name="key_sound_preview_space">Space / function</string>
     <string name="key_sound_preview_delete">Delete / Return</string>
     <string name="physical_key_sound">Physical key sounds</string>
+    <string name="global_physical_key_sound">Full physical key sounds</string>
+    <string name="global_physical_key_sound_enabled_summary">Enabled for Back, Menu, Call, and End call outside text fields</string>
+    <string name="global_physical_key_sound_disabled_summary">Enable the lightweight key observer in Android accessibility settings</string>
+    <string name="global_physical_key_sound_service_description">Plays the selected key sound for physical system keys. It does not read screen content or consume key presses.</string>
     <string name="check_for_updates">Check for updates</string>
     <string name="check_for_updates_summary">Check app, Rime plugin, and T9 Rime configuration together</string>
     <string name="checking_for_updates">Checking…</string>

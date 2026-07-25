@@ -158,6 +158,20 @@
         </service>
 
         <service
+            android:name=".input.PhysicalKeySoundAccessibilityService"
+            android:exported="true"
+            android:label="@string/global_physical_key_sound"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/physical_key_sound_accessibility_service" />
+        </service>
+
+        <service
             android:name=".FcitxRemoteService"
             android:exported="true"
             android:permission="${applicationId}.permission.IPC"

@@ -71,6 +71,9 @@ object InputFeedbacks {
     private val soundOnKeyPressChangeListener =
         ManagedPreference.OnChangeListener<InputFeedbackMode> { _, value ->
             soundOnKeyPress = value
+            // The accessibility feedback process can outlive every input window. Preload on
+            // configuration changes so the first later system-key press never initializes audio.
+            preloadAppSoundsIfEnabled()
         }
     private val soundOnKeyPressVolumeChangeListener =
         ManagedPreference.OnChangeListener<Int> { _, value ->

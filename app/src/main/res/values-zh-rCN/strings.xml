@@ -321,6 +321,10 @@
     <string name="key_sound_preview_space">空格 / 功能键</string>
     <string name="key_sound_preview_delete">删除 / 回车</string>
     <string name="physical_key_sound">物理按键音效</string>
+    <string name="global_physical_key_sound">完整物理按键音</string>
+    <string name="global_physical_key_sound_enabled_summary">已覆盖文本框外的返回、菜单、接听和挂断键</string>
+    <string name="global_physical_key_sound_disabled_summary">在系统无障碍设置中启用轻量按键观察服务</string>
+    <string name="global_physical_key_sound_service_description">为物理系统按键播放所选按键音；不会读取屏幕内容，也不会拦截按键。</string>
     <string name="check_for_updates">检查更新</string>
     <string name="check_for_updates_summary">统一检查应用、Rime 插件和九键 Rime 配置</string>
     <string name="checking_for_updates">正在检查…</string>

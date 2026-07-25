@@ -5,9 +5,11 @@
 package org.fcitx.fcitx5.android.ui.main.settings.behavior
 
 import android.content.Context
+import android.content.Intent
 import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.text.TextUtils
 import android.view.Gravity
 import android.view.ViewGroup
@@ -39,6 +41,7 @@ import org.fcitx.fcitx5.android.data.InputFeedbacks
 import org.fcitx.fcitx5.android.data.UserKeySoundPack
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreferenceFragment
+import org.fcitx.fcitx5.android.input.PhysicalKeySoundAccessibilityService
 import org.fcitx.fcitx5.android.ui.common.withLoadingDialog
 import org.fcitx.fcitx5.android.utils.importErrorDialog
 import org.fcitx.fcitx5.android.utils.queryFileName
@@ -58,6 +61,7 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
     private var pendingPackUri: Uri? = null
     private var pendingPackFileName = ""
     private var packPreference: Preference? = null
+    private var globalPhysicalKeySoundPreference: Preference? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -104,6 +108,19 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
         }
         packPreference = managePreference
         screen.addAfter(keyboardPrefs.soundOnKeyPress.key, managePreference)
+        val globalSoundPreference = Preference(context).apply {
+            key = "global_physical_key_sound"
+            isIconSpaceReserved = false
+            isSingleLineTitle = false
+            setTitle(R.string.global_physical_key_sound)
+            setOnPreferenceClickListener {
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                true
+            }
+        }
+        globalPhysicalKeySoundPreference = globalSoundPreference
+        screen.addAfter("key_sound_pack_manage", globalSoundPreference)
+        refreshGlobalPhysicalKeySoundSummary()
 
         val productSettingKeys = setOf(
             keyboardPrefs.hapticOnKeyPress.key,
@@ -111,7 +128,8 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
             keyboardPrefs.passwordInputPreview.key,
             keyboardPrefs.t9KeyboardHeightPercent.key,
             "toolbar_buttons_manage",
-            "key_sound_pack_manage"
+            "key_sound_pack_manage",
+            "global_physical_key_sound"
         )
         // The product settings page exposes physical T9 controls only. Full-keyboard geometry and
         // gesture preferences are implementation details of temporary fallback keyboards.
@@ -128,7 +146,8 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
             listOf(
                 keyboardPrefs.hapticOnKeyPress.key,
                 keyboardPrefs.soundOnKeyPress.key,
-                "key_sound_pack_manage"
+                "key_sound_pack_manage",
+                "global_physical_key_sound"
             )
         )
         screen.groupPreferences(
@@ -137,6 +156,22 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
                 keyboardPrefs.passwordInputPreview.key,
                 keyboardPrefs.t9KeyboardHeightPercent.key
             )
+        )
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshGlobalPhysicalKeySoundSummary()
+    }
+
+    private fun refreshGlobalPhysicalKeySoundSummary() {
+        val context = context ?: return
+        globalPhysicalKeySoundPreference?.setSummary(
+            if (PhysicalKeySoundAccessibilityService.isEnabled(context)) {
+                R.string.global_physical_key_sound_enabled_summary
+            } else {
+                R.string.global_physical_key_sound_disabled_summary
+            }
         )
     }
 
@@ -191,6 +226,7 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
                         val error = result.exceptionOrNull()
                         if (error == null) {
                             InputFeedbacks.syncSystemPrefs()
+                            InputFeedbacks.preloadAppSoundsIfEnabled()
                             refreshKeySoundPackSummaries(context)
                             context.toast(R.string.key_sound_pack_imported)
                         } else {
@@ -219,6 +255,7 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
                                 onSelect = {
                                     UserKeySoundPack.selectPack(pack.id)
                                     InputFeedbacks.syncSystemPrefs()
+                                    InputFeedbacks.preloadAppSoundsIfEnabled()
                                     refreshKeySoundPackSummaries(context)
                                     dialog?.dismiss()
                                 },
@@ -280,6 +317,7 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
             .setPositiveButton(R.string.delete) { _, _ ->
                 if (UserKeySoundPack.deletePack(pack.id)) {
                     InputFeedbacks.syncSystemPrefs()
+                    InputFeedbacks.preloadAppSoundsIfEnabled()
                     refreshKeySoundPackSummaries(context)
                     context.toast(R.string.key_sound_pack_deleted)
                 }

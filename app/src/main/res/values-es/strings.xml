@@ -124,4 +124,8 @@
     <string name="i_do_not_need_it">No lo necesito</string>
     <string name="grant_permission">Otorgar permiso</string>
     <string name="update_table">Actualizar tabla</string>
+    <string name="global_physical_key_sound">Sonidos completos de teclas físicas</string>
+    <string name="global_physical_key_sound_enabled_summary">Activo para Atrás, Menú, Contestar y Colgar fuera de los campos de texto</string>
+    <string name="global_physical_key_sound_disabled_summary">Active el observador ligero de teclas en los ajustes de accesibilidad de Android</string>
+    <string name="global_physical_key_sound_service_description">Reproduce el sonido seleccionado para las teclas físicas del sistema. No lee la pantalla ni intercepta las pulsaciones.</string>
     </resources>

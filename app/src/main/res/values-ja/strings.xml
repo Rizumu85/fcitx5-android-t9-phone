@@ -253,4 +253,8 @@
     <string name="flip_horizontally">左右反転</string>
     <string name="flip_vertically">上下反転</string>
     <string name="crop">切り取り</string>
+    <string name="global_physical_key_sound">物理キー音の完全対応</string>
+    <string name="global_physical_key_sound_enabled_summary">テキスト欄以外でも戻る、メニュー、通話、終話キーに対応しています</string>
+    <string name="global_physical_key_sound_disabled_summary">Android のユーザー補助設定で軽量キー監視サービスを有効にしてください</string>
+    <string name="global_physical_key_sound_service_description">物理システムキーに選択したキー音を再生します。画面内容の読み取りやキー入力の遮断は行いません。</string>
     </resources>

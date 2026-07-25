@@ -2768,19 +2768,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return commitT9ReadingSelection(reading)
     }
 
-    private fun playPhysicalKeySound(keyCode: Int, event: KeyEvent) {
-        if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount != 0) return
-        val effect = when (keyCode) {
-            KeyEvent.KEYCODE_DEL, KeyEvent.KEYCODE_BACK,
-            KeyEvent.KEYCODE_FORWARD_DEL -> InputFeedbacks.SoundEffect.Delete
-            KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> InputFeedbacks.SoundEffect.Return
-            KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_DPAD_CENTER,
-            KeyEvent.KEYCODE_BUTTON_SELECT -> InputFeedbacks.SoundEffect.SpaceBar
-            else -> InputFeedbacks.SoundEffect.Standard
-        }
-        InputFeedbacks.soundEffect(effect)
-    }
-
     private fun routeNumberTransientPanelKeyDown(
         input: PhysicalInputRouter.Input
     ): PhysicalInputRouter.Result? {
@@ -3016,7 +3003,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         // Idle keys still belong to the phone's physical keypad experience even though their
         // action passes through to the foreground app. Dialer fields already provide feedback.
         if (!inputDeviceMgr.isPassthroughInput) {
-            playPhysicalKeySound(keyCode, event)
+            PhysicalKeySoundDispatcher.dispatch(
+                PhysicalKeySoundDispatcher.Source.INPUT_METHOD,
+                event
+            )
         }
         if (inputDeviceMgr.shouldPassThroughHardwareKeys) {
             physicalInputRouter.reset()
