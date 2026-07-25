@@ -71,6 +71,12 @@ available syntax or static checks. Do not run full project compilations,
 instrumented tests, or comprehensive suites unless the user explicitly asks.
 Functional and end-to-end testing is delegated to the user.
 
+Before final validation of Rime installation, provisioning, or readiness
+changes, follow `docs/rime-clean-install-validation.md`. The user has explicitly
+authorized wiping only the debug app, debug Rime plugin, debug Rime workspace,
+and debug user data for this test. Never substitute an existing partially
+provisioned debug installation, and never touch release-package data.
+
 When user testing is needed, provide a small checklist with:
 
 - What changed.
