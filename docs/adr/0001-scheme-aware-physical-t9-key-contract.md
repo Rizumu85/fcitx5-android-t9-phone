@@ -199,13 +199,15 @@ unchanged local page, width budget, or source cache. While a replacement frame
 is pending or hidden, the pipeline invalidates its shown-interaction ticket so
 OK and numeric shortcuts cannot select candidates that are no longer visible.
 
-Scheme transitions are identified by the concrete Rime sub-mode, not only by
-the broad `Pinyin`, `Stroke`, or `Zhuyin` classification. One transition
-operation clears composition, loading, source, focus, and presentation state;
-service reconnect also initializes from the cached current input method in
-case the original change event was missed. Stroke and Zhuyin raw sessions store
-only their digit codes; short `#` is a terminal literal-code commit and does not
-add a second boundary syntax that local Backspace would need to mirror.
+Scheme transitions are identified by a normalized T9 scheme, not by the broad
+Rime input-method name or by one raw status label. Rime can publish the schema
+id and localized submode name for the same activation; those aliases produce
+one transition operation, which clears composition, loading, source, focus, and
+presentation state once. Service reconnect still initializes from the cached
+current input method in case the original change event was missed. Stroke and
+Zhuyin raw sessions store only their digit codes; short `#` is a terminal
+literal-code commit and does not add a second boundary syntax that local
+Backspace would need to mirror.
 
 Engine readiness requires three proofs: the app is in Chinese mode, Rime owns
 the active Fcitx input context, and the exact intended T9 schema is active.

@@ -103,6 +103,10 @@ readiness transition, so input stays ordered, but its presentation is quiet:
 the immediate mode badge acknowledges the request without mislabeling the
 short handoff as dictionary provisioning. Cold start, deployment, recovery, and
 exhausted selection failures remain explicit.
+Rime may report one activation first by schema id and then by its localized
+submode name. `ChineseT9SchemeActivationSession` normalizes those transport
+aliases before composition and presentation effects, so one engine handoff
+produces one UI transition.
 Readiness handling also compares each queued lifecycle event with
 `FcitxCachedState.rimeAvailability`; an older synthetic maintenance event cannot
 overwrite a newer native `Ready` snapshot merely because the Android main
