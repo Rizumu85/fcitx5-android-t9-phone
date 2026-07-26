@@ -99,7 +99,7 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSource
 import org.fcitx.fcitx5.android.input.t9.ChineseT9OutputScript
 import org.fcitx.fcitx5.android.input.t9.ChineseT9OutputScriptSession
 import org.fcitx.fcitx5.android.input.t9.ChineseT9Scheme
-import org.fcitx.fcitx5.android.input.t9.ChineseT9SchemeCycle
+import org.fcitx.fcitx5.android.input.t9.ChineseT9SchemeActivationSession
 import org.fcitx.fcitx5.android.input.t9.ChineseT9SchemeCycleSession
 import org.fcitx.fcitx5.android.input.t9.PhysicalDeleteCoordinator
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHandler
@@ -758,7 +758,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     private fun handleFcitxReady() {
         rimeInputMethodActive = false
-        activeChineseT9SubModeIdentity = null
+        chineseT9SchemeActivation.clearIdentity()
         rimeInputMethodActivationPending = false
         cancelRimeSchemaSelectionRetry()
         rimeSchemaSelectionSession.suspendForEngineTransition()
@@ -824,7 +824,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             withContext(Dispatchers.Main.immediate) {
                 // A service can attach after Fcitx emitted its original IMChange. Initialize from
                 // the cached entry once; a newer event wins by setting the identity first.
-                if (activeChineseT9SubModeIdentity == null) {
+                if (chineseT9SchemeActivation.activeIdentity == null) {
                     observeChineseT9InputMethod(
                         initialInputMethod.uniqueName,
                         initialInputMethod.subMode.name
@@ -1949,10 +1949,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         )
     }
     private val chineseT9SchemeCycle = ChineseT9SchemeCycleSession()
+    private val chineseT9SchemeActivation = ChineseT9SchemeActivationSession()
     private val rimeSchemaSelectionSession = RimeSchemaSelectionSession()
     private val chineseT9OutputScriptSession = ChineseT9OutputScriptSession()
-    private var activeChineseT9Scheme = ChineseT9Scheme.PINYIN
-    private var activeChineseT9SubModeIdentity: String? = null
+    private val activeChineseT9Scheme: ChineseT9Scheme
+        get() = chineseT9SchemeActivation.activeScheme
+    private val activeChineseT9SubModeIdentity: String?
+        get() = chineseT9SchemeActivation.activeIdentity
     private var rimeInputMethodActive = false
     private var rimeInputBlocked = false
     @Volatile
@@ -2011,7 +2014,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         } else {
             // Unknown and generic Rime schemas do not own the T9 digit contract. Preserve the
             // user's intended scheme while the typed schema selector restores its engine peer.
-            activeChineseT9SubModeIdentity = null
+            chineseT9SchemeActivation.clearIdentity()
         }
         if (currentT9Mode != T9InputMode.CHINESE && !rimeInputMethodActive) {
             chineseT9OutputScriptSession.leaveRime()
@@ -2238,27 +2241,24 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun activateChineseT9Scheme(subModeName: String) {
-        val identity = subModeName.trim()
-        val next = ChineseT9Scheme.fromRimeIdentityOrNull(identity) ?: return
+        val activation = chineseT9SchemeActivation.observe(subModeName) ?: return
+        val next = activation.scheme
         if (rimeSchemaSelectionSession.observeActive(next)) {
             cancelRimeSchemaSelectionRetry()
             rimeInputBlocked = false
         }
-        val previousIdentity = activeChineseT9SubModeIdentity
-        if (previousIdentity == identity) return
-        // IMChange is the source of truth so physical keys and UI snapshots never block on an
-        // fcitx-thread round trip merely to classify the already-active Chinese scheme.
-        activeChineseT9SubModeIdentity = identity
-        activeChineseT9Scheme = next
+        if (!activation.shouldApply) return
+        // Native Rime status is the source of truth so physical keys and UI snapshots never
+        // block on an extra fcitx-thread round trip to classify the active Chinese scheme.
         if (BuildConfig.PERFORMANCE_HARNESS) {
             Log.i(PERFORMANCE_HARNESS_LOG_TAG, "Chinese scheme: ${next.name}")
         }
         val activationPresentation = chineseT9SchemeCycle.observeActive(next)
         chineseT9Composition.activateScheme(
             next = next,
-            forceReset = previousIdentity != null
+            forceReset = activation.forceReset
         )
-        if (previousIdentity != null) {
+        if (activation.forceReset) {
             t9PunctuationCoordinator.cancel()
             clearTransientInputUiState()
         }
