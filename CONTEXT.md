@@ -98,7 +98,11 @@ preserves the user's intended scheme across native maintenance, retries
 transient typed-selection failures with bounded backoff, and rejects stale
 results by generation. Runtime scheme switching never depends on Rime's
 status-menu actions because those actions are intentionally unavailable during
-maintenance.
+maintenance. A deliberate Pinyin/Stroke/Zhuyin handoff remains an engine
+readiness transition, so input stays ordered, but its presentation is quiet:
+the immediate mode badge acknowledges the request without mislabeling the
+short handoff as dictionary provisioning. Cold start, deployment, recovery, and
+exhausted selection failures remain explicit.
 Readiness handling also compares each queued lifecycle event with
 `FcitxCachedState.rimeAvailability`; an older synthetic maintenance event cannot
 overwrite a newer native `Ready` snapshot merely because the Android main

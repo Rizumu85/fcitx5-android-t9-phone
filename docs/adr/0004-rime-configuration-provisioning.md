@@ -74,6 +74,10 @@ verified, installed, and activated without another confirmation.
   reject stale results by generation, and resume after the next native engine
   generation. Runtime scheme switching must not use status-menu actions because
   Rime intentionally ignores those actions during maintenance.
+- A deliberate runtime Pinyin/Stroke/Zhuyin handoff is presentation-silent
+  after its immediate mode acknowledgement. It still keeps engine input queued
+  until the exact schema is ready, while cold-start selection, deployment,
+  recovery, and exhausted retries retain explicit readiness feedback.
 - Rime user-data synchronization remains an explicit maintenance action. It is
   not called by installation or application upgrades.
 - Native Fcitx generations invalidate the Android frontend's input context and
