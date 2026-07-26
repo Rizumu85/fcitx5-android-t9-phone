@@ -6,6 +6,8 @@
 package org.fcitx.fcitx5.android.input.t9
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ChineseT9SchemeCycleTest {
@@ -103,4 +105,15 @@ class ChineseT9SchemeCycleTest {
         )
     }
 
+    @Test
+    fun handoffRemainsPendingUntilTheRequestedSchemeIsObserved() {
+        val session = ChineseT9SchemeCycleSession()
+        session.requestNext(ChineseT9Scheme.PINYIN, ChineseT9Scheme.entries)
+
+        assertTrue(session.hasPendingHandoff)
+        session.observeActive(ChineseT9Scheme.ZHUYIN)
+        assertTrue(session.hasPendingHandoff)
+        session.observeActive(ChineseT9Scheme.STROKE)
+        assertFalse(session.hasPendingHandoff)
+    }
 }

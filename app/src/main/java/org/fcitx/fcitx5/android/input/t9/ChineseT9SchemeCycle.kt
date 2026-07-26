@@ -27,6 +27,9 @@ class ChineseT9SchemeCycleSession {
 
     private var requested: ChineseT9Scheme? = null
 
+    val hasPendingHandoff: Boolean
+        get() = requested != null
+
     fun requestNext(
         active: ChineseT9Scheme,
         enabled: Collection<ChineseT9Scheme>

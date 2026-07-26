@@ -89,6 +89,7 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionCoordinator
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionLifecycle
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionTicket
 import org.fcitx.fcitx5.android.input.t9.ChineseT9EngineOperation
+import org.fcitx.fcitx5.android.input.t9.ChineseT9EngineStatusPolicy
 import org.fcitx.fcitx5.android.input.t9.ChineseT9InputReceipt
 import org.fcitx.fcitx5.android.input.t9.ChineseT9KeyCommand
 import org.fcitx.fcitx5.android.input.t9.ChineseT9KeyInputSession
@@ -470,19 +471,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         currentT9Mode == T9InputMode.CHINESE
 
     fun getChineseT9EngineStatus(): T9CandidateStatus? =
-        when (chineseT9EngineReadiness) {
-            RimeAvailabilitySession.EngineReadiness.READY -> null
-            RimeAvailabilitySession.EngineReadiness.DEPLOYING,
-            RimeAvailabilitySession.EngineReadiness.ACTIVATING_INPUT_METHOD,
-            RimeAvailabilitySession.EngineReadiness.SELECTING_SCHEMA ->
-                if (rimeInputBlocked) {
-                    T9CandidateStatus.RIME_UNAVAILABLE
-                } else {
-                    T9CandidateStatus.RIME_PREPARING
-                }
-            RimeAvailabilitySession.EngineReadiness.UNAVAILABLE ->
-                T9CandidateStatus.RIME_UNAVAILABLE.takeIf { rimeInputBlocked }
-        }
+        ChineseT9EngineStatusPolicy.status(
+            readiness = chineseT9EngineReadiness,
+            inputBlocked = rimeInputBlocked,
+            userSchemeHandoffPending = chineseT9SchemeCycle.hasPendingHandoff
+        )
 
     fun getChineseT9Scheme(): ChineseT9Scheme = activeChineseT9Scheme
 
