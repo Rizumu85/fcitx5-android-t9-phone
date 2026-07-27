@@ -14,10 +14,10 @@ class ChineseT9SchemeActivationSessionTest {
     @Test
     fun schemaIdAndLocalizedNameApplyOneLogicalActivation() {
         val session = ChineseT9SchemeActivationSession(ChineseT9Scheme.ZHUYIN)
-        session.observe("注音九键")
+        session.observeRimeIdentity("注音九键")
 
-        val schemaId = requireNotNull(session.observe("t9"))
-        val localizedName = requireNotNull(session.observe("拼音九键"))
+        val schemaId = requireNotNull(session.observeRimeIdentity("t9"))
+        val localizedName = requireNotNull(session.observeRimeIdentity("拼音九键"))
 
         assertTrue(schemaId.shouldApply)
         assertTrue(schemaId.forceReset)
@@ -30,10 +30,34 @@ class ChineseT9SchemeActivationSessionTest {
     @Test
     fun identityClearLetsAnEngineRestartReestablishTheSameScheme() {
         val session = ChineseT9SchemeActivationSession()
-        session.observe("拼音九键")
+        session.observeRimeIdentity("拼音九键")
         session.clearIdentity()
 
-        val restored = requireNotNull(session.observe("t9"))
+        val restored = requireNotNull(session.observeRimeIdentity("t9"))
+
+        assertTrue(restored.shouldApply)
+        assertFalse(restored.forceReset)
+    }
+
+    @Test
+    fun blankRimeSubModeDoesNotSplitOneLogicalActivation() {
+        val session = ChineseT9SchemeActivationSession()
+        session.observeRimeIdentity("拼音九键")
+
+        assertEquals(null, session.observeRimeIdentity(""))
+        val restored = requireNotNull(session.observeRimeIdentity("拼音九键"))
+
+        assertFalse(restored.shouldApply)
+        assertFalse(restored.forceReset)
+    }
+
+    @Test
+    fun unknownNonBlankRimeSubModeEndsTheLogicalActivation() {
+        val session = ChineseT9SchemeActivationSession()
+        session.observeRimeIdentity("拼音九键")
+
+        assertEquals(null, session.observeRimeIdentity("generic-schema"))
+        val restored = requireNotNull(session.observeRimeIdentity("拼音九键"))
 
         assertTrue(restored.shouldApply)
         assertFalse(restored.forceReset)

@@ -20,9 +20,17 @@ class ChineseT9SchemeActivationSession(
     var activeIdentity: String? = null
         private set
 
-    fun observe(identity: String): Observation? {
+    fun observeRimeIdentity(identity: String): Observation? {
         val normalizedIdentity = identity.trim()
-        val scheme = ChineseT9Scheme.fromRimeIdentityOrNull(normalizedIdentity) ?: return null
+        // Rime publishes an empty submode while restoring its persisted schema. Treat that as
+        // missing transport data so the later authoritative schema does not look like a second
+        // logical activation and replay the same mode confirmation.
+        if (normalizedIdentity.isEmpty()) return null
+        val scheme = ChineseT9Scheme.fromRimeIdentityOrNull(normalizedIdentity)
+            ?: run {
+                clearIdentity()
+                return null
+            }
         val hadActiveIdentity = activeIdentity != null
         val schemeChanged = activeScheme != scheme
 

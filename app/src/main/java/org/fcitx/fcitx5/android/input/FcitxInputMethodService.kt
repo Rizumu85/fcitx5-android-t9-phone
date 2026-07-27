@@ -2127,13 +2127,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         rimeInputMethodActive = uniqueName == RIME_INPUT_METHOD
         if (rimeInputMethodActive) {
             rimeAvailabilitySession.observeActiveSchema(subModeName)
-        }
-        val observedScheme = ChineseT9Scheme.fromRimeIdentityOrNull(subModeName)
-        if (rimeInputMethodActive && observedScheme != null) {
             activateChineseT9Scheme(subModeName)
         } else {
-            // Unknown and generic Rime schemas do not own the T9 digit contract. Preserve the
-            // user's intended scheme while the typed schema selector restores its engine peer.
             chineseT9SchemeActivation.clearIdentity()
         }
         if (currentT9Mode != T9InputMode.CHINESE && !rimeInputMethodActive) {
@@ -2365,7 +2360,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun activateChineseT9Scheme(subModeName: String) {
-        val activation = chineseT9SchemeActivation.observe(subModeName) ?: return
+        val activation =
+            chineseT9SchemeActivation.observeRimeIdentity(subModeName) ?: return
         val next = activation.scheme
         if (rimeSchemaSelectionSession.observeActive(next)) {
             cancelRimeSchemaSelectionRetry()
