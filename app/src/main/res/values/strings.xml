@@ -338,6 +338,9 @@
     <string name="download_app_update">Download and install app %1$s</string>
     <string name="download_rime_plugin_update">Download and install Rime plugin %1$s</string>
     <string name="download_rime_config_update">Download and apply T9 Rime configuration %1$s</string>
+    <string name="download_app_update_compact">App %1$s</string>
+    <string name="download_rime_plugin_update_compact">Rime %1$s</string>
+    <string name="download_rime_config_update_compact">Dictionary %1$s</string>
     <string name="update_download_started">Download started. Installation will open when it is ready.</string>
     <string name="rime_config_update_installed">T9 Rime configuration updated. Rime is reloading.</string>
     <string name="rime_config_update_failed">Could not apply the downloaded T9 Rime configuration.</string>

@@ -9,6 +9,7 @@ import android.content.Context
 import android.graphics.Typeface
 import android.text.Spannable
 import android.text.SpannableStringBuilder
+import android.text.TextUtils
 import android.text.style.RelativeSizeSpan
 import android.text.style.StyleSpan
 import android.text.util.Linkify
@@ -97,9 +98,8 @@ internal class UpdateReleaseHistoryUi(
             )
         }, LayoutParams(LayoutParams.MATCH_PARENT, context.dp(1)))
 
-        latestArtifacts.forEach { artifact ->
-            addView(downloadRow(artifact, onDownload))
-        }
+        // Update components share one touch-sized row so release notes keep the dialog's height.
+        addView(downloadActions(latestArtifacts, onDownload))
     }
 
     private fun updateIndicator(position: Int, pageCount: Int) {
@@ -114,18 +114,51 @@ internal class UpdateReleaseHistoryUi(
         }
     }
 
-    private fun downloadRow(
-        artifact: UpdateArtifact,
+    private fun downloadActions(
+        artifacts: List<UpdateArtifact>,
         onDownload: (UpdateArtifact) -> Unit
-    ) = TextView(context).apply {
-        text = artifact.downloadLabel(context)
-        gravity = Gravity.CENTER_VERTICAL
-        minHeight = context.dp(48)
-        textSize = 14f
-        setTextColor(context.styledColor(android.R.attr.textColorPrimary))
-        setPadding(context.dp(4), 0, context.dp(4), 0)
-        setBackgroundResource(context.selectableItemBackground())
-        setOnClickListener { onDownload(artifact) }
+    ) = LinearLayout(context).apply {
+        orientation = HORIZONTAL
+        artifacts.forEachIndexed { index, artifact ->
+            if (index > 0) {
+                addView(
+                    View(context).apply {
+                        setBackgroundColor(
+                            ColorUtils.setAlphaComponent(
+                                context.styledColor(android.R.attr.textColorSecondary),
+                                52
+                            )
+                        )
+                    },
+                    LayoutParams(context.dp(1), context.dp(28)).apply {
+                        gravity = Gravity.CENTER_VERTICAL
+                    }
+                )
+            }
+            addView(
+                TextView(context).apply {
+                    text = artifact.compactDownloadLabel(context)
+                    contentDescription = artifact.downloadLabel(context)
+                    gravity = Gravity.CENTER
+                    minHeight = context.dp(48)
+                    textSize = 13f
+                    maxLines = 1
+                    ellipsize = TextUtils.TruncateAt.END
+                    setTextColor(context.styledColor(android.R.attr.textColorPrimary))
+                    setPadding(context.dp(4), 0, context.dp(4), 0)
+                    setCompoundDrawablesRelativeWithIntrinsicBounds(
+                        R.drawable.ic_baseline_download_24,
+                        0,
+                        0,
+                        0
+                    )
+                    compoundDrawablePadding = context.dp(4)
+                    setBackgroundResource(context.selectableItemBackground())
+                    setOnClickListener { onDownload(artifact) }
+                },
+                LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
+            )
+        }
     }
 
     private class ReleaseAdapter(
@@ -228,7 +261,7 @@ internal class UpdateReleaseHistoryUi(
     private companion object {
         fun releasePagerHeight(context: Context): Int {
             val displayHeight = context.resources.displayMetrics.heightPixels
-            return (displayHeight * 0.34f).toInt().coerceIn(context.dp(150), context.dp(300))
+            return (displayHeight * 0.4f).toInt().coerceIn(context.dp(140), context.dp(340))
         }
 
         fun UpdateArtifact.downloadLabel(context: Context): String = when (component) {
@@ -237,6 +270,15 @@ internal class UpdateReleaseHistoryUi(
                 context.getString(R.string.download_rime_plugin_update, version)
             UpdateComponent.RIME_CONFIG ->
                 context.getString(R.string.download_rime_config_update, version)
+        }
+
+        fun UpdateArtifact.compactDownloadLabel(context: Context): String = when (component) {
+            UpdateComponent.APP ->
+                context.getString(R.string.download_app_update_compact, version)
+            UpdateComponent.RIME_PLUGIN ->
+                context.getString(R.string.download_rime_plugin_update_compact, version)
+            UpdateComponent.RIME_CONFIG ->
+                context.getString(R.string.download_rime_config_update_compact, version)
         }
 
         fun Context.selectableItemBackground(): Int {

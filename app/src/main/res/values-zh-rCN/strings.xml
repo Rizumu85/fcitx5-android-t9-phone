@@ -338,6 +338,9 @@
     <string name="download_app_update">下载并安装应用 %1$s</string>
     <string name="download_rime_plugin_update">下载并安装 Rime 插件 %1$s</string>
     <string name="download_rime_config_update">下载并应用九键 Rime 配置 %1$s</string>
+    <string name="download_app_update_compact">应用 %1$s</string>
+    <string name="download_rime_plugin_update_compact">Rime %1$s</string>
+    <string name="download_rime_config_update_compact">词库 %1$s</string>
     <string name="update_download_started">已开始下载，完成后会自动打开安装或应用更新。</string>
     <string name="rime_config_update_installed">九键 Rime 配置已更新，正在重新加载 Rime。</string>
     <string name="rime_config_update_failed">无法应用下载的九键 Rime 配置。</string>
