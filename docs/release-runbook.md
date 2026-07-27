@@ -149,6 +149,22 @@ find app/build/outputs/apk plugin/rime/build/outputs/apk \( -name "*debug*.apk" 
 Only files ending in `-release.apk` and passing `apksigner verify` belong in the
 release.
 
+Release shrinking can break dependencies that discover components through
+manifest metadata even when Debug works. Install the signed app APK, cold-start
+it, and inspect Logcat before publishing:
+
+```shell
+adb shell am force-stop org.fcitx.fcitx5.android
+adb logcat -c
+adb shell am start -n org.fcitx.fcitx5.android/.ui.main.MainActivity
+adb logcat -d | rg "Invalid component registrar|InvalidRegistrarException|NoSuchMethodException"
+```
+
+The command must return no matches. Also open `Input Methods`, wait for both
+handwriting model rows to finish checking, and verify that a missing model can
+be downloaded. This check must use the minified signed APK because the Debug
+variant cannot reveal R8 reflection failures.
+
 ## Local Baidu Staging
 
 Create a clean versioned staging folder:
