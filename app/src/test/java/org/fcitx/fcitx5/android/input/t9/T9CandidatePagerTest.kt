@@ -146,6 +146,33 @@ class T9CandidatePagerTest {
     }
 
     @Test
+    fun measuredWidthReplacesCharacterFallbackAfterLayout() {
+        val pager = T9CandidatePager()
+        val candidates = listOf("最好用的", "九键", "输入法")
+            .mapIndexed { index, text -> IndexedValue(index, candidate(text)) }
+        pager.update(
+            signature = "measured-long-phrase",
+            candidates = candidates,
+            characterBudget = 4,
+            widthBudget = T9CandidateWidthBudget(
+                maxWidthPx = 100,
+                candidateSpacingPx = 2,
+                candidateHorizontalPaddingPx = 1,
+                minimumCandidateWidthPx = 1,
+                rowHorizontalPaddingPx = 2,
+                measureTextWidthPx = { it.length * 5 }
+            )
+        )
+
+        val first = requireNotNull(pager.currentPage())
+
+        // Character cost is only a first-layout fallback. Once the actual row geometry is
+        // available, keeping it as a second cap leaves visible room while hiding candidates.
+        assertEquals(candidates.map { it.value.text }, first.candidates.map { it.value.text })
+        assertFalse(first.hasNext)
+    }
+
+    @Test
     fun pagingUsesTheSameNaturalWidthAsTheRenderedCandidateRow() {
         val pager = T9CandidatePager()
         val candidates = List(10) { index ->

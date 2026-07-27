@@ -244,8 +244,13 @@ class T9CandidatePager {
         widthBudget: T9CandidateWidthBudget?
     ): Boolean {
         if (candidates.size > T9CandidateBudget.MAX_CANDIDATES_PER_PAGE) return false
-        if (candidates.sumOf { T9CandidateBudget.candidateCost(it.value.text) } > budget) return false
-        return widthBudget == null ||
+        // Character cost keeps the first layout deterministic before Android can measure the row.
+        // Once measured geometry exists, retaining both caps leaves visible space while moving
+        // candidates to the next page; the renderer's width model is then the only visual budget.
+        return if (widthBudget == null) {
+            candidates.sumOf { T9CandidateBudget.candidateCost(it.value.text) } <= budget
+        } else {
             widthBudget.rowWidthPx(candidates.map { it.value }) <= widthBudget.maxWidthPx
+        }
     }
 }
