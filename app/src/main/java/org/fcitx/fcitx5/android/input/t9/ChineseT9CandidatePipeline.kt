@@ -229,7 +229,13 @@ class ChineseT9CandidatePipeline(
         if (signature == localBudgetNoPageSignature) return null
         if (signature != localBudgetSignature) {
             val indexedCandidates = dedupeDisplayCandidates(source.indexedCandidates())
-            localBudgetPager.update(signature, indexedCandidates, budget, widthBudget)
+            localBudgetPager.update(
+                signature = signature,
+                candidates = indexedCandidates,
+                characterBudget = budget,
+                widthBudget = widthBudget,
+                avoidSingleCandidateTail = true
+            )
             localBudgetSignature = signature
         }
         val page = localBudgetPager.currentPage() ?: return null

@@ -11,7 +11,6 @@ object T9CandidateSurfacePlanner {
     data class Input(
         val candidates: FcitxEvent.PagedCandidateEvent.Data,
         val widthBudget: T9CandidateWidthBudget,
-        val rowHorizontalPaddingPx: Int,
         val showPaginationArrows: Boolean,
         val paginationWidthPx: Int,
         val candidateVisualWidthPx: Int?,
@@ -36,7 +35,6 @@ object T9CandidateSurfacePlanner {
             T9CandidateRowWidthCalculator.Input(
                 data = input.candidates,
                 widthBudget = input.widthBudget,
-                rowHorizontalPaddingPx = input.rowHorizontalPaddingPx,
                 showPaginationArrows = input.showPaginationArrows,
                 paginationWidthPx = input.paginationWidthPx
             )
@@ -46,14 +44,14 @@ object T9CandidateSurfacePlanner {
                 input.widthBudget.maxCandidateWidthPx,
                 T9CandidateFocusEnvelope.maxUnfocusedCandidateWidthPx(
                     maxRowWidthPx = input.widthBudget.maxWidthPx,
-                    edgePaddingPx = input.rowHorizontalPaddingPx,
+                    edgePaddingPx = input.widthBudget.rowHorizontalPaddingPx,
                     scalePercent = input.widthBudget.activeScalePercent
                 )
             ),
             // Decision: render-time T9 candidate rows wrap their actual chip content. This
             // layout width remains zero until a future visual-width model intentionally owns it.
             rowWidthPx = 0,
-            edgePaddingPx = input.rowHorizontalPaddingPx,
+            edgePaddingPx = input.widthBudget.rowHorizontalPaddingPx,
             maxRowWidthPx = input.widthBudget.maxWidthPx,
             focusScalePercent = input.widthBudget.activeScalePercent
         )

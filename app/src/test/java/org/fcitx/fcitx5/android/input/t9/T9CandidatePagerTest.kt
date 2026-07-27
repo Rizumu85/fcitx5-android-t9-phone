@@ -146,6 +146,56 @@ class T9CandidatePagerTest {
     }
 
     @Test
+    fun pagingUsesTheSameFocusEnvelopeAsTheRenderedCandidateRow() {
+        val pager = T9CandidatePager()
+        val candidates = List(10) { index ->
+            IndexedValue(index, candidate(index.toString()))
+        }
+        pager.update(
+            signature = "ten-short-candidates",
+            candidates = candidates,
+            characterBudget = 10,
+            widthBudget = T9CandidateWidthBudget(
+                maxWidthPx = 128,
+                candidateSpacingPx = 2,
+                candidateHorizontalPaddingPx = 0,
+                minimumCandidateWidthPx = 10,
+                rowHorizontalPaddingPx = 0,
+                activeScalePercent = 110,
+                measureTextWidthPx = { 10 }
+            )
+        )
+
+        val first = pager.currentPage()
+        assertNotNull(first)
+        first!!
+
+        assertEquals(10, first.candidates.size)
+        assertFalse(first.hasNext)
+    }
+
+    @Test
+    fun rebalancesAnAvoidableSingleCandidateTailPage() {
+        val pager = T9CandidatePager()
+        pager.update(
+            signature = "five-short-candidates",
+            candidates = List(5) { index ->
+                IndexedValue(index, candidate(index.toString()))
+            },
+            characterBudget = 10,
+            widthBudget = widthBudget(maxWidthPx = 20),
+            avoidSingleCandidateTail = true
+        )
+
+        val first = requireNotNull(pager.currentPage())
+        val second = requireNotNull(pager.offset(1))
+
+        assertEquals(3, first.candidates.size)
+        assertEquals(2, second.candidates.size)
+        assertArrayEquals(intArrayOf(3, 4), second.originalIndices)
+    }
+
+    @Test
     fun splitsLongEnglishCandidatesByPixelBudget() {
         val pager = T9CandidatePager()
         val words = listOf("bodily", "Boeing", "coding", "AMDgpu", "Command", "condition")
@@ -222,6 +272,7 @@ class T9CandidatePagerTest {
             candidateSpacingPx = 0,
             candidateHorizontalPaddingPx = 0,
             minimumCandidateWidthPx = 1,
+            rowHorizontalPaddingPx = 0,
             activeScalePercent = 100,
             measureTextWidthPx = { it.length * 5 }
         )

@@ -76,6 +76,7 @@ class T9CandidateSurfaceGeometry(
             candidateSpacingPx = metrics.candidateSpacingPx,
             candidateHorizontalPaddingPx = metrics.candidateHorizontalPaddingPx,
             minimumCandidateWidthPx = metrics.minimumCandidateWidthPx,
+            rowHorizontalPaddingPx = metrics.rowHorizontalPaddingPx,
             measureTextWidthPx = measureCandidateTextWidthPx
         )
 
@@ -127,7 +128,6 @@ class T9CandidateSurfaceGeometry(
             T9CandidateSurfacePlanner.Input(
                 candidates = input.candidates,
                 widthBudget = widthBudget(input.metrics),
-                rowHorizontalPaddingPx = input.metrics.rowHorizontalPaddingPx,
                 showPaginationArrows = input.metrics.showPaginationArrows,
                 paginationWidthPx = input.metrics.paginationWidthPx,
                 candidateVisualWidthPx = candidateVisualWidthPx,

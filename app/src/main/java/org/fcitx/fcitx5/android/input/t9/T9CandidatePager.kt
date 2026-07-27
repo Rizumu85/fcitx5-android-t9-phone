@@ -75,6 +75,7 @@ class T9CandidatePager {
     private var budget = 0
     private var widthSignature = ""
     private var pinnedFirstPageTailOriginalIndex: Int? = null
+    private var avoidSingleCandidateTail = false
     private var pages: List<List<IndexedValue<FcitxEvent.Candidate>>> = emptyList()
 
     var pageIndex = 0
@@ -91,6 +92,7 @@ class T9CandidatePager {
         budget = 0
         widthSignature = ""
         pinnedFirstPageTailOriginalIndex = null
+        avoidSingleCandidateTail = false
         pages = emptyList()
         pageIndex = 0
         candidates = emptyList()
@@ -101,7 +103,8 @@ class T9CandidatePager {
         candidates: List<IndexedValue<FcitxEvent.Candidate>>,
         characterBudget: Int,
         widthBudget: T9CandidateWidthBudget? = null,
-        pinnedFirstPageTailOriginalIndex: Int? = null
+        pinnedFirstPageTailOriginalIndex: Int? = null,
+        avoidSingleCandidateTail: Boolean = false
     ) {
         val normalizedBudget = T9CandidateBudget.normalizedBudget(characterBudget)
         val normalizedWidthSignature = widthBudget?.signature.orEmpty()
@@ -109,18 +112,21 @@ class T9CandidatePager {
             this.signature == signature &&
             budget == normalizedBudget &&
             widthSignature == normalizedWidthSignature &&
-            this.pinnedFirstPageTailOriginalIndex == pinnedFirstPageTailOriginalIndex
+            this.pinnedFirstPageTailOriginalIndex == pinnedFirstPageTailOriginalIndex &&
+            this.avoidSingleCandidateTail == avoidSingleCandidateTail
         ) return
         this.signature = signature
         this.budget = normalizedBudget
         this.widthSignature = normalizedWidthSignature
         this.pinnedFirstPageTailOriginalIndex = pinnedFirstPageTailOriginalIndex
+        this.avoidSingleCandidateTail = avoidSingleCandidateTail
         this.candidates = candidates
         pages = buildPages(
             candidates,
             normalizedBudget,
             widthBudget,
-            pinnedFirstPageTailOriginalIndex
+            pinnedFirstPageTailOriginalIndex,
+            avoidSingleCandidateTail
         )
         pageIndex = 0
     }
@@ -157,12 +163,18 @@ class T9CandidatePager {
         candidates: List<IndexedValue<FcitxEvent.Candidate>>,
         budget: Int,
         widthBudget: T9CandidateWidthBudget?,
-        pinnedFirstPageTailOriginalIndex: Int?
+        pinnedFirstPageTailOriginalIndex: Int?,
+        avoidSingleCandidateTail: Boolean
     ): List<List<IndexedValue<FcitxEvent.Candidate>>> {
         if (candidates.isEmpty()) return emptyList()
         val pinned = candidates.firstOrNull { it.index == pinnedFirstPageTailOriginalIndex }
         val ordinary = if (pinned == null) candidates else candidates.filterNot { it === pinned }
-        val pages = paginate(ordinary, budget, widthBudget).toMutableList()
+        val pages = paginate(
+            ordinary,
+            budget,
+            widthBudget,
+            avoidSingleCandidateTail
+        ).toMutableList()
         if (pinned == null) return pages
 
         if (pages.isEmpty()) pages.add(mutableListOf())
@@ -175,7 +187,7 @@ class T9CandidatePager {
         if (displaced.isNotEmpty()) {
             val remainder = displaced + pages.drop(1).flatten()
             while (pages.size > 1) pages.removeAt(pages.lastIndex)
-            pages.addAll(paginate(remainder, budget, widthBudget))
+            pages.addAll(paginate(remainder, budget, widthBudget, avoidSingleCandidateTail))
         }
         return pages
     }
@@ -183,37 +195,46 @@ class T9CandidatePager {
     private fun paginate(
         candidates: List<IndexedValue<FcitxEvent.Candidate>>,
         budget: Int,
-        widthBudget: T9CandidateWidthBudget?
+        widthBudget: T9CandidateWidthBudget?,
+        avoidSingleCandidateTail: Boolean
     ): List<MutableList<IndexedValue<FcitxEvent.Candidate>>> {
         val pages = mutableListOf<MutableList<IndexedValue<FcitxEvent.Candidate>>>()
         var current = mutableListOf<IndexedValue<FcitxEvent.Candidate>>()
-        var used = 0
-        var usedWidth = 0
         candidates.forEach { candidate ->
-            val length = T9CandidateBudget.candidateCost(candidate.value.text)
-            val width = widthBudget?.candidateWidthPx(candidate.value) ?: 0
             // T9 pages map directly to the physical 1-0 shortcuts, so a page must never expose
             // more candidates than the user can select by number even when short English words
             // would fit the character budget.
-            if (current.isNotEmpty() &&
-                (
-                    used + length > budget ||
-                        current.size >= T9CandidateBudget.MAX_CANDIDATES_PER_PAGE ||
-                        (widthBudget != null && usedWidth + width > widthBudget.maxWidthPx)
-                    )
-            ) {
+            if (current.isNotEmpty() && !pageFits(current + candidate, budget, widthBudget)) {
                 pages += current
                 current = mutableListOf()
-                used = 0
-                usedWidth = 0
             }
             current += candidate
-            used += length
-            usedWidth += width
         }
         if (current.isNotEmpty()) {
             pages += current
         }
+        return if (avoidSingleCandidateTail) {
+            rebalanceAvoidableSingletonTail(pages, budget, widthBudget)
+        } else {
+            pages
+        }
+    }
+
+    private fun rebalanceAvoidableSingletonTail(
+        pages: MutableList<MutableList<IndexedValue<FcitxEvent.Candidate>>>,
+        budget: Int,
+        widthBudget: T9CandidateWidthBudget?
+    ): List<MutableList<IndexedValue<FcitxEvent.Candidate>>> {
+        if (pages.size < 2 || pages.last().size != 1) return pages
+        val previous = pages[pages.lastIndex - 1]
+        if (previous.size < 3) return pages
+        val moved = previous.last()
+        val balancedTail = mutableListOf(moved).apply { addAll(pages.last()) }
+        if (!pageFits(balancedTail, budget, widthBudget)) return pages
+        // Product decision: preserve a nearly full first page, but do not make the next physical
+        // navigation step look like the dictionary collapsed to one result when two fit.
+        previous.removeAt(previous.lastIndex)
+        pages[pages.lastIndex] = balancedTail
         return pages
     }
 
@@ -225,6 +246,6 @@ class T9CandidatePager {
         if (candidates.size > T9CandidateBudget.MAX_CANDIDATES_PER_PAGE) return false
         if (candidates.sumOf { T9CandidateBudget.candidateCost(it.value.text) } > budget) return false
         return widthBudget == null ||
-            candidates.sumOf { widthBudget.candidateWidthPx(it.value) } <= widthBudget.maxWidthPx
+            widthBudget.rowWidthPx(candidates.map { it.value }) <= widthBudget.maxWidthPx
     }
 }

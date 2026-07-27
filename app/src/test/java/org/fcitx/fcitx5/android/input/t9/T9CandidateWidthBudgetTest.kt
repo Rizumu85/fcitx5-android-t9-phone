@@ -12,19 +12,22 @@ import org.junit.Test
 class T9CandidateWidthBudgetTest {
 
     @Test
-    fun activeScaleOnlyAppliesToActiveCandidate() {
+    fun rowWidthUsesOneStableFocusEnvelope() {
         val budget = T9CandidateWidthBudget(
             maxWidthPx = 500,
             candidateSpacingPx = 2,
             candidateHorizontalPaddingPx = 1,
             minimumCandidateWidthPx = 1,
+            rowHorizontalPaddingPx = 3,
             activeScalePercent = 150,
             measureTextWidthPx = { it.length * 10 }
         )
-        val candidate = FcitxEvent.Candidate(label = "", text = "abc", comment = "")
+        val candidates = listOf(
+            FcitxEvent.Candidate(label = "", text = "abc", comment = ""),
+            FcitxEvent.Candidate(label = "", text = "de", comment = "")
+        )
 
-        assertEquals(50, budget.candidateWidthPx(candidate, active = true))
-        assertEquals(34, budget.candidateWidthPx(candidate, active = false))
+        assertEquals(78, budget.rowWidthPx(candidates))
     }
 
 }

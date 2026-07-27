@@ -66,8 +66,8 @@ class ChineseT9CandidatePipelineTest {
         val second = pipeline.buildLocalBudgetedPagedFromCurrentPage(filteredSource)
 
         assertNotNull(second)
-        assertEquals(listOf("土"), second!!.data.candidates.map { it.text })
-        assertArrayEquals(intArrayOf(5), second.originalIndices)
+        assertEquals(listOf("工", "土"), second!!.data.candidates.map { it.text })
+        assertArrayEquals(intArrayOf(4, 5), second.originalIndices)
     }
 
     @Test

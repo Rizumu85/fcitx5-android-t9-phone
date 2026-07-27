@@ -5,7 +5,6 @@
 
 package org.fcitx.fcitx5.android.input.t9
 
-import kotlin.math.ceil
 import org.fcitx.fcitx5.android.core.FcitxEvent
 
 class T9CandidateWidthBudget(
@@ -13,6 +12,7 @@ class T9CandidateWidthBudget(
     val candidateSpacingPx: Int,
     private val candidateHorizontalPaddingPx: Int,
     private val minimumCandidateWidthPx: Int,
+    val rowHorizontalPaddingPx: Int,
     val activeScalePercent: Int = T9CandidateFocusEnvelope.DEFAULT_SCALE_PERCENT,
     private val measureTextWidthPx: (String) -> Int
 ) {
@@ -21,6 +21,7 @@ class T9CandidateWidthBudget(
             "${candidateSpacingPx.coerceAtLeast(0)}|" +
             "${candidateHorizontalPaddingPx.coerceAtLeast(0)}|" +
             "${minimumCandidateWidthPx.coerceAtLeast(1)}|" +
+            "${rowHorizontalPaddingPx.coerceAtLeast(0)}|" +
             activeScalePercent
 
     val maxCandidateWidthPx: Int
@@ -31,16 +32,24 @@ class T9CandidateWidthBudget(
             .coerceAtLeast(minimumCandidateWidthPx)
             .coerceAtMost(maxCandidateWidthPx)
 
-    fun candidateWidthPx(candidate: FcitxEvent.Candidate): Int =
-        candidateWidthPx(candidate, active = true)
-
-    fun candidateWidthPx(candidate: FcitxEvent.Candidate, active: Boolean): Int {
-        val naturalWidth = naturalCandidateWidthPx(candidate)
-        val scaledWidth = if (active) {
-            ceil(naturalWidth * activeScalePercent / 100f).toInt()
-        } else {
-            naturalWidth
-        }
-        return scaledWidth + candidateSpacingPx
+    fun rowWidthPx(
+        candidates: List<FcitxEvent.Candidate>,
+        hasTrailingItem: Boolean = false,
+        trailingItemWidthPx: Int = 0
+    ): Int {
+        if (candidates.isEmpty()) return 0
+        val candidateWidths = candidates.map(::naturalCandidateWidthPx)
+        val focusMargins = T9CandidateFocusEnvelope.candidateEndMarginsPx(
+            candidateWidthsPx = candidateWidths,
+            itemSpacingPx = candidateSpacingPx,
+            hasTrailingItem = hasTrailingItem,
+            scalePercent = activeScalePercent
+        )
+        // The pager and Android row must reserve the same potential focus growth. Counting every
+        // chip as focused at once under-fills pages and can manufacture a one-candidate tail.
+        return candidateWidths.sum() +
+            focusMargins.sum() +
+            trailingItemWidthPx.coerceAtLeast(0) +
+            rowHorizontalPaddingPx.coerceAtLeast(0) * 2
     }
 }

@@ -246,6 +246,12 @@ glyph bounds for a stable optical baseline across custom fonts.
 Geometry is centralized:
 
 - `T9CandidateSurfaceGeometry` owns measured candidate and reading-row sizing.
+- `T9CandidateWidthBudget` is the shared row-width model for both paging and
+  Android layout. It reserves the same single-focus envelope and edge padding
+  that the rendered toolbar uses instead of pessimistically treating every chip
+  as focused at once. Local Chinese width paging rebalances an avoidable
+  one-candidate tail, while source-owned English and punctuation page sizes keep
+  their own ranking semantics.
 - The editor viewport is the hard surface-width bound even when a density-scaled
   preferred minimum is wider. Long candidates ellipsize inside that bound before
   the focus envelope is applied.

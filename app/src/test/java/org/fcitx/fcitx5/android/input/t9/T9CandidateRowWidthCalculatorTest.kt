@@ -110,10 +110,10 @@ class T9CandidateRowWidthCalculatorTest {
                 candidateSpacingPx = 4,
                 candidateHorizontalPaddingPx = 3,
                 minimumCandidateWidthPx = 10,
+                rowHorizontalPaddingPx = 5,
                 activeScalePercent = activeScalePercent,
                 measureTextWidthPx = { it.length * 20 }
             ),
-            rowHorizontalPaddingPx = 5,
             showPaginationArrows = showPaginationArrows,
             paginationWidthPx = 20
         )
