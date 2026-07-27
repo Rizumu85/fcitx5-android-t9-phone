@@ -100,8 +100,6 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
             R.string.chinese_input,
             prefs.chineseT9,
             setOf(
-                prefs.chineseT9.prediction.key,
-                prefs.chineseT9.englishCandidates.key,
                 prefs.chineseT9.pinyin.key,
                 prefs.chineseT9.pinyinOutputScript.key,
                 prefs.chineseT9.stroke.key,
@@ -111,9 +109,19 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
             )
         ),
         Group(
-            R.string.smart_english_t9,
+            R.string.prediction_and_candidates,
+            prefs.chineseT9,
+            setOf(prefs.chineseT9.prediction.key)
+        ),
+        Group(
+            R.string.prediction_and_candidates,
             prefs.keyboard,
             setOf(prefs.keyboard.smartEnglishT9.key)
+        ),
+        Group(
+            R.string.prediction_and_candidates,
+            prefs.chineseT9,
+            setOf(prefs.chineseT9.englishCandidates.key)
         ),
         Group(
             R.string.dictionaries_and_learning,
@@ -165,6 +173,7 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
             val customPhrases = Preference(screen.context).apply {
                 setTitle(R.string.chinese_custom_phrases)
                 setSummary(R.string.chinese_custom_phrases_summary)
+                order = 0
                 isIconSpaceReserved = false
                 setOnPreferenceClickListener {
                     navigateWithAnim(SettingsRoute.ChineseT9CustomPhrases)
@@ -172,6 +181,7 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
                 }
             }
             val smartEnglishWords = Preference(screen.context).apply {
+                order = 2
                 isIconSpaceReserved = false
                 setOnPreferenceClickListener {
                     navigateWithAnim(SettingsRoute.SmartEnglishLearnedWords)
@@ -181,6 +191,7 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
             val chineseEnglishWords = Preference(screen.context).apply {
                 setTitle(R.string.chinese_english_custom_words)
                 setSummary(R.string.chinese_english_custom_words_summary)
+                order = 3
                 isIconSpaceReserved = false
                 setOnPreferenceClickListener {
                     navigateWithAnim(SettingsRoute.ChineseEnglishLearnedWords)
@@ -190,6 +201,7 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
             val learnedPairs = Preference(screen.context).apply {
                 setTitle(R.string.smart_english_learned_predictions)
                 setSummary(R.string.smart_english_learned_predictions_summary)
+                order = 4
                 isIconSpaceReserved = false
                 setOnPreferenceClickListener {
                     navigateWithAnim(SettingsRoute.SmartEnglishLearnedPredictions)
@@ -220,6 +232,7 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
             val sharingPreference = screen.findPreference<MySwitchPreference>(
                 prefs.chineseT9.shareEnglishCustomDictionary.key
             )
+            sharingPreference?.order = 1
             updateEnglishDictionaryEntries(
                 prefs.chineseT9.shareEnglishCustomDictionary.getValue()
             )
