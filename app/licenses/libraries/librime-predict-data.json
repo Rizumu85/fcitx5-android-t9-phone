@@ -1,0 +1,12 @@
+{
+    "uniqueId": "rime/librime-predict-data",
+    "artifactVersion": "data-1.0",
+    "description": "Chinese next-segment prediction data adapted into a compact app-local dictionary for handwriting. Simplified variants are generated with OpenCC.",
+    "name": "Rime Chinese prediction data",
+    "website": "https://github.com/rime/librime-predict/releases/tag/data-1.0",
+    "tag": "dictionary",
+    "licenses": [
+        "BSD-3-Clause",
+        "Apache-2.0"
+    ]
+}

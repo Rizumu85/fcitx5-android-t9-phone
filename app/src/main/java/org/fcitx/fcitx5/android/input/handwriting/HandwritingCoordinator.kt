@@ -19,6 +19,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
+import org.fcitx.fcitx5.android.input.t9.ChineseT9OutputScript
 import org.fcitx.fcitx5.android.input.t9.EnglishSuggestionEngine
 import timber.log.Timber
 
@@ -32,7 +33,11 @@ internal class HandwritingCoordinator(
     private val lookupPronunciations: suspend (String) -> List<String>,
     private val smartEnglishEnabled: () -> Boolean,
     private val shouldLearnEnglishWords: () -> Boolean,
+    private val chinesePredictionEnabled: () -> Boolean,
+    private val chineseOutputScript: () -> ChineseT9OutputScript,
     englishSuggestionEngine: EnglishSuggestionEngine = EnglishSuggestionEngine.Shared,
+    chinesePredictionProvider: ChineseHandwritingPredictionProvider =
+        AssetChineseHandwritingPredictionProvider(context.applicationContext),
     private val enhancedBackend: EnhancedHandwritingBackend = MlKitEnhancedHandwritingBackend()
 ) {
     private val offlineRecognizer = OfflineHanziRecognizer(context.applicationContext)
@@ -41,7 +46,12 @@ internal class HandwritingCoordinator(
         suggestionEngine = englishSuggestionEngine,
         candidateLimit = CandidateLimit
     )
-    private val chinesePreContext = HandwritingPreContext()
+    private val chineseSession = ChineseHandwritingSession(
+        predictionProvider = chinesePredictionProvider,
+        predictionEnabled = chinesePredictionEnabled,
+        outputScript = chineseOutputScript,
+        candidateLimit = CandidateLimit
+    )
 
     private var active = false
     private var language = HandwritingLanguage.CHINESE
@@ -60,6 +70,9 @@ internal class HandwritingCoordinator(
     private var pronunciation: HandwritingPronunciationFeedback? = null
     private var pronunciationGeneration = 0L
     private var recognitionJob: Job? = null
+    private var chinesePredictionJob: Job? = null
+    private var chinesePredictionGeneration = 0L
+    private var chinesePredictionWarmupJob: Job? = null
     private var pronunciationJob: Job? = null
     private var offlineWarmupJob: Job? = null
     private var enhancedModelJob: Job? = null
@@ -77,12 +90,15 @@ internal class HandwritingCoordinator(
     val hasPendingCharacter: Boolean
         get() = strokes.isNotEmpty() || candidateSource == HandwritingCandidateSource.RECOGNITION
 
+    val currentLanguage: HandwritingLanguage
+        get() = language
+
     fun begin(initialLanguage: HandwritingLanguage, editorPreContext: String) {
         if (active) return
         active = true
         language = initialLanguage
         englishSession.begin(editorPreContext)
-        chinesePreContext.begin(editorPreContext)
+        chineseSession.begin(editorPreContext)
         invalidatePronunciationFeedback()
         clearCharacter(publish = false)
         updateAvailableModelState(publish = false)
@@ -100,7 +116,7 @@ internal class HandwritingCoordinator(
         invalidatePronunciationFeedback()
         clearCharacter(publish = false)
         englishSession.clear()
-        chinesePreContext.clear()
+        chineseSession.clear()
         stateListener = null
         hideExternalCandidates()
     }
@@ -130,7 +146,7 @@ internal class HandwritingCoordinator(
         // prediction and Chinese recognition context from crossing intervening editor changes
         // without polling the editor on pointer input.
         englishSession.begin(editorPreContext)
-        chinesePreContext.begin(editorPreContext)
+        chineseSession.begin(editorPreContext)
         updateAvailableModelState(publish = false)
         publishState()
         warmupRecognizers()
@@ -155,6 +171,7 @@ internal class HandwritingCoordinator(
         }
         generation++
         recognitionJob?.cancel()
+        invalidateChinesePredictionRequest()
         val candidatesChanged = invalidatePublishedCandidates()
         val visibleStateChanged = noMatch || pronunciation != null || candidatesChanged
         invalidatePronunciationFeedback()
@@ -240,7 +257,7 @@ internal class HandwritingCoordinator(
     fun commitLiteral(text: String) {
         prepareBoundary(publish = false)
         when (language) {
-            HandwritingLanguage.CHINESE -> chinesePreContext.append(text)
+            HandwritingLanguage.CHINESE -> chineseSession.commitLiteral(text)
             HandwritingLanguage.ENGLISH -> englishSession.commitLiteral(text)
         }
         commitText(text)
@@ -262,11 +279,13 @@ internal class HandwritingCoordinator(
 
     fun invalidateEditorPreContext() {
         englishSession.breakContext()
-        chinesePreContext.clear()
+        chineseSession.clear()
     }
 
     fun close() {
         recognitionJob?.cancel()
+        invalidateChinesePredictionRequest()
+        chinesePredictionWarmupJob?.cancel()
         invalidatePronunciationFeedback()
         offlineWarmupJob?.cancel()
         enhancedModelJob?.cancel()
@@ -274,6 +293,7 @@ internal class HandwritingCoordinator(
     }
 
     private fun prepareBoundary(publish: Boolean) {
+        invalidateChinesePredictionRequest()
         val committed = if (candidateSource == HandwritingCandidateSource.RECOGNITION) {
             commitSelectedCandidate(explicitSelection = false, publish = false)
         } else {
@@ -323,8 +343,14 @@ internal class HandwritingCoordinator(
                 englishSession.commitLiteral(emittedText)
             }
         } else {
-            chinesePreContext.append(emittedText)
-            publishPronunciation(text)
+            val predictionRequest = chineseSession.commitCandidate(
+                text = emittedText,
+                continuePrediction = explicitSelection
+            )
+            if (sourceAtCommit == HandwritingCandidateSource.RECOGNITION) {
+                publishPronunciation(text)
+            }
+            if (predictionRequest != null) scheduleChinesePrediction(predictionRequest)
         }
 
         if (publish && active) publishState()
@@ -333,7 +359,10 @@ internal class HandwritingCoordinator(
     }
 
     private fun warmupRecognizers() {
-        if (language == HandwritingLanguage.CHINESE) warmupOfflineRecognizer()
+        if (language == HandwritingLanguage.CHINESE) {
+            warmupOfflineRecognizer()
+            warmupChinesePrediction()
+        }
         scheduleEnhancedPreparation(recheckMissingModel = true)
     }
 
@@ -435,7 +464,7 @@ internal class HandwritingCoordinator(
             strokes = requestStrokes,
             writingArea = writingArea,
             preContext = when (requestLanguage) {
-                HandwritingLanguage.CHINESE -> chinesePreContext.snapshot()
+                HandwritingLanguage.CHINESE -> chineseSession.recognitionPreContext()
                 HandwritingLanguage.ENGLISH -> englishSession.recognitionPreContext()
             },
             limit = CandidateLimit
@@ -617,6 +646,7 @@ internal class HandwritingCoordinator(
     private fun clearCharacter(publish: Boolean) {
         generation++
         recognitionJob?.cancel()
+        invalidateChinesePredictionRequest()
         strokes = emptyList()
         candidateSession.clear()
         candidateSource = HandwritingCandidateSource.NONE
@@ -631,6 +661,72 @@ internal class HandwritingCoordinator(
         candidateSession.clear()
         candidateSource = HandwritingCandidateSource.NONE
         return true
+    }
+
+    fun onChinesePredictionEnabledChanged(enabled: Boolean) {
+        if (!active || language != HandwritingLanguage.CHINESE) return
+        if (enabled) {
+            warmupChinesePrediction()
+            return
+        }
+        invalidateChinesePredictionRequest()
+        if (candidateSource == HandwritingCandidateSource.PREDICTION) {
+            candidateSession.clear()
+            candidateSource = HandwritingCandidateSource.NONE
+            publishState()
+        }
+    }
+
+    private fun warmupChinesePrediction() {
+        if (
+            !chinesePredictionEnabled() ||
+            chinesePredictionWarmupJob?.isActive == true
+        ) {
+            return
+        }
+        chinesePredictionWarmupJob = scope.launch {
+            runCatching { chineseSession.preload() }
+                .onFailure { Timber.w(it, "Unable to prepare Chinese handwriting prediction") }
+        }
+    }
+
+    private fun scheduleChinesePrediction(
+        request: ChineseHandwritingSession.PredictionRequest
+    ) {
+        val requestGeneration = ++chinesePredictionGeneration
+        chinesePredictionJob?.cancel()
+        chinesePredictionJob = scope.launch {
+            val predictions = try {
+                chineseSession.resolve(request)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                Timber.w(error, "Unable to predict after Chinese handwriting commit")
+                emptyList()
+            }
+            if (
+                !active ||
+                language != HandwritingLanguage.CHINESE ||
+                requestGeneration != chinesePredictionGeneration ||
+                !chinesePredictionEnabled()
+            ) {
+                return@launch
+            }
+            candidateSession.replace(predictions)
+            candidateSource = if (predictions.isEmpty()) {
+                HandwritingCandidateSource.NONE
+            } else {
+                HandwritingCandidateSource.PREDICTION
+            }
+            chinesePredictionJob = null
+            publishState()
+        }
+    }
+
+    private fun invalidateChinesePredictionRequest() {
+        chinesePredictionGeneration++
+        chinesePredictionJob?.cancel()
+        chinesePredictionJob = null
     }
 
     private fun publishPronunciation(character: String) {

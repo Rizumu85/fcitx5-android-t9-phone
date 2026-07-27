@@ -115,6 +115,14 @@ matching must never block the UI thread.
   learning policy, prediction choices teach only the pair, and a new stroke
   replaces prediction state immediately. Without Predictive English, ML Kit
   order is preserved and neither reranking nor prediction is applied.
+- An explicitly selected Chinese result follows the same user-facing
+  Predictive Chinese preference as T9. Handwriting commits bypass Rime, so a
+  compact app-local adaptation of `librime-predict` data supplies the next
+  candidates instead of forging Rime commit history. The dictionary is loaded
+  off the main thread, keeps separate Simplified and Traditional indexes, and
+  publishes into the existing handwriting strip. Selecting a prediction
+  continues prediction without inserting spaces; implicit commits before
+  punctuation or another auxiliary action do not open a prediction surface.
 - Long number keys select visible shortcuts. Short `1/4/7/*` mirror Emoji,
   Number, handwriting-language switch, and Symbol; short `3/6/9` mirror editor
   backspace, Space, and the language-appropriate Comma. Touch and physical

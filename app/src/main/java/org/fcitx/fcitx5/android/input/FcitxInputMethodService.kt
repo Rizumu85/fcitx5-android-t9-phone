@@ -212,7 +212,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             candidatesView?.commitSmartEnglishShortcut(index) == true
         }
     )
-    private val handwritingCoordinatorDelegate = lazy {
+    private val handwritingCoordinatorDelegate: Lazy<HandwritingCoordinator> = lazy {
         HandwritingCoordinator(
             context = this,
             scope = lifecycleScope,
@@ -226,10 +226,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 fcitx.runOnReady { lookupPinyinReadings(character) }.asList()
             },
             smartEnglishEnabled = { smartEnglishModeController.enabled },
-            shouldLearnEnglishWords = ::shouldLearnEnglishWords
+            shouldLearnEnglishWords = ::shouldLearnEnglishWords,
+            chinesePredictionEnabled = { chinesePredictionModeController.enabled },
+            chineseOutputScript = {
+                prefs.chineseT9.outputScript(activeChineseT9Scheme)
+            }
         )
     }
-    private val handwritingCoordinator by handwritingCoordinatorDelegate
+    private val handwritingCoordinator: HandwritingCoordinator by handwritingCoordinatorDelegate
     private val physicalT9KeyHost = PhysicalT9KeyHostAdapter(
         state = PhysicalT9KeyHostAdapter.State(
             isInInputMode = { inputDeviceMgr.isInInputMode },
@@ -490,6 +494,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     fun isChineseT9InputModeActive(): Boolean =
         currentT9Mode == T9InputMode.CHINESE
+
+    fun isChinesePredictionModeActive(): Boolean =
+        if (handwritingCoordinatorDelegate.isInitialized() && handwritingCoordinator.isActive) {
+            handwritingCoordinator.currentLanguage == HandwritingLanguage.CHINESE
+        } else {
+            isChineseT9InputModeActive()
+        }
 
     fun getChineseT9EngineStatus(): T9CandidateStatus? =
         ChineseT9EngineStatusPolicy.status(
@@ -1956,19 +1967,27 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         onEnabledChanged = { enabled -> smartEnglishCoordinator.onEnabledChanged(enabled) },
         showModeIndicator = ::showModeIndicatorBadge
     )
-    private val chinesePredictionModeController = ChinesePredictionModeController(
-        initialEnabled = prefs.chineseT9.prediction.getValue(),
-        setPreference = { enabled -> prefs.chineseT9.prediction.setValue(enabled) },
-        onEnabledChanged = { enabled ->
-            candidatesView?.resetChinesePredictionCandidates()
-            applyChinesePredictionOption(enabled)
-        },
-        showModeIndicator = { enabled ->
-            showModeIndicatorBadge(
-                if (enabled) getString(R.string.chinese_prediction_badge) else getCurrentT9ModeLabel()
-            )
-        }
-    )
+    private val chinesePredictionModeController: ChinesePredictionModeController =
+        ChinesePredictionModeController(
+            initialEnabled = prefs.chineseT9.prediction.getValue(),
+            setPreference = { enabled -> prefs.chineseT9.prediction.setValue(enabled) },
+            onEnabledChanged = { enabled ->
+                candidatesView?.resetChinesePredictionCandidates()
+                if (handwritingCoordinatorDelegate.isInitialized()) {
+                    handwritingCoordinator.onChinesePredictionEnabledChanged(enabled)
+                }
+                applyChinesePredictionOption(enabled)
+            },
+            showModeIndicator = { enabled ->
+                showModeIndicatorBadge(
+                    if (enabled) {
+                        getString(R.string.chinese_prediction_badge)
+                    } else {
+                        getCurrentT9ModeLabel()
+                    }
+                )
+            }
+        )
     private val smartEnglishCoordinator: SmartEnglishT9Coordinator by lazy {
         SmartEnglishT9Coordinator(
             candidateLimit = SmartEnglishCandidateLimit,

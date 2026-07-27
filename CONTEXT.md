@@ -136,6 +136,16 @@ preference only after the intended T9 schema is ready. Prediction candidates
 pass through the same per-scheme Simplified/Traditional policy as composition
 candidates.
 
+Chinese handwriting commits directly to Android rather than through Rime, so
+it cannot safely mutate Rime's private commit history. Its
+`ChineseHandwritingSession` therefore queries a compact, app-local adaptation
+of the same `librime-predict` data. The dictionary has independently indexed
+Simplified and Traditional sections, is expanded into the app cache and
+memory-mapped off the main thread, and feeds the existing handwriting
+candidate strip. This keeps the user-facing Predictive Chinese preference and
+continuous selection behavior shared without introducing a hidden Rime
+session or a second handwriting candidate UI.
+
 `ChinesePredictionCandidateSession` owns the frontend activation boundary. A
 normal idle Rime candidate event must never appear as prediction. The session
 arms immediately before a Chinese selection and accepts only a fresh,

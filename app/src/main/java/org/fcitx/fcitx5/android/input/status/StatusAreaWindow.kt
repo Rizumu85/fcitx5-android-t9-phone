@@ -86,7 +86,7 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
             ),
             StatusAreaEntry.Android(
                 context.getString(
-                    if (service.isChineseT9InputModeActive()) {
+                    if (service.isChinesePredictionModeActive()) {
                         R.string.chinese_prediction
                     } else {
                         R.string.smart_english_t9
@@ -94,7 +94,7 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
                 ),
                 R.drawable.ic_baseline_auto_awesome_24,
                 PredictiveInput,
-                if (service.isChineseT9InputModeActive()) {
+                if (service.isChinesePredictionModeActive()) {
                     service.isChinesePredictionEnabled()
                 } else {
                     service.isSmartEnglishT9Enabled()
@@ -180,7 +180,7 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
                     windowManager.attachWindow(KeyboardWindow)
                 }
                 PredictiveInput -> {
-                    if (service.isChineseT9InputModeActive()) {
+                    if (service.isChinesePredictionModeActive()) {
                         service.toggleChinesePrediction()
                     } else {
                         service.toggleSmartEnglishT9()
