@@ -40,6 +40,7 @@ class T9CandidateSourceSessions(
         originalIndex: Int,
         selectedCandidate: FcitxEvent.Candidate
     ): T9CandidateUiSnapshotPipeline.ChineseSelectionTicket? {
+        if (originalIndex < 0) return null
         val shown = currentShown ?: return null
         when (shown.source) {
             T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_PREDICTION,
@@ -218,14 +219,14 @@ class T9CandidateSourceSessions(
         val shown = currentShown
             ?.takeIf { it.source == T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH }
             ?: return null
-        return shown.originalIndexAt(shownIndex)
+        return shown.selectableOriginalIndexAt(shownIndex)
     }
 
     fun pendingPunctuationShortcutOriginalIndex(shownIndex: Int): Int? {
         val shown = currentShown
             ?.takeIf { it.source == T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION }
             ?: return null
-        return shown.originalIndexAt(shownIndex)
+        return shown.selectableOriginalIndexAt(shownIndex)
     }
 
     fun moveCurrentBottomCandidate(delta: Int): T9CandidateUiSnapshotPipeline.MoveBottomCandidate? {
@@ -328,7 +329,9 @@ class T9CandidateSourceSessions(
         shownIndex: Int
     ): T9CandidateUiSnapshotPipeline.CommitBottomCandidate? {
         if (shownIndex !in shown.paged.candidates.indices) return null
-        val originalIndex = shown.originalIndexAt(shownIndex) ?: shownIndex
+        // A retained page with -1 mappings is presentation-only while its replacement is loading.
+        // Treating its row index as an engine index can select unrelated text or erase the surface.
+        val originalIndex = shown.selectableOriginalIndexAt(shownIndex) ?: return null
         return when (shown.source) {
             T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH ->
                 T9CandidateUiSnapshotPipeline.CommitBottomCandidate.SmartEnglish(originalIndex)
@@ -368,7 +371,7 @@ class T9CandidateSourceSessions(
         shown: T9CandidateUiSnapshotPipeline.ShownSnapshot,
         next: Int
     ): T9CandidateUiSnapshotPipeline.MoveBottomCandidate? {
-        val originalIndex = shown.originalIndexAt(next) ?: next
+        val originalIndex = shown.selectableOriginalIndexAt(next) ?: return null
         return when (shown.source) {
             T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH -> {
                 currentShown = shown.copy(paged = shown.paged.copy(cursorIndex = next))

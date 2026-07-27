@@ -155,6 +155,35 @@ class ChineseT9EngineOperationTest {
         assertEquals(emptyList<String>(), finished)
     }
 
+    @Test
+    fun rejectedRequestReportsBackToTheOwner() = runBlocking {
+        val engine = FakeEngine()
+        var current = true
+        val pending = mutableListOf<suspend FakeEngine.() -> Unit>()
+        val operation = ChineseT9EngineOperation<FakeEngine>(
+            submit = pending::add,
+            ownerDispatcher = Dispatchers.Unconfined
+        )
+        var rejected = 0
+
+        operation.enqueue(
+            acceptBefore = { current },
+            execute = {
+                calls += 1
+                current = false
+                "selected"
+            },
+            acceptAfter = { current },
+            finish = {},
+            reject = { rejected += 1 }
+        )
+
+        pending.single().invoke(engine)
+
+        assertEquals(1, engine.calls)
+        assertEquals(1, rejected)
+    }
+
     private class FakeEngine {
         var calls = 0
     }

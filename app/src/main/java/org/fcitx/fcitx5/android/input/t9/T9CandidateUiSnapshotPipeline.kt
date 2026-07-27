@@ -37,6 +37,9 @@ class T9CandidateUiSnapshotPipeline(
         fun originalIndexAt(shownIndex: Int): Int? =
             originalIndices.getOrNull(shownIndex)
 
+        fun selectableOriginalIndexAt(shownIndex: Int): Int? =
+            originalIndexAt(shownIndex)?.takeIf { it >= 0 }
+
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (other !is ShownSnapshot) return false

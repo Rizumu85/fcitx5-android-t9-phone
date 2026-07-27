@@ -243,17 +243,6 @@ class ChineseT9CompositionCoordinator(
         return normalized == expected || normalized.startsWith("$expected ")
     }
 
-    fun shouldConsumeResolvedPrefixAfterCandidate(
-        prefix: String,
-        candidate: FcitxEvent.Candidate
-    ): Boolean {
-        if (scheme != ChineseT9Scheme.PINYIN) return false
-        val fullPrefix = resolvedPinyinPrefix() ?: return false
-        if (prefix.isNotEmpty() && prefix != fullPrefix) return true
-        if (prefix != fullPrefix || session.unresolvedDigits.isEmpty()) return false
-        return ChineseT9PresentationSource.normalizeCandidateComment(candidate.comment) == prefix
-    }
-
     fun consumeResolvedPrefix(prefix: String): String? =
         if (scheme != ChineseT9Scheme.PINYIN) null else session.consumeResolvedPrefix(
             prefix = prefix,
@@ -283,18 +272,31 @@ class ChineseT9CompositionCoordinator(
         request: ChineseT9CompositionSession.PinyinSelectionRequest
     ): Boolean = ChineseT9RimeBridge.from(session, api).mirrorPinyinSelection(request)
 
-    fun consumeSelectedCandidateReading(candidate: FcitxEvent.Candidate): Boolean {
-        if (scheme != ChineseT9Scheme.PINYIN) {
-            val hadCode = !rawCodeSession.isEmpty()
+    fun consumeSelectedCandidateReading(
+        candidate: FcitxEvent.Candidate,
+        fallbackResolvedPrefix: String? = null
+    ): String? {
+        if (scheme == ChineseT9Scheme.ZHUYIN) {
+            val reading = T9ZhuyinResolver.normalizeCandidateReading(candidate.comment)
+            val readingDigits = T9ZhuyinResolver.digitsForReading(reading)
+            rawCodeSession.consumePrefix(readingDigits)?.let { remaining ->
+                zhuyinReadingFilter.updateRawCode(remaining)
+                codePresentationCache.reset()
+                return remaining
+            }
+        }
+        if (scheme == ChineseT9Scheme.STROKE || scheme == ChineseT9Scheme.ZHUYIN) {
+            if (rawCodeSession.isEmpty()) return null
             rawCodeSession.clear()
             zhuyinReadingFilter.reset()
             codePresentationCache.reset()
-            return hadCode
+            return ""
         }
         val commentSegments = ChineseT9PresentationSource.normalizeCandidateComment(candidate.comment)
             .split(' ')
             .filter { it.isNotEmpty() }
         return session.consumeSelectedCandidateReading(commentSegments)
+            ?: fallbackResolvedPrefix?.let(::consumeResolvedPrefix)
     }
 
     private fun handleRawCodeKeyDown(
@@ -361,11 +363,6 @@ class ChineseT9CompositionCoordinator(
             selectedReading = zhuyinReadingFilter.selectedReading
         )
     }
-
-    private fun resolvedPinyinPrefix(): String? =
-        session.resolvedSegments
-            .takeIf { it.isNotEmpty() }
-            ?.joinToString(" ") { it.pinyin }
 
     private fun resolvedPinyinFilterPrefixes(model: T9CompositionModel): List<String> {
         val resolvedSegments = model.resolvedSegments

@@ -10,26 +10,37 @@ import org.fcitx.fcitx5.android.core.FcitxEvent
 class ChinesePredictionCandidateSession {
     enum class Phase {
         OFF,
+        ARMED,
         WAITING,
         VISIBLE
     }
 
+    class ArmToken internal constructor()
+
     private var candidateRevision = 0L
     private var armedCandidateRevision = Long.MIN_VALUE
     private var sourceTicket: ChineseT9CompositionTicket? = null
+    private var activeArmToken: ArmToken? = null
     private var phase = Phase.OFF
 
     val ownsIdleSurface: Boolean
-        get() = phase != Phase.OFF
+        get() = phase == Phase.WAITING || phase == Phase.VISIBLE
 
-    fun arm(source: ChineseT9CompositionTicket, enabled: Boolean) {
+    fun arm(source: ChineseT9CompositionTicket, enabled: Boolean): ArmToken? {
         if (!enabled) {
             reset()
-            return
+            return null
         }
+        val token = ArmToken()
+        activeArmToken = token
         sourceTicket = source
         armedCandidateRevision = candidateRevision
-        phase = Phase.WAITING
+        phase = Phase.ARMED
+        return token
+    }
+
+    fun cancel(token: ArmToken?) {
+        if (token != null && token === activeArmToken) reset()
     }
 
     fun onCandidateEvent() {
@@ -48,6 +59,7 @@ class ChinesePredictionCandidateSession {
         }
         return when (phase) {
             Phase.OFF -> Phase.OFF
+            Phase.ARMED -> evaluateArmed(currentTicket, enginePreedit, candidates)
             Phase.WAITING -> evaluateWaiting(currentTicket, enginePreedit, candidates)
             Phase.VISIBLE -> evaluateVisible(currentTicket, enginePreedit, candidates)
         }
@@ -60,10 +72,11 @@ class ChinesePredictionCandidateSession {
     fun reset() {
         armedCandidateRevision = Long.MIN_VALUE
         sourceTicket = null
+        activeArmToken = null
         phase = Phase.OFF
     }
 
-    private fun evaluateWaiting(
+    private fun evaluateArmed(
         currentTicket: ChineseT9CompositionTicket,
         enginePreedit: CharSequence,
         candidates: FcitxEvent.PagedCandidateEvent.Data
@@ -71,11 +84,31 @@ class ChinesePredictionCandidateSession {
         val source = sourceTicket ?: return Phase.OFF.also { reset() }
         val currentHasComposition = currentTicket.rawSequence.isNotEmpty() || enginePreedit.isNotEmpty()
         if (currentHasComposition) {
-            // A changed non-empty ticket is new user input or a remaining phrase segment, not
-            // the no-composition frame that librime-predict publishes after a full commit.
+            // A partial selection still owns the ordinary Chinese surface. Prediction may take
+            // ownership only after the engine has actually cleared the committed composition.
             if (currentTicket != source) reset()
             return phase
         }
+        phase = Phase.WAITING
+        return resolveWaitingCandidateEvent(candidates)
+    }
+
+    private fun evaluateWaiting(
+        currentTicket: ChineseT9CompositionTicket,
+        enginePreedit: CharSequence,
+        candidates: FcitxEvent.PagedCandidateEvent.Data
+    ): Phase {
+        val currentHasComposition = currentTicket.rawSequence.isNotEmpty() || enginePreedit.isNotEmpty()
+        if (currentHasComposition) {
+            reset()
+            return Phase.OFF
+        }
+        return resolveWaitingCandidateEvent(candidates)
+    }
+
+    private fun resolveWaitingCandidateEvent(
+        candidates: FcitxEvent.PagedCandidateEvent.Data
+    ): Phase {
         if (candidateRevision <= armedCandidateRevision) return Phase.WAITING
         phase = if (candidates.candidates.isEmpty()) Phase.OFF else Phase.VISIBLE
         if (phase == Phase.OFF) reset()

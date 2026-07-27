@@ -598,9 +598,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
     }
 
-    private fun resetComposingState() {
+    private fun resetAndroidComposingState() {
         composing.clear()
         composingText = FormattedText.Empty
+    }
+
+    private fun resetComposingState() {
+        resetAndroidComposingState()
         clearT9CompositionState()
         t9CandidateFocusController.reset()
     }
@@ -1275,6 +1279,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     fun commitText(text: String, cursor: Int = -1) {
+        commitTextInternal(text, cursor, preserveChineseT9Composition = false)
+    }
+
+    private fun commitTextPreservingChineseT9Composition(text: String) {
+        commitTextInternal(text, cursor = -1, preserveChineseT9Composition = true)
+    }
+
+    private fun commitTextInternal(
+        text: String,
+        cursor: Int,
+        preserveChineseT9Composition: Boolean
+    ) {
         invalidateNumberExpressionForInput()
         val ic = currentInputConnection ?: return
         if (physicalSelectionMode) {
@@ -1284,7 +1300,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         if (composing.isNotEmpty() && composingText.toString() == text) {
             val c = if (cursor == -1) text.length else cursor
             val target = composing.start + c
-            resetComposingState()
+            resetComposingStateForCommit(preserveChineseT9Composition)
             ic.withBatchEdit {
                 if (selection.current.start != target) {
                     selection.predict(target)
@@ -1297,7 +1313,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         // committed text should replace composing (if any), replace selected range (if any),
         // or simply prepend before cursor
         val start = if (composing.isEmpty()) selection.latest.start else composing.start
-        resetComposingState()
+        resetComposingStateForCommit(preserveChineseT9Composition)
         if (cursor == -1) {
             selection.predict(start + text.length)
             ic.commitText(text, 1)
@@ -1310,6 +1326,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 setSelection(target, target)
             }
             recordPasswordInputPreviewCommit(text)
+        }
+    }
+
+    private fun resetComposingStateForCommit(preserveChineseT9Composition: Boolean) {
+        if (preserveChineseT9Composition) {
+            resetAndroidComposingState()
+        } else {
+            resetComposingState()
         }
     }
 
@@ -2890,15 +2914,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun normalizeChineseT9CodePreview(preview: String): String? =
         chineseT9Composition.literalCommitText(preview)
 
-    fun shouldConsumeT9ResolvedPinyinPrefixAfterHanziSelection(
-        prefix: String,
-        candidate: FcitxEvent.Candidate
-    ): Boolean = isChineseT9InputModeActive() &&
-        chineseT9Composition.shouldConsumeResolvedPrefixAfterCandidate(prefix, candidate)
-
-    fun consumeT9ResolvedPinyinPrefix(prefix: String): Boolean {
+    fun completeT9ChineseCandidateSelection(
+        candidate: FcitxEvent.Candidate,
+        fallbackResolvedPrefix: String?
+    ): Boolean {
         if (currentT9Mode != T9InputMode.CHINESE) return false
-        val rawPreedit = chineseT9Composition.consumeResolvedPrefix(prefix) ?: return false
+        val rawPreedit = chineseT9Composition.consumeSelectedCandidateReading(
+            candidate = candidate,
+            fallbackResolvedPrefix = fallbackResolvedPrefix
+        ) ?: return false
+        // A partial engine selection remains staged inside Rime. Commit the accepted text before
+        // rebuilding the remaining code, otherwise reset() silently discards the chosen segment.
+        commitTextPreservingChineseT9Composition(candidate.text)
         candidatesView?.prepareForT9CompositionReplay()
         inputView?.clearTransientState()
         replayT9RawComposition(rawPreedit)
@@ -2908,13 +2935,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun replayT9RawComposition(rawPreedit: String) {
         chineseT9Composition.prepareReplay(rawPreedit)
         val ticket = chineseT9Composition.compositionTicket()
+        val replayScheme = ticket.scheme
         chineseT9EngineOperation.enqueue(
             acceptBefore = { isCurrentChineseT9Composition(ticket) },
             execute = {
                 setCandidatePagingMode(candidatePagingModeForCurrentInputDevice())
                 reset()
                 rawPreedit.forEach { ch ->
-                    if (ch in '2'..'9' || ch == '\'') {
+                    val acceptedDigit = ch.digitToIntOrNull()
+                        ?.takeIf(replayScheme::acceptsCompositionDigit)
+                    val acceptedSeparator =
+                        ch == '\'' && replayScheme == ChineseT9Scheme.PINYIN
+                    if (acceptedDigit != null || acceptedSeparator) {
                         sendKey(ch)
                     }
                 }
@@ -2954,13 +2986,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             ChineseT9Scheme.STROKE -> return false
         }
         moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
-        candidatesView?.refreshT9Ui()
-        return true
-    }
-
-    fun consumeT9ReadingFromSelectedCandidate(candidate: FcitxEvent.Candidate): Boolean {
-        if (currentT9Mode != T9InputMode.CHINESE) return false
-        if (!chineseT9Composition.consumeSelectedCandidateReading(candidate)) return false
         candidatesView?.refreshT9Ui()
         return true
     }

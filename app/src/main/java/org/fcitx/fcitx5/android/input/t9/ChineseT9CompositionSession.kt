@@ -294,10 +294,9 @@ class ChineseT9CompositionSession {
 
     fun consumeSelectedCandidateReading(
         commentSegments: List<String>
-    ): Boolean {
-        if (model.hasResolvedSegments) return false
-        val rawDigits = tracker.getFullComposition().filter { it in '2'..'9' }
-        if (rawDigits.isEmpty() || commentSegments.isEmpty()) return false
+    ): String? {
+        val rawDigits = rawSequence().filter { it in '2'..'9' }
+        if (rawDigits.isEmpty() || commentSegments.isEmpty()) return null
         var consumedDigits = ""
         for (segment in commentSegments) {
             val segmentDigits = T9PinyinUtils.pinyinToT9Keys(segment)
@@ -306,7 +305,7 @@ class ChineseT9CompositionSession {
             if (!rawDigits.startsWith(nextConsumed)) break
             consumedDigits = nextConsumed
         }
-        if (consumedDigits.isEmpty()) return false
+        if (consumedDigits.isEmpty()) return null
         val remainingDigits = rawDigits.drop(consumedDigits.length)
         if (remainingDigits.isEmpty()) {
             clear()
@@ -319,7 +318,7 @@ class ChineseT9CompositionSession {
                 )
             )
         }
-        return true
+        return remainingDigits
     }
 
     private fun setModel(next: T9CompositionModel) {

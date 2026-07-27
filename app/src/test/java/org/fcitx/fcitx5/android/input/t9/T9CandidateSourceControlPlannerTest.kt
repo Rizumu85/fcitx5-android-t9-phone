@@ -144,6 +144,22 @@ class T9CandidateSourceControlPlannerTest {
     }
 
     @Test
+    fun armedChinesePredictionCannotHideAnUnsettledPartialSelection() {
+        val plan = T9CandidateSourceControlPlanner.plan(
+            input(
+                compositionKeyCount = 2,
+                chinesePredictionPhase = ChinesePredictionCandidateSession.Phase.ARMED
+            )
+        )
+
+        assertFalse(plan.suppressEmptyCandidates)
+        assertEquals(
+            T9CandidateSourceControlPlanner.FilterAction.CHINESE_READING_FILTER,
+            plan.filterAction
+        )
+    }
+
+    @Test
     fun ordinaryPinyinUsesAcceptedEnginePageWithoutUnfilteredBulkReload() {
         val plan = T9CandidateSourceControlPlanner.plan(
             input(compositionKeyCount = 1)

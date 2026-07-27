@@ -69,10 +69,21 @@ class ChineseT9CompositionSessionTest {
         val session = ChineseT9CompositionSession()
         listOf('6', '4', '2', '6').forEach(session::appendDigit)
 
-        assertTrue(session.consumeSelectedCandidateReading(listOf("ni")))
+        assertEquals("26", session.consumeSelectedCandidateReading(listOf("ni")))
 
         assertEquals("26", session.unresolvedDigits)
         assertEquals("26", session.rawPreedit)
+    }
+
+    @Test
+    fun selectedCandidateReadingConsumesResolvedAndUnresolvedCompositionTogether() {
+        val session = ChineseT9CompositionSession()
+        listOf('4', '3', '4', '4', '3', '4').forEach(session::appendDigit)
+        session.selectPinyin("ge")
+
+        assertEquals("4434", session.consumeSelectedCandidateReading(listOf("ge")))
+        assertTrue(session.resolvedSegments.isEmpty())
+        assertEquals("4434", session.rawSequence())
     }
 
     @Test

@@ -7,6 +7,7 @@ package org.fcitx.fcitx5.android.input.t9
 
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class ChinesePredictionCandidateSessionTest {
@@ -32,15 +33,16 @@ class ChinesePredictionCandidateSessionTest {
     }
 
     @Test
-    fun staleCompositionCandidatesNeverBecomePredictions() {
+    fun sourceCompositionRemainsPresentationOwnerWhileSelectionSettles() {
         val session = ChinesePredictionCandidateSession()
         session.arm(source, enabled = true)
         session.onCandidateEvent()
 
         assertEquals(
-            ChinesePredictionCandidateSession.Phase.WAITING,
+            ChinesePredictionCandidateSession.Phase.ARMED,
             session.evaluate(true, source, "ni", page("你"))
         )
+        assertFalse(session.ownsIdleSurface)
     }
 
     @Test
@@ -69,6 +71,43 @@ class ChinesePredictionCandidateSessionTest {
     }
 
     @Test
+    fun rejectedOlderSelectionCannotCancelNewerPredictionArm() {
+        val session = ChinesePredictionCandidateSession()
+        val olderArm = session.arm(source, enabled = true)
+        session.arm(source, enabled = true)
+
+        session.cancel(olderArm)
+
+        assertEquals(
+            ChinesePredictionCandidateSession.Phase.ARMED,
+            session.evaluate(true, source, "ni", page("你"))
+        )
+    }
+
+    @Test
+    fun partialSelectionOwnershipIsConsistentAcrossChineseSchemes() {
+        ChineseT9Scheme.entries.forEach { scheme ->
+            val session = ChinesePredictionCandidateSession()
+            val original = ticket("234", revision = 2, scheme = scheme)
+            val remaining = ticket("34", revision = 3, scheme = scheme)
+            session.arm(original, enabled = true)
+            session.onCandidateEvent()
+
+            assertEquals(
+                scheme.name,
+                ChinesePredictionCandidateSession.Phase.ARMED,
+                session.evaluate(true, original, "source", page("候"))
+            )
+            assertFalse(scheme.name, session.ownsIdleSurface)
+            assertEquals(
+                scheme.name,
+                ChinesePredictionCandidateSession.Phase.OFF,
+                session.evaluate(true, remaining, "remaining", page("选"))
+            )
+        }
+    }
+
+    @Test
     fun disabledModeCannotOwnAnIdleCandidateRow() {
         val session = ChinesePredictionCandidateSession()
         session.arm(source, enabled = true)
@@ -80,8 +119,12 @@ class ChinesePredictionCandidateSessionTest {
         )
     }
 
-    private fun ticket(raw: String, revision: Long) = ChineseT9CompositionTicket(
-        scheme = ChineseT9Scheme.PINYIN,
+    private fun ticket(
+        raw: String,
+        revision: Long,
+        scheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN
+    ) = ChineseT9CompositionTicket(
+        scheme = scheme,
         rawSequence = raw,
         digitSequence = raw.filter(Char::isDigit),
         sessionRevision = revision

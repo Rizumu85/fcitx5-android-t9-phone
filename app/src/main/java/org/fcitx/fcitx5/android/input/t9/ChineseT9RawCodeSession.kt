@@ -37,6 +37,14 @@ class ChineseT9RawCodeSession {
         revision += 1
     }
 
+    fun consumePrefix(prefix: String): String? {
+        if (prefix.isEmpty() || !code.startsWith(prefix)) return null
+        code.delete(0, prefix.length)
+        digitCount = code.length
+        revision += 1
+        return rawCode
+    }
+
     fun clear() {
         if (code.isEmpty()) return
         code.clear()

@@ -28,14 +28,21 @@ class ChineseT9EngineOperation<Engine>(
         acceptBefore: () -> Boolean,
         execute: suspend Engine.() -> Result,
         acceptAfter: (Result) -> Boolean = { true },
-        finish: (Result) -> Unit
+        finish: (Result) -> Unit,
+        reject: () -> Unit = {}
     ) {
         schedule {
             if (withContext(ownerDispatcher) { acceptBefore() }) {
                 val result = execute()
                 withContext(ownerDispatcher) {
-                    if (acceptAfter(result)) finish(result)
+                    if (acceptAfter(result)) {
+                        finish(result)
+                    } else {
+                        reject()
+                    }
                 }
+            } else {
+                withContext(ownerDispatcher) { reject() }
             }
         }
     }

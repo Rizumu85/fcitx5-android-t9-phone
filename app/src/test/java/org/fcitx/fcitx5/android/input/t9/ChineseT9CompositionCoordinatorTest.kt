@@ -273,13 +273,33 @@ class ChineseT9CompositionCoordinatorTest {
         coordinator.activateScheme(ChineseT9Scheme.STROKE)
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_1)
 
-        val consumed = coordinator.consumeSelectedCandidateReading(
+        val remaining = coordinator.consumeSelectedCandidateReading(
             FcitxEvent.Candidate(label = "", text = "一", comment = "")
         )
 
-        assertTrue(consumed)
+        assertEquals("", remaining)
         assertEquals(0, coordinator.keyCount())
         assertFalse(coordinator.hasState())
+    }
+
+    @Test
+    fun selectingZhuyinCandidateKeepsTheUnreadSyllable() {
+        val coordinator = coordinator()
+        coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)
+        listOf(
+            KeyEvent.KEYCODE_2,
+            KeyEvent.KEYCODE_0,
+            KeyEvent.KEYCODE_3,
+            KeyEvent.KEYCODE_8
+        ).forEach(coordinator::handleForwardedKeyDown)
+
+        val remaining = coordinator.consumeSelectedCandidateReading(
+            FcitxEvent.Candidate(label = "", text = "你", comment = "ㄋㄧ")
+        )
+
+        assertEquals("38", remaining)
+        assertEquals("38", coordinator.snapshot("").rawSequence)
+        assertTrue(coordinator.readingCandidates().isNotEmpty())
     }
 
     @Test

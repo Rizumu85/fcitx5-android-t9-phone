@@ -680,7 +680,9 @@ class CandidatesView(
         paged = FcitxEvent.PagedCandidateEvent.Data.Empty
         resetT9BulkFilterState()
         t9CandidateUiSnapshotPipeline.resetChineseLocalBudgetState()
-        service.moveT9CandidateFocus(T9CandidateFocus.TOP)
+        // Candidate selection continues on the remaining code, so confirmation must stay on
+        // Hanzi instead of unexpectedly returning to reading-filter navigation.
+        service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
         refreshT9Ui()
     }
 
@@ -934,20 +936,21 @@ class CandidatesView(
             originalIndex = originalIndex,
             candidate = selectedCandidate
         ) ?: return false
-        val prefixToConsume = matchedPrefix?.takeIf {
-            service.shouldConsumeT9ResolvedPinyinPrefixAfterHanziSelection(it, selectedCandidate)
-        }
-        chinesePredictionCandidateSession.arm(
-            source = compositionTicket,
-            enabled = service.isChinesePredictionEnabled()
-        )
+        var predictionArm: ChinesePredictionCandidateSession.ArmToken? = null
         chineseT9EngineOperation.enqueue(
             acceptBefore = {
-                service.isCurrentChineseT9Composition(compositionTicket) &&
+                val accepted = service.isCurrentChineseT9Composition(compositionTicket) &&
                     t9CandidateUiSnapshotPipeline.currentChineseSelectionTicket(
                         originalIndex = originalIndex,
                         candidate = selectedCandidate
                     ) == sourceTicket
+                if (accepted) {
+                    predictionArm = chinesePredictionCandidateSession.arm(
+                        source = compositionTicket,
+                        enabled = service.isChinesePredictionEnabled()
+                    )
+                }
+                accepted
             },
             execute = {
                 if (fromAllCandidates) selectFromAll(originalIndex) else select(originalIndex)
@@ -956,14 +959,20 @@ class CandidatesView(
                 selected && service.canFinishChineseT9CandidateSelection(compositionTicket)
             },
             finish = {
-                if (prefixToConsume != null) {
-                    service.consumeT9ResolvedPinyinPrefix(prefixToConsume)
-                } else if (service.isChineseT9InputModeActive()) {
-                    service.consumeT9ReadingFromSelectedCandidate(selectedCandidate)
+                val manuallyCompleted = service.completeT9ChineseCandidateSelection(
+                    candidate = selectedCandidate,
+                    fallbackResolvedPrefix = matchedPrefix
+                )
+                if (manuallyCompleted) {
+                    chinesePredictionCandidateSession.cancel(predictionArm)
                 }
                 // Punctuation must appear only after Rime accepts the selected Hanzi;
                 // otherwise the asynchronous select can overwrite the new punctuation row.
                 onSelected?.invoke()
+            },
+            reject = {
+                chinesePredictionCandidateSession.cancel(predictionArm)
+                refreshT9Ui()
             }
         )
         return true

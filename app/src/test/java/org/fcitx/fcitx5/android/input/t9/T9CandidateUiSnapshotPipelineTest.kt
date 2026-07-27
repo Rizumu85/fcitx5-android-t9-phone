@@ -77,6 +77,21 @@ class T9CandidateUiSnapshotPipelineTest {
     }
 
     @Test
+    fun pendingChineseBulkFrameCannotCommitAnInvalidOriginalIndex() {
+        val pipeline = pipeline()
+        val shown = paged("你", "好", cursor = 0)
+        pipeline.updateShownState(
+            source = T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK,
+            paged = shown,
+            originalIndices = intArrayOf(-1, -1),
+            matchedPrefix = "ni"
+        )
+
+        assertNull(pipeline.commitCurrentBottomCandidate())
+        assertNull(pipeline.currentChineseSelectionTicket(-1, shown.candidates[0]))
+    }
+
+    @Test
     fun smartEnglishPageOffsetReturnsNextOriginalIndex() {
         val pipeline = pipeline(characterBudget = 30)
         val shown = requireNotNull(
