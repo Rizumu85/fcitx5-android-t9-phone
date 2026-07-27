@@ -706,6 +706,10 @@ class CandidatesView(
         return waiting
     }
 
+    fun rearmT9AtomicEngineTransitionForReplay(receipt: ChineseT9InputReceipt) {
+        beginT9AtomicEngineTransition(receipt)
+    }
+
     fun syncT9CandidateFocus() {
         updateT9FocusIndicator()
     }

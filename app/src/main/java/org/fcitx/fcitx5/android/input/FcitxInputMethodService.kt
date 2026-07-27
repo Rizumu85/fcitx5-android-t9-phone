@@ -2939,7 +2939,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             candidatesView?.hideT9CandidateUiImmediately()
         }
         inputView?.clearTransientState()
-        replayT9RawComposition(rawPreedit, receipt.compositionTicket)
+        replayT9RawComposition(rawPreedit, receipt)
         return true
     }
 
@@ -2964,12 +2964,19 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     private fun replayT9RawComposition(
         rawPreedit: String,
-        ticket: ChineseT9CompositionTicket
+        receipt: ChineseT9InputReceipt
     ) {
+        val ticket = receipt.compositionTicket
         val replayScheme = ticket.scheme
         chineseT9EngineOperation.enqueue(
             acceptBefore = { isCurrentChineseT9Composition(ticket) },
             execute = {
+                withContext(Dispatchers.Main.immediate) {
+                    // Rime first emits a useful remaining-candidate frame for the selected text.
+                    // Rearm only when replay is about to reset the engine so its per-key rebuild
+                    // cannot replace that complete frame with transient prefix candidates.
+                    candidatesView?.rearmT9AtomicEngineTransitionForReplay(receipt)
+                }
                 setCandidatePagingMode(candidatePagingModeForCurrentInputDevice())
                 reset()
                 rawPreedit.forEach { ch ->

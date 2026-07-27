@@ -397,6 +397,69 @@ class ChineseT9CandidateLoadingStateTest {
     }
 
     @Test
+    fun atomicTransitionCanBeRearmedBeforeEngineReplay() {
+        val state = ChineseT9CandidateLoadingState()
+        val ticket = ticket(ChineseT9Scheme.PINYIN, "435")
+        val receipt = receipt(ticket, traceInputId = 42L)
+        state.startIfNeeded(
+            chineseT9Active = true,
+            receipt = receipt,
+            requireSourcePair = true
+        )
+        state.onEngineInputPanel(
+            data = paged("gel"),
+            ticket = ticket,
+            enginePreedit = "gel"
+        )
+        assertSame(
+            receipt,
+            state.onEngineCandidates(
+                data = paged("gel"),
+                ticket = ticket,
+                enginePreedit = "gel"
+            )
+        )
+
+        assertTrue(
+            state.startIfNeeded(
+                chineseT9Active = true,
+                receipt = receipt,
+                requireSourcePair = true
+            )
+        )
+        assertNull(
+            state.onEngineInputPanel(
+                data = paged("个", comment = "ge"),
+                ticket = ticket,
+                enginePreedit = "ge"
+            )
+        )
+        assertNull(
+            state.onEngineCandidates(
+                data = paged("个", comment = "ge"),
+                ticket = ticket,
+                enginePreedit = "ge"
+            )
+        )
+        assertTrue(waiting(state, compositionKeyCount = 3))
+
+        state.onEngineInputPanel(
+            data = paged("gel"),
+            ticket = ticket,
+            enginePreedit = "gel"
+        )
+        assertSame(
+            receipt,
+            state.onEngineCandidates(
+                data = paged("gel"),
+                ticket = ticket,
+                enginePreedit = "gel"
+            )
+        )
+        assertFalse(waiting(state, compositionKeyCount = 3))
+    }
+
+    @Test
     fun inputPanelAloneCannotReuseCandidatesFromBeforeTicket() {
         val state = ChineseT9CandidateLoadingState()
         val ticket = ticket(ChineseT9Scheme.STROKE, "12")

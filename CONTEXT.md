@@ -235,11 +235,13 @@ focus must never publish as a frame by itself. Partial Chinese selection is one
 cross-window transaction: `ChineseT9CandidateLoadingState` first accepts the
 matching input panel and then the paged candidates emitted after it by the same
 Fcitx UI flush. It must not combine a replay prefix's candidate page with a
-later final preedit. `ChineseT9SelectionCommitSession` then advances through
-source-ready and frame-rendered phases, and the editor commit is posted only
-from the candidate view's draw traversal. This ordering prevents either a new
-focus over stale readings or committed editor text beside the obsolete
-candidate page.
+later final preedit. Rime's immediate remaining-candidate frame is published for
+fast feedback, then the source gate is rearmed before reset-and-replay so that
+frame remains stable while intermediate prefixes rebuild.
+`ChineseT9SelectionCommitSession` then advances through source-ready and
+frame-rendered phases, and the editor commit is posted only from the candidate
+view's draw traversal. This ordering prevents either a new focus over stale
+readings or committed editor text beside the obsolete candidate page.
 The compact top preview is always a single-line viewport and keeps the active
 tail visible when a long reading exceeds the screen width. Fixed-height T9
 preedit centers its lone visible row, and compact text rows use representative
