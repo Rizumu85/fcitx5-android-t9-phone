@@ -33,21 +33,20 @@ internal class HandwritingCoordinator(
     englishSuggestionEngine: EnglishSuggestionEngine = EnglishSuggestionEngine.Shared,
     private val enhancedBackend: EnhancedHandwritingBackend = MlKitEnhancedHandwritingBackend()
 ) {
-    private enum class Backend { OFFLINE, ENHANCED }
-
     private val offlineRecognizer = OfflineHanziRecognizer(context.applicationContext)
     private val candidateSession = HandwritingCandidateSession(candidatePageSize)
     private val englishSession = EnglishHandwritingSession(
         suggestionEngine = englishSuggestionEngine,
         candidateLimit = CandidateLimit
     )
+    private val chinesePreContext = HandwritingPreContext()
 
     private var active = false
     private var language = HandwritingLanguage.CHINESE
     private var strokes: List<HandwritingStroke> = emptyList()
     private var writingArea: HandwritingWritingArea? = null
     private var generation = 0L
-    private var activeBackend: Backend? = null
+    private var activeBackend: HandwritingRecognitionBackend? = null
     private var candidateSource = HandwritingCandidateSource.NONE
     private var offlineReady = false
     private val enhancedReady = mutableSetOf<HandwritingLanguage>()
@@ -80,6 +79,7 @@ internal class HandwritingCoordinator(
         active = true
         language = initialLanguage
         englishSession.begin(editorPreContext)
+        chinesePreContext.begin(editorPreContext)
         invalidatePronunciationFeedback()
         clearCharacter(publish = false)
         updateAvailableModelState(publish = false)
@@ -97,6 +97,7 @@ internal class HandwritingCoordinator(
         invalidatePronunciationFeedback()
         clearCharacter(publish = false)
         englishSession.clear()
+        chinesePreContext.clear()
         stateListener = null
         hideExternalCandidates()
     }
@@ -123,8 +124,10 @@ internal class HandwritingCoordinator(
             HandwritingLanguage.ENGLISH -> HandwritingLanguage.CHINESE
         }
         // Re-read the editor at the explicit language boundary. This prevents English pair
-        // prediction from jumping across intervening Chinese text without polling on stroke input.
+        // prediction and Chinese recognition context from crossing intervening editor changes
+        // without polling the editor on pointer input.
         englishSession.begin(editorPreContext)
+        chinesePreContext.begin(editorPreContext)
         updateAvailableModelState(publish = false)
         publishState()
         warmupRecognizers()
@@ -134,14 +137,12 @@ internal class HandwritingCoordinator(
     fun beginStroke() {
         if (!active) return
         if (strokes.isEmpty() && activeBackend == null) {
-            // Chinese can take the bundled floor immediately. English deliberately keeps the ML
-            // model as its only backend rather than presenting low-quality Latin guesses.
-            activeBackend = when (language) {
-                HandwritingLanguage.CHINESE -> {
-                    if (language in enhancedReady) Backend.ENHANCED else Backend.OFFLINE
-                }
-                HandwritingLanguage.ENGLISH -> Backend.ENHANCED
-            }
+            // Freeze one backend preference per unit, but do not demote a downloaded Chinese
+            // model merely because its native warmup has not won the idle gate yet.
+            activeBackend = HandwritingRecognitionPolicy.selectBackend(
+                language = language,
+                enhancedModelKnownMissing = language in enhancedModelMissing
+            )
         }
         if (language !in enhancedReady) {
             // Native preparation never competes with an active pointer stream. English may prepare
@@ -235,7 +236,10 @@ internal class HandwritingCoordinator(
 
     fun commitLiteral(text: String) {
         prepareBoundary(publish = false)
-        if (language == HandwritingLanguage.ENGLISH) englishSession.commitLiteral(text)
+        when (language) {
+            HandwritingLanguage.CHINESE -> chinesePreContext.append(text)
+            HandwritingLanguage.ENGLISH -> englishSession.commitLiteral(text)
+        }
         commitText(text)
         if (active) publishState()
         scheduleEnhancedPreparation()
@@ -248,9 +252,14 @@ internal class HandwritingCoordinator(
 
     fun prepareForReturn() {
         prepareBoundary(publish = false)
-        englishSession.breakContext()
+        invalidateEditorPreContext()
         if (active) publishState()
         scheduleEnhancedPreparation()
+    }
+
+    fun invalidateEditorPreContext() {
+        englishSession.breakContext()
+        chinesePreContext.clear()
     }
 
     fun close() {
@@ -311,6 +320,7 @@ internal class HandwritingCoordinator(
                 englishSession.commitLiteral(emittedText)
             }
         } else {
+            chinesePreContext.append(emittedText)
             publishPronunciation(text)
         }
 
@@ -397,15 +407,17 @@ internal class HandwritingCoordinator(
         val requestGeneration = ++generation
         val requestStrokes = strokes
         val requestLanguage = language
-        val requestBackend = activeBackend ?: Backend.OFFLINE
+        val requestBackend = activeBackend ?: HandwritingRecognitionPolicy.selectBackend(
+            language = requestLanguage,
+            enhancedModelKnownMissing = requestLanguage in enhancedModelMissing
+        )
         val request = HandwritingRecognitionRequest(
             language = requestLanguage,
             strokes = requestStrokes,
             writingArea = writingArea,
-            preContext = if (requestLanguage == HandwritingLanguage.ENGLISH) {
-                englishSession.recognitionPreContext()
-            } else {
-                ""
+            preContext = when (requestLanguage) {
+                HandwritingLanguage.CHINESE -> chinesePreContext.snapshot()
+                HandwritingLanguage.ENGLISH -> englishSession.recognitionPreContext()
             },
             limit = CandidateLimit
         )
@@ -457,21 +469,43 @@ internal class HandwritingCoordinator(
 
     private suspend fun recognize(
         request: HandwritingRecognitionRequest,
-        requestBackend: Backend
+        requestBackend: HandwritingRecognitionBackend
     ): RecognitionBatch = try {
         when (requestBackend) {
-            Backend.OFFLINE -> RecognitionBatch(recognizeOffline(request.strokes), Backend.OFFLINE)
-            Backend.ENHANCED -> {
+            HandwritingRecognitionBackend.OFFLINE -> RecognitionBatch(
+                recognizeOffline(request.strokes),
+                HandwritingRecognitionBackend.OFFLINE
+            )
+            HandwritingRecognitionBackend.ENHANCED -> {
                 val ready = request.language in enhancedReady || enhancedBackend.prepare(request.language)
                 recordEnhancedAvailability(request.language, ready)
                 if (!ready) {
-                    RecognitionBatch(emptyList(), Backend.ENHANCED, modelMissing = true)
+                    if (request.language == HandwritingLanguage.CHINESE) {
+                        RecognitionBatch(
+                            recognizeOffline(request.strokes),
+                            HandwritingRecognitionBackend.OFFLINE,
+                            modelMissing = true
+                        )
+                    } else {
+                        RecognitionBatch(
+                            emptyList(),
+                            HandwritingRecognitionBackend.ENHANCED,
+                            modelMissing = true
+                        )
+                    }
                 } else {
                     val enhanced = enhancedBackend.recognize(request)
-                    if (enhanced.isNotEmpty() || request.language == HandwritingLanguage.ENGLISH) {
-                        RecognitionBatch(enhanced, Backend.ENHANCED)
+                    if (request.language == HandwritingLanguage.CHINESE) {
+                        // ML Kit keeps the strongest positions; the bundled recognizer expands
+                        // recall at the tail without inventing a cross-model score comparison.
+                        val merged = HandwritingRecognitionPolicy.mergeChineseCandidates(
+                            enhanced = enhanced,
+                            offline = recognizeOffline(request.strokes),
+                            limit = request.limit
+                        )
+                        RecognitionBatch(merged, HandwritingRecognitionBackend.ENHANCED)
                     } else {
-                        RecognitionBatch(recognizeOffline(request.strokes), Backend.OFFLINE)
+                        RecognitionBatch(enhanced, HandwritingRecognitionBackend.ENHANCED)
                     }
                 }
             }
@@ -479,15 +513,21 @@ internal class HandwritingCoordinator(
     } catch (error: CancellationException) {
         throw error
     } catch (error: Throwable) {
-        if (requestBackend == Backend.ENHANCED && request.language == HandwritingLanguage.CHINESE) {
+        if (
+            requestBackend == HandwritingRecognitionBackend.ENHANCED &&
+            request.language == HandwritingLanguage.CHINESE
+        ) {
             Timber.w(error, "Enhanced handwriting recognition failed; using bundled recognizer")
             try {
-                RecognitionBatch(recognizeOffline(request.strokes), Backend.OFFLINE)
+                RecognitionBatch(
+                    recognizeOffline(request.strokes),
+                    HandwritingRecognitionBackend.OFFLINE
+                )
             } catch (fallbackError: CancellationException) {
                 throw fallbackError
             } catch (fallbackError: Throwable) {
                 Timber.e(fallbackError, "Bundled handwriting recognition failed")
-                RecognitionBatch(emptyList(), Backend.OFFLINE)
+                RecognitionBatch(emptyList(), HandwritingRecognitionBackend.OFFLINE)
             }
         } else {
             Timber.e(error, "Handwriting recognition failed for %s", request.language)
@@ -577,7 +617,7 @@ internal class HandwritingCoordinator(
 
     private data class RecognitionBatch(
         val candidates: List<HandwritingRecognition>,
-        val backend: Backend,
+        val backend: HandwritingRecognitionBackend,
         val modelMissing: Boolean = false
     )
 

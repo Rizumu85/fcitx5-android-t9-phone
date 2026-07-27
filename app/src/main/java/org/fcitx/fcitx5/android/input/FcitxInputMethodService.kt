@@ -2511,7 +2511,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun deleteCommittedTextFromHandwriting() {
         // Touch and physical backspace share one pending-character boundary. Once that boundary is
         // empty, the ordinary editor pipeline deletes exactly one code point/selection.
-        if (!handwritingCoordinator.consumeBackspaceBeforeEditor()) handleBackspaceKey()
+        if (!handwritingCoordinator.consumeBackspaceBeforeEditor()) {
+            handleBackspaceKey()
+            handwritingCoordinator.invalidateEditorPreContext()
+        }
     }
 
     fun performHandwritingReturn() {
@@ -2963,6 +2966,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             }
             is PhysicalDeleteCoordinator.Decision.Delete -> {
                 if (!applyPhysicalDelete(decision.plan)) return null
+                if (isHandwritingInputActive()) {
+                    // The editor becomes the source of truth again at the next explicit boundary;
+                    // retaining pre-delete context would bias recognition toward removed text.
+                    handwritingCoordinator.invalidateEditorPreContext()
+                }
                 PhysicalInputRouter.Result(
                     handled = true,
                     consumeKeyUp = input.keyCode,

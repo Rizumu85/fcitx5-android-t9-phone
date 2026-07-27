@@ -5,6 +5,7 @@
 
 package org.fcitx.fcitx5.android.input.handwriting
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
 
@@ -20,5 +21,21 @@ class MlKitHandwritingRecognizerTest {
         )
 
         assertNotNull(buildMlKitRecognitionContext(request))
+    }
+
+    @Test
+    fun contextBoundsUnicodeByCodePointWithoutSplittingEmoji() {
+        val request = HandwritingRecognitionRequest(
+            language = HandwritingLanguage.CHINESE,
+            strokes = emptyList(),
+            writingArea = null,
+            preContext = "A😀1234567890123456789",
+            limit = 10
+        )
+
+        assertEquals(
+            "😀1234567890123456789",
+            buildMlKitRecognitionContext(request).preContext
+        )
     }
 }

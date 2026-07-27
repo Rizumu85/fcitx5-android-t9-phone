@@ -26,19 +26,19 @@ internal class EnglishHandwritingSession(
     )
 
     private val recentWords = ArrayDeque<String>()
-    private var preContext = ""
+    private val preContext = HandwritingPreContext()
 
     fun begin(editorPreContext: String) {
-        preContext = editorPreContext.takeLast(MaximumPreContextLength)
+        preContext.begin(editorPreContext)
         rebuildRecentWords()
     }
 
     fun clear() {
         recentWords.clear()
-        preContext = ""
+        preContext.clear()
     }
 
-    fun recognitionPreContext(): String = preContext
+    fun recognitionPreContext(): String = preContext.snapshot()
 
     fun rerank(candidates: List<String>, suggestionsEnabled: Boolean): List<String> =
         if (suggestionsEnabled) {
@@ -77,17 +77,17 @@ internal class EnglishHandwritingSession(
 
     fun breakContext() {
         recentWords.clear()
-        preContext = ""
+        preContext.clear()
     }
 
     private fun appendCommittedText(text: String) {
-        preContext = (preContext + text).takeLast(MaximumPreContextLength)
+        preContext.append(text)
         rebuildRecentWords()
     }
 
     private fun rebuildRecentWords() {
         recentWords.clear()
-        EnglishToken.findAll(preContext)
+        EnglishToken.findAll(preContext.snapshot())
             .mapNotNull { match -> EnglishSuggestionEngine.normalizeContextWord(match.value) }
             .toList()
             .takeLast(ContextWordLimit)
@@ -97,6 +97,5 @@ internal class EnglishHandwritingSession(
     private companion object {
         val EnglishToken = Regex("[A-Za-z]+")
         const val ContextWordLimit = 3
-        const val MaximumPreContextLength = 20
     }
 }

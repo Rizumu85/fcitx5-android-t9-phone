@@ -83,7 +83,5 @@ internal fun buildMlKitRecognitionContext(
     }
     // ML Kit models pre-context as a required property even at the start of an editor.
     // Supplying the empty boundary keeps first-word recognition on the context-aware API.
-    setPreContext(request.preContext.takeLast(MaximumPreContextLength))
+    setPreContext(HandwritingPreContext.bound(request.preContext))
 }.build()
-
-private const val MaximumPreContextLength = 20
