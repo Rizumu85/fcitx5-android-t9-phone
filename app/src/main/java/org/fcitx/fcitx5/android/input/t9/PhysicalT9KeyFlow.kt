@@ -13,6 +13,7 @@ class PhysicalT9KeyFlow {
         val chineseComposing: Boolean,
         val compositionKeyCount: Int,
         val hasPendingPunctuation: Boolean,
+        val hasChinesePredictionCandidates: Boolean = false,
         val hasSmartEnglishDigits: Boolean,
         val hasSmartEnglishCandidates: Boolean,
         val hasMultiTapPendingChar: Boolean,
@@ -48,6 +49,8 @@ class PhysicalT9KeyFlow {
         object ShowChinesePunctuationCandidates : Command()
         object ShowEnglishPunctuationCandidates : Command()
         object CommitChineseCandidateAndShowPunctuation : Command()
+        object CommitChineseCandidateAndReturn : Command()
+        object DismissChinesePrediction : Command()
         data class HandleMultiTapKey(val keyCode: Int) : Command()
         object CommitMultiTapChar : Command()
         data class CommitSmartEnglishShortcut(val keyCode: Int) : Command()

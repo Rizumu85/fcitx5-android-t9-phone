@@ -41,6 +41,7 @@ class T9CandidateSourceSessions(
     ): T9CandidateUiSnapshotPipeline.ChineseSelectionTicket? {
         val shown = currentShown ?: return null
         when (shown.source) {
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_PREDICTION,
             T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK,
             T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_LOCAL,
             T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_ENGINE -> Unit
@@ -275,6 +276,16 @@ class T9CandidateSourceSessions(
                     }
                 }
             }
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_PREDICTION -> {
+                val shown = currentShown ?: return null
+                if (offsetChineseLocalBudgetedPage(delta)) {
+                    T9CandidateUiSnapshotPipeline.PageOffset.Refresh
+                } else {
+                    val canOffsetEngine = if (delta > 0) shown.paged.hasNext else shown.paged.hasPrev
+                    T9CandidateUiSnapshotPipeline.PageOffset.ChineseEngine(delta)
+                        .takeIf { canOffsetEngine }
+                }
+            }
             T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_ENGINE -> {
                 val shown = currentShown ?: return null
                 val canOffset = if (delta > 0) shown.paged.hasNext else shown.paged.hasPrev
@@ -304,6 +315,7 @@ class T9CandidateSourceSessions(
                 T9CandidateUiSnapshotPipeline.CommitBottomCandidate.SmartEnglish(originalIndex)
             T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION ->
                 T9CandidateUiSnapshotPipeline.CommitBottomCandidate.PendingPunctuation(originalIndex)
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_PREDICTION,
             T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK,
             T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_LOCAL,
             T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_ENGINE -> {
@@ -336,6 +348,13 @@ class T9CandidateSourceSessions(
             T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION -> {
                 val nextPaged = shown.paged.copy(cursorIndex = next)
                 currentShown = shown.copy(paged = nextPaged)
+                T9CandidateUiSnapshotPipeline.MoveBottomCandidate.LocalSelection(
+                    source = shown.source,
+                    originalIndex = originalIndex
+                )
+            }
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_PREDICTION -> {
+                currentShown = shown.copy(paged = shown.paged.copy(cursorIndex = next))
                 T9CandidateUiSnapshotPipeline.MoveBottomCandidate.LocalSelection(
                     source = shown.source,
                     originalIndex = originalIndex

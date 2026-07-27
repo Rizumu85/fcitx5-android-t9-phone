@@ -100,6 +100,7 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
             R.string.chinese_input,
             prefs.chineseT9,
             setOf(
+                prefs.chineseT9.prediction.key,
                 prefs.chineseT9.pinyin.key,
                 prefs.chineseT9.pinyinOutputScript.key,
                 prefs.chineseT9.stroke.key,

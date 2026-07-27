@@ -21,6 +21,7 @@ class T9CandidateUiSnapshotPipeline(
     enum class ShownSource {
         SMART_ENGLISH,
         PENDING_PUNCTUATION,
+        CHINESE_PREDICTION,
         CHINESE_BULK,
         CHINESE_LOCAL,
         CHINESE_ENGINE,

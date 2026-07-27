@@ -776,6 +776,7 @@ class PhysicalT9KeyHandlerTest {
         override var chineseComposing: Boolean = false,
         override var compositionKeyCount: Int = 0,
         override var hasPendingPunctuation: Boolean = false,
+        override var hasChinesePredictionCandidates: Boolean = false,
         override var hasSmartEnglishDigits: Boolean = false,
         override var hasSmartEnglishCandidates: Boolean = hasSmartEnglishDigits,
         override var hasMultiTapPendingChar: Boolean = false,
@@ -852,6 +853,14 @@ class PhysicalT9KeyHandlerTest {
         override fun commitChineseCandidateAndShowPunctuation() {
             commitHighlightedBottomCandidateCount += 1
             showChinesePunctuationCount += 1
+        }
+        override fun commitChineseCandidateAndReturn() {
+            commitHighlightedBottomCandidateCount += 1
+            handleReturnCount += 1
+        }
+        override fun dismissChinesePrediction(): Boolean {
+            hasChinesePredictionCandidates = false
+            return true
         }
         override fun togglePendingPunctuationSet(): Boolean {
             togglePendingPunctuationSetCount += 1

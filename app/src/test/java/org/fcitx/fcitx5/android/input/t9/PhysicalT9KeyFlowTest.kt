@@ -107,6 +107,117 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
+    fun chinesePredictionZeroConfirmsInPinyin() {
+        val flow = PhysicalT9KeyFlow()
+        val prediction = state(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            isSmartEnglishActive = false,
+            hasChinesePredictionCandidates = true,
+            hasBottomCandidateRow = true
+        )
+        flow.handle(input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN), prediction)
+
+        val up = flow.handle(input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_UP), prediction)
+
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.CommitBottomCandidate(
+                    PhysicalT9KeyFlow.BottomCandidateFallback.NONE
+                )
+            ),
+            up?.commands
+        )
+    }
+
+    @Test
+    fun chinesePredictionDigitDefersNewInputSoLongPressCanSelectShortcut() {
+        val flow = PhysicalT9KeyFlow()
+        val prediction = state(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            isSmartEnglishActive = false,
+            hasChinesePredictionCandidates = true,
+            hasBottomCandidateRow = true
+        )
+
+        val down = flow.handle(input(KeyEvent.KEYCODE_4, KeyEvent.ACTION_DOWN), prediction)
+        val up = flow.handle(input(KeyEvent.KEYCODE_4, KeyEvent.ACTION_UP), prediction)
+
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), down?.commands)
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.ForwardChineseT9KeyShortPress(KeyEvent.KEYCODE_4)),
+            up?.commands
+        )
+
+        flow.handle(input(KeyEvent.KEYCODE_4, KeyEvent.ACTION_DOWN), prediction)
+        val repeat = flow.handle(
+            input(KeyEvent.KEYCODE_4, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            prediction.copy(heldPastLongPressDelay = true)
+        )
+
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.CommitHanziShortcut(KeyEvent.KEYCODE_4)),
+            repeat?.commands
+        )
+    }
+
+    @Test
+    fun chinesePredictionKeepsZhuyinZeroAsNewReadingInput() {
+        val flow = PhysicalT9KeyFlow()
+        val prediction = state(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            isSmartEnglishActive = false,
+            chineseScheme = ChineseT9Scheme.ZHUYIN,
+            hasChinesePredictionCandidates = true,
+            hasBottomCandidateRow = true
+        )
+        flow.handle(input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_DOWN), prediction)
+
+        val up = flow.handle(input(KeyEvent.KEYCODE_0, KeyEvent.ACTION_UP), prediction)
+
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.ForwardChineseT9KeyShortPress(KeyEvent.KEYCODE_0)),
+            up?.commands
+        )
+    }
+
+    @Test
+    fun chinesePredictionPoundCommitsThenReturns() {
+        val flow = PhysicalT9KeyFlow()
+        val prediction = state(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            isSmartEnglishActive = false,
+            hasChinesePredictionCandidates = true,
+            hasBottomCandidateRow = true
+        )
+        flow.handle(input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN), prediction)
+
+        val up = flow.handle(input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP), prediction)
+
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.CommitChineseCandidateAndReturn),
+            up?.commands
+        )
+    }
+
+    @Test
+    fun chinesePredictionBackspaceDismissesBeforeEditorDeletion() {
+        val flow = PhysicalT9KeyFlow()
+        val prediction = state(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            isSmartEnglishActive = false,
+            hasChinesePredictionCandidates = true,
+            hasBottomCandidateRow = true
+        )
+
+        val down = flow.handle(input(KeyEvent.KEYCODE_DEL, KeyEvent.ACTION_DOWN), prediction)
+
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.DismissChinesePrediction),
+            down?.commands
+        )
+    }
+
+    @Test
     fun smartEnglishDigitAppendsOnKeyUpOnly() {
         val flow = PhysicalT9KeyFlow()
 
@@ -1544,6 +1655,7 @@ class PhysicalT9KeyFlowTest {
         chineseComposing: Boolean = false,
         compositionKeyCount: Int = 0,
         hasPendingPunctuation: Boolean = false,
+        hasChinesePredictionCandidates: Boolean = false,
         hasSmartEnglishDigits: Boolean = false,
         hasSmartEnglishCandidates: Boolean = false,
         hasMultiTapPendingChar: Boolean = false,
@@ -1561,6 +1673,7 @@ class PhysicalT9KeyFlowTest {
             chineseComposing = chineseComposing,
             compositionKeyCount = compositionKeyCount,
             hasPendingPunctuation = hasPendingPunctuation,
+            hasChinesePredictionCandidates = hasChinesePredictionCandidates,
             hasSmartEnglishDigits = hasSmartEnglishDigits,
             hasSmartEnglishCandidates = hasSmartEnglishCandidates,
             hasMultiTapPendingChar = hasMultiTapPendingChar,

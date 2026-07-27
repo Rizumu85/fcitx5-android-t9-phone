@@ -250,6 +250,9 @@
     <string name="use_t9_keyboard_layout_summary">Use phone-style number keys, candidates, and input mode switching</string>
     <string name="smart_english_t9">联想英语</string>
     <string name="smart_english_t9_summary">Predict English words from number-key sequences and learn selected words</string>
+    <string name="chinese_prediction">联想中文</string>
+    <string name="chinese_prediction_badge">联想</string>
+    <string name="chinese_prediction_summary">Show continuous next-word suggestions after selecting a Chinese candidate</string>
     <string name="smart_english_learned_words">Learned words</string>
     <string name="smart_english_learned_words_summary">Add, edit, or delete words learned from English nine-key input</string>
     <string name="smart_english_learned_word_hint">English word</string>

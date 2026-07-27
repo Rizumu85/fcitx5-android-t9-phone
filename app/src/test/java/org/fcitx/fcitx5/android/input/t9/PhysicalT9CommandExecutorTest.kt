@@ -164,6 +164,7 @@ class PhysicalT9CommandExecutorTest {
         override val chineseComposing: Boolean = false,
         override val compositionKeyCount: Int = 0,
         override val hasPendingPunctuation: Boolean = false,
+        override val hasChinesePredictionCandidates: Boolean = false,
         override val hasSmartEnglishDigits: Boolean = false,
         override val hasSmartEnglishCandidates: Boolean = false,
         override val hasMultiTapPendingChar: Boolean = false,
@@ -210,6 +211,13 @@ class PhysicalT9CommandExecutorTest {
         }
         override fun commitChineseCandidateAndShowPunctuation() {
             calls += "commitChineseCandidateAndShowPunctuation"
+        }
+        override fun commitChineseCandidateAndReturn() {
+            calls += "commitChineseCandidateAndReturn"
+        }
+        override fun dismissChinesePrediction(): Boolean {
+            calls += "dismissChinesePrediction"
+            return false
         }
         override fun togglePendingPunctuationSet(): Boolean {
             calls += "togglePendingPunctuationSet"

@@ -84,6 +84,35 @@ class T9CandidateUiStateBuilderTest {
     }
 
     @Test
+    fun chinesePredictionUsesFocusedCandidateAsStableTopPreview() {
+        val pipeline = FakePipeline()
+        val result = T9CandidateUiStateBuilder(pipeline).build(input(
+            rawPaged = pagedWithCursor(1, "今天", "明天"),
+            chineseActive = true,
+            chineseSnapshot = defaultChineseSnapshot().copy(
+                rawSequence = "",
+                digitSequence = "",
+                currentSegment = "",
+                fullComposition = "",
+                model = T9CompositionModel(),
+                keyCount = 0,
+                sessionRevision = 2
+            ),
+            chinesePredictionPhase = ChinesePredictionCandidateSession.Phase.VISIBLE
+        ))
+
+        assertNotNull(result)
+        assertEquals(
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_PREDICTION,
+            result!!.interactionState.shownSource
+        )
+        assertEquals("明天", result.renderState.panel.preedit.toString())
+        assertTrue(result.renderState.reservePreeditRow)
+        assertEquals(0, pipeline.getT9PresentationCount)
+        assertEquals(0, pipeline.applyHanziCursorCount)
+    }
+
+    @Test
     fun smartEnglishPunctuationShowsSelectedPreviewInTopBubble() {
         val pipeline = FakePipeline()
         val result = T9CandidateUiStateBuilder(pipeline).build(input(
@@ -375,6 +404,8 @@ class T9CandidateUiStateBuilderTest {
         smartEnglishPaged: FcitxEvent.PagedCandidateEvent.Data? = null,
         smartEnglishPresentation: T9PresentationState? = null,
         pendingPunctuationPaged: FcitxEvent.PagedCandidateEvent.Data? = null,
+        chinesePredictionPhase: ChinesePredictionCandidateSession.Phase =
+            ChinesePredictionCandidateSession.Phase.OFF,
         currentlyVisible: Boolean = false,
         loadingState: ChineseT9CandidateLoadingState = ChineseT9CandidateLoadingState(),
         currentFocus: T9CandidateFocus = T9CandidateFocus.BOTTOM,
@@ -402,6 +433,7 @@ class T9CandidateUiStateBuilderTest {
             } else {
                 null
             },
+            chinesePredictionPhase = chinesePredictionPhase,
             pendingPunctuationRawPaged = pendingPunctuationPaged,
             currentFocus = currentFocus,
             chineseEngineStatus = chineseEngineStatus

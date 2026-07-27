@@ -64,7 +64,8 @@ class RimeConfigDeploymentHealthTest {
         listOf(
             "t9.schema.yaml",
             "t9_stroke.schema.yaml",
-            "t9_zhuyin.schema.yaml"
+            "t9_zhuyin.schema.yaml",
+            "predict.db"
         ).forEach { rimeDir.resolve(it).writeText("schema") }
     }
 

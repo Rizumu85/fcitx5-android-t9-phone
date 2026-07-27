@@ -86,6 +86,24 @@ class T9CandidatePresentationPlannerTest {
         assertArrayEquals(intArrayOf(), plan.cursorSource.originalIndices)
     }
 
+    @Test
+    fun chinesePredictionUsesMeasuredPageWithoutCompositionCursorRewrite() {
+        val prediction = page("今天", 3)
+
+        val plan = T9CandidatePresentationPlanner.plan(
+            baseInput(
+                chineseT9Active = true,
+                chinesePredictionActive = true,
+                localBudgetedPaged = prediction
+            )
+        )
+
+        assertSame(prediction, plan.cursorSource)
+        assertTrue(plan.usesChinesePrediction)
+        assertFalse(plan.applyChineseCursor)
+        assertEquals(null, plan.matchedPrefix)
+    }
+
     private fun baseInput(
         rawPaged: FcitxEvent.PagedCandidateEvent.Data = paged("raw"),
         filteredPaged: T9PagedCandidates = T9PagedCandidates.passthrough(rawPaged),
@@ -96,6 +114,7 @@ class T9CandidatePresentationPlannerTest {
         bulkFilteredMatchedPrefix: String? = null,
         bulkFilterPending: Boolean = false,
         chineseT9Active: Boolean = false,
+        chinesePredictionActive: Boolean = false,
         suppressEmptyCandidates: Boolean = false,
         pendingPinyinSelection: Boolean = false,
         waitForChineseCandidates: Boolean = false
@@ -111,6 +130,7 @@ class T9CandidatePresentationPlannerTest {
             bulkFilteredMatchedPrefix = bulkFilteredMatchedPrefix,
             bulkFilterPending = bulkFilterPending,
             chineseT9Active = chineseT9Active,
+            chinesePredictionActive = chinesePredictionActive,
             suppressEmptyCandidates = suppressEmptyCandidates,
             pendingPinyinSelection = pendingPinyinSelection,
             waitForChineseCandidates = waitForChineseCandidates

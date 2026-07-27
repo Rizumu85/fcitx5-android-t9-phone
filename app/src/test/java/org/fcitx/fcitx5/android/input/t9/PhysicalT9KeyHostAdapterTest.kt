@@ -83,6 +83,7 @@ class PhysicalT9KeyHostAdapterTest {
                 chineseComposing = { false },
                 compositionKeyCount = { 0 },
                 hasPendingPunctuation = { false },
+                hasChinesePredictionCandidates = { false },
                 hasSmartEnglishDigits = { false },
                 hasSmartEnglishCandidates = { false },
                 hasMultiTapPendingChar = { false },
@@ -120,7 +121,9 @@ class PhysicalT9KeyHostAdapterTest {
                 offsetBottomCandidatePage = { false },
                 commitHighlightedReading = { false },
                 commitHighlightedBottomCandidate = { false },
-                commitChineseCandidateAndShowPunctuation = {}
+                commitChineseCandidateAndShowPunctuation = {},
+                commitChineseCandidateAndReturn = {},
+                dismissChinesePrediction = { false }
             ),
             platform = PhysicalT9KeyHostAdapter.PlatformActions(
                 switchToNextMode = {},

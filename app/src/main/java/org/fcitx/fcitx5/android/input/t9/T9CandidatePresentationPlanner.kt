@@ -19,6 +19,7 @@ object T9CandidatePresentationPlanner {
         val bulkFilteredMatchedPrefix: String?,
         val bulkFilterPending: Boolean,
         val chineseT9Active: Boolean,
+        val chinesePredictionActive: Boolean = false,
         val suppressEmptyCandidates: Boolean,
         val pendingPinyinSelection: Boolean,
         val waitForChineseCandidates: Boolean
@@ -29,6 +30,7 @@ object T9CandidatePresentationPlanner {
         val cursorSource: T9PagedCandidates,
         val applyChineseCursor: Boolean,
         val usesSmartEnglish: Boolean,
+        val usesChinesePrediction: Boolean,
         val usesPendingPunctuation: Boolean,
         val usesBulkSelection: Boolean,
         val usesLocalBudget: Boolean,
@@ -80,13 +82,17 @@ object T9CandidatePresentationPlanner {
                 !input.suppressEmptyCandidates &&
                 !input.pendingPinyinSelection &&
                 !input.waitForChineseCandidates &&
+                !input.chinesePredictionActive &&
                 input.chineseT9Active,
             usesSmartEnglish = input.smartEnglishPaged != null && input.pendingPunctuationPaged == null,
+            usesChinesePrediction = input.chinesePredictionActive &&
+                input.pendingPunctuationPaged == null,
             usesPendingPunctuation = input.pendingPunctuationPaged != null,
             usesBulkSelection = input.pendingPunctuationPaged == null && useBulkFiltered,
             usesLocalBudget = input.pendingPunctuationPaged == null && useLocalBudget,
             matchedPrefix = when {
                 input.pendingPunctuationPaged != null -> null
+                input.chinesePredictionActive -> null
                 useBulkFiltered -> input.bulkFilteredMatchedPrefix
                 else -> input.filteredMatchedPrefix
             }

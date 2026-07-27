@@ -275,6 +275,12 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
     }
 
     inner class ChineseT9 : ManagedPreferenceCategory(R.string.chinese_t9_schemes, sharedPreferences) {
+        val prediction = switch(
+            R.string.chinese_prediction,
+            "chinese_prediction",
+            false,
+            R.string.chinese_prediction_summary
+        )
         val pinyin = switch(R.string.chinese_t9_pinyin, "chinese_t9_pinyin_enabled", true)
         val pinyinOutputScript = enumList(
             R.string.chinese_t9_pinyin_output_script,

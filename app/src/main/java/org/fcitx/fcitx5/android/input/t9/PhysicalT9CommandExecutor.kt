@@ -32,6 +32,10 @@ internal class PhysicalT9CommandExecutor(
                 host.showEnglishPunctuationCandidates()
             PhysicalT9KeyFlow.Command.CommitChineseCandidateAndShowPunctuation ->
                 host.commitChineseCandidateAndShowPunctuation()
+            PhysicalT9KeyFlow.Command.CommitChineseCandidateAndReturn ->
+                host.commitChineseCandidateAndReturn()
+            PhysicalT9KeyFlow.Command.DismissChinesePrediction ->
+                host.dismissChinesePrediction()
             PhysicalT9KeyFlow.Command.CancelMultiTapChar ->
                 host.cancelMultiTapChar()
             is PhysicalT9KeyFlow.Command.HandleMultiTapKey ->

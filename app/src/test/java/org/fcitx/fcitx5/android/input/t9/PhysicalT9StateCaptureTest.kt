@@ -58,6 +58,7 @@ class PhysicalT9StateCaptureTest {
         chineseComposing = { crossModeRead(); false },
         compositionKeyCount = { crossModeRead(); 0 },
         hasPendingPunctuation = { false },
+        hasChinesePredictionCandidates = { crossModeRead(); false },
         hasSmartEnglishDigits = { crossModeRead(); false },
         hasSmartEnglishCandidates = { crossModeRead(); false },
         hasMultiTapPendingChar = { false },

@@ -245,6 +245,9 @@
     <string name="use_t9_keyboard_layout_summary">使用手機九鍵、候選和輸入模式切換</string>
     <string name="smart_english_t9">聯想英語</string>
     <string name="smart_english_t9_summary">根據數字鍵序列預測英文單字，並學習已選取的單字</string>
+    <string name="chinese_prediction">聯想中文</string>
+    <string name="chinese_prediction_badge">聯想</string>
+    <string name="chinese_prediction_summary">選取中文候選後持續聯想下一段文字</string>
     <string name="smart_english_learned_words">已學習單字</string>
     <string name="smart_english_learned_words_summary">新增、編輯或刪除英文九鍵輸入時學到的單字</string>
     <string name="smart_english_learned_word_hint">英文單字</string>

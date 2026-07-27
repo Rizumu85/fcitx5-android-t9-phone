@@ -32,6 +32,8 @@ object T9CandidateSourceControlPlanner {
         val pendingPinyinSelection: Boolean,
         val filterPrefixesEmpty: Boolean,
         val chineseScheme: ChineseT9Scheme?,
+        val chinesePredictionPhase: ChinesePredictionCandidateSession.Phase =
+            ChinesePredictionCandidateSession.Phase.OFF,
         val invalidReading: Boolean = false
     )
 
@@ -71,6 +73,10 @@ object T9CandidateSourceControlPlanner {
 
     fun plan(input: Input): Plan {
         val chineseActive = input.surface == Surface.CHINESE
+        val chinesePredictionWaiting =
+            input.chinesePredictionPhase == ChinesePredictionCandidateSession.Phase.WAITING
+        val chinesePredictionVisible =
+            input.chinesePredictionPhase == ChinesePredictionCandidateSession.Phase.VISIBLE
         val hasReadingFilter = input.chineseScheme?.supportsReadingFilter == true
         val needsBulkCandidates = when (input.chineseScheme) {
             ChineseT9Scheme.PINYIN,
@@ -88,7 +94,10 @@ object T9CandidateSourceControlPlanner {
             )
         val suppressEmptyCandidates = chineseActive &&
             !input.pendingPunctuationActive &&
-            input.compositionKeyCount <= 0
+            (
+                chinesePredictionWaiting ||
+                    (input.compositionKeyCount <= 0 && !chinesePredictionVisible)
+            )
         // A grouped Zhuyin code has no honest single local reading. Wait for the matching Rime
         // candidate frame instead of flashing an arbitrary alphabetically selected syllable.
         val deferRender = chineseActive &&
@@ -99,6 +108,7 @@ object T9CandidateSourceControlPlanner {
             suppressEmptyCandidates ||
             input.pendingPinyinSelection ||
             waitForChineseCandidates ||
+            chinesePredictionVisible ||
             input.invalidReading ||
             input.pendingPunctuationActive ||
             !needsBulkCandidates
@@ -111,6 +121,7 @@ object T9CandidateSourceControlPlanner {
             suppressEmptyCandidates || input.pendingPinyinSelection || waitForChineseCandidates ||
                 input.invalidReading ->
                 FilterAction.EMPTY
+            chinesePredictionVisible -> FilterAction.PASSTHROUGH
             chineseActive && hasReadingFilter && (
                 input.chineseScheme == ChineseT9Scheme.PINYIN || !input.filterPrefixesEmpty
             ) ->

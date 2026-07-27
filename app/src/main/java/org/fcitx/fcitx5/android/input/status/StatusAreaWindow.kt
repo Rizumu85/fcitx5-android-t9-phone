@@ -29,7 +29,7 @@ import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.InputMethod
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.Keyboard
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.ReloadConfig
-import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.SmartEnglishT9
+import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.PredictiveInput
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.TemporaryFullKeyboard
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.ThemeList
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Companion.isRimeSchemeSwitchAction
@@ -85,10 +85,20 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
                 keyboardWindow.isTemporaryTextKeyboardEnabled()
             ),
             StatusAreaEntry.Android(
-                context.getString(R.string.smart_english_t9),
+                context.getString(
+                    if (service.isChineseT9InputModeActive()) {
+                        R.string.chinese_prediction
+                    } else {
+                        R.string.smart_english_t9
+                    }
+                ),
                 R.drawable.ic_baseline_auto_awesome_24,
-                SmartEnglishT9,
-                service.isSmartEnglishT9Enabled()
+                PredictiveInput,
+                if (service.isChineseT9InputModeActive()) {
+                    service.isChinesePredictionEnabled()
+                } else {
+                    service.isSmartEnglishT9Enabled()
+                }
             ),
             StatusAreaEntry.Android(
                 context.getString(R.string.input_method_options),
@@ -169,8 +179,12 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
                     refreshEntries()
                     windowManager.attachWindow(KeyboardWindow)
                 }
-                SmartEnglishT9 -> {
-                    service.toggleSmartEnglishT9()
+                PredictiveInput -> {
+                    if (service.isChineseT9InputModeActive()) {
+                        service.toggleChinesePrediction()
+                    } else {
+                        service.toggleSmartEnglishT9()
+                    }
                     refreshEntries()
                     windowManager.attachWindow(KeyboardWindow)
                 }

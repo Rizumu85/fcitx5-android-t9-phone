@@ -98,6 +98,7 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSnapshotKey
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSource
 import org.fcitx.fcitx5.android.input.t9.ChineseT9OutputScript
 import org.fcitx.fcitx5.android.input.t9.ChineseT9OutputScriptSession
+import org.fcitx.fcitx5.android.input.t9.ChinesePredictionModeController
 import org.fcitx.fcitx5.android.input.t9.ChineseT9Scheme
 import org.fcitx.fcitx5.android.input.t9.ChineseT9SchemeActivationSession
 import org.fcitx.fcitx5.android.input.t9.ChineseT9SchemeCycleSession
@@ -233,6 +234,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             chineseComposing = { getT9InputState() == ChineseT9CompositionLifecycle.InputState.COMPOSING },
             compositionKeyCount = ::getT9CompositionKeyCount,
             hasPendingPunctuation = { t9PunctuationCoordinator.isPending },
+            hasChinesePredictionCandidates = {
+                candidatesView?.hasChinesePredictionCandidateRow() == true
+            },
             hasSmartEnglishDigits = { smartEnglishCoordinator.hasDigits },
             hasSmartEnglishCandidates = { smartEnglishCoordinator.hasCandidates },
             hasMultiTapPendingChar = { t9MultiTapCoordinator.hasPendingChar },
@@ -291,7 +295,20 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 ) {
                     t9PunctuationCoordinator.showChineseCandidates()
                 }
-            }
+            },
+            commitChineseCandidateAndReturn = {
+                val selectionScheduled = candidatesView?.commitHighlightedT9ChineseCandidate {
+                    candidatesView?.resetChinesePredictionCandidates()
+                    postFcitxJob { reset() }
+                    handleReturnKey()
+                } == true
+                if (!selectionScheduled &&
+                    getT9InputState() == ChineseT9CompositionLifecycle.InputState.IDLE
+                ) {
+                    handleReturnKey()
+                }
+            },
+            dismissChinesePrediction = ::dismissChinesePrediction
         ),
         platform = PhysicalT9KeyHostAdapter.PlatformActions(
             switchToNextMode = ::switchToNextT9Mode,
@@ -501,6 +518,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
      */
     suspend fun handleVirtualT9Backspace(fcitx: FcitxAPI): Boolean {
         if (currentT9Mode != T9InputMode.CHINESE) return false
+        if (candidatesView?.dismissChinesePredictionCandidates() == true) {
+            fcitx.reset()
+            return true
+        }
         if (shouldReopenLastResolvedSegment()) {
             val consumed = popLastResolvedSegment(fcitx)
             if (consumed) refreshT9UiOnMain()
@@ -609,6 +630,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private val smartEnglishT9ChangeListener =
         ManagedPreference.OnChangeListener<Boolean> { _, value ->
             smartEnglishModeController.onPreferenceChanged(value)
+        }
+    private val chinesePredictionChangeListener =
+        ManagedPreference.OnChangeListener<Boolean> { _, value ->
+            chinesePredictionModeController.onPreferenceChanged(value)
         }
     private val physicalLongPressDelayChangeListener =
         ManagedPreference.OnChangeListener<Int> { _, value ->
@@ -843,6 +868,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             passwordInputPreviewEnabledChangeListener
         )
         keyboardPrefs.smartEnglishT9.registerOnChangeListener(smartEnglishT9ChangeListener)
+        prefs.chineseT9.prediction.registerOnChangeListener(chinesePredictionChangeListener)
         keyboardPrefs.longPressDelay.registerOnChangeListener(physicalLongPressDelayChangeListener)
         keyboardPrefs.longPressZeroVoiceInput.registerOnChangeListener(
             longPressZeroVoiceInputChangeListener
@@ -1879,6 +1905,19 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         onEnabledChanged = { enabled -> smartEnglishCoordinator.onEnabledChanged(enabled) },
         showModeIndicator = ::showModeIndicatorBadge
     )
+    private val chinesePredictionModeController = ChinesePredictionModeController(
+        initialEnabled = prefs.chineseT9.prediction.getValue(),
+        setPreference = { enabled -> prefs.chineseT9.prediction.setValue(enabled) },
+        onEnabledChanged = { enabled ->
+            candidatesView?.resetChinesePredictionCandidates()
+            applyChinesePredictionOption(enabled)
+        },
+        showModeIndicator = { enabled ->
+            showModeIndicatorBadge(
+                if (enabled) getString(R.string.chinese_prediction_badge) else getCurrentT9ModeLabel()
+            )
+        }
+    )
     private val smartEnglishCoordinator: SmartEnglishT9Coordinator by lazy {
         SmartEnglishT9Coordinator(
             candidateLimit = SmartEnglishCandidateLimit,
@@ -2048,6 +2087,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                         prefs.chineseT9.outputScript(activeChineseT9Scheme)
                     )
                 )
+                applyChinesePredictionOption(chinesePredictionModeController.enabled)
                 if (chineseT9Composition.keyCount() > 0) {
                     candidatesView?.waitForT9EngineCandidatesThenRefresh(
                         currentChineseT9InputReceipt()
@@ -2263,6 +2303,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             clearTransientInputUiState()
         }
         if (currentT9Mode == T9InputMode.CHINESE) {
+            if (chineseT9EngineReadiness == RimeAvailabilitySession.EngineReadiness.READY) {
+                applyChinesePredictionOption(chinesePredictionModeController.enabled)
+            }
             val label = getString(next.compactLabelRes)
             onT9ModeChanged?.invoke(label)
             if (activationPresentation ==
@@ -2286,6 +2329,22 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             }
             if (rimeIsActive && requestIsCurrent) {
                 setRimeOption(request.option.name, request.option.enabled)
+            }
+        }
+    }
+
+    private fun applyChinesePredictionOption(enabled: Boolean) {
+        if (currentT9Mode != T9InputMode.CHINESE ||
+            chineseT9EngineReadiness != RimeAvailabilitySession.EngineReadiness.READY
+        ) return
+        postFcitxJob {
+            val requestIsCurrent = withContext(Dispatchers.Main.immediate) {
+                currentT9Mode == T9InputMode.CHINESE &&
+                    chineseT9EngineReadiness == RimeAvailabilitySession.EngineReadiness.READY &&
+                    chinesePredictionModeController.enabled == enabled
+            }
+            if (inputMethodEntryCached.uniqueName == RIME_INPUT_METHOD && requestIsCurrent) {
+                setRimeOption(ChinesePredictionRimeOption, enabled)
             }
         }
     }
@@ -2419,6 +2478,20 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     fun toggleSmartEnglishT9() {
         smartEnglishModeController.toggle()
+    }
+
+    fun isChinesePredictionEnabled(): Boolean = chinesePredictionModeController.enabled
+
+    fun toggleChinesePrediction() {
+        chinesePredictionModeController.toggle()
+    }
+
+    private fun dismissChinesePrediction(): Boolean {
+        val dismissed = candidatesView?.dismissChinesePredictionCandidates() == true
+        if (dismissed) {
+            postFcitxJob { reset() }
+        }
+        return dismissed
     }
 
     fun getSmartEnglishT9Snapshot(): SmartEnglishUiSnapshot =
@@ -3591,6 +3664,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             passwordInputPreviewEnabledChangeListener
         )
         keyboardPrefs.smartEnglishT9.unregisterOnChangeListener(smartEnglishT9ChangeListener)
+        prefs.chineseT9.prediction.unregisterOnChangeListener(chinesePredictionChangeListener)
         keyboardPrefs.longPressDelay.unregisterOnChangeListener(physicalLongPressDelayChangeListener)
         keyboardPrefs.longPressZeroVoiceInput.unregisterOnChangeListener(
             longPressZeroVoiceInputChangeListener
@@ -3640,6 +3714,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         private const val SELECTION_REPLACEMENT_KEY_WINDOW_MS = 300L
         private const val SmartEnglishCandidateLimit = 80
         private const val SmartEnglishNoMatchText = "No match"
+        private const val ChinesePredictionRimeOption = "prediction"
         private const val RIME_INPUT_METHOD = "rime"
         private const val PERFORMANCE_HARNESS_LOG_TAG = "FcitxPerfHarness"
         private val DIGIT_TEXTS = arrayOf("0", "1", "2", "3", "4", "5", "6", "7", "8", "9")

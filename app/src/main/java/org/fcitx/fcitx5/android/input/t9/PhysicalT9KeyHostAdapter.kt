@@ -20,6 +20,7 @@ class PhysicalT9KeyHostAdapter(
         val chineseComposing: () -> Boolean,
         val compositionKeyCount: () -> Int,
         val hasPendingPunctuation: () -> Boolean,
+        val hasChinesePredictionCandidates: () -> Boolean,
         val hasSmartEnglishDigits: () -> Boolean,
         val hasSmartEnglishCandidates: () -> Boolean,
         val hasMultiTapPendingChar: () -> Boolean,
@@ -62,7 +63,9 @@ class PhysicalT9KeyHostAdapter(
         val offsetBottomCandidatePage: (Int) -> Boolean,
         val commitHighlightedReading: () -> Boolean,
         val commitHighlightedBottomCandidate: () -> Boolean,
-        val commitChineseCandidateAndShowPunctuation: () -> Unit
+        val commitChineseCandidateAndShowPunctuation: () -> Unit,
+        val commitChineseCandidateAndReturn: () -> Unit,
+        val dismissChinesePrediction: () -> Boolean
     )
 
     data class PlatformActions(
@@ -104,6 +107,9 @@ class PhysicalT9KeyHostAdapter(
 
     override val hasPendingPunctuation: Boolean
         get() = state.hasPendingPunctuation()
+
+    override val hasChinesePredictionCandidates: Boolean
+        get() = state.hasChinesePredictionCandidates()
 
     override val hasSmartEnglishDigits: Boolean
         get() = state.hasSmartEnglishDigits()
@@ -155,6 +161,12 @@ class PhysicalT9KeyHostAdapter(
 
     override fun commitChineseCandidateAndShowPunctuation() =
         candidates.commitChineseCandidateAndShowPunctuation()
+
+    override fun commitChineseCandidateAndReturn() =
+        candidates.commitChineseCandidateAndReturn()
+
+    override fun dismissChinesePrediction(): Boolean =
+        candidates.dismissChinesePrediction()
 
     override fun togglePendingPunctuationSet(): Boolean =
         punctuation.toggleSet()

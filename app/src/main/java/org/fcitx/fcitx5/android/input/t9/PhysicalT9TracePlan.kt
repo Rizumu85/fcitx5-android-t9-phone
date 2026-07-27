@@ -93,6 +93,8 @@ internal object PhysicalT9TracePlanner {
         PhysicalT9KeyFlow.Command.ShowChinesePunctuationCandidates,
         PhysicalT9KeyFlow.Command.ShowEnglishPunctuationCandidates,
         PhysicalT9KeyFlow.Command.CommitChineseCandidateAndShowPunctuation,
+        PhysicalT9KeyFlow.Command.CommitChineseCandidateAndReturn,
+        PhysicalT9KeyFlow.Command.DismissChinesePrediction,
         is PhysicalT9KeyFlow.Command.CommitSmartEnglishShortcut,
         is PhysicalT9KeyFlow.Command.CommitSmartEnglishCandidate -> true
         PhysicalT9KeyFlow.Command.CommitSmartEnglishCandidateOrMultiTap ->
@@ -146,7 +148,8 @@ internal object PhysicalT9TracePlanner {
         PhysicalT9KeyFlow.Command.CommitHighlightedReading,
         is PhysicalT9KeyFlow.Command.CommitBottomCandidate,
         is PhysicalT9KeyFlow.Command.CommitHanziShortcut,
-        PhysicalT9KeyFlow.Command.CommitChineseCodePreview -> true
+        PhysicalT9KeyFlow.Command.CommitChineseCodePreview,
+        PhysicalT9KeyFlow.Command.CommitChineseCandidateAndReturn -> true
         else -> false
     }
 

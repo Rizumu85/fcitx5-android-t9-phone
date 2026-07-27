@@ -79,6 +79,35 @@ class T9CandidateSourceControlPlannerTest {
     }
 
     @Test
+    fun visibleChinesePredictionOwnsIdleCandidatesWithoutReadingWork() {
+        val plan = T9CandidateSourceControlPlanner.plan(
+            input(
+                compositionKeyCount = 0,
+                chinesePredictionPhase = ChinesePredictionCandidateSession.Phase.VISIBLE
+            )
+        )
+
+        assertFalse(plan.suppressEmptyCandidates)
+        assertEquals(T9CandidateSourceControlPlanner.BulkAction.RESET, plan.bulkAction)
+        assertEquals(T9CandidateSourceControlPlanner.FilterAction.PASSTHROUGH, plan.filterAction)
+        assertTrue(plan.shouldBuildLocalBudget(hasBulkFilteredPage = false, bulkFilterPending = false))
+    }
+
+    @Test
+    fun waitingChinesePredictionHidesTheCommittedCompositionFrame() {
+        val plan = T9CandidateSourceControlPlanner.plan(
+            input(
+                compositionKeyCount = 2,
+                chinesePredictionPhase = ChinesePredictionCandidateSession.Phase.WAITING
+            )
+        )
+
+        assertTrue(plan.suppressEmptyCandidates)
+        assertEquals(T9CandidateSourceControlPlanner.FilterAction.EMPTY, plan.filterAction)
+        assertEquals(T9CandidateSourceControlPlanner.BulkAction.RESET, plan.bulkAction)
+    }
+
+    @Test
     fun ordinaryPinyinUsesAcceptedEnginePageWithoutUnfilteredBulkReload() {
         val plan = T9CandidateSourceControlPlanner.plan(
             input(compositionKeyCount = 1)
@@ -239,6 +268,8 @@ class T9CandidateSourceControlPlannerTest {
         pendingPinyinSelection: Boolean = false,
         filterPrefixesEmpty: Boolean = true,
         chineseScheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN,
+        chinesePredictionPhase: ChinesePredictionCandidateSession.Phase =
+            ChinesePredictionCandidateSession.Phase.OFF,
         invalidReading: Boolean = false
     ): T9CandidateSourceControlPlanner.Input =
         T9CandidateSourceControlPlanner.Input(
@@ -250,6 +281,7 @@ class T9CandidateSourceControlPlannerTest {
             pendingPinyinSelection = pendingPinyinSelection,
             filterPrefixesEmpty = filterPrefixesEmpty,
             chineseScheme = chineseScheme,
+            chinesePredictionPhase = chinesePredictionPhase,
             invalidReading = invalidReading
         )
 }

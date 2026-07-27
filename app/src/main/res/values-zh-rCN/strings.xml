@@ -250,6 +250,9 @@
     <string name="use_t9_keyboard_layout_summary">使用手机九键、候选和输入模式切换</string>
     <string name="smart_english_t9">联想英语</string>
     <string name="smart_english_t9_summary">根据数字键序列预测英文单词，并学习普通英文九键里实际输入的词</string>
+    <string name="chinese_prediction">联想中文</string>
+    <string name="chinese_prediction_badge">联想</string>
+    <string name="chinese_prediction_summary">选择中文候选后持续联想下一段文字</string>
     <string name="smart_english_learned_words">已学习单词</string>
     <string name="smart_english_learned_words_summary">添加、编辑或删除英文九键输入时学到的词</string>
     <string name="smart_english_learned_word_hint">英文单词</string>

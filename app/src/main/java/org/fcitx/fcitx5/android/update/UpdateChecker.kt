@@ -112,10 +112,11 @@ internal object RimeConfigDeploymentHealth {
     const val InstallInProgressMarker = ".rime-config-installing"
     const val DeploymentRequiredMarker = ".rime-config-deployment-required"
 
-    private val RequiredSchemas = listOf(
+    val RequiredSources = listOf(
         "t9.schema.yaml",
         "t9_stroke.schema.yaml",
-        "t9_zhuyin.schema.yaml"
+        "t9_zhuyin.schema.yaml",
+        "predict.db"
     )
     private val RequiredCompiledSchemas = listOf(
         "build/t9.prism.bin",
@@ -125,7 +126,7 @@ internal object RimeConfigDeploymentHealth {
 
     fun sourceHealthy(rimeDir: File): Boolean =
         !rimeDir.resolve(InstallInProgressMarker).exists() &&
-            RequiredSchemas.all { rimeDir.resolve(it).isFile }
+            RequiredSources.all { rimeDir.resolve(it).isFile }
 
     fun deploymentRequirement(rimeDir: File): RimeConfigDeploymentRequirement = when {
         !sourceHealthy(rimeDir) -> RimeConfigDeploymentRequirement.WAIT_FOR_SOURCE

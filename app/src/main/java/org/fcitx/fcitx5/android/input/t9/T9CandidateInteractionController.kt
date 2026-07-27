@@ -46,6 +46,7 @@ class T9CandidateInteractionController(
                         host.moveSmartEnglishSelection(result.originalIndex)
                     T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION ->
                         host.movePendingPunctuationSelection(result.originalIndex)
+                    T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_PREDICTION,
                     T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK,
                     T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_LOCAL,
                     T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_ENGINE -> true

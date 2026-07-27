@@ -19,7 +19,8 @@ internal class PhysicalT9ChineseKeyFlow(
         state: State
     ): Decision? = when {
         state.hasPendingPunctuation -> handleChinesePendingPunctuation(input, state)
-        else -> handleChineseSpecialKey(input, state)
+        else -> handleChinesePredictionDelete(input, state)
+            ?: handleChineseSpecialKey(input, state)
             ?: if (input.action == KeyEvent.ACTION_DOWN) {
                 handleChineseFocusNavigation(input, state)
             } else {
@@ -67,7 +68,15 @@ internal class PhysicalT9ChineseKeyFlow(
                     Decision(handled = true)
                 } else if (!session.poundLongPressTriggered && state.heldPastLongPressDelay) {
                     session.poundLongPressTriggered = true
-                    Decision(handled = true, commands = listOf(Command.SwitchToNextMode))
+                    Decision(
+                        handled = true,
+                        commands = buildList {
+                            if (state.hasChinesePredictionCandidates) {
+                                add(Command.DismissChinesePrediction)
+                            }
+                            add(Command.SwitchToNextMode)
+                        }
+                    )
                 } else {
                     Decision(handled = true)
                 }
@@ -79,7 +88,13 @@ internal class PhysicalT9ChineseKeyFlow(
                 } else {
                     Decision(
                         handled = true,
-                        commands = listOf(Command.HandleReturnKey)
+                        commands = listOf(
+                            if (state.hasChinesePredictionCandidates) {
+                                Command.CommitChineseCandidateAndReturn
+                            } else {
+                                Command.HandleReturnKey
+                            }
+                        )
                     )
                 }
             }
@@ -140,15 +155,18 @@ internal class PhysicalT9ChineseKeyFlow(
                 setDigitLongPressFlag(input.keyCode, true)
                 Decision(
                     handled = true,
-                    commands = listOf(
-                        if (state.hasChineseComposition) {
-                            Command.CommitLiteralStar
-                        } else {
+                    commands = if (state.hasChineseComposition) {
+                        listOf(Command.CommitLiteralStar)
+                    } else {
+                        buildList {
+                            if (state.hasChinesePredictionCandidates) {
+                                add(Command.DismissChinesePrediction)
+                            }
                             // Product decision: idle long-* owns scheme switching because every
                             // Chinese scheme needs its digits and idle short-# must remain Return.
-                            Command.CycleChineseSchemeOrCommitLiteralStar
+                            add(Command.CycleChineseSchemeOrCommitLiteralStar)
                         }
-                    )
+                    }
                 )
             } else {
                 Decision(handled = true)
@@ -163,7 +181,9 @@ internal class PhysicalT9ChineseKeyFlow(
                     emptyList()
                 } else {
                     listOf(
-                        if (state.hasChineseComposition) {
+                        if (state.hasChineseComposition ||
+                            state.hasChinesePredictionCandidates
+                        ) {
                             Command.CommitChineseCandidateAndShowPunctuation
                         } else {
                             Command.ShowChinesePunctuationCandidates
@@ -179,25 +199,100 @@ internal class PhysicalT9ChineseKeyFlow(
         input: PhysicalT9KeyHandler.KeyInput,
         state: State,
         digit: Int
-    ): Decision? = when (state.chineseScheme) {
-        ChineseT9Scheme.PINYIN -> when (digit) {
-            0 -> handleChineseZero(input, state, supportsTopReading = true)
-            1 -> handleChineseOne(input, state)
-            in 2..9 -> handleChineseCompositionDigit(input, state, digit)
-            else -> null
+    ): Decision? {
+        if (state.hasChinesePredictionCandidates) {
+            return handleChinesePredictionDigit(input, state, digit)
         }
-        ChineseT9Scheme.STROKE -> when (digit) {
-            0 -> handleChineseZero(input, state, supportsTopReading = false)
-            in 1..6 -> handleChineseCompositionDigit(input, state, digit)
-            in 7..9 -> handleStrokeUnusedDigit(input, state, digit)
-            else -> null
-        }
-        ChineseT9Scheme.ZHUYIN ->
-            if (state.chineseScheme.acceptsCompositionDigit(digit)) {
-                handleChineseCompositionDigit(input, state, digit)
-            } else {
-                null
+        return when (state.chineseScheme) {
+            ChineseT9Scheme.PINYIN -> when (digit) {
+                0 -> handleChineseZero(input, state, supportsTopReading = true)
+                1 -> handleChineseOne(input, state)
+                in 2..9 -> handleChineseCompositionDigit(input, state, digit)
+                else -> null
             }
+            ChineseT9Scheme.STROKE -> when (digit) {
+                0 -> handleChineseZero(input, state, supportsTopReading = false)
+                in 1..6 -> handleChineseCompositionDigit(input, state, digit)
+                in 7..9 -> handleStrokeUnusedDigit(input, state, digit)
+                else -> null
+            }
+            ChineseT9Scheme.ZHUYIN ->
+                if (state.chineseScheme.acceptsCompositionDigit(digit)) {
+                    handleChineseCompositionDigit(input, state, digit)
+                } else {
+                    null
+                }
+            }
+    }
+
+    private fun handleChinesePredictionDigit(
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State,
+        digit: Int
+    ): Decision? {
+        val shortPressCommand = when (state.chineseScheme) {
+            ChineseT9Scheme.PINYIN -> when (digit) {
+                0 -> Command.CommitBottomCandidate(BottomCandidateFallback.NONE)
+                1 -> Command.CommitText("'")
+                in 2..9 -> Command.ForwardChineseT9KeyShortPress(input.keyCode)
+                else -> return null
+            }
+            ChineseT9Scheme.STROKE -> when (digit) {
+                0 -> Command.CommitBottomCandidate(BottomCandidateFallback.NONE)
+                in 1..6 -> Command.ForwardChineseT9KeyShortPress(input.keyCode)
+                in 7..9 -> Command.CommitText(digit.toString())
+                else -> return null
+            }
+            ChineseT9Scheme.ZHUYIN -> {
+                if (!state.chineseScheme.acceptsCompositionDigit(digit)) return null
+                Command.ForwardChineseT9KeyShortPress(input.keyCode)
+            }
+        }
+        return when (input.action) {
+            KeyEvent.ACTION_DOWN -> {
+                if (input.repeatCount == 0) {
+                    setDigitLongPressFlag(input.keyCode, false)
+                    Decision(handled = true)
+                } else if (!isDigitLongPressFlagSet(input.keyCode) &&
+                    state.heldPastLongPressDelay
+                ) {
+                    setDigitLongPressFlag(input.keyCode, true)
+                    Decision(
+                        handled = true,
+                        commands = listOf(Command.CommitHanziShortcut(input.keyCode))
+                    )
+                } else {
+                    Decision(handled = true)
+                }
+            }
+            KeyEvent.ACTION_UP -> {
+                val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
+                setDigitLongPressFlag(input.keyCode, false)
+                Decision(
+                    handled = true,
+                    commands = if (wasLongPress) emptyList() else listOf(shortPressCommand)
+                )
+            }
+            else -> null
+        }
+    }
+
+    private fun handleChinesePredictionDelete(
+        input: PhysicalT9KeyHandler.KeyInput,
+        state: State
+    ): Decision? {
+        if (!state.hasChinesePredictionCandidates ||
+            !PhysicalT9KeyPolicy.isDeleteKey(input.keyCode)
+        ) return null
+        return when (input.action) {
+            KeyEvent.ACTION_DOWN -> Decision(
+                handled = true,
+                commands = listOf(Command.DismissChinesePrediction),
+                consumedKeyUp = input.keyCode
+            )
+            KeyEvent.ACTION_UP -> Decision(handled = true)
+            else -> null
+        }
     }
 
     private fun handleChineseZero(

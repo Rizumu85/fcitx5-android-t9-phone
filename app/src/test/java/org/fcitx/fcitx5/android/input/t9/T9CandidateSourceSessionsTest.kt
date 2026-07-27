@@ -53,6 +53,27 @@ class T9CandidateSourceSessionsTest {
         )
     }
 
+    @Test
+    fun chinesePredictionKeepsPagingFocusAndEngineIndicesInOneSourceSession() {
+        val sessions = sessions()
+        sessions.updateShownState(
+            source = T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_PREDICTION,
+            paged = paged(cursor = 0, "今天", "可以", "继续"),
+            originalIndices = intArrayOf(4, 5, 6),
+            matchedPrefix = null
+        )
+
+        val moved = sessions.moveCurrentBottomCandidate(1)
+
+        require(moved is T9CandidateUiSnapshotPipeline.MoveBottomCandidate.LocalSelection)
+        assertEquals(T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_PREDICTION, moved.source)
+        assertEquals(5, moved.originalIndex)
+        val commit = sessions.commitCurrentBottomCandidate()
+        require(commit is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.Chinese)
+        assertEquals(5, commit.originalIndex)
+        assertEquals("可以", commit.candidate.text)
+    }
+
     private fun sessions(characterBudget: Int = 20): T9CandidateSourceSessions =
         T9CandidateSourceSessions(
             characterBudget = { characterBudget },

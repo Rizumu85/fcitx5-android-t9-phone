@@ -26,6 +26,7 @@ class RimeConfigArchiveTest {
                 "rime-ice-t9-phone-main/t9.schema.yaml" to "new schema",
                 "rime-ice-t9-phone-main/t9_stroke.schema.yaml" to "stroke schema",
                 "rime-ice-t9-phone-main/t9_zhuyin.schema.yaml" to "zhuyin schema",
+                "rime-ice-t9-phone-main/predict.db" to "prediction database",
                 "rime-ice-t9-phone-main/cn_dicts/base.dict.yaml" to "dictionary"
             ),
             stagingDir = root.resolve("staging"),
@@ -39,13 +40,17 @@ class RimeConfigArchiveTest {
     }
 
     @Test
-    fun `install rejects an incomplete T9 scheme family`() {
+    fun `install rejects an incomplete required source family`() {
         val root = Files.createTempDirectory("rime-update-test").toFile()
         var overlayStarted = false
 
         assertThrows(IllegalArgumentException::class.java) {
             RimeConfigArchive.install(
-                source = archive("rime-ice-t9-phone-main/t9.schema.yaml" to "pinyin only"),
+                source = archive(
+                    "rime-ice-t9-phone-main/t9.schema.yaml" to "pinyin schema",
+                    "rime-ice-t9-phone-main/t9_stroke.schema.yaml" to "stroke schema",
+                    "rime-ice-t9-phone-main/t9_zhuyin.schema.yaml" to "zhuyin schema"
+                ),
                 stagingDir = root.resolve("staging"),
                 destinationDir = root.resolve("rime"),
                 beforeOverlay = { overlayStarted = true }

@@ -21,6 +21,8 @@ data class T9CandidateUiInputSnapshot(
     val smartEnglishActive: Boolean,
     val chineseSnapshot: ChineseT9InputSnapshot?,
     val smartEnglishSnapshot: SmartEnglishUiSnapshot?,
+    val chinesePredictionPhase: ChinesePredictionCandidateSession.Phase =
+        ChinesePredictionCandidateSession.Phase.OFF,
     val pendingPunctuationRawPaged: FcitxEvent.PagedCandidateEvent.Data?,
     val currentFocus: T9CandidateFocus,
     val chineseEngineStatus: T9CandidateStatus? = null
@@ -46,6 +48,7 @@ class T9CandidateUiStateBuilder(
         val paged: FcitxEvent.PagedCandidateEvent.Data,
         val originalIndices: IntArray,
         val usesSmartEnglish: Boolean,
+        val usesChinesePrediction: Boolean,
         val usesPendingPunctuation: Boolean,
         val usesBulkSelection: Boolean,
         val usesLocalBudget: Boolean,
@@ -91,6 +94,8 @@ class T9CandidateUiStateBuilder(
                 ?.let(::pendingPunctuationPresentationState)
         T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH ->
             smartEnglishPresentation ?: input.smartEnglishSnapshot?.presentation
+        T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_PREDICTION ->
+            chinesePredictionPresentationState(paged)
         T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK,
         T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_LOCAL,
         T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_ENGINE ->
@@ -159,6 +164,7 @@ class T9CandidateUiStateBuilder(
                     pendingPinyinSelection = pendingT9PinyinSelection,
                     filterPrefixesEmpty = t9FilterPrefixes.isEmpty(),
                     chineseScheme = chineseSnapshot?.scheme,
+                    chinesePredictionPhase = input.chinesePredictionPhase,
                     invalidReading = chineseSnapshot?.hasInvalidReading == true
                 )
             )
@@ -221,6 +227,8 @@ class T9CandidateUiStateBuilder(
                         bulkFilteredMatchedPrefix = bulkFilterState.matchedPrefix,
                         bulkFilterPending = bulkFilterState.pending,
                         chineseT9Active = chineseSurface,
+                        chinesePredictionActive = input.chinesePredictionPhase ==
+                            ChinesePredictionCandidateSession.Phase.VISIBLE,
                         suppressEmptyCandidates = sourcePlan.suppressEmptyCandidates,
                         pendingPinyinSelection = sourcePlan.pendingPinyinSelection,
                         waitForChineseCandidates = sourcePlan.waitForChineseCandidates
@@ -245,6 +253,9 @@ class T9CandidateUiStateBuilder(
                         if (sourcePlan.suppressEmptyCandidates && !showChineseEngineStatus) {
                             clearChinesePresentationState()
                             null
+                        } else if (presentationPlan.usesChinesePrediction) {
+                            clearChinesePresentationState()
+                            chinesePredictionPresentationState(effectivePaged)
                         } else {
                             val snapshot = chineseSnapshot ?: return@measure null
                             val key = snapshot.presentationKey(
@@ -279,13 +290,18 @@ class T9CandidateUiStateBuilder(
             val suppressEmptyCandidates =
                 sourcePlan.suppressEmptyCandidates && !showChineseEngineStatus
             if (suppressEmptyCandidates) {
-                pipeline.clearHiddenChineseT9CompositionIfCandidateUiSuppressed()
+                if (input.chinesePredictionPhase ==
+                    ChinesePredictionCandidateSession.Phase.OFF
+                ) {
+                    pipeline.clearHiddenChineseT9CompositionIfCandidateUiSuppressed()
+                }
             }
             val readingOptions = t9State?.readingOptions ?: emptyList()
             val shownState = ShownState(
                 paged = effectivePaged,
                 originalIndices = originalIndices,
                 usesSmartEnglish = presentationPlan.usesSmartEnglish,
+                usesChinesePrediction = presentationPlan.usesChinesePrediction,
                 usesPendingPunctuation = presentationPlan.usesPendingPunctuation,
                 usesBulkSelection = presentationPlan.usesBulkSelection,
                 usesLocalBudget = presentationPlan.usesLocalBudget,
@@ -317,6 +333,8 @@ class T9CandidateUiStateBuilder(
                             T9CandidateUiSnapshotPipeline.ShownSource.PENDING_PUNCTUATION
                         shownState.usesSmartEnglish ->
                             T9CandidateUiSnapshotPipeline.ShownSource.SMART_ENGLISH
+                        shownState.usesChinesePrediction ->
+                            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_PREDICTION
                         shownState.usesBulkSelection ->
                             T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK
                         chineseSurface && shownState.usesLocalBudget ->
@@ -361,6 +379,19 @@ class T9CandidateUiStateBuilder(
             topReading = formattedText(text),
             readingOptions = emptyList()
         )
+
+    private fun chinesePredictionPresentationState(
+        paged: FcitxEvent.PagedCandidateEvent.Data
+    ): T9PresentationState? {
+        val text = paged.candidates.getOrNull(paged.cursorIndex)?.text
+            ?: paged.candidates.firstOrNull()?.text
+            ?: return null
+        return T9PresentationState(
+            topReading = formattedText(text),
+            readingOptions = emptyList(),
+            reserveTopReadingRow = true
+        )
+    }
 
     private fun formattedText(text: String): FormattedText? =
         if (text.isEmpty()) {

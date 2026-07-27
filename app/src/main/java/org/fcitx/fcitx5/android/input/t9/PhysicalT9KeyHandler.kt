@@ -66,6 +66,7 @@ class PhysicalT9KeyHandler(
         val chineseComposing: Boolean
         val compositionKeyCount: Int
         val hasPendingPunctuation: Boolean
+        val hasChinesePredictionCandidates: Boolean
         val hasSmartEnglishDigits: Boolean
         val hasSmartEnglishCandidates: Boolean
         val hasMultiTapPendingChar: Boolean
@@ -83,6 +84,8 @@ class PhysicalT9KeyHandler(
         fun showChinesePunctuationCandidates()
         fun showEnglishPunctuationCandidates()
         fun commitChineseCandidateAndShowPunctuation()
+        fun commitChineseCandidateAndReturn()
+        fun dismissChinesePrediction(): Boolean
         fun togglePendingPunctuationSet(): Boolean
         fun switchToNextMode()
         fun switchToVoiceInput()
@@ -127,6 +130,7 @@ class PhysicalT9KeyHandler(
             chineseComposing = host::chineseComposing,
             compositionKeyCount = host::compositionKeyCount,
             hasPendingPunctuation = host::hasPendingPunctuation,
+            hasChinesePredictionCandidates = host::hasChinesePredictionCandidates,
             hasSmartEnglishDigits = host::hasSmartEnglishDigits,
             hasSmartEnglishCandidates = host::hasSmartEnglishCandidates,
             hasMultiTapPendingChar = host::hasMultiTapPendingChar,

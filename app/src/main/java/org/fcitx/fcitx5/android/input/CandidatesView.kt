@@ -32,6 +32,7 @@ import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrie
 import org.fcitx.fcitx5.android.input.candidates.floating.PagedCandidatesUi
 import org.fcitx.fcitx5.android.input.candidates.floating.T9ShortcutCandidatesUi
 import org.fcitx.fcitx5.android.input.preedit.PreeditUi
+import org.fcitx.fcitx5.android.input.t9.ChinesePredictionCandidateSession
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidateLoadingState
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionTicket
 import org.fcitx.fcitx5.android.input.t9.ChineseT9EngineOperation
@@ -104,6 +105,7 @@ class CandidatesView(
     private var paged = FcitxEvent.PagedCandidateEvent.Data.Empty
 
     private val chineseT9CandidateLoadingState = ChineseT9CandidateLoadingState()
+    private val chinesePredictionCandidateSession = ChinesePredictionCandidateSession()
 
     /**
      * layout update may or may not cause [CandidatesView]'s size [onSizeChanged],
@@ -629,6 +631,9 @@ class CandidatesView(
             is FcitxEvent.PagedCandidateEvent -> {
                 paged = it.data
                 if (service.isHandwritingInputActive()) return
+                if (service.isChineseT9InputModeActive()) {
+                    chinesePredictionCandidateSession.onCandidateEvent()
+                }
                 val acceptedReceipt = if (
                     service.isChineseT9InputModeActive()
                 ) {
@@ -658,6 +663,7 @@ class CandidatesView(
         t9CandidateUiSnapshotPipeline.reset()
         t9CandidateUiRenderer.reset()
         chineseT9CandidateLoadingState.reset()
+        chinesePredictionCandidateSession.reset()
         t9CandidateSurfaceAdapter.clear(inputPanel, paged, orientation)
         service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
         updateT9FocusIndicator()
@@ -792,6 +798,24 @@ class CandidatesView(
     fun hasT9BottomCandidateRow(): Boolean =
         t9CandidateUiSnapshotPipeline.hasCurrentBottomCandidateRow
 
+    fun hasChinesePredictionCandidateRow(): Boolean =
+        t9CandidateUiSnapshotPipeline.shownSource ==
+            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_PREDICTION &&
+            t9CandidateUiSnapshotPipeline.hasCurrentBottomCandidateRow
+
+    fun dismissChinesePredictionCandidates(): Boolean {
+        if (!hasChinesePredictionCandidateRow()) return false
+        chinesePredictionCandidateSession.dismiss()
+        hideT9CandidateUiImmediately()
+        return true
+    }
+
+    fun resetChinesePredictionCandidates() {
+        val ownedSurface = chinesePredictionCandidateSession.ownsIdleSurface
+        chinesePredictionCandidateSession.reset()
+        if (ownedSurface) hideT9CandidateUiImmediately()
+    }
+
     fun moveHighlightedT9BottomCandidate(delta: Int): Boolean {
         return t9CandidateInteractionController.moveBottomCandidate(delta) ?: false
     }
@@ -840,6 +864,22 @@ class CandidatesView(
         } else {
             null
         }
+        val chineseSnapshot = if (chineseT9Active) {
+            service.getChineseT9InputSnapshot(inputPanel)
+        } else {
+            null
+        }
+        val chinesePredictionPhase = if (chineseSnapshot != null) {
+            chinesePredictionCandidateSession.evaluate(
+                enabled = service.isChinesePredictionEnabled(),
+                currentTicket = chineseSnapshot.compositionTicket(),
+                enginePreedit = inputPanel.preedit.toString(),
+                candidates = paged
+            )
+        } else {
+            chinesePredictionCandidateSession.reset()
+            ChinesePredictionCandidateSession.Phase.OFF
+        }
         // Product decision: collect volatile service/view state once per frame so the snapshot
         // pipeline decides from a stable picture instead of interleaving getters with UI rules.
         return t9CandidateUiSnapshotPipeline.build(
@@ -852,12 +892,9 @@ class CandidatesView(
                 widthBudget = t9CandidateWidthBudget(),
                 chineseT9Active = chineseT9Active,
                 smartEnglishActive = smartEnglishActive,
-                chineseSnapshot = if (chineseT9Active) {
-                    service.getChineseT9InputSnapshot(inputPanel)
-                } else {
-                    null
-                },
+                chineseSnapshot = chineseSnapshot,
                 smartEnglishSnapshot = smartEnglishSnapshot,
+                chinesePredictionPhase = chinesePredictionPhase,
                 pendingPunctuationRawPaged = if (chineseT9Active || smartEnglishActive) {
                     service.getPendingT9PunctuationPaged()
                 } else {
@@ -892,6 +929,10 @@ class CandidatesView(
         val prefixToConsume = matchedPrefix?.takeIf {
             service.shouldConsumeT9ResolvedPinyinPrefixAfterHanziSelection(it, selectedCandidate)
         }
+        chinesePredictionCandidateSession.arm(
+            source = compositionTicket,
+            enabled = service.isChinesePredictionEnabled()
+        )
         chineseT9EngineOperation.enqueue(
             acceptBefore = {
                 service.isCurrentChineseT9Composition(compositionTicket) &&

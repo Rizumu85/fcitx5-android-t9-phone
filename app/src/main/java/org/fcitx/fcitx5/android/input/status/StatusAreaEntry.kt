@@ -23,7 +23,7 @@ sealed class StatusAreaEntry(
             Keyboard,
             ThemeList,
             TemporaryFullKeyboard,
-            SmartEnglishT9
+            PredictiveInput
         }
     }
 
