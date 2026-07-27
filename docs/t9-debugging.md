@@ -231,9 +231,17 @@ mkdir -p /tmp/t9-frames
 ffmpeg -i /tmp/t9-debug.mp4 -vf fps=60 /tmp/t9-frames/frame_%04d.png
 ```
 
+Some ROMs omit the floating IME candidate window from `screenrecord`. Verify
+that the overlay exists in the recording before trusting it. When it is absent,
+capture consecutive `screencap` frames through a second ADB transport while the
+primary transport injects the keyboard event; a single transport serializes the
+capture and input commands and can hide the transition being diagnosed.
+
 What to look for:
 
 - A first pinyin chip row that appears clipped before the full row renders.
+- Preview, pinyin-filter, and candidate text whose optical baseline changes
+  between adjacent input frames.
 - Candidate bubbles moving vertically between adjacent frames.
 - Bottom candidate bubbles whose width changes because the pinyin row or
   pagination row is driving the surface unexpectedly.

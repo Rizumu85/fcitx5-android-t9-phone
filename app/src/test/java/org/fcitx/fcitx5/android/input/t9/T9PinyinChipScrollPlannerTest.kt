@@ -10,7 +10,7 @@ import org.junit.Test
 
 class T9PinyinChipScrollPlannerTest {
     @Test
-    fun hiddenTrailingChipScrollsToCleanLeadingChipBoundary() {
+    fun hiddenTrailingChipAlignsItsEndToViewport() {
         val plan = T9PinyinChipScrollPlanner.plan(
             currentScrollX = 0,
             viewportWidthPx = 150,
@@ -20,6 +20,19 @@ class T9PinyinChipScrollPlannerTest {
         )
 
         assertEquals(26, plan.scrollX)
+    }
+
+    @Test
+    fun revealingChipDoesNotAlsoExposeItsFollowingChoice() {
+        val plan = T9PinyinChipScrollPlanner.plan(
+            currentScrollX = 0,
+            viewportWidthPx = 160,
+            contentWidthPx = 198,
+            itemBounds = bounds + T9PinyinChipScrollPlanner.ItemBounds(176, 198),
+            highlightedIndex = 5
+        )
+
+        assertEquals(16, plan.scrollX)
     }
 
     @Test

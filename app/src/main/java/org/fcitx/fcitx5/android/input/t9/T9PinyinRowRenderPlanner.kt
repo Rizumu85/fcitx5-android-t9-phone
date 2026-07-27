@@ -75,14 +75,10 @@ object T9PinyinRowRenderPlanner {
         while (start > 0 && widthOf(start - 1, highlighted, chipWidthsPx, chipSpacingPx) <= viewportWidthPx) {
             start -= 1
         }
-        val end = endFittingFrom(
-            start = start,
-            itemCount = itemCount,
-            viewportWidthPx = viewportWidthPx,
-            chipWidthsPx = chipWidthsPx,
-            chipSpacingPx = chipSpacingPx
-        )
-        return start..end
+        // Once focus moves beyond the initial viewport, the highlighted chip owns the trailing
+        // edge. Including later chips here makes one Right press reveal both the target and the
+        // following choice, so the visible window no longer matches the user's navigation step.
+        return start..highlighted
     }
 
     private fun endFittingFrom(

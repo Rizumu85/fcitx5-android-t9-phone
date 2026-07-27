@@ -60,6 +60,24 @@ class FloatingCandidateWindowControllerTest {
     }
 
     @Test
+    fun viewportWidthRemainsTheHardMaximumWhenShadowOutsetsExceedMargins() {
+        val host = FakeHost(
+            visibility = View.VISIBLE,
+            width = 120,
+            height = 40
+        )
+        val controller = FloatingCandidateWindowController(host)
+
+        controller.updateCursorAnchor(
+            anchor = floatArrayOf(10f, 120f, 0f, 80f),
+            parent = floatArrayOf(640f, 960f),
+            config = config(horizontalMarginPx = 14, shadowOutsetPx = 22)
+        )
+
+        assertEquals(640, host.maxWidth)
+    }
+
+    @Test
     fun keepsSurfaceInvisibleUntilContentReady() {
         val host = FakeHost(
             visibility = View.INVISIBLE,
@@ -152,7 +170,6 @@ class FloatingCandidateWindowControllerTest {
         override var width: Int,
         override var height: Int
     ) : FloatingCandidateWindowController.Host {
-        override var minWidth: Int = 40
         override var maxWidth: Int = 0
         var requestLayoutCalls: Int = 0
         var invalidateCalls: Int = 0

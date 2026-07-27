@@ -16,7 +16,6 @@ class FloatingCandidateWindowController(
         val visibility: Int
         val width: Int
         val height: Int
-        val minWidth: Int
         var maxWidth: Int
 
         fun requestLayout()
@@ -124,7 +123,10 @@ class FloatingCandidateWindowController(
         val (parentWidth, parentHeight) = parentSize
         if (parentWidth > 0) {
             val windowMargin = (config.horizontalMarginPx - config.shadowOutsetPx).coerceAtLeast(0)
-            val maxW = (parentWidth - 2 * windowMargin).toInt().coerceAtLeast(host.minWidth)
+            // The viewport is a hard bound; a preferred minimum may be wider on compact or
+            // density-overridden devices, but letting it raise maxWidth makes candidate geometry
+            // believe off-screen pixels are available.
+            val maxW = (parentWidth - 2 * windowMargin).toInt().coerceAtLeast(1)
             if (host.maxWidth != maxW) {
                 host.maxWidth = maxW
                 host.requestLayout()

@@ -109,6 +109,28 @@ class T9PinyinRowRenderPlannerTest {
     }
 
     @Test
+    fun focusedFoldedRowDoesNotRevealChoiceAfterNewTrailingHighlight() {
+        val plan = T9PinyinRowRenderPlanner.plan(
+            state = state(
+                items = listOf("gei", "hei", "ge", "he", "g", "h", "i"),
+                highlightedIndex = 5
+            ),
+            rowPlan = T9PinyinOverflowPolicy.Plan(
+                folded = true,
+                showHint = false,
+                visibleCount = 7
+            ),
+            focusedViewportWidthPx = 160,
+            chipWidthsPx = listOf(38, 38, 28, 28, 22, 22, 22),
+            chipSpacingPx = 4
+        )
+
+        assertEquals(listOf("hei", "ge", "he", "g", "h"), plan.displayedItems)
+        assertEquals(4, plan.displayedHighlight)
+        assertTrue(plan.usesWindowedDisplay)
+    }
+
+    @Test
     fun focusedFoldedRowKeepsRightEdgeGuardForScaledHighlight() {
         val plan = T9PinyinRowRenderPlanner.plan(
             state = state(items = listOf("gei", "hei", "ge", "he", "g", "h"), highlightedIndex = 0),

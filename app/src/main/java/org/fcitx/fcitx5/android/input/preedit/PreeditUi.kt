@@ -11,7 +11,9 @@ import android.graphics.drawable.shapes.RectShape
 import android.text.Spanned
 import android.text.SpannedString
 import android.text.style.DynamicDrawableSpan
+import android.view.Gravity
 import android.view.View
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.annotation.ColorInt
 import androidx.core.text.buildSpannedString
@@ -28,7 +30,8 @@ open class PreeditUi(
     override val ctx: Context,
     private val theme: Theme,
     private val setupTextView: (TextView.() -> Unit)? = null,
-    private val textViewFactory: ((Context) -> TextView)? = null
+    private val textViewFactory: ((Context) -> TextView)? = null,
+    private val centerSingleVisibleRow: Boolean = false
 ) : Ui {
 
     class CursorSpan(ctx: Context, @ColorInt color: Int, metrics: Paint.FontMetricsInt) :
@@ -61,10 +64,12 @@ open class PreeditUi(
     var visible = false
         private set
 
-    override val root: View = verticalLayout {
+    private val rootLayout: LinearLayout = verticalLayout {
         add(upView, lParams())
         add(downView, lParams())
     }
+
+    override val root: View = rootLayout
 
     private fun updateTextView(view: TextView, str: CharSequence, visible: Boolean) {
         view.text = str
@@ -91,6 +96,11 @@ open class PreeditUi(
         val downString = inputPanel.auxDown.toSpannedString(activeBkg)
         val hasUp = upString.isNotEmpty()
         val hasDown = downString.isNotEmpty()
+        if (centerSingleVisibleRow) {
+            // A fixed-height T9 surface usually contains one wrap-content row. Center that row,
+            // but keep the generic two-row preedit ordering intact when an auxiliary row exists.
+            rootLayout.gravity = if (hasUp.xor(hasDown)) Gravity.CENTER_VERTICAL else Gravity.TOP
+        }
         visible = hasUp || hasDown
         if (!visible) {
             updateTextView(upView, "", false)

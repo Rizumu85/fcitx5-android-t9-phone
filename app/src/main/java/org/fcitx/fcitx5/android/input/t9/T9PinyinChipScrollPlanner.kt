@@ -27,29 +27,13 @@ object T9PinyinChipScrollPlanner {
         val target = when {
             item.startPx < currentScrollX -> item.startPx
             item.endPx > currentScrollX + viewportWidthPx -> {
-                val start = cleanStartForTrailingItem(
-                    highlightedIndex = highlighted,
-                    viewportWidthPx = viewportWidthPx,
-                    itemBounds = itemBounds
-                )
-                itemBounds[start].startPx
+                // The newly revealed chip owns the trailing edge. Snapping to an earlier chip
+                // boundary can leave enough spare width to expose the following chip too, making
+                // one directional step appear to advance two choices.
+                item.endPx - viewportWidthPx
             }
             else -> currentScrollX
         }.coerceIn(0, (contentWidthPx - viewportWidthPx).coerceAtLeast(0))
         return Plan(scrollX = target)
-    }
-
-    private fun cleanStartForTrailingItem(
-        highlightedIndex: Int,
-        viewportWidthPx: Int,
-        itemBounds: List<ItemBounds>
-    ): Int {
-        val itemEnd = itemBounds[highlightedIndex].endPx
-        for (index in 0..highlightedIndex) {
-            if (itemEnd - itemBounds[index].startPx <= viewportWidthPx) {
-                return index
-            }
-        }
-        return highlightedIndex
     }
 }

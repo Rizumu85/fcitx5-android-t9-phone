@@ -231,11 +231,16 @@ Replaced callbacks cannot consume a newer trace or render request.
 `T9CandidateSurfaceAndroidAdapter` renders the top, reading, candidate, and
 shortcut rows; `CandidatesView` remains the floating Android window host.
 The compact top preview is always a single-line viewport and keeps the active
-tail visible when a long reading exceeds the screen width.
+tail visible when a long reading exceeds the screen width. Fixed-height T9
+preedit centers its lone visible row, and compact text rows use representative
+glyph bounds for a stable optical baseline across custom fonts.
 
 Geometry is centralized:
 
 - `T9CandidateSurfaceGeometry` owns measured candidate and reading-row sizing.
+- The editor viewport is the hard surface-width bound even when a density-scaled
+  preferred minimum is wider. Long candidates ellipsize inside that bound before
+  the focus envelope is applied.
 - `T9CandidateFocusEnvelope` reserves focus growth at internal candidate
   boundaries before selection. The first and last candidates grow inward, so
   focus movement does not resize the row and both bubble edge insets remain
@@ -245,6 +250,8 @@ Geometry is centralized:
   that can remain inside the screen after focus scaling.
 - `T9ShortcutTailPolicy` owns only the compact final-candidate style decision.
 - `T9PinyinRowSurfacePlanner` owns folded/full viewport and whole-chip windows.
+  After focus moves beyond the initial folded viewport, the highlighted chip
+  owns the trailing edge so one directional step reveals exactly one new choice.
 - `T9PinyinRowAndroidAdapter` owns row reveal, focus, and scroll publication.
 - `FloatingCandidateWindowController` owns cursor anchoring, insets, delayed
   show, and touch-receiver placement.

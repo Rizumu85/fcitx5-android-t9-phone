@@ -166,6 +166,9 @@ class T9PinyinChipAdapter(
             textSize = textSizeSp * context.resources.displayMetrics.scaledDensity
             InputUiFont.applyTo(this)
         }
+        private val opticalSampleBounds = android.graphics.Rect().apply {
+            textPaint.getTextBounds(OPTICAL_SAMPLE, 0, OPTICAL_SAMPLE.length, this)
+        }
         private val activeBackgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = theme.genericActiveBackgroundColor
         }
@@ -304,8 +307,11 @@ class T9PinyinChipAdapter(
         }
 
         private fun textBaseline(): Float {
-            val metrics = textPaint.fontMetrics
-            return height / 2f - (metrics.ascent + metrics.descent) / 2f
+            return T9TextOpticalCenter.centeredBaselinePx(
+                contentCenterPx = height / 2f,
+                sampleTopPx = opticalSampleBounds.top,
+                sampleBottomPx = opticalSampleBounds.bottom
+            )
         }
 
         private fun touchSlopPx(): Float =
@@ -320,6 +326,7 @@ class T9PinyinChipAdapter(
 
         companion object {
             private const val ACTIVE_HIGHLIGHT_SCALE = 1.06f
+            private const val OPTICAL_SAMPLE = "hg"
         }
     }
 }

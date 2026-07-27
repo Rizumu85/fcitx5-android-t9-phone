@@ -137,9 +137,6 @@ class CandidatesView(
             override val height: Int
                 get() = this@CandidatesView.height
 
-            override val minWidth: Int
-                get() = this@CandidatesView.minWidth
-
             override var maxWidth: Int
                 get() = this@CandidatesView.maxWidth
                 set(value) {
@@ -213,10 +210,14 @@ class CandidatesView(
         ctx = ctx,
         theme = theme,
         setupTextView = setupTextViewSmallRow,
+        centerSingleVisibleRow = true,
         // Product decision: punctuation preview should read as an action icon, not inherit the
         // deliberately small pinyin-preview type scale used by ordinary text.
         textViewFactory = { context ->
-            T9SemanticTextView(context).apply { semanticSymbolScale = 1.3f }
+            T9SemanticTextView(context).apply {
+                semanticSymbolScale = 1.3f
+                opticallyCenterText = true
+            }
         }
     )
 
@@ -367,10 +368,11 @@ class CandidatesView(
     private val pinyinBarView = pinyinBarAdapter.root.apply {
         visibility = View.GONE
     }
-    private val pinyinOverflowHint = TextView(ctx).apply {
+    private val pinyinOverflowHint = T9SemanticTextView(ctx).apply {
         text = "\u2026"
         textSize = compactTopRowFontSizeSp
         InputUiFont.applyTo(this)
+        opticallyCenterText = true
         setTextColor(theme.candidateCommentColor)
         gravity = Gravity.CENTER
         includeFontPadding = false

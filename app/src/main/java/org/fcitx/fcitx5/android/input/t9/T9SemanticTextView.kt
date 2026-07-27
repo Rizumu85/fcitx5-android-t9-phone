@@ -10,12 +10,14 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
+import android.graphics.Typeface
 import android.os.Build
 import android.util.AttributeSet
 import android.widget.TextView
 import org.fcitx.fcitx5.android.input.InputUiFont
 import kotlin.math.ceil
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 class T9SemanticTextView @JvmOverloads constructor(
     context: Context,
@@ -24,6 +26,18 @@ class T9SemanticTextView @JvmOverloads constructor(
     private val symbolPath = Path()
     private val symbolPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val visibleClip = Rect()
+    private val opticalSampleBounds = Rect()
+    private var opticalSample = ""
+    private var opticalSampleTextSize = -1f
+    private var opticalSampleTypeface: Typeface? = null
+
+    var opticallyCenterText: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            invalidate()
+        }
+
     var semanticSymbolScale: Float = 1f
         set(value) {
             field = value.coerceAtLeast(0.1f)
@@ -48,7 +62,15 @@ class T9SemanticTextView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         if (!handles(text)) {
+            if (!opticallyCenterText || text.isEmpty()) {
+                super.onDraw(canvas)
+                return
+            }
+            val shiftY = opticalTranslationY()
+            canvas.save()
+            canvas.translate(0f, shiftY)
             super.onDraw(canvas)
+            canvas.restore()
             return
         }
         // Product decision: the return action is semantic artwork rather than a font glyph.
@@ -98,6 +120,34 @@ class T9SemanticTextView @JvmOverloads constructor(
         canvas.drawPath(symbolPath, symbolPaint)
     }
 
+    private fun opticalTranslationY(): Float {
+        val sample = T9TextOpticalCenter.representativeSample(text)
+        if (
+            sample != opticalSample ||
+            paint.textSize != opticalSampleTextSize ||
+            paint.typeface != opticalSampleTypeface
+        ) {
+            paint.getTextBounds(sample, 0, sample.length, opticalSampleBounds)
+            opticalSample = sample
+            opticalSampleTextSize = paint.textSize
+            opticalSampleTypeface = paint.typeface
+        }
+        val contentCenter = (
+            paddingTop +
+                height -
+                paddingBottom
+            ) / 2f
+        return T9TextOpticalCenter.translationPx(
+            currentBaselinePx = baseline.toFloat(),
+            contentCenterPx = contentCenter,
+            sampleTopPx = opticalSampleBounds.top,
+            sampleBottomPx = opticalSampleBounds.bottom,
+            // Decision: custom fonts can publish unusual glyph bounds. Optical correction may
+            // center the row, but it must never move text far enough to approach clipping.
+            maxAbsShiftPx = (paint.textSize * MAX_OPTICAL_SHIFT_EM).roundToInt()
+        )
+    }
+
     private fun resolvedFontWeight(): Int {
         // Typeface.create(base, NORMAL) can report 400 even when a static custom font contains
         // semibold outlines. Prefer the source font's parsed OpenType weight when available.
@@ -126,6 +176,7 @@ class T9SemanticTextView @JvmOverloads constructor(
         private const val GLYPH_WIDTH_EM = 0.88f
         private const val GLYPH_HEIGHT_EM = 0.82f
         private const val MIN_STROKE_PX = 1.5f
+        private const val MAX_OPTICAL_SHIFT_EM = 0.25f
         private const val SHAFT_Y_RATIO = 0.14f
         private const val ARROW_WING_X_RATIO = 0.24f
         private const val ARROW_WING_Y_RATIO = 0.22f
