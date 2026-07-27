@@ -337,8 +337,9 @@ preference so completed warmup cannot replace candidates halfway through input.
 
 `HandwritingCandidateSession` owns recognition/prediction paging and selection,
 and `HandwritingCandidateStrip` renders a fixed ten-cell pool inside the
-handwriting title bar. Chinese pages retain compact balanced cells; English
-words use measured bounded widths and horizontal reveal without creating views.
+handwriting title bar. Single-character Chinese recognition pages retain compact
+balanced cells; multi-character Chinese predictions and English words use
+measured bounded widths and horizontal reveal without creating views.
 The strip intentionally has no paging arrows: touch selects visible results,
 left/right moves focus, and up/down changes pages on the target physical keypad.
 `PhysicalHandwritingKeyHandler` owns physical-key behavior while the surface is

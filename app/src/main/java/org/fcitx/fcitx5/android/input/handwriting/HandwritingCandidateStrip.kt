@@ -53,6 +53,12 @@ class HandwritingCandidateStrip(
             )
         }
     }
+    private val widthPolicy = HandwritingCandidateWidthPolicy(
+        compactChineseWidthPx = context.dp(ChineseCandidateWidthDp),
+        naturalMinimumWidthPx = context.dp(NaturalCandidateMinimumWidthDp),
+        naturalHorizontalInsetPx = context.dp(NaturalCandidateHorizontalInsetDp),
+        viewportInsetPx = context.dp(CandidateViewportInsetDp)
+    )
     private var renderedPage = HandwritingCandidatePage.Empty
     private var renderedLanguage = HandwritingLanguage.CHINESE
 
@@ -78,8 +84,15 @@ class HandwritingCandidateStrip(
         if (page.items.isNotEmpty()) post(::revealSelection)
     }
 
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        // Resolve phrase geometry during measure so the first visible prediction frame is already
+        // final; correcting compact placeholder widths after draw would flash "character + ...".
+        layoutVisibleCells(MeasureSpec.getSize(widthMeasureSpec))
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
+
     private fun revealSelection() {
-        if (layoutVisibleCells()) {
+        if (layoutVisibleCells(scroller.width)) {
             post(::revealSelection)
             return
         }
@@ -98,19 +111,19 @@ class HandwritingCandidateStrip(
         }
     }
 
-    private fun layoutVisibleCells(): Boolean {
+    private fun layoutVisibleCells(viewportWidth: Int): Boolean {
         val count = renderedPage.items.size
-        if (count == 0 || scroller.width <= 0) return false
+        if (count == 0 || viewportWidth <= 0) return false
+        val widths = widthPolicy.resolve(
+            language = renderedLanguage,
+            candidateTexts = renderedPage.items.map(HandwritingCandidateItem::text),
+            measuredContentWidthsPx = cells.take(count).map(CandidateCell::measuredContentWidth),
+            viewportWidthPx = viewportWidth
+        )
         var changed = false
         cells.forEachIndexed { index, cell ->
             if (index >= count) return@forEachIndexed
-            val width = when (renderedLanguage) {
-                // Han candidates keep the compact, evenly balanced strip already established by
-                // the handwriting tray. English words need natural widths so they stay legible.
-                HandwritingLanguage.CHINESE ->
-                    max(context.dp(ChineseCandidateWidthDp), scroller.width / count)
-                HandwritingLanguage.ENGLISH -> cell.preferredEnglishWidth(scroller.width)
-            }
+            val width = widths[index]
             val params = cell.layoutParams as LayoutParams
             if (params.width != width) {
                 params.width = width
@@ -170,26 +183,22 @@ class HandwritingCandidateStrip(
             )
         }
 
-        fun preferredEnglishWidth(viewportWidth: Int): Int {
-            val textWidth = max(
-                candidateText.paint.measureText(candidateText.text.toString()),
-                shortcutText.paint.measureText(shortcutText.text.toString())
+        fun measuredContentWidth(): Int =
+            ceil(
+                max(
+                    candidateText.paint.measureText(candidateText.text.toString()),
+                    shortcutText.paint.measureText(shortcutText.text.toString())
+                )
             )
-            val desired = ceil(textWidth).toInt() + context.dp(EnglishCandidateHorizontalInsetDp * 2)
-            return desired.coerceIn(
-                context.dp(EnglishCandidateMinimumWidthDp),
-                (viewportWidth - context.dp(EnglishCandidateViewportInsetDp))
-                    .coerceAtLeast(context.dp(EnglishCandidateMinimumWidthDp))
-            )
-        }
+                .toInt()
     }
 
     private companion object {
         const val MaxCandidateCount = 10
         const val ChineseCandidateWidthDp = 34
-        const val EnglishCandidateMinimumWidthDp = 48
-        const val EnglishCandidateHorizontalInsetDp = 10
-        const val EnglishCandidateViewportInsetDp = 8
+        const val NaturalCandidateMinimumWidthDp = 48
+        const val NaturalCandidateHorizontalInsetDp = 10
+        const val CandidateViewportInsetDp = 8
         const val CandidateVerticalInsetDp = 2
         const val ShortcutTextSizeSp = 8f
         const val CandidateWeight = 2.5f

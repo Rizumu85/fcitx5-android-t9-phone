@@ -100,9 +100,10 @@ matching must never block the UI thread.
   A visible candidate must always be committable; the UI never leaves an old
   bubble on screen while rejecting its tap during newer recognition.
 - Handwriting candidates use a dedicated `HandwritingCandidateSession` and a
-  fixed ten-view horizontal strip in the 40 dp handwriting title bar. Chinese
-  candidates retain balanced compact cells; English words use measured bounded
-  widths and scroll reveal without allocating views. This is a
+  fixed ten-view horizontal strip in the 40 dp handwriting title bar.
+  Single-character Chinese recognition candidates retain balanced compact
+  cells; multi-character Chinese predictions and English words use measured
+  bounded widths and scroll reveal without allocating views. This is a
   deliberate exception to the floating T9 candidate bubble: results stay
   attached to the tray without moving or resizing the drawing canvas. The strip
   has no paging arrows. Touch commits visible results, left/right moves focus,
