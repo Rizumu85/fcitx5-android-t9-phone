@@ -230,8 +230,11 @@ control switches Chinese and English without leaving handwriting. The bundled
 floor. `MlKitEnhancedHandwritingBackend` keeps lazy clients for Chinese and
 English runtime-downloaded models on one serialized background lane; English
 requires its downloaded model rather than exposing low-quality Latin fallback
-guesses. Recognition requests include stable tray dimensions and a bounded
-editor pre-context without adding work to pointer-move handling.
+guesses. A Chinese unit prefers the enhanced model unless its absence is already
+known, then appends distinct bundled results behind ML Kit order to improve
+recall without comparing incompatible scores. Recognition requests include
+stable tray dimensions and a bounded, code-point-safe editor pre-context for
+both languages without adding work to pointer-move handling.
 
 The Chinese result policy accepts one Han character plus a bounded set of
 common punctuation and operators. The English policy accepts one word or common
@@ -244,10 +247,11 @@ Kit order. A new stroke immediately replaces predictions with a new recognition
 cycle.
 
 Model construction, availability checks, warmup, and recognition stay behind a
-quiet-period gate. A stroke during Chinese initialization uses the offline floor
-instead of competing with model JIT or native loading. One handwritten unit
-keeps the backend chosen on its first down event so completed warmup cannot
-replace candidates halfway through input.
+quiet-period gate. First down freezes the backend preference, while an
+unprepared enhanced model is checked and warmed only after the recognition idle
+period, never during pointer rendering. Missing or failed Chinese enhancement
+falls back to the bundled recognizer. One handwritten unit keeps its frozen
+preference so completed warmup cannot replace candidates halfway through input.
 
 `HandwritingCandidateSession` owns recognition/prediction paging and selection,
 and `HandwritingCandidateStrip` renders a fixed ten-cell pool inside the

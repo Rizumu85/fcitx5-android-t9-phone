@@ -48,20 +48,20 @@ matching must never block the UI thread.
   Availability checks and downloads have generous upper bounds because ML
   Kit's internal downloader can otherwise leave an unresolved Google task
   blocking retry forever on restricted networks.
-- A downloaded ML Kit model is prepared only after a two-second stroke-free
-  quiet period and is marked ready after native initialization. A down event
-  during that gate cancels preparation before ML Kit is touched; that character
-  deliberately uses the bundled Chinese backend rather than letting model JIT
-  compete with drawing. If preparation has already completed, the enhanced
-  backend is ready before the next unit begins. Chinese ML Kit output is
-  restricted to one Han character or an explicit set of common punctuation and
-  operators; an empty or failed Chinese result falls back to the bundled
-  recognizer instead of exposing Latin words or emoji. English output is
-  restricted to one word or the same bounded common-symbol set.
-- The recognizer for one character is selected on its first down event, before
-  the stroke has finished.
-  A model that becomes ready halfway through that character is used only for
-  the next character, preventing unexplained candidate replacement.
+- Idle warmup still waits for a two-second stroke-free period and is marked
+  ready only after native initialization. First down cancels pending warmup and
+  freezes one backend preference for the unit. Chinese prefers ML Kit unless
+  that model is already known to be absent; an unprepared downloaded model is
+  checked and warmed after the 800 ms recognition boundary, never while pointer
+  rendering is active. A model preference never changes halfway through one
+  unit, preventing unexplained candidate replacement.
+- Chinese ML Kit output is restricted to one Han character or an explicit set
+  of common punctuation and operators. Distinct bundled results are appended
+  behind ML Kit order up to the candidate limit, improving recall without
+  pretending the two backends expose comparable scores. A missing, empty, or
+  failed enhanced result therefore retains the bundled offline floor. English
+  output is restricted to one word or the same bounded common-symbol set and
+  has no bundled fallback.
 - Completed strokes are copied into recognition data. AndroidX Ink renders a
   separate presentation path, so brush smoothing, motion prediction, and
   pressure response never alter the geometry sent to either recognizer.
@@ -118,12 +118,15 @@ matching must never block the UI thread.
   before editor deletion; prediction-only state is dismissed while the same
   press continues to delete one editor unit. Stroke-by-stroke undo remains the
   separate title action.
-- ML Kit receives the stable tray writing area. English requests also receive
-  at most 20 characters of editor pre-context captured on entry or explicit
-  language switch; pointer events never query the editor. T9 and handwriting
-  share `EnglishSuggestionEngine`, so built-in words, learned words, pair
-  frequency, and cache generations have one owner while their composition
-  sessions remain independent.
+- ML Kit receives the stable tray writing area. Both language requests receive
+  at most 20 Unicode code points of editor pre-context captured on entry or
+  explicit language switch and extended by committed handwriting; pointer
+  events never query the editor. Chinese uses that context to improve ambiguous
+  character ranking. Editor deletion invalidates the local suffix rather than
+  retaining text that no longer exists. T9 and handwriting share
+  `EnglishSuggestionEngine`, so built-in words, learned words, pair frequency,
+  and cache generations have one owner while their composition sessions remain
+  independent.
 - Users can enable tone-marked Pinyin feedback after commit. The lookup uses the
   Pinyin Helper database already bundled with Fcitx, preserves every distinct
   reading for polyphonic characters, and runs after text has been committed.
@@ -154,6 +157,9 @@ matching must never block the UI thread.
   buffers, and exits superseded jobs cooperatively. ML Kit objects are lazy,
   all Google tasks resume through a direct callback executor onto the model
   lane, and cancellation is never converted into fallback recognition work.
+- Chinese candidate fusion preserves ML Kit order and performs one linear,
+  bounded de-duplication pass; bundled matching runs only after the stroke-free
+  recognition boundary and never enters pointer handling.
 - Immutable AndroidX Ink brushes are cached by style, color, and tray size so
   the first-down path does not repeatedly cross the brush-construction JNI seam.
 - Candidate publication is generation checked and binds into a reused ten-cell
