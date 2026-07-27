@@ -39,7 +39,8 @@ data class T9CandidateUiSnapshot(
     val renderState: T9CandidateRenderState,
     val shownState: T9CandidateUiStateBuilder.ShownState,
     val interactionState: T9CandidateInteractionState,
-    val focusCorrection: T9CandidateFocus?
+    val focusCorrection: T9CandidateFocus?,
+    val chineseCompositionTicket: ChineseT9CompositionTicket?
 )
 
 class T9CandidateUiStateBuilder(
@@ -379,7 +380,8 @@ class T9CandidateUiStateBuilder(
                     hasBottomCandidateRow = effectivePaged.candidates.isNotEmpty(),
                     matchedPrefix = shownState.matchedPrefix
                 ),
-                focusCorrection = focusPlan.correction
+                focusCorrection = focusPlan.correction,
+                chineseCompositionTicket = chineseSnapshot?.compositionTicket()
             )
         }
 

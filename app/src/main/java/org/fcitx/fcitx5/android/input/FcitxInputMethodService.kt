@@ -100,6 +100,7 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSnapshotKey
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSource
 import org.fcitx.fcitx5.android.input.t9.ChineseT9OutputScript
 import org.fcitx.fcitx5.android.input.t9.ChineseT9OutputScriptSession
+import org.fcitx.fcitx5.android.input.t9.ChineseT9SelectionCommitSession
 import org.fcitx.fcitx5.android.input.t9.ChinesePredictionModeController
 import org.fcitx.fcitx5.android.input.t9.ChineseT9Scheme
 import org.fcitx.fcitx5.android.input.t9.ChineseT9SchemeActivationSession
@@ -478,6 +479,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     private fun clearT9CompositionState() {
         chineseT9Composition.clear()
+        chineseT9SelectionCommitSession.cancel()
         chineseT9EngineOperation.discardPending()
     }
 
@@ -2040,6 +2042,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         formatText = ::formattedT9Text,
         buildRawPreeditDisplay = ::buildT9PreeditDisplay
     )
+    private val chineseT9SelectionCommitSession = ChineseT9SelectionCommitSession()
     private val englishCustomDictionaries by lazy {
         EnglishCustomDictionaryCoordinator.Shared
     }
@@ -2923,18 +2926,46 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             candidate = candidate,
             fallbackResolvedPrefix = fallbackResolvedPrefix
         ) ?: return false
-        // A partial engine selection remains staged inside Rime. Commit the accepted text before
-        // rebuilding the remaining code, otherwise reset() silently discards the chosen segment.
-        commitTextPreservingChineseT9Composition(candidate.text)
-        candidatesView?.prepareForT9CompositionReplay()
+        if (candidate.text.isEmpty()) return false
+        chineseT9Composition.prepareReplay(rawPreedit)
+        val receipt = currentChineseT9InputReceipt()
+        t9CandidateFocusController.stageForNextFrame(T9CandidateFocus.BOTTOM)
+        val waitsForReplacementFrame =
+            candidatesView?.beginT9AtomicEngineTransition(receipt) == true
+        if (waitsForReplacementFrame) {
+            chineseT9SelectionCommitSession.arm(receipt, candidate.text)
+        } else {
+            commitTextPreservingChineseT9Composition(candidate.text)
+            candidatesView?.hideT9CandidateUiImmediately()
+        }
         inputView?.clearTransientState()
-        replayT9RawComposition(rawPreedit)
+        replayT9RawComposition(rawPreedit, receipt.compositionTicket)
         return true
     }
 
-    private fun replayT9RawComposition(rawPreedit: String) {
-        chineseT9Composition.prepareReplay(rawPreedit)
-        val ticket = chineseT9Composition.compositionTicket()
+    fun markPendingT9SelectionSourceReady(receipt: ChineseT9InputReceipt): Boolean =
+        chineseT9SelectionCommitSession.markSourceReady(receipt)
+
+    fun markPendingT9SelectionFrameRendered(
+        ticket: ChineseT9CompositionTicket?
+    ): Boolean =
+        chineseT9SelectionCommitSession.markFrameRendered(ticket)
+
+    fun schedulePendingT9SelectionAfterFrameDraw(): ChineseT9InputReceipt? =
+        chineseT9SelectionCommitSession.scheduleAfterFrameDraw()
+
+    fun commitPendingT9SelectionAfterFrameDraw(
+        receipt: ChineseT9InputReceipt
+    ): Boolean {
+        val text = chineseT9SelectionCommitSession.consumeScheduled(receipt) ?: return false
+        commitTextPreservingChineseT9Composition(text)
+        return true
+    }
+
+    private fun replayT9RawComposition(
+        rawPreedit: String,
+        ticket: ChineseT9CompositionTicket
+    ) {
         val replayScheme = ticket.scheme
         chineseT9EngineOperation.enqueue(
             acceptBefore = { isCurrentChineseT9Composition(ticket) },
@@ -2966,26 +2997,36 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
      * T9 digit span with "pinyin'". The composition session owns the Kotlin-side state; this
      * adapter only mirrors that selection into Rime.
      */
-    fun selectT9Pinyin(pinyin: String) {
-        val request = chineseT9Composition.selectPinyin(pinyin) ?: return
+    private fun selectT9Pinyin(pinyin: String): Boolean {
+        val request = chineseT9Composition.selectPinyin(pinyin) ?: return false
         val ticket = chineseT9Composition.compositionTicket()
+        // The old top-focused frame stays intact until the resolved reading is mirrored into
+        // Rime. Publishing focus alone would pair new interaction state with old reading chips.
+        t9CandidateFocusController.stageForNextFrame(T9CandidateFocus.BOTTOM)
         chineseT9EngineOperation.enqueue(
             acceptBefore = { isCurrentChineseT9Composition(ticket) },
-            execute = { chineseT9Composition.mirrorPinyinSelection(this, request) },
-            acceptAfter = { isCurrentChineseT9Composition(ticket) },
-            finish = { candidatesView?.refreshT9Ui() }
+            execute = {
+                chineseT9Composition.mirrorPinyinSelection(this, request)
+                chineseT9Composition.compositionTicket()
+            },
+            // Mirroring intentionally advances the session revision. Validate the resulting
+            // ticket rather than weakening stale-operation checks to ignore revisions.
+            acceptAfter = ::isCurrentChineseT9Composition,
+            finish = { candidatesView?.refreshT9Ui() },
+            reject = { candidatesView?.refreshT9Ui() }
         )
+        return true
     }
 
     fun commitT9ReadingSelection(reading: String): Boolean {
         if (reading.isEmpty()) return false
         when (activeChineseT9Scheme) {
-            ChineseT9Scheme.PINYIN -> selectT9Pinyin(reading)
+            ChineseT9Scheme.PINYIN -> return selectT9Pinyin(reading)
             ChineseT9Scheme.ZHUYIN ->
                 if (!chineseT9Composition.selectZhuyinReading(reading)) return false
             ChineseT9Scheme.STROKE -> return false
         }
-        moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
+        t9CandidateFocusController.stageForNextFrame(T9CandidateFocus.BOTTOM)
         candidatesView?.refreshT9Ui()
         return true
     }

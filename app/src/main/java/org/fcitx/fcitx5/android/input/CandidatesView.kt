@@ -15,6 +15,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
+import android.view.ViewTreeObserver.OnDrawListener
 import android.view.ViewTreeObserver.OnGlobalLayoutListener
 import android.view.ViewTreeObserver.OnPreDrawListener
 import android.view.WindowInsets
@@ -123,6 +124,16 @@ class CandidatesView(
     private val preDrawListener = OnPreDrawListener {
         floatingWindowController.onPreDraw(floatingWindowPositionConfig())
         true
+    }
+
+    private val drawListener = OnDrawListener {
+        val receipt = service.schedulePendingT9SelectionAfterFrameDraw()
+            ?: return@OnDrawListener
+        // Candidate and editor live in separate windows. Posting from the candidate draw traversal
+        // guarantees its Surface transaction is submitted before InputConnection updates the app.
+        post {
+            service.commitPendingT9SelectionAfterFrameDraw(receipt)
+        }
     }
 
     private val touchEventReceiverWindow = TouchEventReceiverWindow(this)
@@ -678,14 +689,21 @@ class CandidatesView(
         visibility = INVISIBLE
     }
 
-    fun prepareForT9CompositionReplay() {
-        paged = FcitxEvent.PagedCandidateEvent.Data.Empty
+    fun beginT9AtomicEngineTransition(receipt: ChineseT9InputReceipt): Boolean {
+        t9RefreshGeneration.cancel()
         resetT9BulkFilterState()
         t9CandidateUiSnapshotPipeline.resetChineseLocalBudgetState()
-        // Candidate selection continues on the remaining code, so confirmation must stay on
-        // Hanzi instead of unexpectedly returning to reading-filter navigation.
-        service.moveT9CandidateFocus(T9CandidateFocus.BOTTOM)
-        refreshT9Ui()
+        val waiting = chineseT9CandidateLoadingState.startIfNeeded(
+            chineseT9Active = service.isChineseT9InputModeActive(),
+            receipt = receipt,
+            requireSourcePair = true
+        )
+        if (waiting) {
+            // Keep the last complete visual frame while making its shortcuts inert. The matching
+            // input-panel/candidate pair will replace it as one semantic frame.
+            t9CandidateUiSnapshotPipeline.invalidateShownInteraction()
+        }
+        return waiting
     }
 
     fun syncT9CandidateFocus() {
@@ -736,6 +754,7 @@ class CandidatesView(
 
     private fun refreshAfterSourceEvent(acceptedReceipt: ChineseT9InputReceipt?) {
         if (acceptedReceipt != null) {
+            service.markPendingT9SelectionSourceReady(acceptedReceipt)
             T9ResponsivenessTrace.markSourceEvent(acceptedReceipt.traceInputId)
             t9RefreshGeneration.publishReady(acceptedReceipt.traceInputId)
         } else {
@@ -858,6 +877,15 @@ class CandidatesView(
         t9CandidateSurfaceGeometry.beginFrame(generation.id)
         t9CandidateSurfaceAdapter.beginFrame(generation.id)
         t9CandidateUiRenderer.render(snapshot.renderState)
+        if (
+            service.markPendingT9SelectionFrameRendered(
+                snapshot.chineseCompositionTicket
+            )
+        ) {
+            // A structurally equal render may not invalidate Android's view tree by itself.
+            // Force the draw barrier that owns the cross-window editor commit.
+            invalidate()
+        }
         T9ResponsivenessTrace.markRenderComplete(traceId)
         if (traceId != null) {
             postOnAnimation { T9ResponsivenessTrace.completeFrame(traceId) }
@@ -1242,6 +1270,7 @@ class CandidatesView(
         super.onAttachedToWindow()
         viewTreeObserver.addOnGlobalLayoutListener(layoutListener)
         viewTreeObserver.addOnPreDrawListener(preDrawListener)
+        viewTreeObserver.addOnDrawListener(drawListener)
     }
 
     override fun setVisibility(visibility: Int) {
@@ -1254,6 +1283,7 @@ class CandidatesView(
 
     override fun onDetachedFromWindow() {
         t9CandidateSurfaceAdapter.cancelPendingPinyinReveal()
+        viewTreeObserver.removeOnDrawListener(drawListener)
         viewTreeObserver.removeOnPreDrawListener(preDrawListener)
         viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
         floatingWindowController.onDetached()

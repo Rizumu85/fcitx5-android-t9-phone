@@ -17,7 +17,11 @@ class T9CandidateFocusController(
         private set
 
     fun reset() {
-        current = T9CandidateFocus.BOTTOM
+        stageForNextFrame(T9CandidateFocus.BOTTOM)
+    }
+
+    fun stageForNextFrame(focus: T9CandidateFocus) {
+        current = focus
     }
 
     fun moveTo(focus: T9CandidateFocus) {

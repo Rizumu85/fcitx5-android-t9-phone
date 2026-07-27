@@ -285,6 +285,70 @@ class ChineseT9CandidateLoadingStateTest {
     }
 
     @Test
+    fun atomicTransitionWaitsForBothCandidateAndInputPanelEvents() {
+        val state = ChineseT9CandidateLoadingState()
+        val ticket = ticket(ChineseT9Scheme.PINYIN, "548")
+        val receipt = receipt(ticket, traceInputId = 42L)
+        val candidates = paged("九", comment = "jiu")
+        state.startIfNeeded(
+            chineseT9Active = true,
+            receipt = receipt,
+            requireSourcePair = true
+        )
+
+        assertNull(
+            state.onEngineCandidates(
+                data = candidates,
+                ticket = ticket,
+                enginePreedit = "jiu"
+            )
+        )
+        assertTrue(waiting(state, compositionKeyCount = 3))
+
+        assertSame(
+            receipt,
+            state.onEngineInputPanel(
+                data = candidates,
+                ticket = ticket,
+                enginePreedit = "jiu"
+            )
+        )
+        assertFalse(waiting(state, compositionKeyCount = 3))
+    }
+
+    @Test
+    fun atomicTransitionAcceptsTheSourcePairInEitherEventOrder() {
+        val state = ChineseT9CandidateLoadingState()
+        val ticket = ticket(ChineseT9Scheme.PINYIN, "548")
+        val receipt = receipt(ticket, traceInputId = 42L)
+        val candidates = paged("九", comment = "jiu")
+        state.startIfNeeded(
+            chineseT9Active = true,
+            receipt = receipt,
+            requireSourcePair = true
+        )
+
+        assertNull(
+            state.onEngineInputPanel(
+                data = candidates,
+                ticket = ticket,
+                enginePreedit = "jiu"
+            )
+        )
+        assertTrue(waiting(state, compositionKeyCount = 3))
+
+        assertSame(
+            receipt,
+            state.onEngineCandidates(
+                data = candidates,
+                ticket = ticket,
+                enginePreedit = "jiu"
+            )
+        )
+        assertFalse(waiting(state, compositionKeyCount = 3))
+    }
+
+    @Test
     fun inputPanelAloneCannotReuseCandidatesFromBeforeTicket() {
         val state = ChineseT9CandidateLoadingState()
         val ticket = ticket(ChineseT9Scheme.STROKE, "12")

@@ -230,6 +230,14 @@ Replaced callbacks cannot consume a newer trace or render request.
 `T9CandidateUiRenderer` chooses the minimal region changes for one snapshot.
 `T9CandidateSurfaceAndroidAdapter` renders the top, reading, candidate, and
 shortcut rows; `CandidatesView` remains the floating Android window host.
+Reading confirmation stages focus until the resolved engine snapshot arrives;
+focus must never publish as a frame by itself. Partial Chinese selection is one
+cross-window transaction: `ChineseT9CandidateLoadingState` accepts the matching
+input-panel/candidate event pair, `ChineseT9SelectionCommitSession` advances
+through source-ready and frame-rendered phases, and the editor commit is posted
+only from the candidate view's draw traversal. This ordering prevents either a
+new focus over stale readings or committed editor text beside the obsolete
+candidate page.
 The compact top preview is always a single-line viewport and keeps the active
 tail visible when a long reading exceeds the screen width. Fixed-height T9
 preedit centers its lone visible row, and compact text rows use representative

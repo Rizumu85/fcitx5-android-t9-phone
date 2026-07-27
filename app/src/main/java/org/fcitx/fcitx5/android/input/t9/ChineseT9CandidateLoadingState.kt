@@ -18,17 +18,22 @@ class ChineseT9CandidateLoadingState {
     private var engineResultObserved = false
     private var expectedReceipt: ChineseT9InputReceipt? = null
     private var candidateEventTicket: ChineseT9CompositionTicket? = null
+    private var inputPanelEventTicket: ChineseT9CompositionTicket? = null
+    private var requireSourcePair = false
 
     fun reset() {
         state = State.IDLE
         engineResultObserved = false
         expectedReceipt = null
         candidateEventTicket = null
+        inputPanelEventTicket = null
+        requireSourcePair = false
     }
 
     fun startIfNeeded(
         chineseT9Active: Boolean,
-        receipt: ChineseT9InputReceipt
+        receipt: ChineseT9InputReceipt,
+        requireSourcePair: Boolean = false
     ): Boolean {
         val ticket = receipt.compositionTicket
         val hasCompositionCode = ticket.digitSequence.any { token ->
@@ -38,11 +43,15 @@ class ChineseT9CandidateLoadingState {
             engineResultObserved = false
             expectedReceipt = receipt
             candidateEventTicket = null
+            inputPanelEventTicket = null
+            this.requireSourcePair = requireSourcePair
             State.WAITING_FOR_ENGINE
         } else {
             engineResultObserved = false
             expectedReceipt = null
             candidateEventTicket = null
+            inputPanelEventTicket = null
+            this.requireSourcePair = false
             State.IDLE
         }
         return state == State.WAITING_FOR_ENGINE
@@ -61,6 +70,7 @@ class ChineseT9CandidateLoadingState {
         val receipt = expectedReceipt ?: return null
         if (ticket != receipt.compositionTicket) return null
         candidateEventTicket = ticket
+        if (requireSourcePair && inputPanelEventTicket != ticket) return null
         return releaseIfFresh(data, receipt, enginePreedit)
     }
 
@@ -75,7 +85,9 @@ class ChineseT9CandidateLoadingState {
             return accepted
         }
         val receipt = expectedReceipt ?: return null
-        if (ticket != receipt.compositionTicket || candidateEventTicket != ticket) return null
+        if (ticket != receipt.compositionTicket) return null
+        inputPanelEventTicket = ticket
+        if (candidateEventTicket != ticket) return null
         return releaseIfFresh(data, receipt, enginePreedit)
     }
 
@@ -91,6 +103,7 @@ class ChineseT9CandidateLoadingState {
         }
         expectedReceipt = receipt
         candidateEventTicket = ticket
+        inputPanelEventTicket = ticket
         state = State.WAITING_FOR_ENGINE
         engineResultObserved = false
         return releaseIfFresh(data, receipt, enginePreedit)
@@ -113,6 +126,8 @@ class ChineseT9CandidateLoadingState {
             engineResultObserved = true
             expectedReceipt = null
             candidateEventTicket = null
+            inputPanelEventTicket = null
+            requireSourcePair = false
         }
         return receipt.takeIf { accepted }
     }

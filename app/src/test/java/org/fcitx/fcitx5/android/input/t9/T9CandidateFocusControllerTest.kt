@@ -32,4 +32,18 @@ class T9CandidateFocusControllerTest {
         assertEquals(T9CandidateFocus.BOTTOM, controller.current)
         assertEquals(1, notifications)
     }
+
+    @Test
+    fun stagedFocusWaitsForTheNextFullFrameWithoutPublishingAlone() {
+        var notifications = 0
+        val controller = T9CandidateFocusController(
+            onFocusChanged = { notifications += 1 }
+        )
+        controller.moveTo(T9CandidateFocus.TOP)
+
+        controller.stageForNextFrame(T9CandidateFocus.BOTTOM)
+
+        assertEquals(T9CandidateFocus.BOTTOM, controller.current)
+        assertEquals(1, notifications)
+    }
 }

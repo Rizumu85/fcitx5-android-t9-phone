@@ -228,8 +228,11 @@ Split the video into frames and inspect the first wrong frame:
 
 ```bash
 mkdir -p /tmp/t9-frames
-ffmpeg -i /tmp/t9-debug.mp4 -vf fps=60 /tmp/t9-frames/frame_%04d.png
+ffmpeg -i /tmp/t9-debug.mp4 -vsync 0 /tmp/t9-frames/frame_%04d.png
 ```
+
+Preserve source frames for flash diagnosis. A fixed `fps` filter can duplicate
+frames and obscure which cross-window state was actually presented.
 
 Some ROMs omit the floating IME candidate window from `screenrecord`. Verify
 that the overlay exists in the recording before trusting it. When it is absent,
@@ -247,6 +250,18 @@ What to look for:
   pagination row is driving the surface unexpectedly.
 - Smart English candidates showing raw digits or stale previews before the
   dictionary/page cache is ready.
+
+The maintained partial-selection fixture is:
+
+1. Enter `9844269664335485426946649367487832`.
+2. Press Up to focus the `zui` reading and press `0` to select it.
+3. Press Right to reach the page beginning with `最好用的`.
+4. Press `0` to commit that partial candidate.
+
+The reading transition must go directly from top-focused `zui` to the resolved
+bottom-focused frame; a bottom focus over the old reading row is invalid. The
+partial commit must draw the replacement candidate frame before editor text is
+published; committed `最好用的` beside the old candidate page is invalid.
 
 Frame analysis is especially useful when user-visible lag is shorter than a
 manual screenshot can capture. Pair the frame number with the responsiveness
