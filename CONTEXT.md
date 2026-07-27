@@ -374,9 +374,12 @@ writes a deployment-required marker, native startup owns the full deployment,
 and only the final Rime `Ready` clears the marker and becomes visible to input
 readiness consumers.
 Native Rime process startup still performs a lightweight source-change check
-against its durable compiled workspace. That temporary maintenance state is
-engine initialization, not repeated application provisioning or a reason to
-ask the user to deploy again.
+against its durable compiled workspace. The plugin publishes this as `Starting`
+and retains that classification even though librime uses its deploy notification
+channel for the check. Only explicit full maintenance publishes `Deploying`.
+Idle startup, deployment, input-method activation, and recovery schema selection
+stay presentation-silent; physical input that races readiness remains queued
+and may surface the wait.
 
 `DataInstallationState` and `DataInstallationStateCodec` provide the bounded,
 atomic native-data fast path. Any version, descriptor, plugin, checksum, or

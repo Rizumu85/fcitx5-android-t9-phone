@@ -62,10 +62,16 @@ verified, installed, and activated without another confirmation.
 - Installing or upgrading the Rime plugin invalidates the native plugin data
   snapshot and restarts an active daemon. The next native start discovers the
   new plugin without requiring the user to switch system input methods.
-- Native Rime startup may publish a short maintenance state while librime checks
-  whether source files changed. Compiled dictionaries remain durable; this check
-  is not an application-triggered redeployment and must be presented as a
-  temporary engine-readiness transition.
+- Native Rime startup publishes `Starting` while librime performs its ordinary
+  source-change check. Librime reports that check through the same notification
+  channel as deployment, so the plugin must retain `Starting` until the check
+  completes. Only an explicitly requested full maintenance run publishes
+  `Deploying`.
+- `Starting`, input-method activation, and recovery schema selection remain
+  presentation-silent while the editor is idle. If the user types before
+  readiness, input stays queued and the waiting state may be explained. A real
+  `Deploying` state follows the same presentation rule: background maintenance
+  does not occupy the candidate surface until input is actually waiting.
 - Readiness consumers accept a lifecycle event only when it still equals
   `FcitxCachedState.rimeAvailability`. The native cache may already be newer
   than an event queued for the Android main thread, so an older synthetic
@@ -77,8 +83,9 @@ verified, installed, and activated without another confirmation.
   Rime intentionally ignores those actions during maintenance.
 - A deliberate runtime Pinyin/Stroke/Zhuyin handoff is presentation-silent
   after its immediate mode acknowledgement. It still keeps engine input queued
-  until the exact schema is ready, while cold-start selection, deployment,
-  recovery, and exhausted retries retain explicit readiness feedback.
+  until the exact schema is ready. Cold-start and recovery waits become visible
+  only after user input; deployment follows the same rule, while exhausted
+  retries retain explicit readiness feedback.
 - Rime user-data synchronization remains an explicit maintenance action. It is
   not called by installation or application upgrades.
 - Native Fcitx generations invalidate the Android frontend's input context and
@@ -104,9 +111,10 @@ verified, installed, and activated without another confirmation.
 
 On an ordinary process restart with a healthy receipt, steps 3-5 do not run.
 Librime still initializes its runtime session and checks its durable workspace.
-The input service queues the intended Pinyin, Stroke, or Zhuyin schema across
-that short transition instead of asking the user to deploy or switch system
-input methods.
+The plugin classifies that work as `Starting`, and the input service keeps an
+idle candidate surface quiet. If typing races startup, it queues both the
+intended Pinyin, Stroke, or Zhuyin schema and the physical input instead of
+asking the user to deploy or switch system input methods.
 
 ## Future Distribution
 
@@ -127,8 +135,8 @@ without changing input or UI code.
 Users still approve installation of the main and Rime APKs through Android.
 After those package installs, configuration download, repair, activation, and
 future app-matched upgrades require no manual copying, deploy action, sync
-action, or input-method toggle. A process restart can briefly initialize the
-native engine, but it does not recompile a healthy configuration.
+action, or input-method toggle. A process restart initializes the native engine
+without presenting ordinary startup maintenance as a repeated deployment.
 
 GitHub remains the initial archive host, so a completely offline first install
 is not guaranteed. The design keeps that transport detail behind one Module and
