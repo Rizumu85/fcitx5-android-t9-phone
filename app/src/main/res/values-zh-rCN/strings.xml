@@ -248,7 +248,7 @@
     <string name="show_lang_switch_key">显示语言切换键</string>
     <string name="use_t9_keyboard_layout">九键输入模式</string>
     <string name="use_t9_keyboard_layout_summary">使用手机九键、候选和输入模式切换</string>
-    <string name="smart_english_t9">联想英语</string>
+    <string name="smart_english_t9">联想英文</string>
     <string name="smart_english_t9_summary">根据数字键序列预测英文单词，并学习普通英文九键里实际输入的词</string>
     <string name="chinese_prediction">联想中文</string>
     <string name="chinese_prediction_badge">联想</string>
@@ -258,7 +258,7 @@
     <string name="chinese_english_candidates_summary">使用拼音九键时，在中文候选中同时显示英文单词</string>
     <string name="dictionaries_and_learning">词库与学习</string>
     <string name="share_english_custom_dictionary">合并英文词库</string>
-    <string name="share_english_custom_dictionary_summary">合并联想英语和拼音候选使用的自定义英文词库</string>
+    <string name="share_english_custom_dictionary_summary">合并联想英文和拼音候选使用的自定义英文词库</string>
     <string name="chinese_custom_phrases">中文自定义词库</string>
     <string name="chinese_custom_phrases_summary">管理显示在拼音候选中的自定义中文词语</string>
     <string name="chinese_custom_phrase_hint">中文词语</string>
@@ -268,13 +268,13 @@
     <string name="chinese_english_custom_words">拼音英文词库</string>
     <string name="chinese_english_custom_words_summary">管理显示在拼音候选中的英文单词；用 # 两次提交同一段字母也会自动学习</string>
     <string name="shared_english_custom_words">共享英文词库</string>
-    <string name="shared_english_custom_words_summary">管理联想英语和中文拼音共同使用的英文单词</string>
-    <string name="smart_english_custom_words">联想英语词库</string>
-    <string name="smart_english_custom_words_summary">管理手动添加或由联想英语自动学到的单词</string>
+    <string name="shared_english_custom_words_summary">管理联想英文和中文拼音共同使用的英文单词</string>
+    <string name="smart_english_custom_words">联想英文词库</string>
+    <string name="smart_english_custom_words_summary">管理手动添加或由联想英文自动学到的单词</string>
     <string name="smart_english_learned_words">已学习单词</string>
     <string name="smart_english_learned_words_summary">添加、编辑或删除英文九键输入时学到的词</string>
     <string name="smart_english_learned_word_hint">英文单词</string>
-    <string name="smart_english_learned_predictions">联想英语搭配</string>
+    <string name="smart_english_learned_predictions">联想英文搭配</string>
     <string name="smart_english_learned_predictions_summary">管理下一词联想学到的搭配，例如 good → morning</string>
     <string name="smart_english_learned_prediction_hint">previous -> next</string>
     <string name="search">搜索</string>
