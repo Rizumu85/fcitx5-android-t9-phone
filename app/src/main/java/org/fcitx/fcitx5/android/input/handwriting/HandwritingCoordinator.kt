@@ -12,10 +12,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.input.t9.EnglishSuggestionEngine
 import timber.log.Timber
@@ -51,6 +53,7 @@ internal class HandwritingCoordinator(
     private var offlineReady = false
     private val enhancedReady = mutableSetOf<HandwritingLanguage>()
     private val enhancedModelMissing = mutableSetOf<HandwritingLanguage>()
+    private val enhancedPreparing = mutableSetOf<HandwritingLanguage>()
     private var modelState = HandwritingModelState.PREPARING_OFFLINE
     private var recognizing = false
     private var noMatch = false
@@ -137,16 +140,16 @@ internal class HandwritingCoordinator(
     fun beginStroke() {
         if (!active) return
         if (strokes.isEmpty() && activeBackend == null) {
-            // Freeze one backend preference per unit, but do not demote a downloaded Chinese
-            // model merely because its native warmup has not won the idle gate yet.
+            // A cold Chinese unit must remain responsive instead of waiting several seconds for
+            // native model initialization. Preparation upgrades later units, never this one.
             activeBackend = HandwritingRecognitionPolicy.selectBackend(
                 language = language,
-                enhancedModelKnownMissing = language in enhancedModelMissing
+                enhancedReady = language in enhancedReady
             )
         }
-        if (language !in enhancedReady) {
-            // Native preparation never competes with an active pointer stream. English may prepare
-            // after the word boundary, when no bundled recognizer can answer the request.
+        if (language !in enhancedReady && language !in enhancedPreparing) {
+            // Cancel only the quiet-period gate. Once native preparation has started, repeatedly
+            // canceling it would keep fast writers on the lower-quality backend indefinitely.
             enhancedModelJob?.cancel()
             enhancedModelJob = null
         }
@@ -355,8 +358,19 @@ internal class HandwritingCoordinator(
         }
     }
 
-    private fun scheduleEnhancedPreparation(recheckMissingModel: Boolean = false) {
-        if (!active || enhancedModelJob?.isActive == true || strokes.isNotEmpty()) return
+    private fun scheduleEnhancedPreparation(
+        recheckMissingModel: Boolean = false,
+        delayMillis: Long = EnhancedWarmupDelayMillis,
+        allowCompletedStrokes: Boolean = false
+    ) {
+        if (
+            !active ||
+            enhancedModelJob?.isActive == true ||
+            language in enhancedPreparing ||
+            strokes.isNotEmpty() && !allowCompletedStrokes
+        ) {
+            return
+        }
         val requestedLanguage = language
         if (requestedLanguage in enhancedReady) return
         if (requestedLanguage in enhancedModelMissing && !recheckMissingModel) return
@@ -364,7 +378,9 @@ internal class HandwritingCoordinator(
         updateAvailableModelState()
         enhancedModelJob = scope.launch {
             try {
-                delay(EnhancedWarmupDelayMillis)
+                delay(delayMillis)
+                enhancedPreparing += requestedLanguage
+                if (active && language == requestedLanguage) updateAvailableModelState()
                 val ready = enhancedBackend.prepare(requestedLanguage)
                 recordEnhancedAvailability(requestedLanguage, ready)
             } catch (error: CancellationException) {
@@ -375,8 +391,10 @@ internal class HandwritingCoordinator(
                     "Unable to prepare %s handwriting model",
                     requestedLanguage
                 )
+            } finally {
+                enhancedPreparing -= requestedLanguage
+                if (active && language == requestedLanguage) updateAvailableModelState()
             }
-            if (active && language == requestedLanguage) updateAvailableModelState()
         }
     }
 
@@ -409,8 +427,9 @@ internal class HandwritingCoordinator(
         val requestLanguage = language
         val requestBackend = activeBackend ?: HandwritingRecognitionPolicy.selectBackend(
             language = requestLanguage,
-            enhancedModelKnownMissing = requestLanguage in enhancedModelMissing
+            enhancedReady = requestLanguage in enhancedReady
         )
+        val requestedAt = SystemClock.elapsedRealtimeNanos()
         val request = HandwritingRecognitionRequest(
             language = requestLanguage,
             strokes = requestStrokes,
@@ -429,7 +448,7 @@ internal class HandwritingCoordinator(
                     HandwritingLanguage.ENGLISH -> EnglishRecognitionIdleMillis
                 }
             )
-            val started = SystemClock.elapsedRealtimeNanos()
+            val recognitionStarted = SystemClock.elapsedRealtimeNanos()
             val batch = recognize(request, requestBackend)
             if (
                 !active || requestGeneration != generation || requestStrokes != strokes ||
@@ -454,16 +473,31 @@ internal class HandwritingCoordinator(
             recognizing = false
             noMatch = recognizedCandidates.isEmpty() && !batch.modelMissing
             updateAvailableModelState(publish = false)
-            val elapsedMs = (SystemClock.elapsedRealtimeNanos() - started) / 1_000_000f
+            val completedAt = SystemClock.elapsedRealtimeNanos()
+            val computeMs = (completedAt - recognitionStarted) / 1_000_000f
+            val totalMs = (completedAt - requestedAt) / 1_000_000f
             Timber.d(
-                "Handwriting recognition language=%s backend=%s strokes=%d candidates=%d latency=%.2fms",
+                "Handwriting recognition language=%s backend=%s strokes=%d candidates=%d " +
+                    "compute=%.2fms total=%.2fms",
                 requestLanguage,
                 batch.backend,
                 requestStrokes.size,
                 recognizedCandidates.size,
-                elapsedMs
+                computeMs,
+                totalMs
             )
             publishState()
+            if (
+                requestLanguage == HandwritingLanguage.CHINESE &&
+                batch.backend == HandwritingRecognitionBackend.OFFLINE
+            ) {
+                // The cold unit has already received one stable result. Warm ML Kit now so later
+                // units gain its accuracy without replacing candidates beneath the user's focus.
+                scheduleEnhancedPreparation(
+                    delayMillis = 0L,
+                    allowCompletedStrokes = true
+                )
+            }
         }
     }
 
@@ -494,18 +528,13 @@ internal class HandwritingCoordinator(
                         )
                     }
                 } else {
-                    val enhanced = enhancedBackend.recognize(request)
                     if (request.language == HandwritingLanguage.CHINESE) {
-                        // ML Kit keeps the strongest positions; the bundled recognizer expands
-                        // recall at the tail without inventing a cross-model score comparison.
-                        val merged = HandwritingRecognitionPolicy.mergeChineseCandidates(
-                            enhanced = enhanced,
-                            offline = recognizeOffline(request.strokes),
-                            limit = request.limit
-                        )
-                        RecognitionBatch(merged, HandwritingRecognitionBackend.ENHANCED)
+                        recognizeEnhancedChinese(request)
                     } else {
-                        RecognitionBatch(enhanced, HandwritingRecognitionBackend.ENHANCED)
+                        RecognitionBatch(
+                            enhancedBackend.recognize(request),
+                            HandwritingRecognitionBackend.ENHANCED
+                        )
                     }
                 }
             }
@@ -532,6 +561,43 @@ internal class HandwritingCoordinator(
         } else {
             Timber.e(error, "Handwriting recognition failed for %s", request.language)
             RecognitionBatch(emptyList(), requestBackend)
+        }
+    }
+
+    private suspend fun recognizeEnhancedChinese(
+        request: HandwritingRecognitionRequest
+    ): RecognitionBatch = supervisorScope {
+        // The two recognizers have independent worker lanes. Running them together preserves
+        // ML Kit ordering and bundled recall without adding both latencies to every character.
+        val enhancedDeferred = async { enhancedBackend.recognize(request) }
+        val offlineDeferred = async { recognizeOffline(request.strokes) }
+        val enhanced = try {
+            enhancedDeferred.await()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            Timber.w(error, "Enhanced handwriting recognition failed; using bundled recognizer")
+            null
+        }
+        val offline = try {
+            offlineDeferred.await()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            Timber.e(error, "Bundled handwriting recognition failed")
+            emptyList()
+        }
+        if (enhanced == null) {
+            RecognitionBatch(offline, HandwritingRecognitionBackend.OFFLINE)
+        } else {
+            RecognitionBatch(
+                HandwritingRecognitionPolicy.mergeChineseCandidates(
+                    enhanced = enhanced,
+                    offline = offline,
+                    limit = request.limit
+                ),
+                HandwritingRecognitionBackend.ENHANCED
+            )
         }
     }
 
@@ -631,7 +697,7 @@ internal class HandwritingCoordinator(
     }
 
     private companion object {
-        const val ChineseRecognitionIdleMillis = 800L
+        const val ChineseRecognitionIdleMillis = 600L
         const val EnglishRecognitionIdleMillis = 700L
         const val PronunciationDisplayMillis = 4_500L
         const val EnhancedWarmupDelayMillis = 2_000L

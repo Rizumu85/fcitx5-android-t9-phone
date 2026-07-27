@@ -13,11 +13,11 @@ internal enum class HandwritingRecognitionBackend {
 internal object HandwritingRecognitionPolicy {
     fun selectBackend(
         language: HandwritingLanguage,
-        enhancedModelKnownMissing: Boolean
+        enhancedReady: Boolean
     ): HandwritingRecognitionBackend = when {
         language == HandwritingLanguage.ENGLISH -> HandwritingRecognitionBackend.ENHANCED
-        enhancedModelKnownMissing -> HandwritingRecognitionBackend.OFFLINE
-        else -> HandwritingRecognitionBackend.ENHANCED
+        enhancedReady -> HandwritingRecognitionBackend.ENHANCED
+        else -> HandwritingRecognitionBackend.OFFLINE
     }
 
     fun mergeChineseCandidates(

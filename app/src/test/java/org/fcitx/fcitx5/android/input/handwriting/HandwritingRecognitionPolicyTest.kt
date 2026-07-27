@@ -10,19 +10,23 @@ import org.junit.Test
 
 class HandwritingRecognitionPolicyTest {
     @Test
-    fun chinesePrefersEnhancedUnlessTheModelIsKnownMissing() {
-        assertEquals(
-            HandwritingRecognitionBackend.ENHANCED,
-            HandwritingRecognitionPolicy.selectBackend(
-                HandwritingLanguage.CHINESE,
-                enhancedModelKnownMissing = false
-            )
-        )
+    fun coldChineseUnitUsesOfflineWithoutWaitingForEnhancedPreparation() {
         assertEquals(
             HandwritingRecognitionBackend.OFFLINE,
             HandwritingRecognitionPolicy.selectBackend(
                 HandwritingLanguage.CHINESE,
-                enhancedModelKnownMissing = true
+                enhancedReady = false
+            )
+        )
+    }
+
+    @Test
+    fun preparedChineseUnitUsesEnhancedRecognition() {
+        assertEquals(
+            HandwritingRecognitionBackend.ENHANCED,
+            HandwritingRecognitionPolicy.selectBackend(
+                HandwritingLanguage.CHINESE,
+                enhancedReady = true
             )
         )
     }
@@ -33,7 +37,7 @@ class HandwritingRecognitionPolicyTest {
             HandwritingRecognitionBackend.ENHANCED,
             HandwritingRecognitionPolicy.selectBackend(
                 HandwritingLanguage.ENGLISH,
-                enhancedModelKnownMissing = true
+                enhancedReady = false
             )
         )
     }
