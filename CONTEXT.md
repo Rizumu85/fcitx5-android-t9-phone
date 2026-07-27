@@ -8,7 +8,8 @@ for candidates, settings, symbols, password entry, and secondary actions.
 
 Supported T9 mechanisms:
 
-- Chinese: Pinyin, mobile Stroke (`笔画九键`, not Wubi 86), and Zhuyin.
+- Chinese: Pinyin, mobile Stroke (`笔画九键`, not Wubi 86), Zhuyin, and
+  optional continuous prediction.
 - English: multi-tap and predictive Smart English with next-word prediction.
 - Number mode: digits, common operators, and simple expression results.
 - Shared physical selection mode for cursor selection and edit actions.
@@ -125,6 +126,31 @@ Each Chinese scheme has an independent Simplified/Traditional default.
 default is applied once on scheme entry or preference change and does not lock
 out temporary Rime-side changes.
 
+## Chinese Prediction
+
+Rime's `librime-predict` plugin owns Chinese prediction generation and
+continuous context. The matching configuration archive supplies `predict.db`
+and keeps the Rime `prediction` option disabled by default; the app applies the
+persisted **Predictive Chinese** preference only after the intended T9 schema
+is ready.
+
+`ChinesePredictionCandidateSession` owns the frontend activation boundary. A
+normal idle Rime candidate event must never appear as prediction. The session
+arms immediately before a Chinese selection and accepts only a fresh,
+post-selection, no-composition candidate event. A new composition ticket,
+backspace, punctuation, Return, scheme change, or disabled preference
+dismisses that prediction surface.
+
+Visible Chinese predictions join the ordinary T9 candidate snapshot and source
+session. They reuse the accepted bubble geometry, paging, focus, OK selection,
+and long-digit shortcuts rather than creating a second view path. Their focused
+text occupies the reserved top preview row, matching Predictive English without
+adding spaces to Chinese commits. Pinyin and Stroke may use short `0` to accept
+a prediction; Zhuyin keeps `0` as a reading input key.
+
+The single prediction entry in Quick Settings is mode-aware: Chinese shows and
+toggles Predictive Chinese, while English shows and toggles Predictive English.
+
 ## Smart English
 
 `SmartEnglishLifecycle` owns digit composition, candidate focus, commit spacing,
@@ -159,10 +185,10 @@ render-ready snapshot containing:
 - candidate focus and shortcut labels;
 - visibility, anchoring, and source interaction identity.
 
-Smart English, punctuation, local Chinese pages, bulk filtered Chinese pages,
-and engine-backed Chinese pages all use the same shown-source interaction
-contract. Paging and original indices are produced together; Android rendering
-must not reconstruct them.
+Smart English, Chinese prediction, punctuation, local Chinese pages, bulk
+filtered Chinese pages, and engine-backed Chinese pages all use the same
+shown-source interaction contract. Paging and original indices are produced
+together; Android rendering must not reconstruct them.
 
 `T9CandidateRefreshGeneration` owns scheduling through the first complete frame.
 Replaced callbacks cannot consume a newer trace or render request.
@@ -299,6 +325,9 @@ releases. Automatic network failures are silent and still consume the gate;
 manual checks bypass it and report failures. The update catalog treats the app,
 the ABI-specific Rime plugin APK, and the architecture-independent
 `rime-ice-t9-phone` configuration as three independently versioned artifacts.
+The required configuration source set includes all three T9 schemas and
+`predict.db`; a receipt cannot mark an archive healthy when prediction data is
+missing.
 Release builds can download and install both APK components; debug builds only
 offer configuration updates because release APKs cannot replace debug package
 IDs. Configuration archives are overlaid without deleting user files while

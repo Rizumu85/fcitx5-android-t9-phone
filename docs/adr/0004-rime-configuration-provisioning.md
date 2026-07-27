@@ -45,8 +45,9 @@ verified, installed, and activated without another confirmation.
   URI may require system-only permissions even for the requesting app.
 - Every automatic archive is verified against its release SHA-256 before Rime
   is stopped. The archive must contain the Pinyin, Stroke, and Zhuyin T9
-  schemas. Invalid or unavailable downloads leave the last working
-  installation and receipt untouched.
+  schemas plus the `librime-predict` database required by Predictive Chinese.
+  Invalid or unavailable downloads leave the last working installation and
+  receipt untouched.
 - Installation is serialized with Fcitx lifecycle changes. The daemon cannot
   start halfway through a configuration overlay, and a previously running
   daemon is restarted exactly once after a successful or failed transaction.

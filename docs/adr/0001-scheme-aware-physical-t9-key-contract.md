@@ -52,9 +52,11 @@ presses on `1..9,0`; moving English case to short `1` must not remove shortcut
 `ㄧㄨㄩ`. Physical OK/center remains the universal candidate confirmation.
 
 - Pinyin: short `0` confirms the focused pinyin or Hanzi row; idle `0` inserts
-  a space.
+  a space. When continuous Chinese prediction is visible, short `0` confirms
+  the focused prediction.
 - Stroke: short `0` confirms the highlighted Hanzi; idle `0` inserts a space.
-  OK/center confirms the same highlighted candidate.
+  OK/center confirms the same highlighted candidate, including a continuous
+  prediction.
 - Zhuyin: `0` enters `ㄧㄨㄩ`; OK/center confirms the Hanzi candidate.
 - All Chinese schemes: short `#` while composing commits the literal code shown
   in the top preview, not a Hanzi candidate. Pinyin commits Latin letters
@@ -72,6 +74,14 @@ long `*` cycles the configured Chinese schemes; if only one scheme is enabled,
 it commits a literal star. Short `*` remains punctuation entry and punctuation
 set toggle. This avoids carrying hidden Pinyin, Stroke, or Zhuyin state into
 the next mode without sacrificing Return.
+
+Continuous Chinese prediction is a visible Chinese candidate surface, not a
+hidden composition. OK/center and long `1..9,0` select it. Backspace dismisses
+the prediction before deleting editor text. Short `#` commits the focused
+prediction and performs Return; short `*` commits it and opens Chinese
+punctuation. Neither path inserts a space or continues prediction. Typing a new
+scheme digit replaces prediction with a new composition; Zhuyin's `0` remains a
+reading digit rather than a prediction-confirm shortcut.
 
 ### 3. Use the following Chinese code maps
 
@@ -133,6 +143,11 @@ active scheme.
 The active scheme is shown in the T9 mode label. The Pinyin schema is named
 `拼音九键` rather than the now-ambiguous `中文九键`; the old name remains only
 as a compatibility alias when classifying an existing deployment.
+
+Quick Settings has one mode-aware prediction slot. In Chinese mode it toggles
+continuous Chinese prediction; in English mode the same position toggles
+Predictive English. This keeps a stable shortcut layout without presenting an
+English-only action while the user is typing Chinese.
 
 Each enabled Chinese scheme has an independent Simplified/Traditional default.
 The default is applied once when that scheme becomes active, not continuously
