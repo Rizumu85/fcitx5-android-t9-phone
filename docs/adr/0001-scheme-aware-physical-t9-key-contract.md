@@ -147,7 +147,9 @@ as a compatibility alias when classifying an existing deployment.
 Quick Settings has one mode-aware prediction slot. In Chinese mode it toggles
 continuous Chinese prediction; in English mode the same position toggles
 Predictive English. This keeps a stable shortcut layout without presenting an
-English-only action while the user is typing Chinese.
+English-only action while the user is typing Chinese. Rime schemas must not
+expose their own `prediction` switch; the app owns the persisted preference and
+applies the engine option.
 
 Each enabled Chinese scheme has an independent Simplified/Traditional default.
 The default is applied once when that scheme becomes active, not continuously

@@ -130,9 +130,11 @@ out temporary Rime-side changes.
 
 Rime's `librime-predict` plugin owns Chinese prediction generation and
 continuous context. The matching configuration archive supplies `predict.db`
-and keeps the Rime `prediction` option disabled by default; the app applies the
-persisted **Predictive Chinese** preference only after the intended T9 schema
-is ready.
+but does not expose `prediction` as a schema switch. The app is the sole owner
+of the user-facing toggle and applies the persisted **Predictive Chinese**
+preference only after the intended T9 schema is ready. Prediction candidates
+pass through the same per-scheme Simplified/Traditional policy as composition
+candidates.
 
 `ChinesePredictionCandidateSession` owns the frontend activation boundary. A
 normal idle Rime candidate event must never appear as prediction. The session
