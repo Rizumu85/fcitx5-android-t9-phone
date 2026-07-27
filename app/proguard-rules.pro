@@ -20,6 +20,12 @@
     boolean equals(java.lang.Object);
 }
 
+# ML Kit discovers Firebase component registrars from manifest metadata. Keeping only their
+# class names is insufficient because R8 cannot see the reflective no-argument construction.
+-keep class * implements com.google.firebase.components.ComponentRegistrar {
+    public <init>();
+}
+
 # remove kotlin null checks
 -processkotlinnullchecks remove
 
