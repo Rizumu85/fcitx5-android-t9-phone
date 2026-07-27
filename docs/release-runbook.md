@@ -13,7 +13,7 @@ Use these files for different purposes:
 | `README.md` | Stable user manual and project overview | Permanent user-facing features, install steps, key behavior tables, supported modes | Version-specific changelog sections such as `4.1.0 fixes` |
 | `release-notes-vX.Y.Z.md` | GitHub Release text for one version | New features, fixes, install-package explanation for that version | Full README copy, long setup tutorial |
 | `release-baidu/不懂如何安装请读.{md,txt}` | Current Baidu Netdisk install/readme text | Current install instructions and stable feature highlights | Old-version changelog history |
-| `release-baidu/vX.Y.Z/` | Local staging folder for the version uploaded to Baidu | The four distributed APKs and matching readme text files | Debug APKs, unsigned APKs, x86/x86_64 APKs unless explicitly requested |
+| `release-baidu/vX.Y.Z/` | Local staging folder for the version uploaded to Baidu | The four distributed APKs, matching Rime configuration archive, and readme text files | Debug APKs, unsigned APKs, x86/x86_64 APKs unless explicitly requested |
 | GitHub Release assets | Public release downloads | Signed release APKs and release notes | Debug or unsigned builds |
 
 ## Documentation Rules
@@ -171,6 +171,7 @@ Create a clean versioned staging folder:
 
 ```shell
 VERSION="X.Y.Z"
+RIME_CONFIG_VERSION="X.Y.Z"
 mkdir -p "release-baidu/v$VERSION"
 
 cp "app/build/outputs/apk/release/org.fcitx.fcitx5.android-$VERSION-arm64-v8a-release.apk" "release-baidu/v$VERSION/"
@@ -179,10 +180,16 @@ cp "plugin/rime/build/outputs/apk/release/org.fcitx.fcitx5.android.plugin.rime-$
 cp "plugin/rime/build/outputs/apk/release/org.fcitx.fcitx5.android.plugin.rime-$VERSION-armeabi-v7a-release.apk" "release-baidu/v$VERSION/"
 cp "release-baidu/不懂如何安装请读.md" "release-baidu/v$VERSION/"
 cp "release-baidu/不懂如何安装请读.txt" "release-baidu/v$VERSION/"
+gh release download "v$RIME_CONFIG_VERSION" \
+  --repo Rizumu85/rime-ice-t9-phone \
+  --pattern "rime-ice-t9-phone-main.zip" \
+  --dir "release-baidu/v$VERSION" \
+  --clobber
 ```
 
-Before asking the user to upload, verify the staging folder contains exactly the
-four release APKs and the two readme files:
+Before asking the user to upload, verify the Rime archive against the digest
+declared in `app/build.gradle.kts`, then verify the staging folder contains
+exactly the four release APKs, one Rime archive, and two readme files:
 
 ```shell
 find "release-baidu/v$VERSION" -maxdepth 1 -type f | sort
@@ -221,6 +228,6 @@ git push origin master --tags
 - [ ] Unit tests and `git diff --check` pass or known unrelated failures are documented.
 - [ ] Release APKs were built with signing properties, not debug tasks.
 - [ ] `apksigner verify` passes for all four distributed APKs.
-- [ ] Local Baidu staging contains exactly four APKs plus Markdown/text readmes.
+- [ ] Local Baidu staging contains exactly four APKs, the matching Rime configuration archive, and Markdown/text readmes.
 - [ ] Old remote Baidu APK/readme files were deleted before manual upload.
 - [ ] GitHub Release uses `release-notes-vX.Y.Z.md` and attaches only signed APKs.

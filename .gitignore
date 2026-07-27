@@ -56,6 +56,7 @@ build/
 # Local release output folder (if generated locally)
 /app/release/
 /plugin/*/release/
+/release-baidu/**/*.zip
 
 # Local configuration file (sdk path, etc)
 local.properties
