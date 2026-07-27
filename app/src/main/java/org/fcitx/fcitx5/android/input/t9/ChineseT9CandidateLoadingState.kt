@@ -86,6 +86,22 @@ class ChineseT9CandidateLoadingState {
         }
         val receipt = expectedReceipt ?: return null
         if (ticket != receipt.compositionTicket) return null
+        if (requireSourcePair) {
+            if (
+                ChineseT9CandidateFreshness.matchesEnginePreedit(
+                    scheme = ticket.scheme,
+                    digitSequence = ticket.digitSequence,
+                    enginePreedit = enginePreedit
+                )
+            ) {
+                // Fcitx flushes InputPanel before PagedCandidate for one engine frame. Waiting
+                // for the candidate event after this matching preedit prevents a replay prefix's
+                // page from being paired with the final preedit during partial phrase commits.
+                inputPanelEventTicket = ticket
+                candidateEventTicket = null
+            }
+            return null
+        }
         inputPanelEventTicket = ticket
         if (candidateEventTicket != ticket) return null
         return releaseIfFresh(data, receipt, enginePreedit)

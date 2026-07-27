@@ -8,6 +8,18 @@ package org.fcitx.fcitx5.android.input.t9
 import org.fcitx.fcitx5.android.core.FcitxEvent
 
 object ChineseT9CandidateFreshness {
+    fun matchesEnginePreedit(
+        scheme: ChineseT9Scheme,
+        digitSequence: String,
+        enginePreedit: String
+    ): Boolean = when {
+        digitSequence.isEmpty() -> true
+        scheme == ChineseT9Scheme.PINYIN ->
+            enginePreedit.toPinyinT9Digits() == digitSequence.filter { it in '2'..'9' }
+        scheme == ChineseT9Scheme.STROKE -> matchesStroke(digitSequence, enginePreedit)
+        else -> enginePreedit.filter { it in '0'..'9' }.startsWith(digitSequence)
+    }
+
     fun matches(
         data: FcitxEvent.PagedCandidateEvent.Data,
         scheme: ChineseT9Scheme,
@@ -39,7 +51,7 @@ object ChineseT9CandidateFreshness {
         enginePreedit: String
     ): Boolean {
         val digits = digitSequence.filter { it in '2'..'9' }
-        if (enginePreedit.toPinyinT9Digits() == digits) return true
+        if (matchesEnginePreedit(ChineseT9Scheme.PINYIN, digits, enginePreedit)) return true
         return data.candidates.any { candidate ->
             candidate.comment.matchesPinyinDigits(digits) ||
                 candidate.text.matchesPinyinDigits(digits)

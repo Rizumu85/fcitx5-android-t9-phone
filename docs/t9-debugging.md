@@ -262,6 +262,8 @@ The reading transition must go directly from top-focused `zui` to the resolved
 bottom-focused frame; a bottom focus over the old reading row is invalid. The
 partial commit must draw the replacement candidate frame before editor text is
 published; committed `最好用的` beside the old candidate page is invalid.
+Candidate pages produced while the remaining T9 digits are replayed must never
+become visible, even for a single captured frame.
 
 Frame analysis is especially useful when user-visible lag is shorter than a
 manual screenshot can capture. Pair the frame number with the responsiveness
