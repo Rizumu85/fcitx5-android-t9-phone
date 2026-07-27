@@ -335,6 +335,7 @@ class ImePerformanceDriver(
         val RIME_CONFIG_FILES = listOf(
             "default.custom.yaml",
             "t9.schema.yaml",
+            "t9_abbreviation.schema.yaml",
             "t9_stroke.schema.yaml",
             "t9_zhuyin.schema.yaml"
         )

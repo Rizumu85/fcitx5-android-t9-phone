@@ -73,7 +73,7 @@ object T9PinyinUtils {
         put("TT", "tu")
         put("WA", "wa,ya,za")
         put("WD", "ye,ze")
-        put("WG", "xi,yi,zi")
+        put("WG", "xi,yi,zi,zh")
         put("WM", "wo,yo")
         put("WT", "wu,xu,yu,zu")
         put("AAG", "bai,cai")

@@ -166,10 +166,13 @@ toggles Predictive Chinese, while English shows and toggles Predictive English.
 Pinyin initials use an explicit slow-path contract. Raw numeric T9 is resolved
 only by the primary full-pinyin prism; attaching super abbreviation to that
 prism makes each digit expand both full syllables and initials and causes
-unbounded long-sentence latency. Confirming a one-letter reading chip instead
-adds a recognizer tag that routes the composition through a hidden abbreviation
-prism. This preserves initial input such as repeated `h` without adding
-abbreviation work to ordinary numeric typing.
+unbounded long-sentence latency. Confirming a valid Pinyin abbreviation prefix
+(a one-letter syllable start or `zh`, `ch`, and `sh`) adds a recognizer tag that
+routes the composition through a hidden abbreviation prism. This preserves
+arbitrary initial combinations without adding abbreviation work to ordinary
+numeric typing. The local reading resolver and the Rime recognizer both cover
+the complete prefix set; neither is allowed to special-case one observed letter
+sequence.
 
 ## Chinese Custom Dictionaries
 

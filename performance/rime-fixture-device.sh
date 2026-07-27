@@ -24,7 +24,7 @@ if [ "$mode" = "install" ]; then
         printf '%s\n' "$dirty" >&2
         exit 1
     fi
-    for required in default.yaml t9.schema.yaml t9_stroke.schema.yaml t9_zhuyin.schema.yaml; do
+    for required in default.yaml t9.schema.yaml t9_abbreviation.schema.yaml t9_stroke.schema.yaml t9_zhuyin.schema.yaml; do
         if [ ! -f "$config_dir/$required" ]; then
             echo "Missing required Rime performance schema: $config_dir/$required" >&2
             exit 1
@@ -77,6 +77,7 @@ for serial in $devices; do
         staged=$(
             "$adb" -s "$serial" shell \
                 "test -f '$remote_config/t9.schema.yaml' && \
+                 test -f '$remote_config/t9_abbreviation.schema.yaml' && \
                  test -f '$remote_config/t9_stroke.schema.yaml' && \
                  test -f '$remote_config/t9_zhuyin.schema.yaml' && echo ready" \
                 2>/dev/null | tr -d '\r' || true
@@ -94,6 +95,7 @@ for serial in $devices; do
                     "test -f '$remote_new/default.yaml' && \
                      test -f '$remote_new/default.custom.yaml' && \
                      test -f '$remote_new/t9.schema.yaml' && \
+                     test -f '$remote_new/t9_abbreviation.schema.yaml' && \
                      test -f '$remote_new/t9_stroke.schema.yaml' && \
                      test -f '$remote_new/t9_zhuyin.schema.yaml' && echo ready" \
                     | tr -d '\r'
