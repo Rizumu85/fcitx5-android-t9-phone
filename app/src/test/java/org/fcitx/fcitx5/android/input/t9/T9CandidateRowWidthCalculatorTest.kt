@@ -59,6 +59,18 @@ class T9CandidateRowWidthCalculatorTest {
     }
 
     @Test
+    fun singleCandidatePolicyIncludesFocusedTailGrowth() {
+        val width = T9CandidateRowWidthCalculator.calculate(
+            input(
+                candidates = listOf("长候选"),
+                activeScalePercent = 150
+            )
+        )
+
+        assertEquals(109, width)
+    }
+
+    @Test
     fun widthIsCappedAtMaximumRowWidth() {
         val width = T9CandidateRowWidthCalculator.calculate(
             input(

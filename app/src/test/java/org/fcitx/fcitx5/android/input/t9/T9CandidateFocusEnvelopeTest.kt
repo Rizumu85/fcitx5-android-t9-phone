@@ -46,7 +46,7 @@ class T9CandidateFocusEnvelopeTest {
     }
 
     @Test
-    fun singleCandidateUsesSymmetricBubbleEdgePadding() {
+    fun singleCandidateReservesItsFocusedGrowthBeforeTheBubbleTail() {
         val margins = T9CandidateFocusEnvelope.candidateEndMarginsPx(
             candidateWidthsPx = listOf(100),
             itemSpacingPx = 4,
@@ -54,6 +54,17 @@ class T9CandidateFocusEnvelopeTest {
             scalePercent = 150
         )
 
-        assertEquals(listOf(0), margins)
+        assertEquals(listOf(50), margins)
+    }
+
+    @Test
+    fun focusedCandidateWidthFitsInsideTheWholeRowEnvelope() {
+        val width = T9CandidateFocusEnvelope.maxUnfocusedCandidateWidthPx(
+            maxRowWidthPx = 300,
+            edgePaddingPx = 5,
+            scalePercent = 150
+        )
+
+        assertEquals(193, width)
     }
 }

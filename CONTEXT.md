@@ -239,7 +239,10 @@ Geometry is centralized:
 - `T9CandidateFocusEnvelope` reserves focus growth at internal candidate
   boundaries before selection. The first and last candidates grow inward, so
   focus movement does not resize the row and both bubble edge insets remain
-  visually equal.
+  visually equal. A lone candidate anchors at the leading edge and reserves
+  its full growth before the tail because one transform cannot anchor to both
+  edges; the same envelope also derives the maximum unscaled candidate width
+  that can remain inside the screen after focus scaling.
 - `T9ShortcutTailPolicy` owns only the compact final-candidate style decision.
 - `T9PinyinRowSurfacePlanner` owns folded/full viewport and whole-chip windows.
 - `T9PinyinRowAndroidAdapter` owns row reveal, focus, and scroll publication.

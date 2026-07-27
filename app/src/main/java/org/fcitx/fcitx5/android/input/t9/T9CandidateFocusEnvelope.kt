@@ -26,6 +26,22 @@ object T9CandidateFocusEnvelope {
     fun scaleFactor(scalePercent: Int = DEFAULT_SCALE_PERCENT): Float =
         scalePercent.coerceAtLeast(100) / 100f
 
+    fun maxUnfocusedCandidateWidthPx(
+        maxRowWidthPx: Int,
+        edgePaddingPx: Int,
+        scalePercent: Int = DEFAULT_SCALE_PERCENT
+    ): Int {
+        val availableWidth = (maxRowWidthPx - edgePaddingPx.coerceAtLeast(0) * 2)
+            .coerceAtLeast(1)
+        return (
+            availableWidth.toLong() * 100L /
+                scalePercent.coerceAtLeast(100)
+            )
+            .coerceAtLeast(1L)
+            .coerceAtMost(Int.MAX_VALUE.toLong())
+            .toInt()
+    }
+
     private fun overflows(
         candidateWidthsPx: List<Int>,
         edgeAlignLastCandidate: Boolean,
@@ -38,10 +54,6 @@ object T9CandidateFocusEnvelope {
                     100f
             ).toInt()
             when {
-                candidateWidthsPx.size == 1 && edgeAlignLastCandidate -> {
-                    val startPx = growthPx / 2
-                    Overflow(startPx = startPx, endPx = growthPx - startPx)
-                }
                 index == 0 -> {
                     // The leading candidate grows only toward the row so its accepted left inset
                     // stays fixed. Its entire focus growth belongs to the following boundary.
@@ -73,7 +85,9 @@ object T9CandidateFocusEnvelope {
             if (index < overflow.lastIndex) {
                 spacing + max(overflow[index].endPx, overflow[index + 1].startPx)
             } else if (edgeAlignLastCandidate) {
-                0
+                // A single item owns both logical edges, but one transform cannot anchor to both.
+                // Anchor it to the accepted leading inset and reserve its growth before the tail.
+                overflow[index].endPx.takeIf { index == 0 } ?: 0
             } else {
                 spacing + overflow[index].endPx
             }

@@ -226,7 +226,8 @@ class LabeledCandidateItemUi(
     private fun updateShortcutPivot() {
         if (root.width <= 0) return
         root.pivotX = when {
-            lastShortcutFocusAnchoredStart && lastShortcutFocusAnchoredEnd -> root.width / 2f
+            // A lone candidate cannot preserve both edge insets with a centered transform.
+            // Anchoring it at the start lets the row envelope reserve growth before the tail.
             lastShortcutFocusAnchoredStart -> 0f
             lastShortcutFocusAnchoredEnd -> root.width.toFloat()
             else -> root.width / 2f
