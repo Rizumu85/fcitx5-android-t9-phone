@@ -12,15 +12,20 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import org.fcitx.fcitx5.android.R
+import org.fcitx.fcitx5.android.data.prefs.AppPrefs
+import org.fcitx.fcitx5.android.input.t9.EnglishCustomDictionaryCoordinator
+import org.fcitx.fcitx5.android.input.t9.EnglishCustomDictionaryScope
 import org.fcitx.fcitx5.android.input.t9.T9EnglishDictionary
 import org.fcitx.fcitx5.android.ui.common.BaseDynamicListUi
 import org.fcitx.fcitx5.android.ui.common.OnItemChangedListener
 import org.fcitx.fcitx5.android.ui.main.MainViewModel
 
-class SmartEnglishLearnedWordsFragment : Fragment(), OnItemChangedListener<String> {
+abstract class EnglishCustomWordsFragment(
+    private val scope: EnglishCustomDictionaryScope
+) : Fragment(), OnItemChangedListener<String> {
 
     private val viewModel: MainViewModel by activityViewModels()
-    private val dictionary = T9EnglishDictionary.Shared
+    private val dictionaries = EnglishCustomDictionaryCoordinator.Shared
     private var uiInitialized = false
 
     private val ui: BaseDynamicListUi<String> by lazy {
@@ -31,7 +36,7 @@ class SmartEnglishLearnedWordsFragment : Fragment(), OnItemChangedListener<Strin
                 converter = { T9EnglishDictionary.normalizeLearnedWord(it).orEmpty() },
                 validator = { T9EnglishDictionary.normalizeLearnedWord(it) != null }
             ),
-            dictionary.learnedWords()
+            dictionaries.words(scope)
         ) {
             init {
                 addTouchCallback()
@@ -71,11 +76,24 @@ class SmartEnglishLearnedWordsFragment : Fragment(), OnItemChangedListener<Strin
     }
 
     private fun saveWords() {
-        dictionary.replaceLearnedWords(ui.entries)
+        dictionaries.replaceWords(scope, ui.entries)
     }
 
     override fun onStart() {
         super.onStart()
+        viewModel.setToolbarTitle(
+            getString(
+                if (AppPrefs.getInstance()
+                        .chineseT9.shareEnglishCustomDictionary.getValue()
+                ) {
+                    R.string.shared_english_custom_words
+                } else if (scope == EnglishCustomDictionaryScope.CHINESE) {
+                    R.string.chinese_english_custom_words
+                } else {
+                    R.string.smart_english_custom_words
+                }
+            )
+        )
         if (uiInitialized) {
             viewModel.enableToolbarEditButton(ui.entries.isNotEmpty()) {
                 ui.enterMultiSelect(requireActivity().onBackPressedDispatcher)
@@ -98,3 +116,11 @@ class SmartEnglishLearnedWordsFragment : Fragment(), OnItemChangedListener<Strin
         super.onDestroy()
     }
 }
+
+class SmartEnglishLearnedWordsFragment : EnglishCustomWordsFragment(
+    EnglishCustomDictionaryScope.SMART_ENGLISH
+)
+
+class ChineseEnglishLearnedWordsFragment : EnglishCustomWordsFragment(
+    EnglishCustomDictionaryScope.CHINESE
+)

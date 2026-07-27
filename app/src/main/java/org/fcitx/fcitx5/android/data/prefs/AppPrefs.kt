@@ -281,6 +281,18 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             false,
             R.string.chinese_prediction_summary
         )
+        val englishCandidates = switch(
+            R.string.chinese_english_candidates,
+            "chinese_english_candidates",
+            true,
+            R.string.chinese_english_candidates_summary
+        )
+        val shareEnglishCustomDictionary = switch(
+            R.string.share_english_custom_dictionary,
+            "share_english_custom_dictionary",
+            false,
+            R.string.share_english_custom_dictionary_summary
+        )
         val pinyin = switch(R.string.chinese_t9_pinyin, "chinese_t9_pinyin_enabled", true)
         val pinyinOutputScript = enumList(
             R.string.chinese_t9_pinyin_output_script,

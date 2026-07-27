@@ -80,6 +80,11 @@ class T9CandidateUiSnapshotPipeline(
     sealed class CommitBottomCandidate {
         data class SmartEnglish(val originalIndex: Int) : CommitBottomCandidate()
         data class PendingPunctuation(val originalIndex: Int) : CommitBottomCandidate()
+        data class DirectChineseText(
+            val originalIndex: Int,
+            val candidate: FcitxEvent.Candidate,
+            val text: String
+        ) : CommitBottomCandidate()
         data class Chinese(
             val originalIndex: Int,
             val candidate: FcitxEvent.Candidate,
@@ -109,6 +114,23 @@ class T9CandidateUiSnapshotPipeline(
             data: FcitxEvent.PagedCandidateEvent.Data
         ): T9PagedCandidates = strokeCandidateFilter.filter(data)
 
+        override fun buildChineseCustomCandidates(
+            snapshot: ChineseT9InputSnapshot,
+            englishCandidatesEnabled: Boolean
+        ): T9PagedCandidates? =
+            sourceSessions.buildChineseCustomCandidates(snapshot, englishCandidatesEnabled)
+
+        override fun mergeChineseCustomCandidates(
+            engine: T9PagedCandidates,
+            custom: T9PagedCandidates?,
+            englishCandidatesEnabled: Boolean
+        ): T9PagedCandidates =
+            sourceSessions.mergeChineseCustomCandidates(
+                engine = engine,
+                custom = custom,
+                englishCandidatesEnabled = englishCandidatesEnabled
+            )
+
         override fun resetT9BulkFilterState() {
             sourceSessions.resetChineseBulkFilterState()
         }
@@ -124,10 +146,10 @@ class T9CandidateUiSnapshotPipeline(
             sourceSessions.chineseBulkFilterState
 
         override fun filterPagedByT9ReadingPrefixes(
-            data: FcitxEvent.PagedCandidateEvent.Data,
+            source: T9PagedCandidates,
             prefixes: List<String>
         ): Pair<T9PagedCandidates, String?> =
-            sourceSessions.filterChinesePagedByReadingPrefixes(data, prefixes)
+            sourceSessions.filterChinesePagedByReadingPrefixes(source, prefixes)
 
         override fun buildLocalBudgetedPagedFromCurrentPage(
             source: T9PagedCandidates
@@ -282,7 +304,10 @@ class T9CandidateUiSnapshotPipeline(
         data: FcitxEvent.PagedCandidateEvent.Data,
         prefixes: List<String>
     ): Pair<T9PagedCandidates, String?> =
-        sourceSessions.filterChinesePagedByReadingPrefixes(data, prefixes)
+        sourceSessions.filterChinesePagedByReadingPrefixes(
+            T9PagedCandidates.passthrough(data),
+            prefixes
+        )
 
     fun buildChineseLocalBudgetedPagedFromCurrentPage(
         source: T9PagedCandidates

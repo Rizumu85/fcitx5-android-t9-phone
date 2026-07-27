@@ -10,9 +10,10 @@ import java.io.File
 import java.util.LinkedHashMap
 import java.util.Locale
 
-class T9EnglishDictionary {
-    private val learnedFile = File(appContext.filesDir, "t9/english-learned.txt")
-    private val learnedPersistence = SmartEnglishPersistence(
+class T9EnglishDictionary internal constructor(learnedFile: File?) {
+    constructor() : this(File(appContext.filesDir, "t9/english-learned.txt"))
+
+    private val learnedPersistence = T9DictionaryPersistence(
         file = learnedFile,
         defaultValue = emptySet(),
         decode = { lines -> lines.mapNotNull(::normalizeLearnedWord).toSet() },
@@ -210,6 +211,9 @@ class T9EnglishDictionary {
 
         fun t9DigitsForWord(rawWord: String): String? =
             normalizeLearnedWord(rawWord)?.toT9Digits()
+
+        internal fun t9DigitsForLetters(rawWord: String): String? =
+            normalizeLookupWord(rawWord)?.toT9Digits()
 
         private val WarmupDigitSequences = listOf(
             "2", "3", "4", "5", "6", "7", "8", "9",

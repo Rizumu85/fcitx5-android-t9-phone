@@ -26,6 +26,8 @@ import org.fcitx.fcitx5.android.ui.main.PluginFragment
 import org.fcitx.fcitx5.android.ui.main.settings.addon.AddonConfigFragment
 import org.fcitx.fcitx5.android.ui.main.settings.addon.AddonListFragment
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.AdvancedSettingsFragment
+import org.fcitx.fcitx5.android.ui.main.settings.behavior.ChineseEnglishLearnedWordsFragment
+import org.fcitx.fcitx5.android.ui.main.settings.behavior.ChineseT9CustomPhrasesFragment
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.KeyboardSettingsFragment
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.SmartEnglishLearnedPredictionsFragment
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.SmartEnglishLearnedWordsFragment
@@ -101,6 +103,12 @@ sealed class SettingsRoute : Parcelable {
 
     @Serializable
     data object SmartEnglishLearnedWords : SettingsRoute()
+
+    @Serializable
+    data object ChineseEnglishLearnedWords : SettingsRoute()
+
+    @Serializable
+    data object ChineseT9CustomPhrases : SettingsRoute()
 
     @Serializable
     data object SmartEnglishLearnedPredictions : SettingsRoute()
@@ -239,7 +247,13 @@ sealed class SettingsRoute : Parcelable {
                 label = ctx.getString(R.string.advanced)
             }
             fragment<SmartEnglishLearnedWordsFragment, SmartEnglishLearnedWords> {
-                label = ctx.getString(R.string.smart_english_learned_words)
+                label = ctx.getString(R.string.smart_english_custom_words)
+            }
+            fragment<ChineseEnglishLearnedWordsFragment, ChineseEnglishLearnedWords> {
+                label = ctx.getString(R.string.chinese_english_custom_words)
+            }
+            fragment<ChineseT9CustomPhrasesFragment, ChineseT9CustomPhrases> {
+                label = ctx.getString(R.string.chinese_custom_phrases)
             }
             fragment<SmartEnglishLearnedPredictionsFragment, SmartEnglishLearnedPredictions> {
                 label = ctx.getString(R.string.smart_english_learned_predictions)

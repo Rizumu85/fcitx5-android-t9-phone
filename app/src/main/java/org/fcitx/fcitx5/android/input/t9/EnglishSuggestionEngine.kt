@@ -11,13 +11,14 @@ import java.util.Locale
 class EnglishSuggestionEngine(
     private val dictionary: T9EnglishDictionary = T9EnglishDictionary.Shared,
     private val predictionDictionary: SmartEnglishPredictionDictionary =
-        SmartEnglishPredictionDictionary.Shared
+        SmartEnglishPredictionDictionary.Shared,
+    private val customDictionaryCoordinator: EnglishCustomDictionaryCoordinator? = null
 ) {
     val isReady: Boolean
         get() = dictionary.isReady && predictionDictionary.isReady
 
     val dictionaryGeneration: Long
-        get() = dictionary.generation
+        get() = customDictionaryCoordinator?.smartEnglishGeneration() ?: dictionary.generation
 
     val predictionGeneration: Long
         get() = predictionDictionary.generation
@@ -27,13 +28,27 @@ class EnglishSuggestionEngine(
         predictionDictionary.preload()
     }
 
-    fun candidatesForDigits(digits: String, limit: Int): List<String> =
-        dictionary.candidatesFor(digits, limit)
+    fun candidatesForDigits(digits: String, limit: Int): List<String> {
+        val primary = dictionary.candidatesFor(digits, limit)
+        val additional = customDictionaryCoordinator
+            ?.additionalCandidatesForSmartEnglish(digits, limit)
+            .orEmpty()
+        if (additional.isEmpty()) return primary
+        // Keep the dictionary's first high-frequency candidate stable, then let shared custom
+        // words outrank generic completions so sharing has a visible effect without breaking "I".
+        return EnglishCustomDictionaryCoordinator.mergeDistinct(
+            primary.take(1),
+            additional + primary.drop(1),
+            limit
+        )
+    }
 
     fun predictionsAfter(previousWords: List<String>, limit: Int): List<String> =
         predictionDictionary.predictionsAfter(previousWords, limit)
 
-    fun learnWord(word: String) = dictionary.learn(word)
+    fun learnWord(word: String) {
+        customDictionaryCoordinator?.learnFromSmartEnglish(word) ?: dictionary.learn(word)
+    }
 
     fun learnPair(previous: String, next: String) = predictionDictionary.learn(previous, next)
 
@@ -64,7 +79,11 @@ class EnglishSuggestionEngine(
     }
 
     companion object {
-        val Shared by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { EnglishSuggestionEngine() }
+        val Shared by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+            EnglishSuggestionEngine(
+                customDictionaryCoordinator = EnglishCustomDictionaryCoordinator.Shared
+            )
+        }
 
         fun normalizeContextWord(rawWord: String): String? {
             val word = rawWord.trim().lowercase(Locale.US)

@@ -101,6 +101,7 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
             prefs.chineseT9,
             setOf(
                 prefs.chineseT9.prediction.key,
+                prefs.chineseT9.englishCandidates.key,
                 prefs.chineseT9.pinyin.key,
                 prefs.chineseT9.pinyinOutputScript.key,
                 prefs.chineseT9.stroke.key,
@@ -113,6 +114,11 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
             R.string.smart_english_t9,
             prefs.keyboard,
             setOf(prefs.keyboard.smartEnglishT9.key)
+        ),
+        Group(
+            R.string.dictionaries_and_learning,
+            prefs.chineseT9,
+            setOf(prefs.chineseT9.shareEnglishCustomDictionary.key)
         ),
         Group(
             R.string.handwriting_input,
@@ -154,30 +160,73 @@ class InputOptionsSettingsFragment : GroupedManagedPreferenceFragment() {
             }
         }
         screen.findPreference<PreferenceCategory>(
-            groupKey(R.string.smart_english_t9)
+            groupKey(R.string.dictionaries_and_learning)
         )?.apply {
-            addPreference(
-                androidx.preference.Preference(screen.context).apply {
-                    setTitle(R.string.smart_english_learned_words)
-                    setSummary(R.string.smart_english_learned_words_summary)
-                    isIconSpaceReserved = false
-                    setOnPreferenceClickListener {
-                        navigateWithAnim(SettingsRoute.SmartEnglishLearnedWords)
-                        true
-                    }
+            val customPhrases = Preference(screen.context).apply {
+                setTitle(R.string.chinese_custom_phrases)
+                setSummary(R.string.chinese_custom_phrases_summary)
+                isIconSpaceReserved = false
+                setOnPreferenceClickListener {
+                    navigateWithAnim(SettingsRoute.ChineseT9CustomPhrases)
+                    true
                 }
-            )
-            addPreference(
-                androidx.preference.Preference(screen.context).apply {
-                    setTitle(R.string.smart_english_learned_predictions)
-                    setSummary(R.string.smart_english_learned_predictions_summary)
-                    isIconSpaceReserved = false
-                    setOnPreferenceClickListener {
-                        navigateWithAnim(SettingsRoute.SmartEnglishLearnedPredictions)
-                        true
-                    }
+            }
+            val smartEnglishWords = Preference(screen.context).apply {
+                isIconSpaceReserved = false
+                setOnPreferenceClickListener {
+                    navigateWithAnim(SettingsRoute.SmartEnglishLearnedWords)
+                    true
                 }
+            }
+            val chineseEnglishWords = Preference(screen.context).apply {
+                setTitle(R.string.chinese_english_custom_words)
+                setSummary(R.string.chinese_english_custom_words_summary)
+                isIconSpaceReserved = false
+                setOnPreferenceClickListener {
+                    navigateWithAnim(SettingsRoute.ChineseEnglishLearnedWords)
+                    true
+                }
+            }
+            val learnedPairs = Preference(screen.context).apply {
+                setTitle(R.string.smart_english_learned_predictions)
+                setSummary(R.string.smart_english_learned_predictions_summary)
+                isIconSpaceReserved = false
+                setOnPreferenceClickListener {
+                    navigateWithAnim(SettingsRoute.SmartEnglishLearnedPredictions)
+                    true
+                }
+            }
+            fun updateEnglishDictionaryEntries(shared: Boolean) {
+                smartEnglishWords.setTitle(
+                    if (shared) {
+                        R.string.shared_english_custom_words
+                    } else {
+                        R.string.smart_english_custom_words
+                    }
+                )
+                smartEnglishWords.setSummary(
+                    if (shared) {
+                        R.string.shared_english_custom_words_summary
+                    } else {
+                        R.string.smart_english_custom_words_summary
+                    }
+                )
+                chineseEnglishWords.isVisible = !shared
+            }
+            addPreference(customPhrases)
+            addPreference(smartEnglishWords)
+            addPreference(chineseEnglishWords)
+            addPreference(learnedPairs)
+            val sharingPreference = screen.findPreference<MySwitchPreference>(
+                prefs.chineseT9.shareEnglishCustomDictionary.key
             )
+            updateEnglishDictionaryEntries(
+                prefs.chineseT9.shareEnglishCustomDictionary.getValue()
+            )
+            sharingPreference?.setOnPreferenceChangeListener { _, newValue ->
+                updateEnglishDictionaryEntries(newValue == true)
+                true
+            }
         }
         screen.findPreference<PreferenceCategory>(
             groupKey(R.string.handwriting_input)

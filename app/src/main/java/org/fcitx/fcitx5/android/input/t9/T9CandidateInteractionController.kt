@@ -19,6 +19,7 @@ class T9CandidateInteractionController(
         fun publishLocalSelection()
         fun refreshT9Ui()
         fun offsetEngineCandidatePage(delta: Int): Boolean
+        fun commitChineseDirectText(text: String, onSelected: (() -> Unit)? = null): Boolean
         fun selectChineseCandidate(
             originalIndex: Int,
             selectedCandidate: FcitxEvent.Candidate,
@@ -98,6 +99,8 @@ class T9CandidateInteractionController(
                 host.commitSmartEnglishCandidate(result.originalIndex)
             is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.PendingPunctuation ->
                 host.commitPendingPunctuationCandidate(result.originalIndex)
+            is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.DirectChineseText ->
+                host.commitChineseDirectText(result.text)
             is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.Chinese ->
                 host.selectChineseCandidate(
                     result.originalIndex,
@@ -110,15 +113,18 @@ class T9CandidateInteractionController(
     }
 
     fun commitCurrentChineseCandidate(onSelected: () -> Unit): Boolean? {
-        val result = pipeline.commitCurrentBottomCandidate()
-            as? T9CandidateUiSnapshotPipeline.CommitBottomCandidate.Chinese
-            ?: return null
-        return host.selectChineseCandidate(
-            result.originalIndex,
-            result.candidate,
-            result.matchedPrefix,
-            result.fromAllCandidates,
-            onSelected
-        )
+        return when (val result = pipeline.commitCurrentBottomCandidate()) {
+            is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.DirectChineseText ->
+                host.commitChineseDirectText(result.text, onSelected)
+            is T9CandidateUiSnapshotPipeline.CommitBottomCandidate.Chinese ->
+                host.selectChineseCandidate(
+                    result.originalIndex,
+                    result.candidate,
+                    result.matchedPrefix,
+                    result.fromAllCandidates,
+                    onSelected
+                )
+            else -> null
+        }
     }
 }

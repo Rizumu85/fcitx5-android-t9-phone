@@ -88,6 +88,8 @@ import org.fcitx.fcitx5.android.input.status.PersistentStatusActionCoordinator
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionCoordinator
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionLifecycle
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionTicket
+import org.fcitx.fcitx5.android.input.t9.ChineseEnglishAutoLearningSession
+import org.fcitx.fcitx5.android.input.t9.ChineseT9CustomPhraseDictionary
 import org.fcitx.fcitx5.android.input.t9.ChineseT9EngineOperation
 import org.fcitx.fcitx5.android.input.t9.ChineseT9EngineStatusPolicy
 import org.fcitx.fcitx5.android.input.t9.ChineseT9InputReceipt
@@ -102,6 +104,8 @@ import org.fcitx.fcitx5.android.input.t9.ChinesePredictionModeController
 import org.fcitx.fcitx5.android.input.t9.ChineseT9Scheme
 import org.fcitx.fcitx5.android.input.t9.ChineseT9SchemeActivationSession
 import org.fcitx.fcitx5.android.input.t9.ChineseT9SchemeCycleSession
+import org.fcitx.fcitx5.android.input.t9.ChineseT9EnglishDictionary
+import org.fcitx.fcitx5.android.input.t9.EnglishCustomDictionaryCoordinator
 import org.fcitx.fcitx5.android.input.t9.PhysicalDeleteCoordinator
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHandler
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyHostAdapter
@@ -618,6 +622,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var longPressZeroVoiceInput = keyboardPrefs.longPressZeroVoiceInput.getValue()
 
     @Volatile
+    private var chineseEnglishCandidatesEnabled =
+        prefs.chineseT9.englishCandidates.getValue()
+
+    @Volatile
     private var voiceInputAllowedForEditor = true
 
     @Volatile
@@ -634,6 +642,15 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private val chinesePredictionChangeListener =
         ManagedPreference.OnChangeListener<Boolean> { _, value ->
             chinesePredictionModeController.onPreferenceChanged(value)
+        }
+    private val chineseEnglishCandidatesChangeListener =
+        ManagedPreference.OnChangeListener<Boolean> { _, value ->
+            chineseEnglishCandidatesEnabled = value
+            candidatesView?.refreshT9Ui()
+        }
+    private val sharedEnglishDictionaryChangeListener =
+        ManagedPreference.OnChangeListener<Boolean> { _, _ ->
+            candidatesView?.refreshT9Ui()
         }
     private val physicalLongPressDelayChangeListener =
         ManagedPreference.OnChangeListener<Int> { _, value ->
@@ -869,6 +886,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         )
         keyboardPrefs.smartEnglishT9.registerOnChangeListener(smartEnglishT9ChangeListener)
         prefs.chineseT9.prediction.registerOnChangeListener(chinesePredictionChangeListener)
+        prefs.chineseT9.englishCandidates.registerOnChangeListener(
+            chineseEnglishCandidatesChangeListener
+        )
+        prefs.chineseT9.shareEnglishCustomDictionary.registerOnChangeListener(
+            sharedEnglishDictionaryChangeListener
+        )
         keyboardPrefs.longPressDelay.registerOnChangeListener(physicalLongPressDelayChangeListener)
         keyboardPrefs.longPressZeroVoiceInput.registerOnChangeListener(
             longPressZeroVoiceInputChangeListener
@@ -883,6 +906,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         prefs.candidates.registerOnChangeListener(recreateCandidatesViewListener)
         ThemeManager.addOnChangedListener(onThemeChangeListener)
         smartEnglishCoordinator.warmupIfEnabled()
+        lifecycleScope.launch(Dispatchers.IO) {
+            // Custom dictionaries are tiny but disk-backed. Construct them before the first
+            // Chinese key so candidate lookup never turns a cold file read into input latency.
+            ChineseT9CustomPhraseDictionary.Shared.entries()
+            ChineseT9EnglishDictionary.Shared.words()
+            EnglishCustomDictionaryCoordinator.Shared.smartEnglishGeneration()
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             postFcitxJob {
                 SubtypeManager.syncWith(enabledIme())
@@ -1120,11 +1150,29 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     private fun commitChineseT9CodePreview(expectedScheme: ChineseT9Scheme?): Boolean {
         if (expectedScheme != null && activeChineseT9Scheme != expectedScheme) return false
+        val committedScheme = activeChineseT9Scheme
         val text = candidatesView?.getChineseT9CodeCommitText() ?: return false
+        if (!commitChineseT9DirectText(text)) return false
+        if (committedScheme == ChineseT9Scheme.PINYIN) {
+            chineseEnglishAutoLearning.recordLiteralCommit(
+                rawText = text,
+                learningAllowed = shouldLearnEnglishWords()
+            )
+        }
+        return true
+    }
+
+    fun commitChineseT9DirectText(
+        text: String,
+        onSelected: (() -> Unit)? = null
+    ): Boolean {
+        if (currentT9Mode != T9InputMode.CHINESE || text.isEmpty()) return false
+        candidatesView?.resetChinesePredictionCandidates()
         commitText(text)
         clearT9CompositionState()
         clearTransientInputUiState()
         currentInputConnection?.finishComposingText()
+        onSelected?.invoke()
         postFcitxJob {
             focusOutIn()
         }
@@ -1946,6 +1994,15 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         formatText = ::formattedT9Text,
         buildRawPreeditDisplay = ::buildT9PreeditDisplay
     )
+    private val englishCustomDictionaries by lazy {
+        EnglishCustomDictionaryCoordinator.Shared
+    }
+    private val chineseEnglishAutoLearning by lazy {
+        ChineseEnglishAutoLearningSession(
+            learn = englishCustomDictionaries::learnFromChinese,
+            isAlreadyKnown = englishCustomDictionaries::isKnownForChinese
+        )
+    }
     private val rimeAvailabilitySession = RimeAvailabilitySession()
     private val chineseT9EngineOperation by lazy {
         ChineseT9EngineOperation<FcitxAPI>(
@@ -2481,6 +2538,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     fun isChinesePredictionEnabled(): Boolean = chinesePredictionModeController.enabled
+
+    fun isChineseEnglishCandidatesEnabled(): Boolean =
+        chineseEnglishCandidatesEnabled
 
     fun toggleChinesePrediction() {
         chinesePredictionModeController.toggle()
@@ -3665,6 +3725,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         )
         keyboardPrefs.smartEnglishT9.unregisterOnChangeListener(smartEnglishT9ChangeListener)
         prefs.chineseT9.prediction.unregisterOnChangeListener(chinesePredictionChangeListener)
+        prefs.chineseT9.englishCandidates.unregisterOnChangeListener(
+            chineseEnglishCandidatesChangeListener
+        )
+        prefs.chineseT9.shareEnglishCustomDictionary.unregisterOnChangeListener(
+            sharedEnglishDictionaryChangeListener
+        )
         keyboardPrefs.longPressDelay.unregisterOnChangeListener(physicalLongPressDelayChangeListener)
         keyboardPrefs.longPressZeroVoiceInput.unregisterOnChangeListener(
             longPressZeroVoiceInputChangeListener

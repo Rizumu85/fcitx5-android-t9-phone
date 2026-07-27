@@ -10,7 +10,7 @@ import java.io.FileOutputStream
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 
-internal class SmartEnglishPersistence<T>(
+internal class T9DictionaryPersistence<T>(
     private val file: File?,
     defaultValue: T,
     private val decode: (List<String>) -> T,
@@ -55,7 +55,7 @@ internal class SmartEnglishPersistence<T>(
 
     companion object {
         internal val DefaultExecutor: Executor = Executors.newSingleThreadExecutor { runnable ->
-            Thread(runnable, "smart-english-persistence").apply { isDaemon = true }
+            Thread(runnable, "t9-dictionary-persistence").apply { isDaemon = true }
         }
 
         private fun writeAtomically(file: File, content: String) {

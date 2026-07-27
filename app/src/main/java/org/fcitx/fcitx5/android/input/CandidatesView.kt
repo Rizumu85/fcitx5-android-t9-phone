@@ -259,6 +259,12 @@ class CandidatesView(
                 return true
             }
 
+            override fun commitChineseDirectText(
+                text: String,
+                onSelected: (() -> Unit)?
+            ): Boolean =
+                service.commitChineseT9DirectText(text, onSelected)
+
             override fun selectChineseCandidate(
                 originalIndex: Int,
                 selectedCandidate: FcitxEvent.Candidate,
@@ -894,6 +900,8 @@ class CandidatesView(
                 smartEnglishActive = smartEnglishActive,
                 chineseSnapshot = chineseSnapshot,
                 smartEnglishSnapshot = smartEnglishSnapshot,
+                chineseEnglishCandidatesEnabled =
+                    service.isChineseEnglishCandidatesEnabled(),
                 chinesePredictionPhase = chinesePredictionPhase,
                 pendingPunctuationRawPaged = if (chineseT9Active || smartEnglishActive) {
                     service.getPendingT9PunctuationPaged()

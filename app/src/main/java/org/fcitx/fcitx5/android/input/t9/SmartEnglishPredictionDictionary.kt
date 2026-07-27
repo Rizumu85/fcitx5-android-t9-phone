@@ -34,12 +34,12 @@ class SmartEnglishPredictionDictionary(
         val score: Int
     )
 
-    private val learnedPersistence = SmartEnglishPersistence(
+    private val learnedPersistence = T9DictionaryPersistence(
         file = learnedFile,
         defaultValue = emptyMap(),
         decode = { lines -> lines.mapNotNull(::parsePredictionLine).toMap() },
         encode = ::encodeLearnedPredictions,
-        executor = persistenceExecutor ?: SmartEnglishPersistence.DefaultExecutor
+        executor = persistenceExecutor ?: T9DictionaryPersistence.DefaultExecutor
     )
     private var learnedPredictionsByPrevious: Map<String, List<Prediction>> =
         learnedPersistence.snapshot()

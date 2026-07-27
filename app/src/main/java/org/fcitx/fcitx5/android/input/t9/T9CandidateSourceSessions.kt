@@ -14,6 +14,7 @@ class T9CandidateSourceSessions(
 ) {
     private val smartEnglishPageCache = T9SmartEnglishPageCache(characterBudget, widthBudget)
     private val pendingPunctuationPager = T9CandidatePager()
+    private val chineseCustomCandidateSource = ChineseT9CustomCandidateSource()
     private val chineseCandidatePipeline = ChineseT9CandidatePipeline(
         characterBudget = characterBudget,
         widthBudget = widthBudget,
@@ -71,9 +72,27 @@ class T9CandidateSourceSessions(
     fun reset() {
         smartEnglishPageCache.reset()
         pendingPunctuationPager.reset()
+        chineseCustomCandidateSource.reset()
         chineseCandidatePipeline.reset()
         currentShown = null
     }
+
+    fun buildChineseCustomCandidates(
+        snapshot: ChineseT9InputSnapshot,
+        englishCandidatesEnabled: Boolean
+    ): T9PagedCandidates? =
+        chineseCustomCandidateSource.buildCustomCandidates(snapshot, englishCandidatesEnabled)
+
+    fun mergeChineseCustomCandidates(
+        engine: T9PagedCandidates,
+        custom: T9PagedCandidates?,
+        englishCandidatesEnabled: Boolean
+    ): T9PagedCandidates =
+        chineseCustomCandidateSource.mergeWithEngine(
+            engine = engine,
+            custom = custom,
+            englishCandidatesEnabled = englishCandidatesEnabled
+        )
 
     fun invalidateShownInteraction() {
         currentShown = null
@@ -124,10 +143,10 @@ class T9CandidateSourceSessions(
         chineseCandidatePipeline.moveBulkFilteredCursor(index)
 
     fun filterChinesePagedByReadingPrefixes(
-        data: FcitxEvent.PagedCandidateEvent.Data,
+        source: T9PagedCandidates,
         prefixes: List<String>
     ): Pair<T9PagedCandidates, String?> =
-        chineseCandidatePipeline.filterPagedByReadingPrefixes(data, prefixes)
+        chineseCandidatePipeline.filterPagedByReadingPrefixes(source, prefixes)
 
     fun buildChineseLocalBudgetedPagedFromCurrentPage(
         source: T9PagedCandidates
@@ -320,13 +339,26 @@ class T9CandidateSourceSessions(
             T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_LOCAL,
             T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_ENGINE -> {
                 val candidate = shown.paged.candidates.getOrNull(shownIndex) ?: return null
-                T9CandidateUiSnapshotPipeline.CommitBottomCandidate.Chinese(
-                    originalIndex = originalIndex,
-                    candidate = candidate,
-                    matchedPrefix = shown.matchedPrefix,
-                    fromAllCandidates = shown.source ==
-                        T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK
-                )
+                chineseCustomCandidateSource.directCommitText(
+                    originalIndex,
+                    candidate.text
+                )?.let { text ->
+                    T9CandidateUiSnapshotPipeline.CommitBottomCandidate.DirectChineseText(
+                        originalIndex = originalIndex,
+                        candidate = candidate,
+                        text = text
+                    )
+                } ?: if (chineseCustomCandidateSource.isDirectCommitIndex(originalIndex)) {
+                    null
+                } else {
+                    T9CandidateUiSnapshotPipeline.CommitBottomCandidate.Chinese(
+                        originalIndex = originalIndex,
+                        candidate = candidate,
+                        matchedPrefix = shown.matchedPrefix,
+                        fromAllCandidates = shown.source ==
+                            T9CandidateUiSnapshotPipeline.ShownSource.CHINESE_BULK
+                    )
+                }
             }
             T9CandidateUiSnapshotPipeline.ShownSource.OTHER -> null
         }

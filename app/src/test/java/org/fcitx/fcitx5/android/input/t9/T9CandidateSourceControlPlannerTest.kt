@@ -67,6 +67,42 @@ class T9CandidateSourceControlPlannerTest {
     }
 
     @Test
+    fun matchingCustomCandidatesRenderImmediatelyWithoutStartingBulkWork() {
+        val loadingState = ChineseT9CandidateLoadingState().apply {
+            startIfNeeded(
+                chineseT9Active = true,
+                receipt = ChineseT9InputReceipt(
+                    compositionTicket = ChineseT9CompositionTicket(
+                        scheme = ChineseT9Scheme.PINYIN,
+                        rawSequence = "64426",
+                        digitSequence = "64426",
+                        sessionRevision = 1
+                    ),
+                    traceInputId = null
+                )
+            )
+        }
+
+        val plan = T9CandidateSourceControlPlanner.plan(
+            input(
+                loadingState = loadingState,
+                rawCandidatesEmpty = true,
+                compositionKeyCount = 5,
+                filterPrefixesEmpty = false,
+                hasImmediateCustomCandidates = true
+            )
+        )
+
+        assertFalse(plan.waitForChineseCandidates)
+        assertFalse(plan.deferRender)
+        assertEquals(T9CandidateSourceControlPlanner.BulkAction.RESET, plan.bulkAction)
+        assertEquals(
+            T9CandidateSourceControlPlanner.FilterAction.CHINESE_READING_FILTER,
+            plan.filterAction
+        )
+    }
+
+    @Test
     fun emptyChineseCompositionSuppressesCandidatesAndResetsBulk() {
         val plan = T9CandidateSourceControlPlanner.plan(
             input(compositionKeyCount = 0)
@@ -270,7 +306,8 @@ class T9CandidateSourceControlPlannerTest {
         chineseScheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN,
         chinesePredictionPhase: ChinesePredictionCandidateSession.Phase =
             ChinesePredictionCandidateSession.Phase.OFF,
-        invalidReading: Boolean = false
+        invalidReading: Boolean = false,
+        hasImmediateCustomCandidates: Boolean = false
     ): T9CandidateSourceControlPlanner.Input =
         T9CandidateSourceControlPlanner.Input(
             surface = surface,
@@ -282,6 +319,7 @@ class T9CandidateSourceControlPlannerTest {
             filterPrefixesEmpty = filterPrefixesEmpty,
             chineseScheme = chineseScheme,
             chinesePredictionPhase = chinesePredictionPhase,
-            invalidReading = invalidReading
+            invalidReading = invalidReading,
+            hasImmediateCustomCandidates = hasImmediateCustomCandidates
         )
 }

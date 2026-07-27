@@ -11,7 +11,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.util.concurrent.Executor
 
-class SmartEnglishPersistenceTest {
+class T9DictionaryPersistenceTest {
 
     @get:Rule
     val temporaryFolder = TemporaryFolder()
@@ -21,7 +21,7 @@ class SmartEnglishPersistenceTest {
         val file = temporaryFolder.newFile("learned.txt")
         val executor = ManualExecutor()
         val writes = mutableListOf<String>()
-        val persistence = SmartEnglishPersistence(
+        val persistence = T9DictionaryPersistence(
             file = file,
             defaultValue = emptyList(),
             decode = { it },

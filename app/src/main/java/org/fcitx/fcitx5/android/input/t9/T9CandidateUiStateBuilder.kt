@@ -21,6 +21,7 @@ data class T9CandidateUiInputSnapshot(
     val smartEnglishActive: Boolean,
     val chineseSnapshot: ChineseT9InputSnapshot?,
     val smartEnglishSnapshot: SmartEnglishUiSnapshot?,
+    val chineseEnglishCandidatesEnabled: Boolean = true,
     val chinesePredictionPhase: ChinesePredictionCandidateSession.Phase =
         ChinesePredictionCandidateSession.Phase.OFF,
     val pendingPunctuationRawPaged: FcitxEvent.PagedCandidateEvent.Data?,
@@ -59,11 +60,20 @@ class T9CandidateUiStateBuilder(
         fun buildSmartEnglishPaged(snapshot: SmartEnglishUiSnapshot): T9PagedCandidates?
         fun buildT9PendingPunctuationPaged(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates
         fun filterT9StrokeCandidates(data: FcitxEvent.PagedCandidateEvent.Data): T9PagedCandidates
+        fun buildChineseCustomCandidates(
+            snapshot: ChineseT9InputSnapshot,
+            englishCandidatesEnabled: Boolean
+        ): T9PagedCandidates?
+        fun mergeChineseCustomCandidates(
+            engine: T9PagedCandidates,
+            custom: T9PagedCandidates?,
+            englishCandidatesEnabled: Boolean
+        ): T9PagedCandidates
         fun resetT9BulkFilterState()
         fun requestT9BulkFilteredCandidatesIfNeeded(chineseT9Active: Boolean, prefixes: List<String>)
         fun getT9BulkFilterState(): ChineseT9CandidatePipeline.BulkFilterState
         fun filterPagedByT9ReadingPrefixes(
-            data: FcitxEvent.PagedCandidateEvent.Data,
+            source: T9PagedCandidates,
             prefixes: List<String>
         ): Pair<T9PagedCandidates, String?>
         fun buildLocalBudgetedPagedFromCurrentPage(
@@ -137,10 +147,21 @@ class T9CandidateUiStateBuilder(
                 smartEnglishSnapshot?.let(pipeline::buildSmartEnglishPaged)
             }
             val t9FilterPrefixes = chineseSnapshot?.filterPrefixes ?: emptyList()
-            val chineseSourcePaged = if (chineseSnapshot?.scheme == ChineseT9Scheme.STROKE) {
-                pipeline.filterT9StrokeCandidates(input.rawPaged)
+            val unfilteredChineseCustomPaged = chineseSnapshot?.let { snapshot ->
+                pipeline.buildChineseCustomCandidates(
+                    snapshot = snapshot,
+                    englishCandidatesEnabled = input.chineseEnglishCandidatesEnabled
+                )
+            }
+            val chineseCustomPaged = if (
+                unfilteredChineseCustomPaged != null && t9FilterPrefixes.isNotEmpty()
+            ) {
+                pipeline.filterPagedByT9ReadingPrefixes(
+                    unfilteredChineseCustomPaged,
+                    t9FilterPrefixes
+                ).first.takeUnless { it.data.candidates.isEmpty() }
             } else {
-                T9PagedCandidates.passthrough(input.rawPaged)
+                unfilteredChineseCustomPaged
             }
             val pendingPunctuationPaged = if (chineseSurface || smartEnglishSurface) {
                 input.pendingPunctuationRawPaged
@@ -165,7 +186,9 @@ class T9CandidateUiStateBuilder(
                     filterPrefixesEmpty = t9FilterPrefixes.isEmpty(),
                     chineseScheme = chineseSnapshot?.scheme,
                     chinesePredictionPhase = input.chinesePredictionPhase,
-                    invalidReading = chineseSnapshot?.hasInvalidReading == true
+                    invalidReading = chineseSnapshot?.hasInvalidReading == true,
+                    hasImmediateCustomCandidates =
+                        chineseCustomPaged?.data?.candidates?.isNotEmpty() == true
                 )
             )
             val showChineseEngineStatus = chineseSurface && input.chineseEngineStatus != null
@@ -180,6 +203,16 @@ class T9CandidateUiStateBuilder(
                         pipeline.requestT9BulkFilteredCandidatesIfNeeded(input.chineseT9Active, t9FilterPrefixes)
                     }
             }
+            val chineseEnginePaged = if (chineseSnapshot?.scheme == ChineseT9Scheme.STROKE) {
+                pipeline.filterT9StrokeCandidates(input.rawPaged)
+            } else {
+                T9PagedCandidates.passthrough(input.rawPaged)
+            }
+            val chineseSourcePaged = pipeline.mergeChineseCustomCandidates(
+                engine = chineseEnginePaged,
+                custom = chineseCustomPaged,
+                englishCandidatesEnabled = input.chineseEnglishCandidatesEnabled
+            )
             val bulkFilterState = pipeline.getT9BulkFilterState()
             if (ChineseT9CandidateFrameGate.shouldDefer(
                     ChineseT9CandidateFrameGate.Input(
@@ -197,7 +230,7 @@ class T9CandidateUiStateBuilder(
                     T9CandidateSourceControlPlanner.FilterAction.EMPTY ->
                         T9PagedCandidates.Empty to null
                     T9CandidateSourceControlPlanner.FilterAction.CHINESE_READING_FILTER ->
-                        pipeline.filterPagedByT9ReadingPrefixes(input.rawPaged, t9FilterPrefixes)
+                        pipeline.filterPagedByT9ReadingPrefixes(chineseSourcePaged, t9FilterPrefixes)
                     T9CandidateSourceControlPlanner.FilterAction.PASSTHROUGH ->
                         chineseSourcePaged to null
                 }

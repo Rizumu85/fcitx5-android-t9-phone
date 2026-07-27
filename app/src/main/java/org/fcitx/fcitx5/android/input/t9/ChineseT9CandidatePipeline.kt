@@ -156,11 +156,18 @@ class ChineseT9CandidatePipeline(
     fun filterPagedByReadingPrefixes(
         data: FcitxEvent.PagedCandidateEvent.Data,
         prefixes: List<String>
+    ): Pair<T9PagedCandidates, String?> =
+        filterPagedByReadingPrefixes(T9PagedCandidates.passthrough(data), prefixes)
+
+    fun filterPagedByReadingPrefixes(
+        source: T9PagedCandidates,
+        prefixes: List<String>
     ): Pair<T9PagedCandidates, String?> {
+        val data = source.data
         if (prefixes.isEmpty() || data.candidates.isEmpty()) {
-            return T9PagedCandidates.passthrough(data) to null
+            return source to null
         }
-        val matched = matchCandidates(data.candidates.withIndex().toList(), prefixes)
+        val matched = matchCandidates(source.indexedCandidates(), prefixes)
         if (matched.candidates.isEmpty()) {
             return T9PagedCandidates(
                 data = data.copy(candidates = emptyArray(), cursorIndex = -1),
@@ -169,15 +176,16 @@ class ChineseT9CandidatePipeline(
         }
         val pager = T9CandidatePager()
         pager.update("filtered", matched.candidates, characterBudget(), widthBudget())
-        val page = pager.currentPage() ?: return T9PagedCandidates.passthrough(data) to matched.prefix
+        val page = pager.currentPage() ?: return source to matched.prefix
         if (page.candidates.size == data.candidates.size &&
-            page.candidates.indices.all { page.candidates[it].index == it }
+            page.originalIndices.contentEquals(source.originalIndices)
         ) {
-            return T9PagedCandidates.passthrough(data) to matched.prefix
+            return source to matched.prefix
         }
+        val selectedOriginalIndex = source.originalIndices.getOrNull(data.cursorIndex) ?: data.cursorIndex
         return page.toPagedCandidates(
             layoutHint = data.layoutHint,
-            cursorIndex = page.cursorIndexForOriginalIndex(data.cursorIndex),
+            cursorIndex = page.cursorIndexForOriginalIndex(selectedOriginalIndex),
             hasExternalNext = data.hasNext
         ) to matched.prefix
     }

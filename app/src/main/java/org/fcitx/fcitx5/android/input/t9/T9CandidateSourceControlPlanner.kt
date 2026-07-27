@@ -34,7 +34,8 @@ object T9CandidateSourceControlPlanner {
         val chineseScheme: ChineseT9Scheme?,
         val chinesePredictionPhase: ChinesePredictionCandidateSession.Phase =
             ChinesePredictionCandidateSession.Phase.OFF,
-        val invalidReading: Boolean = false
+        val invalidReading: Boolean = false,
+        val hasImmediateCustomCandidates: Boolean = false
     )
 
     data class Plan(
@@ -78,13 +79,14 @@ object T9CandidateSourceControlPlanner {
         val chinesePredictionVisible =
             input.chinesePredictionPhase == ChinesePredictionCandidateSession.Phase.VISIBLE
         val hasReadingFilter = input.chineseScheme?.supportsReadingFilter == true
-        val needsBulkCandidates = when (input.chineseScheme) {
+        val needsBulkCandidates = !input.hasImmediateCustomCandidates && when (input.chineseScheme) {
             ChineseT9Scheme.PINYIN,
             ChineseT9Scheme.ZHUYIN -> !input.filterPrefixesEmpty
             ChineseT9Scheme.STROKE,
             null -> false
         }
         val waitForChineseCandidates = !input.invalidReading &&
+            !input.hasImmediateCustomCandidates &&
             input.loadingState.shouldWaitForCandidates(
                 chineseT9Active = chineseActive,
                 compositionKeyCount = input.compositionKeyCount,

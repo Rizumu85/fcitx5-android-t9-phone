@@ -209,6 +209,14 @@ class T9CandidateInteractionControllerTest {
             return true
         }
 
+        override fun commitChineseDirectText(
+            text: String,
+            onSelected: (() -> Unit)?
+        ): Boolean {
+            onSelected?.invoke()
+            return true
+        }
+
         override fun selectChineseCandidate(
             originalIndex: Int,
             selectedCandidate: FcitxEvent.Candidate,
