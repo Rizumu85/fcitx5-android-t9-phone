@@ -19,4 +19,14 @@ class FcitxEventTest {
         assertEquals(FcitxEvent.RimeAvailabilityEvent.State.Ready, event.data.state)
         assertEquals("t9_zhuyin", event.data.activeSchema)
     }
+
+    @Test
+    fun nativeStartingOrdinalIsAppendedWithoutRemappingExistingStates() {
+        val event = FcitxEvent.create(
+            type = 11,
+            params = arrayOf(4, "")
+        ) as FcitxEvent.RimeAvailabilityEvent
+
+        assertEquals(FcitxEvent.RimeAvailabilityEvent.State.Starting, event.data.state)
+    }
 }

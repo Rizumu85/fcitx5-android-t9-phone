@@ -213,11 +213,14 @@ sealed class FcitxEvent<T>(open val data: T) {
             Unavailable,
             Deploying,
             Ready,
-            Failed;
+            Failed,
+            Starting;
 
             companion object {
-                private val Types = entries.toTypedArray()
-                fun of(value: Int) = Types.getOrElse(value) { Unavailable }
+                // Starting is an Android lifecycle state appended after the stable native
+                // ordinals, so future Kotlin enum edits cannot silently remap plugin events.
+                private val NativeTypes = arrayOf(Unavailable, Deploying, Ready, Failed, Starting)
+                fun of(value: Int) = NativeTypes.getOrElse(value) { Unavailable }
             }
         }
 

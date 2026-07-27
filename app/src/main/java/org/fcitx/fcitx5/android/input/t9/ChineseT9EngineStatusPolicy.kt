@@ -9,16 +9,18 @@ object ChineseT9EngineStatusPolicy {
     fun status(
         readiness: RimeAvailabilitySession.EngineReadiness,
         inputBlocked: Boolean,
-        userSchemeHandoffPending: Boolean
+        userSchemeHandoffPending: Boolean,
+        userInputPending: Boolean
     ): T9CandidateStatus? =
         when (readiness) {
             RimeAvailabilitySession.EngineReadiness.READY -> null
+            RimeAvailabilitySession.EngineReadiness.STARTING,
             RimeAvailabilitySession.EngineReadiness.DEPLOYING,
             RimeAvailabilitySession.EngineReadiness.ACTIVATING_INPUT_METHOD ->
                 if (inputBlocked) {
                     T9CandidateStatus.RIME_UNAVAILABLE
                 } else {
-                    T9CandidateStatus.RIME_PREPARING
+                    T9CandidateStatus.RIME_PREPARING.takeIf { userInputPending }
                 }
             RimeAvailabilitySession.EngineReadiness.SELECTING_SCHEMA ->
                 when {
@@ -26,7 +28,7 @@ object ChineseT9EngineStatusPolicy {
                     // The mode badge already acknowledges an intentional switch. Keep the
                     // asynchronous handoff quiet without hiding cold-start or recovery waits.
                     userSchemeHandoffPending -> null
-                    else -> T9CandidateStatus.RIME_PREPARING
+                    else -> T9CandidateStatus.RIME_PREPARING.takeIf { userInputPending }
                 }
             RimeAvailabilitySession.EngineReadiness.UNAVAILABLE ->
                 T9CandidateStatus.RIME_UNAVAILABLE.takeIf { inputBlocked }

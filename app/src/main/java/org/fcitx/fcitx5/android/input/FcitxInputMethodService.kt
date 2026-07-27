@@ -495,7 +495,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         ChineseT9EngineStatusPolicy.status(
             readiness = chineseT9EngineReadiness,
             inputBlocked = rimeInputBlocked,
-            userSchemeHandoffPending = chineseT9SchemeCycle.hasPendingHandoff
+            userSchemeHandoffPending = chineseT9SchemeCycle.hasPendingHandoff,
+            userInputPending = chineseT9Composition.hasState() ||
+                composing.isNotEmpty() ||
+                chineseT9EngineOperation.pendingCount > 0
         )
 
     fun getChineseT9Scheme(): ChineseT9Scheme = activeChineseT9Scheme
@@ -2017,6 +2020,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 !rimeInputBlocked &&
                     (
                         chineseT9EngineReadiness ==
+                            RimeAvailabilitySession.EngineReadiness.STARTING ||
+                            chineseT9EngineReadiness ==
                             RimeAvailabilitySession.EngineReadiness.DEPLOYING ||
                             chineseT9EngineReadiness ==
                             RimeAvailabilitySession.EngineReadiness.ACTIVATING_INPUT_METHOD ||
@@ -2153,9 +2158,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             }
         } else {
             chineseT9OutputScriptSession.invalidate()
-            if (current == RimeAvailabilitySession.EngineReadiness.DEPLOYING) {
-                // A new deployment is a fresh recovery attempt, so a previous typed-selection
-                // failure must not keep presenting the engine as permanently unavailable.
+            if (
+                current == RimeAvailabilitySession.EngineReadiness.STARTING ||
+                current == RimeAvailabilitySession.EngineReadiness.DEPLOYING
+            ) {
+                // A fresh engine generation must not inherit a typed-selection failure from the
+                // previous one, whether this is a normal restart or real dictionary maintenance.
                 if (previous != current) {
                     suspendRimeSchemaSelection()
                 }

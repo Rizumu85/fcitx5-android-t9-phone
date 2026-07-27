@@ -16,7 +16,8 @@ class ChineseT9EngineStatusPolicyTest {
             ChineseT9EngineStatusPolicy.status(
                 readiness = RimeAvailabilitySession.EngineReadiness.SELECTING_SCHEMA,
                 inputBlocked = false,
-                userSchemeHandoffPending = true
+                userSchemeHandoffPending = true,
+                userInputPending = true
             )
         )
     }
@@ -28,14 +29,35 @@ class ChineseT9EngineStatusPolicyTest {
             ChineseT9EngineStatusPolicy.status(
                 readiness = RimeAvailabilitySession.EngineReadiness.SELECTING_SCHEMA,
                 inputBlocked = false,
-                userSchemeHandoffPending = false
+                userSchemeHandoffPending = false,
+                userInputPending = true
             )
         )
     }
 
     @Test
-    fun deploymentAndInputMethodActivationRemainVisible() {
+    fun idleEngineTransitionsDoNotOccupyTheCandidateSurface() {
         listOf(
+            RimeAvailabilitySession.EngineReadiness.STARTING,
+            RimeAvailabilitySession.EngineReadiness.DEPLOYING,
+            RimeAvailabilitySession.EngineReadiness.ACTIVATING_INPUT_METHOD
+        ).forEach { readiness ->
+            assertEquals(
+                null,
+                ChineseT9EngineStatusPolicy.status(
+                    readiness = readiness,
+                    inputBlocked = false,
+                    userSchemeHandoffPending = false,
+                    userInputPending = false
+                )
+            )
+        }
+    }
+
+    @Test
+    fun engineTransitionsExplainTheWaitAfterTheUserStartsTyping() {
+        listOf(
+            RimeAvailabilitySession.EngineReadiness.STARTING,
             RimeAvailabilitySession.EngineReadiness.DEPLOYING,
             RimeAvailabilitySession.EngineReadiness.ACTIVATING_INPUT_METHOD
         ).forEach { readiness ->
@@ -44,7 +66,8 @@ class ChineseT9EngineStatusPolicyTest {
                 ChineseT9EngineStatusPolicy.status(
                     readiness = readiness,
                     inputBlocked = false,
-                    userSchemeHandoffPending = true
+                    userSchemeHandoffPending = false,
+                    userInputPending = true
                 )
             )
         }
@@ -57,7 +80,8 @@ class ChineseT9EngineStatusPolicyTest {
             ChineseT9EngineStatusPolicy.status(
                 readiness = RimeAvailabilitySession.EngineReadiness.SELECTING_SCHEMA,
                 inputBlocked = true,
-                userSchemeHandoffPending = true
+                userSchemeHandoffPending = true,
+                userInputPending = false
             )
         )
     }

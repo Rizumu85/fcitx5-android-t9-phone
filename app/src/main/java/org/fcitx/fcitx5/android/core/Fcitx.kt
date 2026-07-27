@@ -680,7 +680,7 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
         rimeConfigDeploymentSession.reset()
         registerFcitxEventHandler(::handleFcitxEvent)
         clearCachedInputPresentation()
-        publishRimeLifecycleState(FcitxEvent.RimeAvailabilityEvent.State.Deploying)
+        publishRimeLifecycleState(FcitxEvent.RimeAvailabilityEvent.State.Starting)
         lifecycleRegistry.postEvent(FcitxLifecycle.Event.ON_START)
         ClipboardManager.addOnUpdateListener(onClipboardUpdate)
         DataManager.addOnNextSyncedCallback {
@@ -696,7 +696,7 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
     }
 
     fun stopForRestart() {
-        stop(FcitxEvent.RimeAvailabilityEvent.State.Deploying)
+        stop(FcitxEvent.RimeAvailabilityEvent.State.Starting)
     }
 
     private fun stop(rimeLifecycleState: FcitxEvent.RimeAvailabilityEvent.State) {

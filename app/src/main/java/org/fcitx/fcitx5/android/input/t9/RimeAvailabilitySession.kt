@@ -12,6 +12,7 @@ class RimeAvailabilitySession(
         FcitxEvent.RimeAvailabilityEvent.Data.Unavailable
 ) {
     enum class EngineReadiness {
+        STARTING,
         DEPLOYING,
         ACTIVATING_INPUT_METHOD,
         SELECTING_SCHEMA,
@@ -97,6 +98,9 @@ class RimeAvailabilitySession(
         rimeInputMethodActive: Boolean,
         expectedScheme: ChineseT9Scheme
     ): EngineReadiness {
+        if (current.state == FcitxEvent.RimeAvailabilityEvent.State.Starting) {
+            return EngineReadiness.STARTING
+        }
         if (current.state == FcitxEvent.RimeAvailabilityEvent.State.Deploying) {
             return EngineReadiness.DEPLOYING
         }

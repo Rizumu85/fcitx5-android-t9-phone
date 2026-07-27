@@ -65,6 +65,7 @@ internal class RimeConfigDeploymentSession {
                 phase = Phase.IDLE
                 Effect.FORWARD
             }
+            FcitxEvent.RimeAvailabilityEvent.State.Starting -> Effect.FORWARD
         }
     }
 

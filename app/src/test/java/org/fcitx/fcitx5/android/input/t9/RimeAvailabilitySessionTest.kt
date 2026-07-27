@@ -13,6 +13,21 @@ import org.junit.Test
 
 class RimeAvailabilitySessionTest {
     @Test
+    fun ordinaryEngineStartupIsNotClassifiedAsDictionaryDeployment() {
+        val session = RimeAvailabilitySession(
+            data(FcitxEvent.RimeAvailabilityEvent.State.Starting, "t9")
+        )
+
+        assertEquals(
+            RimeAvailabilitySession.EngineReadiness.STARTING,
+            session.engineReadiness(
+                rimeInputMethodActive = true,
+                expectedScheme = ChineseT9Scheme.PINYIN
+            )
+        )
+    }
+
+    @Test
     fun deploymentAndReadyTransitionsOwnOneGenerationSequence() {
         val session = RimeAvailabilitySession()
 
