@@ -66,7 +66,8 @@ class T9CandidateUiRenderer(
                 T9CandidateVisibilityPlanner.Action.NONE -> Unit
             }
             previousVisibilityRequest = renderPass.hiddenVisibilityRequest
-            previousState = next
+            // The hidden pass skips every child mutation. Keep the last rendered child state so
+            // the next visible frame diffs against the views that actually remain in memory.
             return
         }
         if (previousState?.preferAboveInputPanel != next.preferAboveInputPanel) {

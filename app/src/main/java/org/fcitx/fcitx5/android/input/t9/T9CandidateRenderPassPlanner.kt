@@ -69,11 +69,15 @@ object T9CandidateRenderPassPlanner {
         val hasPinyinRow = input.nextState.pinyinUseT9 && input.nextState.readingOptions.isNotEmpty()
         val previousPinyinWasReady = input.previousVisibilityRequest?.contentReady == true
         val previousPanelWasShown = input.previousVisibilityRequest?.shouldShow == true
-        val shouldClearPinyinRow = !input.nextState.pinyinUseT9 &&
+        val previousHadPinyinRow = input.previousState?.let {
+            it.pinyinUseT9 && it.readingOptions.isNotEmpty()
+        } == true
+        // Chinese prediction keeps the T9 mode active but intentionally has no reading choices.
+        // Row ownership follows visible content, not the broader input mode.
+        val shouldClearPinyinRow = !hasPinyinRow &&
             (
                 input.previousState == null ||
-                    input.previousState.pinyinUseT9 ||
-                    input.previousState.readingOptions.isNotEmpty()
+                    previousHadPinyinRow
                 )
         val shouldEnsurePinyinRow = hasPinyinRow &&
             (

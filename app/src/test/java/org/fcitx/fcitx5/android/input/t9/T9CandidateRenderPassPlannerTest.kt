@@ -67,6 +67,18 @@ class T9CandidateRenderPassPlannerTest {
     }
 
     @Test
+    fun chinesePredictionFrameClearsPreviouslyVisiblePinyinRow() {
+        val previous = state(readingOptions = listOf("mi", "ni", "o"))
+        val prediction = state(readingOptions = emptyList(), pinyinUseT9 = true)
+
+        val plan = T9CandidateRenderPassPlanner.plan(
+            input(previous = previous, next = prediction)
+        )
+
+        assertEquals(T9CandidateRenderPassPlanner.PinyinAction.CLEAR, plan.pinyinAction)
+    }
+
+    @Test
     fun hiddenFrameSkipsChildRenderingAndPlansHide() {
         val previous = state(readingOptions = listOf("ge"))
         val next = state(shouldShow = false, readingOptions = emptyList())

@@ -109,6 +109,34 @@ class T9CandidateUiRendererTest {
     }
 
     @Test
+    fun hiddenCommitFrameDoesNotConsumeUnrenderedPinyinState() {
+        val delegate = FakeDelegate()
+        val renderer = T9CandidateUiRenderer(delegate)
+
+        renderer.render(
+            state(candidates = paged("你"), readingOptions = listOf("mi", "ni"))
+        )
+        renderer.render(
+            state(
+                candidates = emptyPaged(),
+                readingOptions = emptyList(),
+                shouldShow = false
+            )
+        )
+        renderer.render(
+            state(candidates = paged("的"), readingOptions = emptyList())
+        )
+
+        assertEquals(
+            listOf(
+                listOf("mi", "ni") to true,
+                emptyList<String>() to false
+            ),
+            delegate.pinyinCalls
+        )
+    }
+
+    @Test
     fun candidateStatusChangeIsForwardedToTheSurface() {
         val delegate = FakeDelegate()
         val renderer = T9CandidateUiRenderer(delegate)
@@ -163,6 +191,7 @@ class T9CandidateUiRendererTest {
         var hideCount = 0
         val events = mutableListOf<String>()
         val candidateStatuses = mutableListOf<T9CandidateStatus?>()
+        val pinyinCalls = mutableListOf<Pair<List<String>, Boolean>>()
         var selectionRenderCount = 0
 
         override fun setPreferAboveInputPanel(preferAboveInputPanel: Boolean) = Unit
@@ -189,6 +218,7 @@ class T9CandidateUiRendererTest {
         override fun renderPinyin(readingOptions: List<String>, pinyinUseT9: Boolean): Boolean {
             events += "renderPinyin"
             renderPinyinCount += 1
+            pinyinCalls += readingOptions to pinyinUseT9
             return pinyinReady
         }
 
