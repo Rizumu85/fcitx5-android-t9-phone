@@ -48,20 +48,24 @@ matching must never block the UI thread.
   Availability checks and downloads have generous upper bounds because ML
   Kit's internal downloader can otherwise leave an unresolved Google task
   blocking retry forever on restricted networks.
-- Idle warmup still waits for a two-second stroke-free period and is marked
-  ready only after native initialization. First down cancels pending warmup and
-  freezes one backend preference for the unit. Chinese prefers ML Kit unless
-  that model is already known to be absent; an unprepared downloaded model is
-  checked and warmed after the 800 ms recognition boundary, never while pointer
-  rendering is active. A model preference never changes halfway through one
-  unit, preventing unexplained candidate replacement.
+- Idle warmup waits for a two-second stroke-free period and is marked ready only
+  after native initialization. First down cancels only a preparation delay that
+  has not started native work and freezes one backend preference for the unit.
+  A cold Chinese unit uses the bundled recognizer rather than blocking its first
+  result for native initialization. Its stable result starts immediate
+  background preparation; later units use ML Kit once ready. Preparation that
+  has already started is not repeatedly canceled by fast writers. A model
+  preference never changes halfway through one unit, preventing unexplained
+  candidate replacement.
 - Chinese ML Kit output is restricted to one Han character or an explicit set
   of common punctuation and operators. Distinct bundled results are appended
   behind ML Kit order up to the candidate limit, improving recall without
   pretending the two backends expose comparable scores. A missing, empty, or
   failed enhanced result therefore retains the bundled offline floor. English
   output is restricted to one word or the same bounded common-symbol set and
-  has no bundled fallback.
+  has no bundled fallback. Once ML Kit is warm, Chinese enhanced and bundled
+  matching run concurrently on independent worker lanes and publish one merged
+  candidate set.
 - Completed strokes are copied into recognition data. AndroidX Ink renders a
   separate presentation path, so brush smoothing, motion prediction, and
   pressure response never alter the geometry sent to either recognizer.
@@ -86,7 +90,7 @@ matching must never block the UI thread.
   by a render ledger. A local completion reserves its stroke identity before
   Ink is notified, preventing a synchronous callback from deleting the fresh
   stroke and preserving finish order when callbacks arrive out of order.
-- Chinese recognition starts 800 ms and English recognition 700 ms after the
+- Chinese recognition starts 600 ms and English recognition 700 ms after the
   most recently completed stroke. Every stroke resets the language's same
   quiet-period timer; there is no first-stroke special case that can repeatedly
   interrupt a multi-stroke unit. New strokes,
@@ -158,8 +162,9 @@ matching must never block the UI thread.
   all Google tasks resume through a direct callback executor onto the model
   lane, and cancellation is never converted into fallback recognition work.
 - Chinese candidate fusion preserves ML Kit order and performs one linear,
-  bounded de-duplication pass; bundled matching runs only after the stroke-free
-  recognition boundary and never enters pointer handling.
+  bounded de-duplication pass. Enhanced and bundled matching run concurrently
+  only after the stroke-free recognition boundary and never enter pointer
+  handling.
 - Immutable AndroidX Ink brushes are cached by style, color, and tray size so
   the first-down path does not repeatedly cross the brush-construction JNI seam.
 - Candidate publication is generation checked and binds into a reused ten-cell
@@ -168,8 +173,9 @@ matching must never block the UI thread.
 - Pronunciation lookup runs on the Fcitx dispatcher, loads Pinyin Helper only on
   first use, and publishes through its own generation check. It cannot delay a
   commit or revive feedback after a new stroke or window exit.
-- Recognition timing is emitted through Timber and Android trace sections so
-  device testing can separate drawing, matching, candidate snapshot, and frame
+- Recognition timing is emitted through Timber and Android trace sections,
+  including both compute and stroke-to-result duration, so device testing can
+  separate the quiet-period policy, matching, candidate snapshot, and frame
   latency.
 
 ## Consequences
