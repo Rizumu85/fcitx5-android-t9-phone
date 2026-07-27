@@ -247,21 +247,17 @@ Geometry is centralized:
 
 - `T9CandidateSurfaceGeometry` owns measured candidate and reading-row sizing.
 - `T9CandidateWidthBudget` is the shared row-width model for both paging and
-  Android layout. It reserves the same single-focus envelope and edge padding
-  that the rendered toolbar uses instead of pessimistically treating every chip
-  as focused at once. Local Chinese width paging rebalances an avoidable
-  one-candidate tail, while source-owned English and punctuation page sizes keep
-  their own ranking semantics.
+  Android layout. It uses natural candidate widths, fixed inter-item spacing,
+  and symmetric edge padding. Local Chinese width paging rebalances an
+  avoidable one-candidate tail, while source-owned English and punctuation page
+  sizes keep their own ranking semantics.
 - The editor viewport is the hard surface-width bound even when a density-scaled
   preferred minimum is wider. Long candidates ellipsize inside that bound before
-  the focus envelope is applied.
-- `T9CandidateFocusEnvelope` reserves focus growth at internal candidate
-  boundaries before selection. The first and last candidates grow inward, so
-  focus movement does not resize the row and both bubble edge insets remain
-  visually equal. A lone candidate anchors at the leading edge and reserves
-  its full growth before the tail because one transform cannot anchor to both
-  edges; the same envelope also derives the maximum unscaled candidate width
-  that can remain inside the screen after focus scaling.
+  rendering.
+- Candidate focus changes foreground and background only. It does not scale the
+  chip: transform growth either changes adaptive bubble geometry, overlaps a
+  neighbour, or requires content-dependent empty space, all of which conflict
+  with stable T9 paging and physical-key navigation.
 - `T9ShortcutTailPolicy` owns only the compact final-candidate style decision.
 - `T9PinyinRowSurfacePlanner` owns folded/full viewport and whole-chip windows.
   After focus moves beyond the initial folded viewport, the highlighted chip

@@ -85,7 +85,6 @@ class T9CandidateSurfacePlannerTest {
                 candidateHorizontalPaddingPx = 3,
                 minimumCandidateWidthPx = 10,
                 rowHorizontalPaddingPx = 5,
-                activeScalePercent = 100,
                 measureTextWidthPx = { it.length * 20 }
             ),
             showPaginationArrows = true,

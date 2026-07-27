@@ -40,20 +40,12 @@ object T9CandidateSurfacePlanner {
             )
         )
         val shortcutLayout = T9ShortcutCandidateLayout(
-            maxCandidateWidthPx = minOf(
-                input.widthBudget.maxCandidateWidthPx,
-                T9CandidateFocusEnvelope.maxUnfocusedCandidateWidthPx(
-                    maxRowWidthPx = input.widthBudget.maxWidthPx,
-                    edgePaddingPx = input.widthBudget.rowHorizontalPaddingPx,
-                    scalePercent = input.widthBudget.activeScalePercent
-                )
-            ),
+            maxCandidateWidthPx = input.widthBudget.maxCandidateWidthPx,
             // Decision: render-time T9 candidate rows wrap their actual chip content. This
             // layout width remains zero until a future visual-width model intentionally owns it.
             rowWidthPx = 0,
             edgePaddingPx = input.widthBudget.rowHorizontalPaddingPx,
-            maxRowWidthPx = input.widthBudget.maxWidthPx,
-            focusScalePercent = input.widthBudget.activeScalePercent
+            maxRowWidthPx = input.widthBudget.maxWidthPx
         )
         val pinyinSurface = pinyinSurface(input, input.candidateVisualWidthPx ?: candidatePolicyWidth)
         return Plan(

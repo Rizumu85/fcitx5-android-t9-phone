@@ -12,14 +12,13 @@ import org.junit.Test
 class T9CandidateWidthBudgetTest {
 
     @Test
-    fun rowWidthUsesOneStableFocusEnvelope() {
+    fun rowWidthUsesNaturalCandidateGeometry() {
         val budget = T9CandidateWidthBudget(
             maxWidthPx = 500,
             candidateSpacingPx = 2,
             candidateHorizontalPaddingPx = 1,
             minimumCandidateWidthPx = 1,
             rowHorizontalPaddingPx = 3,
-            activeScalePercent = 150,
             measureTextWidthPx = { it.length * 10 }
         )
         val candidates = listOf(
@@ -27,7 +26,7 @@ class T9CandidateWidthBudgetTest {
             FcitxEvent.Candidate(label = "", text = "de", comment = "")
         )
 
-        assertEquals(78, budget.rowWidthPx(candidates))
+        assertEquals(62, budget.rowWidthPx(candidates))
     }
 
 }

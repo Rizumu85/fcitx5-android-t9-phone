@@ -47,27 +47,23 @@ class T9CandidateRowWidthCalculatorTest {
     }
 
     @Test
-    fun focusEnvelopeIsReservedWithoutDependingOnCurrentSelection() {
+    fun mixedCandidatePageUsesNaturalGeometry() {
         val width = T9CandidateRowWidthCalculator.calculate(
             input(
-                candidates = listOf("好", "的", "长词"),
-                activeScalePercent = 150
+                candidates = listOf("好", "的", "长词")
             )
         )
 
-        assertEquals(152, width)
+        assertEquals(116, width)
     }
 
     @Test
-    fun singleCandidatePolicyIncludesFocusedTailGrowth() {
+    fun singleCandidateUsesNaturalWidth() {
         val width = T9CandidateRowWidthCalculator.calculate(
-            input(
-                candidates = listOf("长候选"),
-                activeScalePercent = 150
-            )
+            input(candidates = listOf("长候选"))
         )
 
-        assertEquals(109, width)
+        assertEquals(76, width)
     }
 
     @Test
@@ -92,8 +88,7 @@ class T9CandidateRowWidthCalculatorTest {
         maxWidthPx: Int = 300,
         showPaginationArrows: Boolean = true,
         hasPrev: Boolean = false,
-        hasNext: Boolean = false,
-        activeScalePercent: Int = 100
+        hasNext: Boolean = false
     ): T9CandidateRowWidthCalculator.Input =
         T9CandidateRowWidthCalculator.Input(
             data = FcitxEvent.PagedCandidateEvent.Data(
@@ -111,7 +106,6 @@ class T9CandidateRowWidthCalculatorTest {
                 candidateHorizontalPaddingPx = 3,
                 minimumCandidateWidthPx = 10,
                 rowHorizontalPaddingPx = 5,
-                activeScalePercent = activeScalePercent,
                 measureTextWidthPx = { it.length * 20 }
             ),
             showPaginationArrows = showPaginationArrows,

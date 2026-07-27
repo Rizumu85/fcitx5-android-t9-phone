@@ -146,7 +146,7 @@ class T9CandidatePagerTest {
     }
 
     @Test
-    fun pagingUsesTheSameFocusEnvelopeAsTheRenderedCandidateRow() {
+    fun pagingUsesTheSameNaturalWidthAsTheRenderedCandidateRow() {
         val pager = T9CandidatePager()
         val candidates = List(10) { index ->
             IndexedValue(index, candidate(index.toString()))
@@ -161,7 +161,6 @@ class T9CandidatePagerTest {
                 candidateHorizontalPaddingPx = 0,
                 minimumCandidateWidthPx = 10,
                 rowHorizontalPaddingPx = 0,
-                activeScalePercent = 110,
                 measureTextWidthPx = { 10 }
             )
         )
@@ -273,7 +272,6 @@ class T9CandidatePagerTest {
             candidateHorizontalPaddingPx = 0,
             minimumCandidateWidthPx = 1,
             rowHorizontalPaddingPx = 0,
-            activeScalePercent = 100,
             measureTextWidthPx = { it.length * 5 }
         )
 }

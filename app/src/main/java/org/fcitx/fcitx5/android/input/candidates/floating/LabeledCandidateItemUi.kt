@@ -18,7 +18,6 @@ import androidx.core.text.buildSpannedString
 import androidx.core.text.color
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.data.theme.Theme
-import org.fcitx.fcitx5.android.input.t9.T9CandidateFocusEnvelope
 import org.fcitx.fcitx5.android.input.t9.T9SemanticTextView
 import splitties.views.dsl.core.Ui
 import kotlin.math.roundToInt
@@ -39,11 +38,7 @@ class LabeledCandidateItemUi(
     private var lastCandidateLabel = ""
     private var lastCandidateText = ""
     private var lastCandidateComment = ""
-    private var lastUsesShortcutLabel = false
     private var lastShortcutUsesNaturalTailWidth = false
-    private var lastShortcutFocusAnchoredStart = false
-    private var lastShortcutFocusAnchoredEnd = false
-    private var lastFocusScalePercent = T9CandidateFocusEnvelope.DEFAULT_SCALE_PERCENT
 
     private val candidateText = T9SemanticTextView(ctx).apply {
         setupTextView(this)
@@ -76,9 +71,6 @@ class LabeledCandidateItemUi(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             defaultFocusHighlightEnabled = false
         }
-        addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            updateShortcutPivot()
-        }
         candidateText.setPadding(0, 0, 0, 0)
         addView(
             candidateText,
@@ -103,18 +95,10 @@ class LabeledCandidateItemUi(
         t9InputModeEnabled: Boolean = false,
         shortcutLabel: String? = null,
         shortcutMaxWidthPx: Int? = null,
-        shortcutUsesNaturalTailWidth: Boolean = false,
-        shortcutFocusAnchoredStart: Boolean = false,
-        shortcutFocusAnchoredEnd: Boolean = false,
-        shortcutFocusScalePercent: Int = T9CandidateFocusEnvelope.DEFAULT_SCALE_PERCENT
+        shortcutUsesNaturalTailWidth: Boolean = false
     ) {
         val usesShortcutLabel = t9InputModeEnabled && shortcutLabel != null
-        lastUsesShortcutLabel = usesShortcutLabel
         lastShortcutUsesNaturalTailWidth = usesShortcutLabel && shortcutUsesNaturalTailWidth
-        lastShortcutFocusAnchoredStart = usesShortcutLabel && shortcutFocusAnchoredStart
-        lastShortcutFocusAnchoredEnd = usesShortcutLabel && shortcutFocusAnchoredEnd
-        lastFocusScalePercent = shortcutFocusScalePercent
-        updateShortcutPivot()
         applyShortcutWidthLimit(if (usesShortcutLabel) shortcutMaxWidthPx else null)
         applyShortcutLineMetrics(usesShortcutLabel)
         root.gravity = if (usesShortcutLabel) Gravity.CENTER else Gravity.CENTER_VERTICAL
@@ -194,8 +178,6 @@ class LabeledCandidateItemUi(
             lastCandidateComment = candidate.comment
             lastActive = false
             activeBackground.alpha = 0
-            root.scaleX = 1f
-            root.scaleY = 1f
             updateHighlight(active)
             return
         }
@@ -204,34 +186,11 @@ class LabeledCandidateItemUi(
 
     private fun updateHighlight(active: Boolean) {
         val targetAlpha = if (active) 255 else 0
-        val targetScale = if (active) {
-            T9CandidateFocusEnvelope.scaleFactor(lastFocusScalePercent)
-        } else {
-            1f
-        }
-        // T9 shortcut chips are two measured rows. Scaling only horizontally keeps the familiar
-        // focus width without lying to the parent layout about vertical bounds.
-        val targetScaleY = if (lastUsesShortcutLabel) 1f else targetScale
         if (lastActive == active && activeBackground.alpha == targetAlpha) {
-            root.scaleX = targetScale
-            root.scaleY = targetScaleY
             return
         }
         lastActive = active
         activeBackground.alpha = targetAlpha
-        root.scaleX = targetScale
-        root.scaleY = targetScaleY
-    }
-
-    private fun updateShortcutPivot() {
-        if (root.width <= 0) return
-        root.pivotX = when {
-            // A lone candidate cannot preserve both edge insets with a centered transform.
-            // Anchoring it at the start lets the row envelope reserve growth before the tail.
-            lastShortcutFocusAnchoredStart -> 0f
-            lastShortcutFocusAnchoredEnd -> root.width.toFloat()
-            else -> root.width / 2f
-        }
     }
 
     private fun applyShortcutWidthLimit(maxRootWidthPx: Int?) {
