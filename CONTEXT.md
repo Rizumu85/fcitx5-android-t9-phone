@@ -153,6 +153,29 @@ a prediction; Zhuyin keeps `0` as a reading input key.
 The single prediction entry in Quick Settings is mode-aware: Chinese shows and
 toggles Predictive Chinese, while English shows and toggles Predictive English.
 
+## Chinese Custom Dictionaries
+
+Pinyin T9 may show Rime's mixed-English candidates, app-owned custom Chinese
+phrases, and app-owned Chinese-mode English words. The mixed-English preference
+is applied before candidate paging, so disabling it removes Latin candidates
+without changing Rime configuration or requiring deployment.
+
+`ChineseT9CustomCandidateSource` joins custom entries at the candidate snapshot
+boundary. Custom entries keep explicit direct-commit identities; they never
+pretend to be Rime candidate indices. Matching entries can publish immediately
+while the corresponding Rime frame is still pending, then merge with the fresh
+engine page. Dictionary queries use revisioned in-memory exact/prefix indexes,
+and persistence remains off the physical-key reducer.
+
+Predictive English and Chinese Pinyin own separate custom English stores.
+`EnglishCustomDictionaryCoordinator` exposes their union when sharing is
+enabled. A shared management screen replaces both stores together so deletion
+is deterministic, while runtime learning writes only to the mode where the word
+was observed. Pinyin literal-code commits keep a bounded process-local
+first-use set; the second allowed commit of the same normalized Latin word
+learns it for Chinese-mode English candidates. Password and
+no-personalized-learning editors are excluded.
+
 ## Smart English
 
 `SmartEnglishLifecycle` owns digit composition, candidate focus, commit spacing,
