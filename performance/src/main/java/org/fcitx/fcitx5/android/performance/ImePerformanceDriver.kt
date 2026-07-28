@@ -336,8 +336,10 @@ class ImePerformanceDriver(
             "default.custom.yaml",
             "t9.schema.yaml",
             "t9_abbreviation.schema.yaml",
+            "t9_default_abbreviation.schema.yaml",
             "t9_stroke.schema.yaml",
-            "t9_zhuyin.schema.yaml"
+            "t9_zhuyin.schema.yaml",
+            "lua/t9_default_abbreviation_segmentor.lua"
         )
     }
 }

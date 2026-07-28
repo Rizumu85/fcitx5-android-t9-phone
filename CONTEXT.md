@@ -163,16 +163,19 @@ a prediction; Zhuyin keeps `0` as a reading input key.
 The single prediction entry in Quick Settings is mode-aware: Chinese shows and
 toggles Predictive Chinese, while English shows and toggles Predictive English.
 
-Pinyin initials use an explicit slow-path contract. Raw numeric T9 is resolved
-only by the primary full-pinyin prism; attaching super abbreviation to that
-prism makes each digit expand both full syllables and initials and causes
-unbounded long-sentence latency. Confirming a valid Pinyin abbreviation prefix
-(a one-letter syllable start or `zh`, `ch`, and `sh`) adds a recognizer tag that
-routes the composition through a hidden abbreviation prism. This preserves
-arbitrary initial combinations without adding abbreviation work to ordinary
-numeric typing. The local reading resolver and the Rime recognizer both cover
-the complete prefix set; neither is allowed to special-case one observed letter
-sequence.
+Pinyin initials use two bounded slow-path contracts. Raw numeric T9 remains on
+the primary full-Pinyin prism while its digits can still form dictionary-backed
+syllables. Once that becomes structurally impossible, an incremental segmentor
+routes the unresolved segment to a deterministic hidden prism: every digit maps
+only to the default reading shown by the app (`2=a`, `3=e`, `4=g`, `5=j`,
+`6=o`, `7=p`, `8=t`, `9=w`). This restores Hanzi candidates for uninterrupted
+default-initial input without running a second dictionary query or rebuilding a
+3-4 way initial graph on normal keystrokes. Confirming a reading chip remains
+the explicit path for non-default initials and `zh`, `ch`, or `sh`; its
+recognizer tag routes through the complete hidden abbreviation prism. Schema
+contracts derive the primary prism's accepted numeric spellings from the actual
+dictionaries so a vocabulary or algebra change cannot silently misroute valid
+full Pinyin.
 
 ## Chinese Custom Dictionaries
 
