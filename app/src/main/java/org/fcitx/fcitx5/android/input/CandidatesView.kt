@@ -868,7 +868,7 @@ class CandidatesView(
     private fun updateT9FocusIndicator(
         focus: T9CandidateFocus = service.getT9CandidateFocus()
     ) {
-        t9CandidateSurfaceAdapter.renderFocus(focus)
+        t9CandidateUiRenderer.renderImmediateFocus(focus)
     }
 
     private fun updateUi(

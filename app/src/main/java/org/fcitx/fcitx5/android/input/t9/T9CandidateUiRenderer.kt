@@ -46,6 +46,14 @@ class T9CandidateUiRenderer(
         )
     }
 
+    fun renderImmediateFocus(focus: T9CandidateFocus) {
+        delegate.renderFocus(focus)
+        // Physical focus must respond without waiting for an engine frame, but the immediate
+        // mutation still belongs to this renderer. Keeping its diff baseline in sync prevents a
+        // later frame from mistaking a visually top-focused row for an unchanged bottom focus.
+        previousState = previousState?.copy(focus = focus)
+    }
+
     fun render(next: T9CandidateRenderState) {
         val patch = T9CandidateRenderer.diff(previousState, next)
         val renderPass = T9CandidateRenderPassPlanner.plan(

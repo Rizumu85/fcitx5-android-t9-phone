@@ -178,6 +178,23 @@ class T9CandidateUiRendererTest {
         assertEquals(emptyList<String>(), delegate.events)
     }
 
+    @Test
+    fun immediateFocusMutationRemainsPartOfTheNextFrameDiffBaseline() {
+        val delegate = FakeDelegate()
+        val renderer = T9CandidateUiRenderer(delegate)
+        val bottom = state(candidates = paged("a"))
+        renderer.render(bottom)
+        delegate.focuses.clear()
+
+        renderer.renderImmediateFocus(T9CandidateFocus.TOP)
+        renderer.render(bottom)
+
+        assertEquals(
+            listOf(T9CandidateFocus.TOP, T9CandidateFocus.BOTTOM),
+            delegate.focuses
+        )
+    }
+
     private class FakeDelegate : T9CandidateUiRenderer.Delegate {
         constructor()
         constructor(pinyinReady: Boolean) {
@@ -193,6 +210,7 @@ class T9CandidateUiRendererTest {
         val candidateStatuses = mutableListOf<T9CandidateStatus?>()
         val pinyinCalls = mutableListOf<Pair<List<String>, Boolean>>()
         var selectionRenderCount = 0
+        val focuses = mutableListOf<T9CandidateFocus>()
 
         override fun setPreferAboveInputPanel(preferAboveInputPanel: Boolean) = Unit
 
@@ -228,7 +246,9 @@ class T9CandidateUiRendererTest {
             return pinyinReady
         }
 
-        override fun renderFocus(focus: T9CandidateFocus) = Unit
+        override fun renderFocus(focus: T9CandidateFocus) {
+            focuses += focus
+        }
 
         override fun showWhenPositioned(contentReady: Boolean) {
             events += "show"
