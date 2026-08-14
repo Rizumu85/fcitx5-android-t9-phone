@@ -141,6 +141,7 @@ import org.fcitx.fcitx5.android.utils.forceShowSelf
 import org.fcitx.fcitx5.android.utils.inputMethodManager
 import org.fcitx.fcitx5.android.utils.isTypeNull
 import org.fcitx.fcitx5.android.utils.monitorCursorAnchor
+import org.fcitx.fcitx5.android.utils.styledColorOrDefault
 import org.fcitx.fcitx5.android.utils.styledFloat
 import org.fcitx.fcitx5.android.utils.withBatchEdit
 import splitties.bitflags.hasFlag
@@ -684,7 +685,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     private var cursorUpdateIndex: Int = 0
 
-    private var highlightColor: Int = 0x66008577 // material_deep_teal_500 with alpha 0.4
+    private var highlightColor: Int = DefaultHighlightColor
 
     private val prefs = AppPrefs.getInstance()
     private val keyboardPrefs = prefs.keyboard
@@ -1886,11 +1887,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     override fun onWindowShown() {
         super.onWindowShown()
-        try {
-            highlightColor = styledColor(android.R.attr.colorAccent).alpha(0.4f)
-        } catch (_: Exception) {
-            Timber.w("Device does not support android.R.attr.colorAccent which it should have.")
-        }
+        highlightColor =
+            styledColorOrDefault(android.R.attr.colorAccent, DefaultHighlightColor).alpha(0.4f)
         InputFeedbacks.syncSystemPrefs()
         decorView.postOnAnimation {
             StartupPerformanceTrace.mark(
@@ -4133,6 +4131,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     @Suppress("ConstPropertyName")
     companion object {
+        const val DefaultHighlightColor = 0x008577  // material_deep_teal_500
         const val DeleteSurroundingFlag = "org.fcitx.fcitx5.android.DELETE_SURROUNDING"
         private const val EDITOR_TOUCH_SELECTION_CANCEL_WINDOW_MS = 300L
         private const val EXPLICIT_SELECTION_DELETE_WINDOW_MS = 500L
