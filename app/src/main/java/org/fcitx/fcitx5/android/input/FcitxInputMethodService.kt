@@ -491,14 +491,25 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         inputView?.clearTransientState()
     }
 
+    /**
+     * Password editors are a separate input surface. Do not let the previous T9 session leak
+     * its engine status or candidate window into that surface, even while KeyboardWindow is
+     * switching the temporary password layout.
+     */
+    private fun isPasswordInputSessionActive(): Boolean =
+        capabilityFlags.has(CapabilityFlag.Password) ||
+            inputView?.isTemporaryPasswordInputSessionActive() == true
+
     fun candidatePagingModeForCurrentInputDevice(): Int =
         if (isChineseT9InputModeActive() || !inputDeviceMgr.isVirtualKeyboard) 1 else 0
 
     fun isChineseT9InputModeActive(): Boolean =
-        currentT9Mode == T9InputMode.CHINESE
+        currentT9Mode == T9InputMode.CHINESE && !isPasswordInputSessionActive()
 
     fun isChinesePredictionModeActive(): Boolean =
-        if (handwritingCoordinatorDelegate.isInitialized() && handwritingCoordinator.isActive) {
+        if (isPasswordInputSessionActive()) {
+            false
+        } else if (handwritingCoordinatorDelegate.isInitialized() && handwritingCoordinator.isActive) {
             handwritingCoordinator.currentLanguage == HandwritingLanguage.CHINESE
         } else {
             isChineseT9InputModeActive()
@@ -2579,7 +2590,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun isSmartEnglishT9Active(): Boolean =
         currentT9Mode == T9InputMode.ENGLISH && smartEnglishModeController.enabled
 
-    fun isSmartEnglishT9InputModeActive(): Boolean = isSmartEnglishT9Active()
+    fun isSmartEnglishT9InputModeActive(): Boolean =
+        !isPasswordInputSessionActive() && isSmartEnglishT9Active()
 
     fun isSmartEnglishT9Enabled(): Boolean = smartEnglishModeController.enabled
 
@@ -3408,6 +3420,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
         capabilityFlags = flags
         activeFcitxCapabilityFlags = fcitxFlags
+        // An editor transition is the session boundary for candidate UI. Clearing here prevents
+        // a Chinese/Rime surface from covering a password keyboard before its layout is attached.
+        clearTransientInputUiState()
         updateVoiceInputEditorPolicy(attribute, flags)
         // EditorInfo may change between onStartInput and onStartInputView
         inputDeviceMgr.notifyOnStartInput(attribute)

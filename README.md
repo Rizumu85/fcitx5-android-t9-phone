@@ -49,15 +49,30 @@
 升级时，已经可用且版本匹配的配置会直接复用，不会重复部署。网络暂时不可用也不会破坏已有配置或反复弹错；首次安装尚未下载完成时，中文词库会显示正在准备。
 
 <details>
-<summary>仅在自动恢复持续失败时手动导入</summary>
+<summary>网络无法自动下载时：完整手动安装 Rime 配置</summary>
 
-从 [rime-ice-t9-phone Releases](https://github.com/Rizumu85/rime-ice-t9-phone/releases) 下载当前版本对应的 `rime-ice-t9-phone-main.zip`，解压后把其中所有文件和文件夹复制到：
+如果手机无法访问 GitHub，自动下载可能一直无法完成。这时仍然可以手动安装，步骤如下。
+
+1. 先安装上面的输入法本体和 Rime 插件，必须选择相同的手机架构。
+2. 打开输入法本体，按系统引导启用小企鹅输入法。进入系统输入法设置，确认 Rime 插件已安装；在 Fcitx5 的【输入法】列表中添加【中州韵】。
+3. 打开任意文本框，让输入法先完成一次初始化。进入输入法工具栏的【⋯】→【词库切换】；如果列表还没有出现，先回到文本框再打开一次。手动导入前需要让应用创建自己的 `data/rime` 目录。
+4. 从 [rime-ice-t9-phone Releases](https://github.com/Rizumu85/rime-ice-t9-phone/releases) 下载与本版匹配的配置压缩包。本版 4.6.6 对应 `rime-ice-t9-phone v3.2.2`。如果文件名是 `rime-ice-t9-phone-main.zip`，也可以使用该压缩包中的配置内容。
+5. 解压压缩包，把解压后的**所有文件和文件夹**复制到下面的目录；不要再多套一层 `rime-ice-t9-phone` 文件夹：
 
 ```text
 Android/data/org.fcitx.fcitx5.android/files/data/rime
 ```
 
-然后在【词库切换】中点一次【重新部署】。配置部署与用户数据同步是两件事，恢复配置不需要点【同步】。
+Android 11 及以上可能不允许普通文件管理器直接访问 `Android/data`。可以用电脑 USB 文件传输、系统文件选择器，或支持 SAF/Android data 授权的文件管理器完成复制。Debug 包的目录名是：
+
+```text
+Android/data/org.fcitx.fcitx5.android.debug/files/data/rime
+```
+
+6. 回到文本框，打开【⋯】→【词库切换】→【重新部署】，等待部署完成。配置部署和用户词库【同步】是两件事；手动恢复配置后不需要点【同步】。
+7. 重新打开【词库切换】，选择【拼音九键】、【笔画九键】或【注音九键】开始输入。如果仍显示准备中，完全关闭当前输入框后重新打开一次。
+
+常见错误：只复制了压缩包外层文件夹、把配置复制到了下载目录、两个 APK 架构不一致、或把【同步】误当成【重新部署】。这些情况都会导致配置看起来已经复制但 Rime 仍不可用。
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/5763a980-c058-4f96-9ece-ff0492fd5059" width="640" alt="Rime 配置导入动图：在电脑上同时打开手机的 Rime 数据目录和解压后的 rime-ice-t9-phone 配置文件夹，将配置文件复制到手机目录。">
