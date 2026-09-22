@@ -191,7 +191,7 @@ class ChineseT9CandidatePipelineTest {
 
         val state = pipeline.finishBulkFilterRequest(
             signature = signature,
-            rawCandidates = listOf("你 ni", "泥 ni", "逆 ni", "拟 ni", "年 nian"),
+            rawCandidates = listOf("你 ni", "泥 ni", "逆 ni", "拟 ni", "年 nian").withIndex().toList(),
             prefixes = listOf("ni"),
             layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal
         )
@@ -230,7 +230,7 @@ class ChineseT9CandidatePipelineTest {
                 "你好 ㄋㄧ'ㄏㄠ",
                 "拟好 ㄋㄧ'ㄏㄠ",
                 "你高 ㄋㄧ'ㄍㄠ"
-            ),
+            ).withIndex().toList(),
             prefixes = listOf("ㄋㄧ ㄏㄠ"),
             layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal
         )

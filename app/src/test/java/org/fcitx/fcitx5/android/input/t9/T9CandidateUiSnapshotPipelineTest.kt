@@ -210,7 +210,7 @@ class T9CandidateUiSnapshotPipelineTest {
 
         val state = pipeline.finishChineseBulkFilterRequest(
             signature = signature,
-            rawCandidates = listOf("你 ni", "泥 ni", "逆 ni", "拟 ni", "年 nian"),
+            rawCandidates = listOf("你 ni", "泥 ni", "逆 ni", "拟 ni", "年 nian").withIndex().toList(),
             prefixes = listOf("ni"),
             layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal
         )

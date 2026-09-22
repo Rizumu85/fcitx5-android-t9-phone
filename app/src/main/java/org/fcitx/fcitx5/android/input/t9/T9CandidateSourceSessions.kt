@@ -123,7 +123,7 @@ class T9CandidateSourceSessions(
 
     fun finishChineseBulkFilterRequest(
         signature: String,
-        rawCandidates: List<String>,
+        rawCandidates: List<IndexedValue<String>>,
         prefixes: List<String>,
         layoutHint: FcitxEvent.PagedCandidateEvent.LayoutHint
     ): ChineseT9CandidatePipeline.BulkFilterState? =

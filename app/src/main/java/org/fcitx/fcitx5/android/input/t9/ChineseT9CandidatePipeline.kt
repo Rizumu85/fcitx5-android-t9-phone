@@ -105,7 +105,7 @@ class ChineseT9CandidatePipeline(
 
     fun finishBulkFilterRequest(
         signature: String,
-        rawCandidates: List<String>,
+        rawCandidates: List<IndexedValue<String>>,
         prefixes: List<String>,
         layoutHint: FcitxEvent.PagedCandidateEvent.LayoutHint
     ): BulkFilterState? {

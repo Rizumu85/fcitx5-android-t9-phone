@@ -17,11 +17,9 @@ class T9BulkCandidateLoaderTest {
 
     @Test
     fun parsesRawCandidatesWithOptionalComments() {
-        val loader = loader()
-
-        assertEquals(candidate("你", "ni"), loader.parseCandidate("你 ni"))
-        assertEquals(candidate("你", ""), loader.parseCandidate("你"))
-        assertNull(loader.parseCandidate("   "))
+        assertEquals(candidate("你", "ni"), T9BulkCandidateLoader.parseCandidate("你 ni"))
+        assertEquals(candidate("你", ""), T9BulkCandidateLoader.parseCandidate("你"))
+        assertNull(T9BulkCandidateLoader.parseCandidate("   "))
     }
 
     @Test
@@ -35,7 +33,7 @@ class T9BulkCandidateLoaderTest {
         assertTrue(loader.startRequest(listOf("ni"), signature))
         val result = loader.finishRequest(
             signature = signature,
-            rawCandidates = listOf("你 ni", "呢 ni", "你 ni duplicate", "好 hao"),
+            rawCandidates = listOf("你 ni", "呢 ni", "你 ni duplicate", "好 hao").withIndex().toList(),
             prefixes = listOf("ni")
         )
 
@@ -51,7 +49,7 @@ class T9BulkCandidateLoaderTest {
         val loader = loader()
         loader.startRequest(emptyList(), "new")
 
-        assertNull(loader.finishRequest("old", listOf("你 ni"), emptyList()))
+        assertNull(loader.finishRequest("old", listOf(IndexedValue(0, "你 ni")), emptyList()))
         assertTrue(loader.pending)
     }
 

@@ -40,6 +40,8 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionTicket
 import org.fcitx.fcitx5.android.input.t9.ChineseT9EngineOperation
 import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
 import org.fcitx.fcitx5.android.input.t9.ChineseT9InputReceipt
+import org.fcitx.fcitx5.android.input.t9.T9BulkCandidateLoader
+import org.fcitx.fcitx5.android.input.t9.T9FilteredCandidateScan
 import org.fcitx.fcitx5.android.input.t9.T9CandidateBudget
 import org.fcitx.fcitx5.android.input.t9.T9CandidateFocus
 import org.fcitx.fcitx5.android.input.t9.T9CandidateInteractionController
@@ -1035,19 +1037,40 @@ class CandidatesView(
         if (!t9CandidateUiSnapshotPipeline.shouldRequestChineseBulkFilter(signature)) return
         t9CandidateUiSnapshotPipeline.startChineseBulkFilterRequest(prefixes, signature)
         val layoutHint = paged.layoutHint
-        chineseT9EngineOperation.enqueue(
-            acceptBefore = { true },
-            execute = { getCandidates(0, T9_BULK_FILTER_LIMIT).toList() },
-            finish = { rawCandidates ->
-                val finished = t9CandidateUiSnapshotPipeline.finishChineseBulkFilterRequest(
-                    signature = signature,
-                    rawCandidates = rawCandidates,
-                    prefixes = prefixes,
-                    layoutHint = layoutHint
-                )
-                if (finished != null) refreshT9Ui()
-            }
-        )
+        val ticket = service.getChineseT9CompositionTicket()
+        val scan = T9FilteredCandidateScan { raw ->
+            T9BulkCandidateLoader.parseCandidate(raw)?.takeIf { candidate ->
+                prefixes.isEmpty() || prefixes.any { prefix ->
+                    service.candidateMatchesT9ResolvedPrefix(candidate, prefix)
+                }
+            }?.text
+        }
+        fun isCurrent() = service.isCurrentChineseT9Composition(ticket) &&
+            !t9CandidateUiSnapshotPipeline.shouldRequestChineseBulkFilter(signature)
+        fun requestBatch() {
+            chineseT9EngineOperation.enqueue(
+                acceptBefore = ::isCurrent,
+                execute = { getCandidates(scan.nextOffset, scan.batchSize).toList() },
+                acceptAfter = { isCurrent() },
+                finish = { batch ->
+                    scan.append(batch)
+                    if (scan.complete) {
+                        val finished = t9CandidateUiSnapshotPipeline.finishChineseBulkFilterRequest(
+                            signature = signature,
+                            rawCandidates = scan.candidates,
+                            prefixes = prefixes,
+                            layoutHint = layoutHint
+                        )
+                        if (finished != null) refreshT9Ui()
+                    } else {
+                        // Re-enqueue each bounded batch so fresh input can run between reads.
+                        // A stale composition or filter invalidates both queued and returned work.
+                        requestBatch()
+                    }
+                }
+            )
+        }
+        requestBatch()
     }
 
     private fun resetT9BulkFilterState() {
@@ -1302,7 +1325,6 @@ class CandidatesView(
     }
 
     companion object {
-        private const val T9_BULK_FILTER_LIMIT = 80
         private const val T9_PINYIN_TO_HANZI_GAP_DP = 2
         private const val T9_PINYIN_ROW_MIN_VISIBLE_CHIPS = 4
         private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 10

@@ -69,11 +69,11 @@ class T9BulkCandidateLoader(
 
     fun finishRequest(
         signature: String,
-        rawCandidates: List<String>,
+        rawCandidates: List<IndexedValue<String>>,
         prefixes: List<String>
     ): PageResult? {
         if (signature != requestSignature) return null
-        val parsedCandidates = rawCandidates.mapIndexedNotNull { index, raw ->
+        val parsedCandidates = rawCandidates.mapNotNull { (index, raw) ->
             parseCandidate(raw)?.let { IndexedValue(index, it) }
         }
         val match = if (prefixes.isEmpty()) {
@@ -88,18 +88,20 @@ class T9BulkCandidateLoader(
 
     fun offset(delta: Int): T9CandidatePager.Page? = pager.offset(delta)
 
-    fun parseCandidate(raw: String): FcitxEvent.Candidate? {
-        val trimmed = raw.trim()
-        if (trimmed.isEmpty()) return null
-        val splitAt = trimmed.indexOf(' ')
-        return if (splitAt <= 0 || splitAt == trimmed.lastIndex) {
-            FcitxEvent.Candidate(label = "", text = trimmed, comment = "")
-        } else {
-            FcitxEvent.Candidate(
-                label = "",
-                text = trimmed.substring(0, splitAt),
-                comment = trimmed.substring(splitAt + 1).trim()
-            )
+    companion object {
+        fun parseCandidate(raw: String): FcitxEvent.Candidate? {
+            val trimmed = raw.trim()
+            if (trimmed.isEmpty()) return null
+            val splitAt = trimmed.indexOf(' ')
+            return if (splitAt <= 0 || splitAt == trimmed.lastIndex) {
+                FcitxEvent.Candidate(label = "", text = trimmed, comment = "")
+            } else {
+                FcitxEvent.Candidate(
+                    label = "",
+                    text = trimmed.substring(0, splitAt),
+                    comment = trimmed.substring(splitAt + 1).trim()
+                )
+            }
         }
     }
 
