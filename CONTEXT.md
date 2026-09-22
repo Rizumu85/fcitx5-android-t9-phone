@@ -68,11 +68,11 @@ owns the key. Zhuyin and number mode keep their scheme-specific `0` behavior.
 
 ## Chinese Composition And Rime
 
-Known Pinyin selection/source-ownership defects and the proposed replacement
-contract are recorded in
-`docs/adr/0007-source-owned-pinyin-composition.md`. That proposal is not yet
-implemented; the existing ticket and snapshot structure alone does not enforce
-all of the intended consistency guarantees below.
+The source-ownership contract is recorded in
+`docs/adr/0007-source-owned-pinyin-composition.md`. Pinyin stores raw keystrokes
+and separators once; explicit readings annotate source spans. Selecting or
+reopening a reading never rewrites those keys, and partial commits preserve
+unconsumed annotations. Snapshot reads cannot repair or mutate composition.
 
 `ChineseT9CompositionCoordinator` is the service-facing interface for Pinyin,
 Stroke, and Zhuyin sessions. It owns raw digits, resolved readings, presentation
@@ -89,8 +89,12 @@ into that lane: it keeps semantic inputs lossless and ordered, omits physical
 release events that Fcitx ignores but would republish as duplicate candidate
 frames, and carries one composition/trace receipt from dispatch through
 candidate acceptance. Presentation may conflate obsolete
-generations, but engine input must not. Operations carry composition/source
-tickets and reject stale work before publishing UI effects. `ChineseT9CandidateFreshness` and
+generations, but engine input must not. Commands are invalidated by
+editor/session epoch, not by a newer keystroke in the same session. Immutable
+Pinyin projections replace the whole Rime input through the native replacement
+API, without per-digit replay or bridge callbacks mutating live state.
+`ChineseT9SourceRegistry` maps dispatch identities to immutable receipts; only
+results matching the current ticket reach the UI. `ChineseT9CandidateFreshness` and
 `ChineseT9CandidateFrameGate` prevent a new preview from being displayed with
 an old candidate page. Fcitx caches input-panel and paged-candidate events as
 one revisioned presentation source so a recreated candidate surface can restore
@@ -254,10 +258,12 @@ Reading confirmation stages focus until the resolved engine snapshot arrives;
 focus must never publish as a frame by itself. Partial Chinese selection is one
 cross-window transaction: `ChineseT9CandidateLoadingState` first accepts the
 matching input panel and then the paged candidates emitted after it by the same
-Fcitx UI flush. It must not combine a replay prefix's candidate page with a
-later final preedit. Rime's immediate remaining-candidate frame is published for
-fast feedback, then the source gate is rearmed before reset-and-replay so that
-frame remains stable while intermediate prefixes rebuild.
+Fcitx UI flush. `FcitxPresentationSequencer` captures command and frame identities
+before either callback crosses to Android; the cache also retains that complete
+pair. It must not combine one flush's candidate page with another's preedit.
+Pinyin partial commits replace the remaining source projection in one operation;
+Stroke and Zhuyin retain their replay path, whose intermediate prefixes cannot
+release the final receipt.
 `ChineseT9SelectionCommitSession` then advances through source-ready and
 frame-rendered phases, and the editor commit is posted only from the candidate
 view's draw traversal. This ordering prevents either a new focus over stale

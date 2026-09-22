@@ -72,6 +72,27 @@ The first four cases expect Pinyin mode. `english-hello` expects Smart English.
 Use `T9_KEY_DELAY_SECONDS` only to compare realistic slow-device pacing; do not
 remove the delay and mistake ADB command saturation for a physical-key bug.
 
+For reading-selection regressions, use the isolated benchmark editor rather
+than a messaging app. At 100-180 ms per keyboard event, verify:
+
+- `64'426'62` (short `1` supplies each separator), then choose `ni`, `hao`:
+  the remaining `62` and its reading choices must survive.
+- `64426`, choose `ni`, `hao`, Delete, then `3`: reopening a reading must not
+  duplicate source digits; the new composition is `644263`.
+- `43`, choose `ge`, Delete, choose `he`: equal numeric codes cannot authorize
+  an old preview or candidate page.
+- A long sentence, select its first reading, page and commit a shorter Hanzi
+  candidate: only the consumed source prefix disappears. Repeat with initials
+  and explicit separators, not just fully spelled Pinyin.
+
+`ChineseT9SourceRegistry` receipts originate at command dispatch. Native
+InputPanel/Paged callbacks share `FcitxPresentationOrigin`; never assign an
+incoming event the current composition ticket to make it look fresh. A replay
+prefix or obsolete source must not release the final-frame wait. Pinyin uses a
+single full projection replacement, while Stroke/Zhuyin replay still requires
+the completeness guard. Record transitions for visual claims; a final screenshot
+alone cannot establish whether a mismatched frame flashed in between.
+
 ## ADB Rime Data Imports
 
 Files copied into the debug Rime directory with `adb push` are owned by

@@ -1,6 +1,6 @@
 # ADR-0007: Source-Owned Pinyin Composition
 
-- Status: Proposed; not implemented
+- Status: Accepted and implemented
 - Date: 2026-09-22
 - Audited revision: `6dd0b3f8`
 
@@ -52,14 +52,14 @@ guards with a controllable queue; the delayed-ack diagnostic uses a mutable
 | Pause a mirror, clear and retype the same selection, then finish the old mirror | Ignore the old acknowledgement | The new selection is marked engine-backed | The bridge mutates the live session and `markSelectionEngineBacked` matches text instead of operation identity |
 | Select `ni`, `hao`; partially commit the `ni` candidate | Preserve the remaining `hao` choice | Remaining raw `426` has no selected reading | `consumeSelectedCandidateReading` rebuilds a raw-only model |
 
-The display event path needs additional integration coverage: `CandidatesView`
-currently obtains a ticket from the live local snapshot when an engine event
-arrives. That is not evidence of which operation produced the event. Numeric
+The audited display path also obtained a ticket from the live local snapshot
+when an engine event arrived. That was not evidence of which operation produced
+the event. Numeric
 freshness checks cannot distinguish different choices with the same T9 code.
 This is a source-identity risk identified in code, not an independently captured
 native event-order reproduction.
 
-## Proposed Decision
+## Decision
 
 Deepen the existing `ChineseT9CompositionCoordinator` Module. Its Interface
 should accept input intents and expose immutable presentation state; callers
@@ -69,30 +69,32 @@ acknowledgements themselves.
 ### One Authoritative Input
 
 Store raw keys and explicit separators once. Selected readings annotate source
-spans with stable selection identities and an explicit exact/initial constraint.
+spans and impose an exact/initial constraint. Immutable engine projections carry
+the document epoch and revision, so the bridge needs no mutable selection
+acknowledgement or text-based lookup.
 Choosing or reopening a reading does not insert or duplicate raw keys. A partial
 commit removes only its consumed source prefix, shifts remaining spans, and
 preserves unconsumed choices and separators.
 
 Derive the engine projection and local reading state from this document.
-Replacement commands carry their source identity and expected projection, not
+Replacement commands carry their source identity and full projection, not
 positions guessed from tail length or `lastIndexOf`. Use the existing native
-Rime replacement capability; a replacement must verify its expected input and
-publish a result. Any required resynchronization restores the full authoritative
+Rime replacement capability; the serialized replacement reads the current range
+and publishes its success result. Any required resynchronization restores the full authoritative
 projection, including reading choices, rather than silently weakening filters
 or replaying digits without their choices.
 
 ### Lossless Commands, Versioned Results
 
 Own local state on the main dispatcher. Engine work consumes immutable commands
-and returns immutable acknowledgements; it never mutates the live composition
+and returns success without changing the document; it never mutates the live composition
 session after a suspension. Reading getters and snapshot builders remain pure.
 
 Separate the editor/session epoch from the input revision and command identity.
 Typing another digit in the same session must not discard an earlier reading
 selection. Clear, editor change, or scheme change invalidates obsolete session
-work. An acknowledgement names its actual command and selection, so an old
-`ni` cannot acknowledge a new `ni` merely because their text matches.
+work. Results carry the producing command identity, so an old `ni` cannot
+acknowledge a new `ni` merely because their text matches.
 
 Keep the existing ordered engine lane. Presentation may skip superseded frames;
 accepted semantic input must remain lossless and ordered. Do not solve the race
@@ -112,7 +114,7 @@ the intended letters, not any spelling with the same number sequence. Native
 comment normalization and source alignment belong behind the composition
 Interface rather than in the renderer.
 
-## Implementation Order And Acceptance
+## Implementation And Regression Contract
 
 1. Replace the inconsistent Pinyin source bookkeeping inside the existing
    session. Cover consecutive choices, separators, initial-only choices,
@@ -127,8 +129,7 @@ Interface rather than in the renderer.
    syllables, and delayed/reordered callbacks. Remove comment-based recovery
    paths that contradict explicit choices.
 
-Each stage must turn the corresponding diagnostics into permanent regression
-tests and rerun the physical reproduction before continuing. Use a mutable fake
+The corresponding diagnostics are permanent regression tests. Use a mutable fake
 engine with controllable suspension; an always-successful replacement stub
 cannot detect lost ranges or stale acknowledgements. Include invariants that
 selection/reopening conserve raw input and that a prefix commit preserves the
@@ -140,6 +141,26 @@ key contract, and Rime dictionaries unchanged. Measure dispatch, queue wait,
 source callback, and first complete frame at paced input rates before claiming
 a performance improvement. Removing avoidable replay and re-query work is a
 design benefit to verify, not a measured result of this audit.
+
+The replacement deletes `T9CompositionTracker`, pending-selection flags,
+engine-backed acknowledgements, suffix-length replacement guesses, and
+per-revision cancellation of accepted reading commands. Pinyin no longer has a
+digit-only replay fallback. `FcitxPresentationSequencer` stamps the existing
+native InputPanel/Paged callback pair and caches complete frames;
+`ChineseT9SourceRegistry` validates those origins against the current ticket.
+Numeric freshness remains a completeness check for shared scheme replay, not
+proof of source identity. Custom phrase candidates obey the same explicit
+spelling constraints as engine candidates.
+
+The focused JVM selection (42 suites, 262 tests) passes. Physical debug checks
+cover the original separator and reopen/append reproductions, `ge/he` reselection,
+continuous initials with a partial commit, a long sentence selected after `zui`,
+and committing followed immediately by a new composition at 70 ms key spacing.
+Shared-path smoke checks cover Stroke `1234` selection and Zhuyin `20`, reading
+filtering, and center-key selection; temporary scheme preferences are restored.
+Screen recordings were inspected around reading selection and partial commit;
+these checks are not a claim that every animation or performance percentile has
+been validated.
 
 ## Alternatives Rejected
 
