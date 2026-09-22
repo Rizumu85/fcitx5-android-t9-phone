@@ -48,6 +48,12 @@ selection actions, password handling, Physical T9, mapped delete recovery, and
 ordinary forwarded keys. Routes share one handled/consume-key-up result so a
 key cannot be interpreted twice.
 
+Back is an input-method delete key only while the input panel is shown. An
+editor binding can outlive that panel and must not retain Back ownership.
+`PhysicalInputRouter` latches ownership for the whole press/repeat/release
+gesture; hiding the panel stops further deletion without leaking its release
+to the app. Pre-IME selection deletion follows the same visibility boundary.
+
 `PhysicalT9KeyHandler` captures one immutable, mode-aware state snapshot and
 delegates to `PhysicalT9KeyFlow`. Internal Chinese, English, number, and
 selection modules return ordered domain commands. `PhysicalT9CommandExecutor`
@@ -77,6 +83,19 @@ unconsumed annotations. Snapshot reads cannot repair or mutate composition.
 `ChineseT9CompositionCoordinator` is the service-facing interface for Pinyin,
 Stroke, and Zhuyin sessions. It owns raw digits, resolved readings, presentation
 keys, backspace/replay behavior, and literal-code commit text.
+
+Zhuyin reading selections annotate digit spans in `T9ZhuyinReadingFilterSession`.
+Appending preserves them; deletion releases only touched spans, and a partial
+Hanzi commit shifts surviving annotations to the remaining source. The local
+resolver applies those constraints before its bounded option enumeration, and
+candidate filtering respects the same syllable boundaries. Invalid extensions
+show no match rather than silently discarding the user's selection.
+
+Filtered candidate reads use `T9FilteredCandidateScan`: each engine operation
+reads one bounded batch, and the result budget applies after reading filtering
+and display deduplication. Source indices survive discarded entries and page
+construction. Every batch checks both the composition ticket and filter request
+identity, so new typing cancels obsolete scans between engine operations.
 
 `ChineseT9CompositionLifecycle` decides session mutation and immediate UI
 cleanup. `ChineseT9PresentationSource` builds the stable top preview and

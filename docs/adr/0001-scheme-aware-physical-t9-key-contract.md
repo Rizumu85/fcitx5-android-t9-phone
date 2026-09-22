@@ -134,6 +134,27 @@ The first Zhuyin version omits dedicated tone keys and lets the engine rank
 readings. Tone entry may be added later only if user testing shows that
 candidate ranking cannot replace it.
 
+Confirming a Zhuyin reading pins its syllables to their source digit spans,
+without rewriting the raw input. Appending resolves only the remaining tail;
+an incomplete selected syllable may still gain a final. A complete selected
+syllable cannot silently merge with the next key into a different reading.
+Deleting through a pinned span releases that span and later choices, while a
+partial Hanzi commit preserves and rebases choices beyond the consumed prefix.
+Reading options are constrained before truncation, so the option limit cannot
+erase an explicit choice. An incompatible extension remains a no-match state
+until the user edits it, rather than reverting to unrestricted matching.
+The candidate-read budget applies to matching results, not the first unfiltered
+engine entries. Reads are batched in the ordered engine lane and cancelled when
+the source or filter changes; sparse global indices remain attached through
+local paging and selection. This prevents a low-ranked reading from appearing
+empty without turning a key press into an uninterruptible full-list scan.
+
+The phone's Back-as-delete mapping belongs to the visible input panel, not
+merely to a focused editor. Hiding the panel restores ordinary app Back.
+Ownership remains fixed for each physical press/repeat/release sequence, even
+when the panel hides or opens halfway through it. Dedicated Delete keys retain
+their normal editor behavior independently of panel visibility.
+
 ### 4. Keep mode switching shallow for users
 
 Long `#` continues to cycle only the top-level modes: Chinese, English, and
