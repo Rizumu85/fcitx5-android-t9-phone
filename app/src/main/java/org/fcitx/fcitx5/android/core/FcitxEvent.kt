@@ -56,7 +56,10 @@ sealed class FcitxEvent<T>(open val data: T) {
         override fun toString(): String = "ClientPreeditEvent('$data', ${data.cursor})"
     }
 
-    data class InputPanelEvent(override val data: Data) : FcitxEvent<InputPanelEvent.Data>(data) {
+    data class InputPanelEvent(
+        override val data: Data,
+        val origin: FcitxPresentationOrigin = FcitxPresentationOrigin()
+    ) : FcitxEvent<InputPanelEvent.Data>(data) {
 
         override val eventType = EventType.InputPanel
 
@@ -128,7 +131,10 @@ sealed class FcitxEvent<T>(open val data: T) {
         data class Data(val before: Int, val after: Int)
     }
 
-    data class PagedCandidateEvent(override val data: Data) :
+    data class PagedCandidateEvent(
+        override val data: Data,
+        val origin: FcitxPresentationOrigin = FcitxPresentationOrigin()
+    ) :
         FcitxEvent<PagedCandidateEvent.Data>(data) {
 
         override val eventType = EventType.PagedCandidate

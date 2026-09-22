@@ -91,6 +91,11 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
     override fun translate(str: String, domain: String) = getFcitxTranslation(domain, str)
 
     override suspend fun save() = withFcitxContext { saveFcitxState() }
+    override suspend fun <T> withCandidateSource(commandId: Long, block: suspend FcitxAPI.() -> T): T =
+        withFcitxContext {
+            presentationSequencer.commandId = commandId
+            block()
+        }
     override suspend fun reloadConfig() = withFcitxContext {
         reloadFcitxConfig()
         updateCachedState {
@@ -455,7 +460,7 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
         @Suppress("unused")
         @JvmStatic
         fun handleFcitxEvent(type: Int, params: Array<Any>) {
-            val event = FcitxEvent.create(type, params)
+            val event = presentationSequencer.stamp(FcitxEvent.create(type, params))
             // Candidate events can contain an entire page. Serializing them on every native
             // callback used to make debug input materially slower and still cost release builds
             // before Timber rejected the message.
@@ -497,10 +502,13 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
             fcitxEventHandlers.remove(handler)
         }
 
+        private val presentationSequencer = FcitxPresentationSequencer()
+
     }
 
     private val dispatcher = FcitxDispatcher(object : FcitxDispatcher.FcitxController {
         override fun nativeStartup() {
+            presentationSequencer.reset()
             StartupPerformanceTrace.measure(StartupPerformanceTrace.Stage.DATA_INSTALLATION) {
                 DataManager.sync()
             }
@@ -624,7 +632,7 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
                 it.copy(inputPanel = event.data)
             }
             is FcitxEvent.PagedCandidateEvent -> updateCachedState {
-                it.copy(pagedCandidates = event.data)
+                it.copy(pagedCandidates = event.data, presentationFrame = presentationSequencer.completeFrame)
             }
             is FcitxEvent.RimeAvailabilityEvent -> {
                 when (
@@ -735,7 +743,8 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
             it.copy(
                 clientPreedit = FormattedText.Empty,
                 inputPanel = FcitxEvent.InputPanelEvent.Data(),
-                pagedCandidates = FcitxEvent.PagedCandidateEvent.Data.Empty
+                pagedCandidates = FcitxEvent.PagedCandidateEvent.Data.Empty,
+                presentationFrame = null
             )
         }
     }

@@ -14,5 +14,6 @@ data class FcitxCachedState(
         FcitxEvent.PagedCandidateEvent.Data.Empty,
     val rimeAvailability: FcitxEvent.RimeAvailabilityEvent.Data =
         FcitxEvent.RimeAvailabilityEvent.Data.Unavailable,
-    val revision: Long = 0L
+    val revision: Long = 0L,
+    val presentationFrame: FcitxPresentationFrame? = null
 )

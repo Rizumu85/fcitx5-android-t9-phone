@@ -50,6 +50,12 @@ interface FcitxAPI {
 
     suspend fun reloadConfig()
 
+    /**
+     * Tags a serialized input mutation. The origin remains current for later paging/UI flushes;
+     * resetting it on return would erase provenance before native presentation is published.
+     */
+    suspend fun <T> withCandidateSource(commandId: Long, block: suspend FcitxAPI.() -> T): T
+
     suspend fun sendKey(key: String, states: UInt = 0u, code: Int = 0, up: Boolean = false, timestamp: Int = -1)
 
     suspend fun sendKey(c: Char, states: UInt = 0u, code: Int = 0, up: Boolean = false, timestamp: Int = -1)
