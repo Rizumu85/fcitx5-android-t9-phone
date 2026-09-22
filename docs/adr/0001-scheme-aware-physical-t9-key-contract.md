@@ -37,7 +37,7 @@ are both literal numeric/operator input.
 | Pinyin | Syllable separator while composing; literal apostrophe while idle | Candidate shortcut 1 while composing; literal `1` while idle | Commit the highlighted Hanzi without a space, then open Chinese punctuation; open punctuation directly while idle | Insert literal `*` and clear incompatible Chinese composition |
 | Stroke | Horizontal stroke | Candidate shortcut 1; literal `1` when no candidate owns it | Commit the highlighted Hanzi, then open Chinese punctuation | Insert literal `*` |
 | Zhuyin | `ㄅㄆㄇㄈ` group | Candidate shortcut 1; literal `1` when no candidate owns it | Commit the highlighted Hanzi, then open Chinese punctuation | Insert literal `*` |
-| Smart English | Cycle `abc -> Abc -> ABC -> abc` | Candidate shortcut 1; literal `1` when no candidate owns it | Commit the selected word without a space or next-word prediction, then open English punctuation | Commit pending text and insert literal `*` |
+| Smart English | Cycle `abc -> Abc -> ABC -> abc` | Candidate shortcut 1; literal `1` when no candidate owns it | Commit typed composition without a space, or dismiss unaccepted prediction, then open English punctuation | Commit typed composition or dismiss prediction, then insert literal `*` |
 | Simple English | Cycle `abc -> Abc -> ABC -> abc` | Literal `1` | Commit the pending multi-tap character, then open English punctuation | Commit pending text and insert literal `*` |
 | Number | Digit `1` | Existing number-operator shortcut | Literal `*` | Open the number operator panel |
 
@@ -64,8 +64,9 @@ presses on `1..9,0`; moving English case to short `1` must not remove shortcut
   per key, and Zhuyin commits one resolved Bopomofo symbol per key. An
   unresolved Zhuyin fallback group is not committed as if it were a reading.
 - English: short `0` confirms with the existing spacing/prediction policy.
-  Short `#` commits pending text without a space, performs return, and stops
-  prediction.
+  Short `#` commits typed composition without a space and performs Return.
+  With only next-word prediction, it dismisses the suggestion and performs
+  Return without inserting the suggested word.
 - Number: digits stay literal and short `#` performs return.
 
 Short `#` while Chinese composition is idle always performs Return. Long `#`
@@ -74,6 +75,13 @@ long `*` cycles the configured Chinese schemes; if only one scheme is enabled,
 it commits a literal star. Short `*` remains punctuation entry and punctuation
 set toggle. This avoids carrying hidden Pinyin, Stroke, or Zhuyin state into
 the next mode without sacrificing Return.
+
+Smart English predictions are not pending user input. Punctuation entry,
+literal-star insertion, and Return clear prediction context even if its model
+is still warming up; the suggestion must not reappear when loading completes.
+Only explicit candidate confirmation (`0`, OK/center, a candidate tap, or a
+long digit shortcut) accepts a predicted word. Actual digit composition keeps
+its selected-word commit behavior before punctuation or Return.
 
 Continuous Chinese prediction is a visible Chinese candidate surface, not a
 hidden composition. OK/center and long `1..9,0` select it. Backspace dismisses

@@ -216,6 +216,13 @@ no-personalized-learning editors are excluded.
 continuous prediction, case state, pair-frequency reranking, and learned
 word/pair recording.
 
+Physical punctuation and Return distinguish typed composition from next-word
+prediction: typed candidates commit without a space, while unaccepted
+predictions are discarded. The key flow clears prediction context even before
+model readiness, preventing a late suggestion from crossing that boundary.
+Explicit confirmation through `0`, OK/center, or a candidate shortcut still
+accepts predictions with the existing spacing policy.
+
 Dictionaries are warmed outside the first-key path. Candidate and prediction
 lookups use immutable revisioned snapshots and sequence/page caches.
 `SmartEnglishPersistence` publishes learned data in memory immediately and
