@@ -257,7 +257,7 @@ class ChineseT9CompositionCoordinator(
             val reading = T9ZhuyinResolver.normalizeCandidateReading(candidate.comment)
             val readingDigits = T9ZhuyinResolver.digitsForReading(reading)
             rawCodeSession.consumePrefix(readingDigits)?.let { remaining ->
-                zhuyinReadingFilter.updateRawCode(remaining)
+                zhuyinReadingFilter.consumePrefix(readingDigits.length)
                 codePresentationCache.reset()
                 return remaining
             }
@@ -307,11 +307,6 @@ class ChineseT9CompositionCoordinator(
     private fun rawCodeSnapshot(): ChineseT9InputSnapshot {
         val rawCode = rawCodeSession.rawCode
         val digitSequence = rawCodeSession.digitSequence
-        val zhuyinResolution = if (scheme == ChineseT9Scheme.ZHUYIN) {
-            zhuyinResolver.resolve(rawCode)
-        } else {
-            null
-        }
         return ChineseT9InputSnapshot(
             rawSequence = rawCode,
             digitSequence = digitSequence,
@@ -330,7 +325,7 @@ class ChineseT9CompositionCoordinator(
             sessionRevision = rawCodeSession.revision,
             sessionEpoch = session.epoch,
             scheme = scheme,
-            hasInvalidReading = zhuyinResolution is T9ZhuyinResolver.Result.Invalid,
+            hasInvalidReading = scheme == ChineseT9Scheme.ZHUYIN && zhuyinReadingFilter.hasInvalidReading,
             explicitReadingOptions = if (scheme == ChineseT9Scheme.ZHUYIN) {
                 zhuyinReadingFilter.visibleOptions(rawCode)
             } else {

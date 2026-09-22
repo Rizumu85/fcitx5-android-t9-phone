@@ -52,7 +52,8 @@ data class ChineseT9InputSnapshot(
             scheme = scheme,
             candidateText = candidateText,
             explicitReadingOptions = explicitReadingOptions,
-            selectedReading = selectedReading
+            selectedReading = selectedReading,
+            hasInvalidReading = hasInvalidReading
         )
 
     fun presentationKey(
@@ -94,7 +95,8 @@ data class ChineseT9PresentationSnapshotKey(
     val scheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN,
     val candidateText: String = "",
     val explicitReadingOptions: List<String> = emptyList(),
-    val selectedReading: String? = null
+    val selectedReading: String? = null,
+    val hasInvalidReading: Boolean = false
 )
 
 class ChineseT9PresentationSnapshotCache {

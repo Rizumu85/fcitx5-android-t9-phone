@@ -21,6 +21,8 @@ class T9ZhuyinResolver(
         val completeSegmentCount: Int = segments.count(Segment::complete)
     }
 
+    private data class OptionKey(val digits: String, val selectedReading: String)
+
     private val completeDigitCodes: Set<String>
     private val prefixDigitCodes: Set<String>
     private val completeReadings: Set<String>
@@ -34,13 +36,13 @@ class T9ZhuyinResolver(
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Boolean>?): Boolean =
             size > MaxCacheEntries
     }
-    private val optionCache = object : LinkedHashMap<String, List<String>>(
+    private val optionCache = object : LinkedHashMap<OptionKey, List<String>>(
         MaxOptionCacheEntries,
         0.75f,
         true
     ) {
         override fun removeEldestEntry(
-            eldest: MutableMap.MutableEntry<String, List<String>>?
+            eldest: MutableMap.MutableEntry<OptionKey, List<String>>?
         ): Boolean = size > MaxOptionCacheEntries
     }
 
@@ -84,10 +86,11 @@ class T9ZhuyinResolver(
         return if (valid) Result.Valid(rawDigits) else Result.Invalid(rawDigits)
     }
 
-    fun readingOptions(rawDigits: String): List<String> {
+    fun readingOptions(rawDigits: String, selectedReading: String = ""): List<String> {
         if (resolve(rawDigits) !is Result.Valid) return emptyList()
-        return optionCache[rawDigits] ?: buildReadingOptions(rawDigits).also {
-            optionCache[rawDigits] = it
+        val key = OptionKey(rawDigits, normalizeCandidateReading(selectedReading))
+        return optionCache[key] ?: buildReadingOptions(rawDigits, key.selectedReading).also {
+            optionCache[key] = it
         }
     }
 
@@ -98,19 +101,24 @@ class T9ZhuyinResolver(
         val selectedSegments = normalizeCandidateReading(selectedReading)
             .split(' ')
             .filter(String::isNotEmpty)
-        if (candidateSegments.size != selectedSegments.size || selectedSegments.isEmpty()) return false
-        if (selectedSegments.dropLast(1).indices.any { index ->
-                selectedSegments[index] != candidateSegments[index]
-            }
-        ) {
-            return false
+        if (candidateSegments.isEmpty() || selectedSegments.isEmpty()) return false
+        // A longer candidate may finish the unresolved tail; a shorter one may commit a prefix.
+        // Both must respect every selected syllable they actually consume.
+        return (0 until minOf(candidateSegments.size, selectedSegments.size)).all { index ->
+            segmentMatchesSelection(candidateSegments[index], selectedSegments, index)
         }
-        val selectedFinal = selectedSegments.last()
-        val candidateFinal = candidateSegments.last()
-        return if (selectedFinal in completeReadings) {
-            candidateFinal == selectedFinal
+    }
+
+    private fun segmentMatchesSelection(
+        reading: String,
+        selectedSegments: List<String>,
+        index: Int
+    ): Boolean {
+        val selected = selectedSegments.getOrNull(index) ?: return true
+        return if (index < selectedSegments.lastIndex || selected in completeReadings) {
+            reading == selected
         } else {
-            candidateFinal.startsWith(selectedFinal)
+            reading.startsWith(selected)
         }
     }
 
@@ -134,23 +142,31 @@ class T9ZhuyinResolver(
         return isValidFrom(0)
     }
 
-    private fun buildReadingOptions(rawDigits: String): List<String> {
+    private fun buildReadingOptions(rawDigits: String, selectedReading: String): List<String> {
         // Keep enumeration separate from resolve() so validation stays cheap for callers that do
         // not render the row; the composition owner invokes this once per raw-code mutation.
-        val memo = HashMap<Int, List<Path>>()
-        fun pathsFrom(start: Int): List<Path> {
-            memo[start]?.let { return it }
+        val selectedSegments = selectedReading.split(' ').filter(String::isNotEmpty)
+        val memo = HashMap<Pair<Int, Int>, List<Path>>()
+        fun pathsFrom(start: Int, segmentIndex: Int): List<Path> {
+            val key = start to minOf(segmentIndex, selectedSegments.size)
+            memo[key]?.let { return it }
             val paths = ArrayList<Path>()
             val maxEnd = minOf(rawDigits.length, start + MaxDigitsPerSyllable)
             for (end in (start + 1)..maxEnd) {
                 val code = rawDigits.substring(start, end)
                 if (end == rawDigits.length) {
+                    if (segmentIndex < selectedSegments.lastIndex) continue
                     prefixByDigits[code].orEmpty().forEach { segment ->
-                        paths += Path(listOf(segment))
+                        if (segmentMatchesSelection(segment.reading, selectedSegments, segmentIndex)) {
+                            paths += Path(listOf(segment))
+                        }
                     }
                 } else {
                     completeByDigits[code].orEmpty().forEach { segment ->
-                        pathsFrom(end).forEach { suffix ->
+                        if (!segmentMatchesSelection(segment.reading, selectedSegments, segmentIndex)) {
+                            return@forEach
+                        }
+                        pathsFrom(end, segmentIndex + 1).forEach { suffix ->
                             paths += Path(listOf(segment) + suffix.segments)
                         }
                     }
@@ -165,9 +181,11 @@ class T9ZhuyinResolver(
                         .thenBy(Path::display)
                 )
                 .take(MaxReadingOptions)
-                .also { memo[start] = it }
+                .also { memo[key] = it }
         }
-        return pathsFrom(0).map(Path::display)
+        // Apply selections during traversal, before the bounded option list is truncated. A
+        // confirmed reading must not disappear merely because unrelated paths rank ahead of it.
+        return pathsFrom(0, 0).map(Path::display)
     }
 
     companion object {

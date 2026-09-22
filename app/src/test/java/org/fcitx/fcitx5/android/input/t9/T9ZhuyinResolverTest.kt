@@ -87,4 +87,23 @@ class T9ZhuyinResolverTest {
         assertFalse(resolver.candidateMatchesReadingOption("ㄋㄧㄠ", "ㄋㄧ"))
         assertFalse(resolver.candidateMatchesReadingOption("ㄋㄧ'ㄍㄠ", "ㄋㄧ ㄏ"))
     }
+
+    @Test
+    fun selectedPrefixAllowsLongerPhrasesAndPartialCommitsButNotDifferentSegmentation() {
+        assertTrue(resolver.candidateMatchesReadingOption("ㄋㄩ'ㄦ", "ㄋㄩ"))
+        assertTrue(resolver.candidateMatchesReadingOption("ㄋㄧ", "ㄋㄧ ㄏㄠ"))
+        assertFalse(resolver.candidateMatchesReadingOption("ㄊㄧㄢ", "ㄋㄩ"))
+        assertFalse(resolver.candidateMatchesReadingOption("ㄋㄧㄠ", "ㄋㄧ"))
+    }
+
+    @Test
+    fun constrainedOptionsKeepSelectedSyllablesBeforeTheOptionLimit() {
+        for (reading in listOf("ㄋㄩ", "ㄏㄠ", "ㄓㄨㄥ", "ㄒㄩㄝ")) {
+            val digits = T9ZhuyinResolver.digitsForReading(reading) + "9"
+            val options = resolver.readingOptions(digits, reading)
+            assertTrue("$reading ㄦ missing in $options", "$reading ㄦ" in options)
+            assertTrue(options.all { it.startsWith("$reading ") })
+            assertTrue(options.all { T9ZhuyinResolver.digitsForReading(it) == digits })
+        }
+    }
 }

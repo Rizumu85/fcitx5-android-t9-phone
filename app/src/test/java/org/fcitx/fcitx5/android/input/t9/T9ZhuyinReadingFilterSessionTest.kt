@@ -51,4 +51,32 @@ class T9ZhuyinReadingFilterSessionTest {
 
         assertTrue(session.visibleOptions("33").isEmpty())
     }
+
+    @Test
+    fun initialSelectionConstrainsCompletionsAndSurvivesIdenticalUpdates() {
+        session.updateRawCode("2")
+        assertTrue(session.select("2", "ㄋ"))
+        session.updateRawCode("2")
+        assertEquals("ㄋ", session.selectedReading)
+
+        session.updateRawCode("20")
+
+        assertTrue(session.visibleOptions("20").containsAll(listOf("ㄋㄧ", "ㄋㄨ", "ㄋㄩ")))
+        assertTrue(session.visibleOptions("20").all { it.startsWith("ㄋ") })
+    }
+
+    @Test
+    fun replacingOrResettingSourceCannotKeepUnrelatedChoices() {
+        session.updateRawCode("20")
+        assertTrue(session.select("20", "ㄋㄩ"))
+        session.updateRawCode("38")
+        assertTrue(session.filterPrefixes().isEmpty())
+        assertTrue(session.select("38", "ㄏㄠ"))
+
+        session.reset()
+        session.updateRawCode("20")
+
+        assertTrue(session.filterPrefixes().isEmpty())
+        assertTrue("ㄋㄧ" in session.visibleOptions("20"))
+    }
 }

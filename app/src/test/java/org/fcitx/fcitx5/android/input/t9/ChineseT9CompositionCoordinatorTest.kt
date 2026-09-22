@@ -239,6 +239,80 @@ class ChineseT9CompositionCoordinatorTest {
     }
 
     @Test
+    fun zhuyinSelectedSyllableSurvivesAppendAndTailDeletion() {
+        val coordinator = coordinator()
+        coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_2)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_0)
+        assertTrue(coordinator.selectZhuyinReading("ㄋㄩ"))
+
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_9)
+
+        val extended = coordinator.snapshot()
+        assertEquals("209", extended.rawSequence)
+        assertEquals(listOf("ㄋㄩ"), extended.filterPrefixes)
+        assertTrue("ㄋㄩ ㄦ" in extended.explicitReadingOptions)
+        assertTrue(extended.explicitReadingOptions.all { it.startsWith("ㄋㄩ ") })
+        assertTrue(coordinator.candidateMatchesResolvedPrefix(
+            FcitxEvent.Candidate("", "女儿", "ㄋㄩ'ㄦ"), "ㄋㄩ"
+        ))
+        assertFalse(coordinator.candidateMatchesResolvedPrefix(
+            FcitxEvent.Candidate("", "天", "ㄊㄧㄢ"), "ㄋㄩ"
+        ))
+
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_DEL)
+        assertEquals("ㄋㄩ", coordinator.snapshot().selectedReading)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_DEL)
+        assertTrue(coordinator.snapshot().filterPrefixes.isEmpty())
+    }
+
+    @Test
+    fun zhuyinPartialCommitPreservesUnconsumedReadingSelection() {
+        val coordinator = coordinator()
+        coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_2)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_0)
+        assertTrue(coordinator.selectZhuyinReading("ㄋㄧ"))
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_8)
+        assertTrue(coordinator.selectZhuyinReading("ㄋㄧ ㄏㄠ"))
+
+        assertEquals("38", coordinator.consumeSelectedCandidateReading(
+            FcitxEvent.Candidate("", "你", "ㄋㄧ")
+        ))
+
+        assertEquals("38", coordinator.snapshot().rawSequence)
+        assertEquals(listOf("ㄏㄠ"), coordinator.snapshot().filterPrefixes)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_9)
+        assertTrue(coordinator.snapshot().explicitReadingOptions.all { it.startsWith("ㄏㄠ ") })
+    }
+
+    @Test
+    fun zhuyinInvalidExtensionNeverSilentlyReinterpretsSelectedInitial() {
+        val coordinator = coordinator()
+        coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_2)
+        assertTrue(coordinator.selectZhuyinReading("ㄋ"))
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
+
+        val snapshot = coordinator.snapshot()
+        assertTrue(snapshot.hasInvalidReading)
+        assertEquals("ㄋ", snapshot.selectedReading)
+        assertEquals(T9CandidateStatus.NO_MATCH, coordinator.presentation(snapshot.presentationKey(
+            pendingPunctuationText = null,
+            inputPreedit = "23",
+            candidateComment = "",
+            candidateCursorIndex = -1
+        )).candidateStatus)
+
+        coordinator.backspaceFromVirtualKey()
+        assertFalse(coordinator.snapshot().hasInvalidReading)
+        assertEquals("ㄋ", coordinator.snapshot().selectedReading)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_0)
+        assertTrue("ㄋㄩ" in coordinator.readingCandidates())
+    }
+
+    @Test
     fun zhuyinCandidateWithoutReadingUsesItsVisibleTextForPreview() {
         val coordinator = coordinator()
         coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)

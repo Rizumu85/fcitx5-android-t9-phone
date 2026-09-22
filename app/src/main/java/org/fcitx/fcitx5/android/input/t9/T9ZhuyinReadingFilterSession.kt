@@ -10,14 +10,31 @@ class T9ZhuyinReadingFilterSession(
 ) {
     private var optionCode = ""
     private var options = emptyList<String>()
+    private data class Selection(val reading: String, val start: Int, val end: Int)
+    private var selections = emptyList<Selection>()
 
-    var selectedReading: String? = null
-        private set
+    val selectedReading: String?
+        get() = selections.takeIf { it.isNotEmpty() }?.joinToString(" ") { it.reading }
+
+    val hasInvalidReading: Boolean
+        get() = optionCode.isNotEmpty() && options.isEmpty()
 
     fun updateRawCode(rawDigits: String) {
+        if (optionCode == rawDigits) return
+        val unchangedPrefix = optionCode.commonPrefixWith(rawDigits).length
+        // A choice belongs to source digits, not to a particular candidate page. Appending must
+        // not undo it; editing through its source span releases only that choice and its suffix.
+        selections = selections.takeWhile { it.end <= unchangedPrefix }
         optionCode = rawDigits
-        options = resolver.readingOptions(rawDigits)
-        selectedReading = null
+        rebuildOptions()
+    }
+
+    fun consumePrefix(digitCount: Int) {
+        selections = selections.filter { it.start >= digitCount }.map {
+            it.copy(start = it.start - digitCount, end = it.end - digitCount)
+        }
+        optionCode = optionCode.drop(digitCount)
+        rebuildOptions()
     }
 
     fun visibleOptions(rawDigits: String): List<String> =
@@ -26,7 +43,11 @@ class T9ZhuyinReadingFilterSession(
     fun select(rawDigits: String, reading: String): Boolean {
         val normalized = T9ZhuyinResolver.normalizeCandidateReading(reading)
         if (normalized.isEmpty() || optionCode != rawDigits || normalized !in options) return false
-        selectedReading = normalized
+        var start = 0
+        selections = normalized.split(' ').map { syllable ->
+            val end = start + T9ZhuyinResolver.digitsForReading(syllable).length
+            Selection(syllable, start, end).also { start = end }
+        }
         return true
     }
 
@@ -35,6 +56,10 @@ class T9ZhuyinReadingFilterSession(
     fun reset() {
         optionCode = ""
         options = emptyList()
-        selectedReading = null
+        selections = emptyList()
+    }
+
+    private fun rebuildOptions() {
+        options = resolver.readingOptions(optionCode, selectedReading.orEmpty())
     }
 }

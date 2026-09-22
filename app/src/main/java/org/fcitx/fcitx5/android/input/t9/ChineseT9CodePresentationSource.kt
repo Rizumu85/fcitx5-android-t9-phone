@@ -52,6 +52,13 @@ class ChineseT9CodePresentationSource(
         T9StrokeCodec.display(rawCode).orEmpty()
 
     private fun zhuyinPresentation(key: ChineseT9PresentationSnapshotKey): T9PresentationState {
+        if (key.hasInvalidReading) {
+            return T9PresentationState(
+                topReading = formatText(key.rawSequence),
+                readingOptions = emptyList(),
+                candidateStatus = T9CandidateStatus.NO_MATCH
+            )
+        }
         return when (val result = zhuyinResolver.resolve(key.rawSequence)) {
             T9ZhuyinResolver.Result.Empty -> T9PresentationState(
                 topReading = null,
