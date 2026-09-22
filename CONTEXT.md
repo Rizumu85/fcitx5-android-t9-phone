@@ -68,6 +68,12 @@ owns the key. Zhuyin and number mode keep their scheme-specific `0` behavior.
 
 ## Chinese Composition And Rime
 
+Known Pinyin selection/source-ownership defects and the proposed replacement
+contract are recorded in
+`docs/adr/0007-source-owned-pinyin-composition.md`. That proposal is not yet
+implemented; the existing ticket and snapshot structure alone does not enforce
+all of the intended consistency guarantees below.
+
 `ChineseT9CompositionCoordinator` is the service-facing interface for Pinyin,
 Stroke, and Zhuyin sessions. It owns raw digits, resolved readings, presentation
 keys, backspace/replay behavior, and literal-code commit text.
