@@ -11,6 +11,7 @@ class PhysicalInputRouter(
     private val mapInput: (keyCode: Int, event: KeyEvent) -> Pair<Int, KeyEvent> = { keyCode, event ->
         keyCode to event
     },
+    private val ownsBackKey: () -> Boolean = { true },
     private val keyDownRoutes: List<Route>,
     private val keyUpBeforePairingRoutes: List<Route>,
     private val keyUpAfterPairingRoutes: List<Route>
@@ -42,8 +43,19 @@ class PhysicalInputRouter(
     }
 
     private var consumedKeyUp: Int? = null
+    private var backKeyOwnedByIme: Boolean? = null
 
-    fun handleKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+    fun handleKeyDown(keyCode: Int, event: KeyEvent, repeatCount: Int): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            val visible = ownsBackKey()
+            if (repeatCount == 0 || backKeyOwnedByIme == null) {
+                backKeyOwnedByIme = visible
+            }
+            if (backKeyOwnedByIme == false) return false
+            // A held Back may hide the panel. Consume the rest of that gesture without deleting
+            // more text; the next press belongs to the app even if its editor still has focus.
+            if (!visible) return true
+        }
         val startedNanos = T9ResponsivenessTrace.captureInputStartNanos()
         val activeTraceAtStart = T9ResponsivenessTrace.activeInputId()
         val result = runRoutes(keyDownRoutes, Input(keyCode, event, mapInput))
@@ -52,6 +64,15 @@ class PhysicalInputRouter(
     }
 
     fun handleKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            val visible = ownsBackKey()
+            val owned = backKeyOwnedByIme ?: visible
+            backKeyOwnedByIme = null
+            if (!owned || !visible) {
+                if (consumedKeyUp == keyCode) consumedKeyUp = null
+                return owned
+            }
+        }
         val startedNanos = T9ResponsivenessTrace.captureInputStartNanos()
         val activeTraceAtStart = T9ResponsivenessTrace.activeInputId()
         val input = Input(keyCode, event, mapInput)
@@ -72,6 +93,7 @@ class PhysicalInputRouter(
 
     fun reset() {
         consumedKeyUp = null
+        // Composition/panel resets do not transfer an in-flight Back release to another owner.
     }
 
     private fun runRoutes(routes: List<Route>, input: Input): Result? {

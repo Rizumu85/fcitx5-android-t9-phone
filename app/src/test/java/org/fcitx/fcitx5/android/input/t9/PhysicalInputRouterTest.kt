@@ -7,11 +7,89 @@ package org.fcitx.fcitx5.android.input.t9
 
 import android.view.KeyEvent
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PhysicalInputRouterTest {
+
+    @Test
+    fun hiddenPanelBackBypassesEveryEditingRouteAndMapping() {
+        val calls = mutableListOf<String>()
+        val router = backRouter(calls) { false }
+
+        assertFalse(handleDown(router, KeyEvent.KEYCODE_BACK))
+        assertFalse(handleUp(router, KeyEvent.KEYCODE_BACK))
+        assertTrue(calls.isEmpty())
+
+        assertTrue(handleDown(router, KeyEvent.KEYCODE_DEL))
+        assertEquals(listOf("delete-down"), calls)
+    }
+
+    @Test
+    fun visiblePanelKeepsPhoneBackspaceBehavior() {
+        val calls = mutableListOf<String>()
+        val router = backRouter(calls) { true }
+
+        assertTrue(handleDown(router, KeyEvent.KEYCODE_BACK))
+        assertTrue(handleUp(router, KeyEvent.KEYCODE_BACK))
+        assertEquals(listOf("delete-down"), calls)
+    }
+
+    @Test
+    fun hidingPanelDuringBackGestureConsumesItsReleaseButNotTheNextPress() {
+        val calls = mutableListOf<String>()
+        var visible = true
+        val router = backRouter(calls) { visible }
+        assertTrue(handleDown(router, KeyEvent.KEYCODE_BACK))
+        visible = false
+        router.reset()
+
+        assertTrue(handleUp(router, KeyEvent.KEYCODE_BACK))
+        assertFalse(handleDown(router, KeyEvent.KEYCODE_BACK))
+        assertFalse(handleUp(router, KeyEvent.KEYCODE_BACK))
+        assertEquals(listOf("delete-down"), calls)
+    }
+
+    @Test
+    fun showingPanelCannotStealTheReleaseOfAnAppOwnedBackPress() {
+        val calls = mutableListOf<String>()
+        var visible = false
+        val router = backRouter(calls) { visible }
+        assertFalse(handleDown(router, KeyEvent.KEYCODE_BACK))
+        visible = true
+
+        assertFalse(handleUp(router, KeyEvent.KEYCODE_BACK))
+        assertTrue(calls.isEmpty())
+        assertTrue(handleDown(router, KeyEvent.KEYCODE_BACK))
+        assertTrue(handleUp(router, KeyEvent.KEYCODE_BACK))
+        assertEquals(listOf("delete-down"), calls)
+    }
+
+    @Test
+    fun heldBackStopsDeletingAfterPanelHidesWithoutTransferringTheGestureToApp() {
+        val calls = mutableListOf<String>()
+        var visible = true
+        val router = backRouter(calls) { visible }
+        assertTrue(handleDown(router, KeyEvent.KEYCODE_BACK))
+        visible = false
+
+        assertTrue(handleDown(router, KeyEvent.KEYCODE_BACK, repeatCount = 1))
+        assertTrue(handleUp(router, KeyEvent.KEYCODE_BACK))
+        assertEquals(listOf("delete-down"), calls)
+    }
+
+    private fun backRouter(calls: MutableList<String>, visible: () -> Boolean) = PhysicalInputRouter(
+        mapInput = { _, _ -> error("An unowned Back must never be remapped") },
+        ownsBackKey = visible,
+        keyDownRoutes = listOf(PhysicalInputRouter.Route {
+            calls += "delete-down"
+            PhysicalInputRouter.Result(handled = true, consumeKeyUp = it.keyCode)
+        }),
+        keyUpBeforePairingRoutes = emptyList(),
+        keyUpAfterPairingRoutes = listOf(route(calls, "delete-up", handled = true))
+    )
 
     @Test
     fun routerOwnedEffectUsesTheWholeKeyDownRouteDuration() {
@@ -159,8 +237,9 @@ class PhysicalInputRouterTest {
 
     private fun handleDown(
         router: PhysicalInputRouter,
-        keyCode: Int = KeyEvent.KEYCODE_2
-    ): Boolean = router.handleKeyDown(keyCode, event(KeyEvent.ACTION_DOWN, keyCode))
+        keyCode: Int = KeyEvent.KEYCODE_2,
+        repeatCount: Int = 0
+    ): Boolean = router.handleKeyDown(keyCode, event(KeyEvent.ACTION_DOWN, keyCode), repeatCount)
 
     private fun handleUp(
         router: PhysicalInputRouter,

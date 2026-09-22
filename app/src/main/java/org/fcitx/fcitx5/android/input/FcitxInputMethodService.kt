@@ -1438,6 +1438,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             selectionPreImeBackConsumed = false
             return true
         }
+        if (!ownsPhysicalBackKey()) return false
         if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount != 0) return false
 
         if (numberModeControllerDelegate.isInitialized() && numberModeController.hasTransientPanel) {
@@ -1459,17 +1460,21 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun updateSelectionBackCallback(hasSelection: Boolean) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         val dispatcher = window.window?.onBackInvokedDispatcher ?: return
-        if (hasSelection && !selectionBackCallbackRegistered) {
+        val shouldRegister = hasSelection && ownsPhysicalBackKey()
+        if (shouldRegister && !selectionBackCallbackRegistered) {
             dispatcher.registerOnBackInvokedCallback(
                 OnBackInvokedDispatcher.PRIORITY_OVERLAY,
                 selectionBackCallback
             )
             selectionBackCallbackRegistered = true
-        } else if (!hasSelection && selectionBackCallbackRegistered) {
+        } else if (!shouldRegister && selectionBackCallbackRegistered) {
             dispatcher.unregisterOnBackInvokedCallback(selectionBackCallback)
             selectionBackCallbackRegistered = false
         }
     }
+
+    private fun ownsPhysicalBackKey(): Boolean =
+        inputDeviceMgr.isInInputMode && isInputViewShown
 
     private fun deleteCollapsedSelectionIfNeeded(
         oldSelStart: Int,
@@ -1945,6 +1950,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var physicalSelectionRangeActive = false
     private val physicalInputRouter by lazy {
         PhysicalInputRouter(
+            ownsBackKey = ::ownsPhysicalBackKey,
             mapInput = ::mapKeyEvent,
             keyDownRoutes = listOf(
                 PhysicalInputRouter.Route(::routeNumberTransientPanelKeyDown),
@@ -3315,7 +3321,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             physicalInputRouter.reset()
             return super.onKeyDown(keyCode, event)
         }
-        return physicalInputRouter.handleKeyDown(keyCode, event)
+        return physicalInputRouter.handleKeyDown(keyCode, event, event.repeatCount)
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
