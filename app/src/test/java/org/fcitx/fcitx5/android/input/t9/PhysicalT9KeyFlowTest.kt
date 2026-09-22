@@ -55,14 +55,15 @@ class PhysicalT9KeyFlowTest {
     @Test
     fun smartEnglishStarCommitsCandidateWithoutPredictionThenShowsPunctuation() {
         val flow = PhysicalT9KeyFlow()
+        val composing = state(hasSmartEnglishDigits = true, hasSmartEnglishCandidates = true)
         flow.handle(
             input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN),
-            state(hasSmartEnglishCandidates = true)
+            composing
         )
 
         val up = flow.handle(
             input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP),
-            state(hasSmartEnglishCandidates = true)
+            composing
         )
 
         assertEquals(
@@ -80,9 +81,10 @@ class PhysicalT9KeyFlowTest {
     @Test
     fun smartEnglishPoundCommitsCandidateWithoutPredictionThenReturns() {
         val flow = PhysicalT9KeyFlow()
-        flow.handle(input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN), state(hasSmartEnglishCandidates = true))
+        val composing = state(hasSmartEnglishDigits = true, hasSmartEnglishCandidates = true)
+        flow.handle(input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN), composing)
 
-        val up = flow.handle(input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP), state(hasSmartEnglishCandidates = true))
+        val up = flow.handle(input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP), composing)
 
         assertEquals(
             listOf(
@@ -97,13 +99,77 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
-    fun smartEnglishPoundWithoutCandidateReturns() {
+    fun smartEnglishPoundWithoutCandidateClearsPredictionContextAndReturns() {
         val flow = PhysicalT9KeyFlow()
         flow.handle(input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN), state())
 
         val up = flow.handle(input(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP), state())
 
-        assertEquals(listOf(PhysicalT9KeyFlow.Command.HandleReturnKey), up?.commands)
+        assertEquals(
+            listOf(
+                PhysicalT9KeyFlow.Command.ResetSmartEnglishT9,
+                PhysicalT9KeyFlow.Command.HandleReturnKey
+            ),
+            up?.commands
+        )
+    }
+
+    @Test
+    fun smartEnglishPredictionBoundariesDismissWithoutAcceptingSuggestedText() {
+        for (hasVisiblePrediction in listOf(false, true)) {
+            for (keyCode in listOf(KeyEvent.KEYCODE_STAR, KeyEvent.KEYCODE_POUND)) {
+                val flow = PhysicalT9KeyFlow()
+                val prediction = state(hasSmartEnglishCandidates = hasVisiblePrediction)
+                flow.handle(input(keyCode, KeyEvent.ACTION_DOWN), prediction)
+
+                val up = flow.handle(input(keyCode, KeyEvent.ACTION_UP), prediction)
+
+                assertEquals(
+                    "key=$keyCode, visible=$hasVisiblePrediction",
+                    listOf(
+                        PhysicalT9KeyFlow.Command.ResetSmartEnglishT9,
+                        if (keyCode == KeyEvent.KEYCODE_STAR) {
+                            PhysicalT9KeyFlow.Command.ShowEnglishPunctuationCandidates
+                        } else {
+                            PhysicalT9KeyFlow.Command.HandleReturnKey
+                        }
+                    ),
+                    up?.commands
+                )
+            }
+        }
+    }
+
+    @Test
+    fun smartEnglishLongStarOnlyAcceptsTypedComposition() {
+        for (hasDigits in listOf(false, true)) {
+            val flow = PhysicalT9KeyFlow()
+            val current = state(hasSmartEnglishDigits = hasDigits, hasSmartEnglishCandidates = true)
+            flow.handle(input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN), current)
+
+            val repeat = flow.handle(
+                input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN, repeatCount = 1),
+                current.copy(heldPastLongPressDelay = true)
+            )
+            val up = flow.handle(input(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP), state())
+
+            assertEquals(
+                listOf(
+                    if (hasDigits) {
+                        PhysicalT9KeyFlow.Command.CommitSmartEnglishCandidate(
+                            appendSpace = false,
+                            continuePrediction = false
+                        )
+                    } else {
+                        PhysicalT9KeyFlow.Command.ResetSmartEnglishT9
+                    },
+                    PhysicalT9KeyFlow.Command.CommitLiteralStar,
+                    PhysicalT9KeyFlow.Command.FlushEnglishLearningWord
+                ),
+                repeat?.commands
+            )
+            assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), up?.commands)
+        }
     }
 
     @Test

@@ -6,6 +6,8 @@
 package org.fcitx.fcitx5.android.input.t9
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -25,6 +27,38 @@ class SmartEnglishLifecycleTest {
     }
 
     @Test
+    fun explicitConfirmationStillAcceptsPredictionWithOneSpace() {
+        val host = Host()
+        val lifecycle = host.lifecycle()
+        listOf(4, 6, 6).forEach(lifecycle::appendDigit)
+        lifecycle.commitCandidate()
+
+        assertFalse(lifecycle.hasDigits)
+        assertTrue(lifecycle.commitCandidate())
+
+        assertEquals(listOf("good ", "morning "), host.committedTexts)
+    }
+
+    @Test
+    fun boundaryResetDiscardsVisibleAndNotYetLoadedPredictionWithoutCommittingIt() {
+        for (readyAtCommit in listOf(false, true)) {
+            val host = Host(predictionIsReady = readyAtCommit)
+            val lifecycle = host.lifecycle()
+            listOf(4, 6, 6).forEach(lifecycle::appendDigit)
+            lifecycle.commitCandidate()
+            assertTrue(lifecycle.shouldRefreshAfterWarmup)
+
+            lifecycle.reset()
+            host.predictionIsReady = true
+
+            assertEquals(listOf("good "), host.committedTexts)
+            assertFalse(lifecycle.shouldRefreshAfterWarmup)
+            assertNull(lifecycle.snapshot().paged)
+            assertFalse(lifecycle.commitCandidate())
+        }
+    }
+
+    @Test
     fun learnedWordsFeedPairFrequencyReranking() {
         val host = Host(learn = true)
         val lifecycle = host.lifecycle()
@@ -40,7 +74,8 @@ class SmartEnglishLifecycleTest {
     }
 
     private class Host(
-        private val learn: Boolean = false
+        private val learn: Boolean = false,
+        var predictionIsReady: Boolean = true
     ) {
         private val candidates = mapOf(
             "466" to listOf("good", "home"),
@@ -60,7 +95,7 @@ class SmartEnglishLifecycleTest {
                 learnWord = { learnedWords += it },
                 learnPredictionPair = { previous, next -> learnedPredictionPairs += previous to next },
                 dictionaryReady = { true },
-                predictionReady = { true },
+                predictionReady = { predictionIsReady },
                 candidateLimit = 10,
                 noMatchText = "No match",
                 isActive = { true },

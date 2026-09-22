@@ -415,14 +415,10 @@ internal class PhysicalT9EnglishKeyFlow(
                     handled = true,
                     commands = when {
                         state.hasPendingPunctuation -> listOf(Command.CommitPendingPunctuation)
-                        state.hasSmartEnglishCandidates -> listOf(
-                            Command.CommitSmartEnglishCandidate(
-                                appendSpace = false,
-                                continuePrediction = false
-                            ),
+                        else -> listOf(
+                            finishSmartEnglishForBoundary(state),
                             Command.HandleReturnKey
                         )
-                        else -> listOf(Command.HandleReturnKey)
                     }
                 )
             }
@@ -488,13 +484,10 @@ internal class PhysicalT9EnglishKeyFlow(
                     commands = buildList {
                         when {
                             state.hasPendingPunctuation -> add(Command.CancelPendingPunctuation)
-                            state.isSmartEnglishActive && state.hasSmartEnglishCandidates -> add(
-                                Command.CommitSmartEnglishCandidate(
-                                    appendSpace = false,
-                                    continuePrediction = false
-                                )
-                            )
+                            state.isSmartEnglishActive && state.hasSmartEnglishCandidates ->
+                                add(finishSmartEnglishForBoundary(state))
                             state.hasMultiTapPendingChar -> add(Command.CommitMultiTapChar)
+                            state.isSmartEnglishActive -> add(Command.ResetSmartEnglishT9)
                         }
                         add(Command.CommitLiteralStar)
                         add(Command.FlushEnglishLearningWord)
@@ -513,14 +506,15 @@ internal class PhysicalT9EnglishKeyFlow(
                     wasLongPress -> emptyList()
                     state.hasPendingPunctuation -> listOf(Command.TogglePendingPunctuationSet)
                     state.isSmartEnglishActive && state.hasSmartEnglishCandidates -> listOf(
-                        Command.CommitSmartEnglishCandidate(
-                            appendSpace = false,
-                            continuePrediction = false
-                        ),
+                        finishSmartEnglishForBoundary(state),
                         Command.ShowEnglishPunctuationCandidates
                     )
                     state.hasMultiTapPendingChar -> listOf(
                         Command.CommitMultiTapChar,
+                        Command.ShowEnglishPunctuationCandidates
+                    )
+                    state.isSmartEnglishActive -> listOf(
+                        Command.ResetSmartEnglishT9,
                         Command.ShowEnglishPunctuationCandidates
                     )
                     else -> listOf(Command.ShowEnglishPunctuationCandidates)
@@ -529,6 +523,15 @@ internal class PhysicalT9EnglishKeyFlow(
         }
         else -> null
     }
+
+    private fun finishSmartEnglishForBoundary(state: State): Command =
+        if (state.hasSmartEnglishDigits) {
+            Command.CommitSmartEnglishCandidate(appendSpace = false, continuePrediction = false)
+        } else {
+            // Predictions are suggestions, not typed text. Clear their context too so a delayed
+            // dictionary warmup cannot bring them back after punctuation or Return.
+            Command.ResetSmartEnglishT9
+        }
 
     private fun handleEnglishOk(
         input: PhysicalT9KeyHandler.KeyInput,

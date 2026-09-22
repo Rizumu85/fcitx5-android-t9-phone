@@ -238,7 +238,7 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
-    fun smartEnglishPoundShortPressCommitsPredictionWithoutSpaceThenReturns() {
+    fun smartEnglishPoundShortPressDismissesPredictionThenReturns() {
         val host = FakeHost(
             mode = PhysicalT9KeyHandler.Mode.ENGLISH,
             isSmartEnglishActive = true,
@@ -250,10 +250,29 @@ class PhysicalT9KeyHandlerTest {
         assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_DOWN)).handled)
         assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_POUND, KeyEvent.ACTION_UP)).handled)
 
-        assertEquals(0, host.resetSmartEnglishCount)
+        assertEquals(1, host.resetSmartEnglishCount)
         assertEquals(1, host.handleReturnCount)
-        assertEquals(listOf(false), host.commitSmartEnglishCandidateAppendSpace)
-        assertEquals(listOf(false), host.commitSmartEnglishCandidateContinuePrediction)
+        assertEquals(emptyList<Boolean>(), host.commitSmartEnglishCandidateAppendSpace)
+        assertEquals(emptyList<Boolean>(), host.commitSmartEnglishCandidateContinuePrediction)
+        assertEquals(emptyList<String>(), host.committedTexts)
+    }
+
+    @Test
+    fun smartEnglishStarDismissesPredictionThenShowsPunctuation() {
+        val host = FakeHost(
+            mode = PhysicalT9KeyHandler.Mode.ENGLISH,
+            isSmartEnglishActive = true,
+            hasSmartEnglishDigits = false,
+            hasSmartEnglishCandidates = true
+        )
+        val handler = PhysicalT9KeyHandler(host)
+
+        assertTrue(handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_DOWN)).handled)
+        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_STAR, KeyEvent.ACTION_UP)).handled)
+
+        assertEquals(1, host.resetSmartEnglishCount)
+        assertEquals(1, host.showEnglishPunctuationCount)
+        assertEquals(0, host.commitSmartEnglishCandidateCount)
         assertEquals(emptyList<String>(), host.committedTexts)
     }
 
