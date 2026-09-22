@@ -116,7 +116,6 @@ class T9CandidatePresentationPlannerTest {
         chineseT9Active: Boolean = false,
         chinesePredictionActive: Boolean = false,
         suppressEmptyCandidates: Boolean = false,
-        pendingPinyinSelection: Boolean = false,
         waitForChineseCandidates: Boolean = false
     ): T9CandidatePresentationPlanner.Input =
         T9CandidatePresentationPlanner.Input(
@@ -132,7 +131,6 @@ class T9CandidatePresentationPlannerTest {
             chineseT9Active = chineseT9Active,
             chinesePredictionActive = chinesePredictionActive,
             suppressEmptyCandidates = suppressEmptyCandidates,
-            pendingPinyinSelection = pendingPinyinSelection,
             waitForChineseCandidates = waitForChineseCandidates
         )
 

@@ -2,579 +2,109 @@
  * SPDX-License-Identifier: LGPL-2.1-or-later
  * SPDX-FileCopyrightText: Copyright 2026 Fcitx5 for Android Contributors
  */
-
 package org.fcitx.fcitx5.android.input.t9
 
 import org.fcitx.fcitx5.android.core.FcitxEvent
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Test
 
 class ChineseT9CandidateLoadingStateTest {
-
-    @Test
-    fun cachedFreshFrameRestoresLateAttachedCandidateSurface() {
+    @Test fun completeMatchingFrameReleasesExactlyItsReceipt() {
         val state = ChineseT9CandidateLoadingState()
-        val ticket = ticket(ChineseT9Scheme.PINYIN, "94664")
-
-        assertNotNull(
-            state.restoreCachedFrame(
-                data = paged("中", "zhong"),
-                receipt = receipt(ticket),
-                enginePreedit = "zhong"
-            )
-        )
-        assertFalse(
-            state.shouldWaitForCandidates(
-                chineseT9Active = true,
-                compositionKeyCount = 5,
-                hasPendingPunctuation = false,
-                pendingPinyinSelection = false,
-                rawCandidatesEmpty = false
-            )
-        )
+        val input = receipt("64", 1)
+        assertTrue(state.startIfNeeded(true, input))
+        assertTrue(waiting(state))
+        assertEquals(input, state.onEngineFrame(page("ni"), input, "ni"))
+        assertFalse(waiting(state))
+        assertNull(state.onEngineFrame(page("ni"), input, "ni"))
     }
 
-    @Test
-    fun longPinyinFrameReleasesFromCurrentEnginePreeditDespiteAmbiguousComment() {
+    @Test fun sameDigitsFromAnOlderReadingChoiceCannotReleaseTheNewChoice() {
         val state = ChineseT9CandidateLoadingState()
-        val ticket = ticket(ChineseT9Scheme.PINYIN, "946649366674494233")
-        state.startIfNeeded(chineseT9Active = true, receipt = receipt(ticket))
-
-        assertNotNull(
-            state.onEngineCandidates(
-                data = paged("中叶弄湿下的", "zhong ye nong shi xia de"),
-                ticket = ticket,
-                enginePreedit = "94664 93 666 744 942 33"
-            )
-        )
-        assertFalse(waiting(state, compositionKeyCount = 18))
+        val old = receipt("43", 1)
+        val selected = receipt("43", 2)
+        state.startIfNeeded(true, selected)
+        assertNull(state.onEngineFrame(page("he"), old, "he"))
+        assertTrue(waiting(state))
+        assertEquals(selected, state.onEngineFrame(page("ge"), selected, "ge"))
     }
 
-    @Test
-    fun waitsAfterChineseCompositionStartsUntilEngineCandidatesArrive() {
+    @Test fun retypedCompositionHasADifferentEpoch() {
         val state = ChineseT9CandidateLoadingState()
-
-        state.startIfNeeded(
-            chineseT9Active = true,
-            receipt = receipt(ticket(ChineseT9Scheme.PINYIN, "64"))
-        )
-
-        assertTrue(state.shouldWaitForCandidates(
-            chineseT9Active = true,
-            compositionKeyCount = 1,
-            hasPendingPunctuation = false,
-            pendingPinyinSelection = false,
-            rawCandidatesEmpty = false
-        ))
-
-        val sourceReady = state.onEngineCandidates(
-            data = paged("你", comment = "ni"),
-            ticket = ticket(ChineseT9Scheme.PINYIN, "64"),
-            enginePreedit = "ni"
-        )
-
-        assertNotNull(sourceReady)
-        assertFalse(state.shouldWaitForCandidates(
-            chineseT9Active = true,
-            compositionKeyCount = 1,
-            hasPendingPunctuation = false,
-            pendingPinyinSelection = false,
-            rawCandidatesEmpty = false
-        ))
+        val old = receipt("64", 1)
+        val new = old.copy(compositionTicket = old.compositionTicket.copy(sessionEpoch = 2))
+        state.startIfNeeded(true, new)
+        assertNull(state.onEngineFrame(page("ni"), old, "ni"))
+        assertEquals(new, state.onEngineFrame(page("ni"), new, "ni"))
     }
 
-    @Test
-    fun emptyRawCandidatesStillWaitForChineseComposingState() {
+    @Test fun replayPrefixCannotReleaseTheFinalComposition() {
         val state = ChineseT9CandidateLoadingState()
-
-        assertTrue(state.shouldWaitForCandidates(
-            chineseT9Active = true,
-            compositionKeyCount = 1,
-            hasPendingPunctuation = false,
-            pendingPinyinSelection = false,
-            rawCandidatesEmpty = true
-        ))
+        val input = receipt("64426", 1)
+        state.startIfNeeded(true, input)
+        assertNull(state.onEngineFrame(page("ni"), input, "ni"))
+        assertTrue(waiting(state))
+        assertEquals(input, state.onEngineFrame(page("ni hao"), input, "ni hao"))
     }
 
-    @Test
-    fun punctuationAndPinyinSelectionSuppressWaiting() {
+    @Test fun emptyResultWithMatchingPreeditIsACompleteNoMatchFrame() {
         val state = ChineseT9CandidateLoadingState()
-        state.startIfNeeded(
-            chineseT9Active = true,
-            receipt = receipt(ticket(ChineseT9Scheme.PINYIN, "64"))
-        )
-
-        assertFalse(state.shouldWaitForCandidates(
-            chineseT9Active = true,
-            compositionKeyCount = 1,
-            hasPendingPunctuation = true,
-            pendingPinyinSelection = false,
-            rawCandidatesEmpty = true
-        ))
-        assertFalse(state.shouldWaitForCandidates(
-            chineseT9Active = true,
-            compositionKeyCount = 1,
-            hasPendingPunctuation = false,
-            pendingPinyinSelection = true,
-            rawCandidatesEmpty = true
-        ))
+        val input = receipt("99", 1)
+        state.startIfNeeded(true, input)
+        assertEquals(input, state.onEngineFrame(FcitxEvent.PagedCandidateEvent.Data.Empty, input, "99"))
+        assertFalse(waiting(state))
     }
 
-    @Test
-    fun staleCandidatePageDoesNotReleaseWaitingState() {
+    @Test fun restoringACompleteCacheDoesNotWaitForAnotherEngineEvent() {
         val state = ChineseT9CandidateLoadingState()
-
-        state.startIfNeeded(
-            chineseT9Active = true,
-            receipt = receipt(ticket(ChineseT9Scheme.PINYIN, "435"))
-        )
-        val staleSourceReady = state.onEngineCandidates(
-            data = paged("个", comment = "ge"),
-            ticket = ticket(ChineseT9Scheme.PINYIN, "435"),
-            enginePreedit = "ge"
-        )
-
-        assertNull(staleSourceReady)
-        assertTrue(state.shouldWaitForCandidates(
-            chineseT9Active = true,
-            compositionKeyCount = 3,
-            hasPendingPunctuation = false,
-            pendingPinyinSelection = false,
-            rawCandidatesEmpty = false
-        ))
-
-        state.onEngineCandidates(
-            data = paged("gel"),
-            ticket = ticket(ChineseT9Scheme.PINYIN, "435"),
-            enginePreedit = "gel"
-        )
-
-        assertFalse(state.shouldWaitForCandidates(
-            chineseT9Active = true,
-            compositionKeyCount = 3,
-            hasPendingPunctuation = false,
-            pendingPinyinSelection = false,
-            rawCandidatesEmpty = false
-        ))
+        val input = receipt("64", 1)
+        state.onEngineFrame(page("ni"), input, "ni")
+        assertFalse(waiting(state))
     }
 
-    @Test
-    fun strokeWaitsForMatchingEnginePreeditAndSupportsUnknownStrokeResults() {
+    @Test fun replacingExpectedInputKeepsTheNewTraceReceipt() {
         val state = ChineseT9CandidateLoadingState()
-
-        state.startIfNeeded(
-            chineseT9Active = true,
-            receipt = receipt(ticket(ChineseT9Scheme.STROKE, "12"))
-        )
-        state.onEngineCandidates(
-            data = paged("一"),
-            ticket = ticket(ChineseT9Scheme.STROKE, "12"),
-            enginePreedit = "一"
-        )
-        assertTrue(waiting(state, compositionKeyCount = 2))
-
-        state.onEngineCandidates(
-            data = paged("下"),
-            ticket = ticket(ChineseT9Scheme.STROKE, "12"),
-            enginePreedit = "一丨"
-        )
-        assertFalse(waiting(state, compositionKeyCount = 2))
-
-        state.startIfNeeded(
-            chineseT9Active = true,
-            receipt = receipt(ticket(ChineseT9Scheme.STROKE, "16", revision = 2))
-        )
-        state.onEngineCandidates(
-            data = paged("不"),
-            ticket = ticket(ChineseT9Scheme.STROKE, "16", revision = 2),
-            enginePreedit = "一一"
-        )
-        assertFalse(waiting(state, compositionKeyCount = 2))
+        val first = receipt("6", 1)
+        val latest = receipt("64", 2)
+        state.startIfNeeded(true, first)
+        state.startIfNeeded(true, latest)
+        assertNull(state.onEngineFrame(page("o"), first, "o"))
+        assertEquals(latest, state.onEngineFrame(page("ni"), latest, "ni"))
     }
 
-    @Test
-    fun zhuyinRejectsStaleReadingBeforeReleasingCandidateFrame() {
-        val state = ChineseT9CandidateLoadingState()
-
-        state.startIfNeeded(
-            chineseT9Active = true,
-            receipt = receipt(ticket(ChineseT9Scheme.ZHUYIN, "38"))
-        )
-        state.onEngineCandidates(
-            data = paged("个", comment = "ㄍㄜ"),
-            ticket = ticket(ChineseT9Scheme.ZHUYIN, "38"),
-            enginePreedit = "38"
-        )
-        assertTrue(waiting(state, compositionKeyCount = 2))
-
-        state.onEngineCandidates(
-            data = paged("好", comment = "ㄏㄠ"),
-            ticket = ticket(ChineseT9Scheme.ZHUYIN, "38"),
-            enginePreedit = "38"
-        )
-        assertFalse(waiting(state, compositionKeyCount = 2))
+    @Test fun strokeAndZhuyinRetainTheirSchemeSpecificCompletenessChecks() {
+        for ((scheme, raw, preview) in listOf(
+            Triple(ChineseT9Scheme.STROKE, "16", "一丨"),
+            Triple(ChineseT9Scheme.ZHUYIN, "38", "38")
+        )) {
+            val state = ChineseT9CandidateLoadingState()
+            val input = receipt(raw, 1, scheme)
+            assertTrue(state.startIfNeeded(true, input))
+            assertEquals(input, state.onEngineFrame(FcitxEvent.PagedCandidateEvent.Data.Empty, input, preview))
+            assertFalse(waiting(state))
+        }
     }
 
-    @Test
-    fun matchingRawCodePreeditReleasesAnIntentionallyEmptyResult() {
+    @Test fun idleNonChineseAndPunctuationNeverWaitForChineseCandidates() {
         val state = ChineseT9CandidateLoadingState()
-
-        state.startIfNeeded(
-            chineseT9Active = true,
-            receipt = receipt(ticket(ChineseT9Scheme.STROKE, "12"))
-        )
-        state.onEngineCandidates(
-            data = emptyPaged(),
-            ticket = ticket(ChineseT9Scheme.STROKE, "12"),
-            enginePreedit = "一丨"
-        )
-
-        assertFalse(
-            state.shouldWaitForCandidates(
-                chineseT9Active = true,
-                compositionKeyCount = 2,
-                hasPendingPunctuation = false,
-                pendingPinyinSelection = false,
-                rawCandidatesEmpty = true
-            )
-        )
+        assertFalse(state.startIfNeeded(false, receipt("64", 1)))
+        assertFalse(state.startIfNeeded(true, receipt("", 2)))
+        state.startIfNeeded(true, receipt("64", 3))
+        assertFalse(state.shouldWaitForCandidates(true, 2, true, true))
+        assertFalse(state.shouldWaitForCandidates(false, 2, false, true))
+        assertFalse(state.shouldWaitForCandidates(true, 0, false, true))
+        state.reset()
+        assertEquals(ChineseT9CandidateLoadingState.State.IDLE, state.state)
     }
 
-    @Test
-    fun staleCompositionTicketCannotReleaseNewGeneration() {
-        val state = ChineseT9CandidateLoadingState()
-        val old = ticket(ChineseT9Scheme.STROKE, "1", revision = 1)
-        val current = ticket(ChineseT9Scheme.STROKE, "12", revision = 2)
-        state.startIfNeeded(chineseT9Active = true, receipt = receipt(old))
-        state.startIfNeeded(chineseT9Active = true, receipt = receipt(current))
+    private fun waiting(state: ChineseT9CandidateLoadingState) =
+        state.shouldWaitForCandidates(true, 2, false, true)
 
-        state.onEngineCandidates(
-            data = paged("一"),
-            ticket = old,
-            enginePreedit = "一"
-        )
+    private fun receipt(raw: String, revision: Long, scheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN) =
+        ChineseT9InputReceipt(ChineseT9CompositionTicket(scheme, raw, raw, revision), revision)
 
-        assertTrue(waiting(state, compositionKeyCount = 2))
-    }
-
-    @Test
-    fun laterInputPanelCanCompleteCurrentCandidateEventPair() {
-        val state = ChineseT9CandidateLoadingState()
-        val ticket = ticket(ChineseT9Scheme.STROKE, "12")
-        val candidates = paged("下")
-        state.startIfNeeded(chineseT9Active = true, receipt = receipt(ticket))
-        state.onEngineCandidates(
-            data = candidates,
-            ticket = ticket,
-            enginePreedit = "一"
-        )
-        assertTrue(waiting(state, compositionKeyCount = 2))
-
-        val sourceReady = state.onEngineInputPanel(
-            data = candidates,
-            ticket = ticket,
-            enginePreedit = "一丨"
-        )
-
-        assertNotNull(sourceReady)
-        assertFalse(waiting(state, compositionKeyCount = 2))
-    }
-
-    @Test
-    fun atomicTransitionWaitsForCandidatesFollowingTheMatchingInputPanel() {
-        val state = ChineseT9CandidateLoadingState()
-        val ticket = ticket(ChineseT9Scheme.PINYIN, "548")
-        val receipt = receipt(ticket, traceInputId = 42L)
-        val candidates = paged("九", comment = "jiu")
-        state.startIfNeeded(
-            chineseT9Active = true,
-            receipt = receipt,
-            requireSourcePair = true
-        )
-
-        assertNull(
-            state.onEngineCandidates(
-                data = candidates,
-                ticket = ticket,
-                enginePreedit = "jiu"
-            )
-        )
-        assertTrue(waiting(state, compositionKeyCount = 3))
-
-        assertNull(
-            state.onEngineInputPanel(
-                data = candidates,
-                ticket = ticket,
-                enginePreedit = "jiu"
-            )
-        )
-        assertTrue(waiting(state, compositionKeyCount = 3))
-
-        assertSame(
-            receipt,
-            state.onEngineCandidates(
-                data = candidates,
-                ticket = ticket,
-                enginePreedit = "jiu"
-            )
-        )
-        assertFalse(waiting(state, compositionKeyCount = 3))
-    }
-
-    @Test
-    fun atomicTransitionAcceptsCandidatesAfterTheMatchingInputPanel() {
-        val state = ChineseT9CandidateLoadingState()
-        val ticket = ticket(ChineseT9Scheme.PINYIN, "548")
-        val receipt = receipt(ticket, traceInputId = 42L)
-        val candidates = paged("九", comment = "jiu")
-        state.startIfNeeded(
-            chineseT9Active = true,
-            receipt = receipt,
-            requireSourcePair = true
-        )
-
-        assertNull(
-            state.onEngineInputPanel(
-                data = candidates,
-                ticket = ticket,
-                enginePreedit = "jiu"
-            )
-        )
-        assertTrue(waiting(state, compositionKeyCount = 3))
-
-        assertSame(
-            receipt,
-            state.onEngineCandidates(
-                data = candidates,
-                ticket = ticket,
-                enginePreedit = "jiu"
-            )
-        )
-        assertFalse(waiting(state, compositionKeyCount = 3))
-    }
-
-    @Test
-    fun atomicTransitionDoesNotPairFinalInputPanelWithEarlierReplayCandidates() {
-        val state = ChineseT9CandidateLoadingState()
-        val ticket = ticket(ChineseT9Scheme.PINYIN, "435")
-        val receipt = receipt(ticket, traceInputId = 42L)
-        val staleCandidates = paged("个", comment = "ge")
-        state.startIfNeeded(
-            chineseT9Active = true,
-            receipt = receipt,
-            requireSourcePair = true
-        )
-
-        assertNull(
-            state.onEngineCandidates(
-                data = staleCandidates,
-                ticket = ticket,
-                enginePreedit = "ge"
-            )
-        )
-        assertNull(
-            state.onEngineInputPanel(
-                data = staleCandidates,
-                ticket = ticket,
-                enginePreedit = "gel"
-            )
-        )
-        assertTrue(waiting(state, compositionKeyCount = 3))
-
-        assertSame(
-            receipt,
-            state.onEngineCandidates(
-                data = paged("gel"),
-                ticket = ticket,
-                enginePreedit = "gel"
-            )
-        )
-        assertFalse(waiting(state, compositionKeyCount = 3))
-    }
-
-    @Test
-    fun atomicTransitionCanBeRearmedBeforeEngineReplay() {
-        val state = ChineseT9CandidateLoadingState()
-        val ticket = ticket(ChineseT9Scheme.PINYIN, "435")
-        val receipt = receipt(ticket, traceInputId = 42L)
-        state.startIfNeeded(
-            chineseT9Active = true,
-            receipt = receipt,
-            requireSourcePair = true
-        )
-        state.onEngineInputPanel(
-            data = paged("gel"),
-            ticket = ticket,
-            enginePreedit = "gel"
-        )
-        assertSame(
-            receipt,
-            state.onEngineCandidates(
-                data = paged("gel"),
-                ticket = ticket,
-                enginePreedit = "gel"
-            )
-        )
-
-        assertTrue(
-            state.startIfNeeded(
-                chineseT9Active = true,
-                receipt = receipt,
-                requireSourcePair = true
-            )
-        )
-        assertNull(
-            state.onEngineInputPanel(
-                data = paged("个", comment = "ge"),
-                ticket = ticket,
-                enginePreedit = "ge"
-            )
-        )
-        assertNull(
-            state.onEngineCandidates(
-                data = paged("个", comment = "ge"),
-                ticket = ticket,
-                enginePreedit = "ge"
-            )
-        )
-        assertTrue(waiting(state, compositionKeyCount = 3))
-
-        state.onEngineInputPanel(
-            data = paged("gel"),
-            ticket = ticket,
-            enginePreedit = "gel"
-        )
-        assertSame(
-            receipt,
-            state.onEngineCandidates(
-                data = paged("gel"),
-                ticket = ticket,
-                enginePreedit = "gel"
-            )
-        )
-        assertFalse(waiting(state, compositionKeyCount = 3))
-    }
-
-    @Test
-    fun inputPanelAloneCannotReuseCandidatesFromBeforeTicket() {
-        val state = ChineseT9CandidateLoadingState()
-        val ticket = ticket(ChineseT9Scheme.STROKE, "12")
-        state.startIfNeeded(chineseT9Active = true, receipt = receipt(ticket))
-
-        state.onEngineInputPanel(
-            data = paged("下"),
-            ticket = ticket,
-            enginePreedit = "一丨"
-        )
-
-        assertTrue(waiting(state, compositionKeyCount = 2))
-    }
-
-    @Test
-    fun acceptedFrameReturnsTheReceiptThatStartedItsGeneration() {
-        val state = ChineseT9CandidateLoadingState()
-        val ticket = ticket(ChineseT9Scheme.PINYIN, "64")
-        val receipt = receipt(ticket, traceInputId = 42L)
-        state.startIfNeeded(chineseT9Active = true, receipt = receipt)
-
-        val accepted = state.onEngineCandidates(
-            data = paged("你", comment = "ni"),
-            ticket = ticket,
-            enginePreedit = "ni"
-        )
-
-        assertSame(receipt, accepted)
-    }
-
-    @Test
-    fun acceptedGenerationCannotPublishASecondSourceFrame() {
-        val state = ChineseT9CandidateLoadingState()
-        val ticket = ticket(ChineseT9Scheme.PINYIN, "64")
-        state.startIfNeeded(
-            chineseT9Active = true,
-            receipt = receipt(ticket, traceInputId = 42L)
-        )
-        state.onEngineCandidates(
-            data = paged("你", comment = "ni"),
-            ticket = ticket,
-            enginePreedit = "ni"
-        )
-
-        val duplicate = state.onEngineInputPanel(
-            data = paged("你", comment = "ni"),
-            ticket = ticket,
-            enginePreedit = "ni"
-        )
-
-        assertNull(duplicate)
-    }
-
-    @Test
-    fun staleFrameCannotClaimTheCurrentReceipt() {
-        val state = ChineseT9CandidateLoadingState()
-        val staleTicket = ticket(ChineseT9Scheme.PINYIN, "4", revision = 1)
-        val currentTicket = ticket(ChineseT9Scheme.PINYIN, "43", revision = 2)
-        state.startIfNeeded(
-            chineseT9Active = true,
-            receipt = receipt(currentTicket, traceInputId = 9L)
-        )
-
-        val accepted = state.onEngineCandidates(
-            data = paged("个", comment = "ge"),
-            ticket = staleTicket,
-            enginePreedit = "ge"
-        )
-
-        assertNull(accepted)
-        assertTrue(waiting(state, compositionKeyCount = 2))
-    }
-
-    private fun waiting(
-        state: ChineseT9CandidateLoadingState,
-        compositionKeyCount: Int
-    ): Boolean = state.shouldWaitForCandidates(
-        chineseT9Active = true,
-        compositionKeyCount = compositionKeyCount,
-        hasPendingPunctuation = false,
-        pendingPinyinSelection = false,
-        rawCandidatesEmpty = false
+    private fun page(comment: String) = FcitxEvent.PagedCandidateEvent.Data(
+        arrayOf(FcitxEvent.Candidate("", "test", comment)), 0,
+        FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal, false, false
     )
-
-    private fun ticket(
-        scheme: ChineseT9Scheme,
-        digits: String,
-        revision: Long = 1
-    ): ChineseT9CompositionTicket = ChineseT9CompositionTicket(
-        scheme = scheme,
-        rawSequence = digits,
-        digitSequence = digits,
-        sessionRevision = revision
-    )
-
-    private fun receipt(
-        ticket: ChineseT9CompositionTicket,
-        traceInputId: Long? = null
-    ): ChineseT9InputReceipt = ChineseT9InputReceipt(ticket, traceInputId)
-
-    private fun paged(text: String, comment: String = ""): FcitxEvent.PagedCandidateEvent.Data =
-        FcitxEvent.PagedCandidateEvent.Data(
-            candidates = arrayOf(FcitxEvent.Candidate(label = "", text = text, comment = comment)),
-            cursorIndex = 0,
-            layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
-            hasPrev = false,
-            hasNext = false
-        )
-
-    private fun emptyPaged(): FcitxEvent.PagedCandidateEvent.Data =
-        FcitxEvent.PagedCandidateEvent.Data(
-            candidates = emptyArray(),
-            cursorIndex = -1,
-            layoutHint = FcitxEvent.PagedCandidateEvent.LayoutHint.Horizontal,
-            hasPrev = false,
-            hasNext = false
-        )
 }

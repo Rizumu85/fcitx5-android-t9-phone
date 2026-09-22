@@ -35,6 +35,7 @@ import org.fcitx.fcitx5.android.input.candidates.floating.T9ShortcutCandidatesUi
 import org.fcitx.fcitx5.android.input.preedit.PreeditUi
 import org.fcitx.fcitx5.android.input.t9.ChinesePredictionCandidateSession
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidateLoadingState
+import org.fcitx.fcitx5.android.input.t9.ChineseT9CandidateFreshness
 import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionTicket
 import org.fcitx.fcitx5.android.input.t9.ChineseT9EngineOperation
 import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
@@ -609,69 +610,77 @@ class CandidatesView(
         clipToPadding = false
         applyCandidateBubbleShadow()
     }
+    private var pendingChinesePanel: FcitxEvent.InputPanelEvent? = null
 
     override fun onStartHandleFcitxEvent() {
         val cached = fcitx.cachedState
-        inputPanel = cached.inputPanel
-        paged = cached.pagedCandidates
         if (service.isChineseT9InputModeActive()) {
-            val ticket = service.getChineseT9InputSnapshot(inputPanel).compositionTicket()
-            chineseT9CandidateLoadingState.restoreCachedFrame(
-                data = paged,
-                receipt = ChineseT9InputReceipt(ticket, traceInputId = null),
-                enginePreedit = inputPanel.preedit.toString()
-            )
+            cached.presentationFrame?.let {
+                acceptChineseFrame(it.inputPanel, it.candidates, it.origin.commandId)
+            }
+        } else {
+            inputPanel = cached.inputPanel
+            paged = cached.pagedCandidates
         }
-        // Candidate and preedit events form one presentation frame. Restoring both from the
-        // same cache revision prevents a late-attached IME view from waiting for an event that
-        // Rime already emitted before the surface subscribed.
         refreshT9Ui()
     }
 
     override fun handleFcitxEvent(it: FcitxEvent<*>) {
+        if (service.isHandwritingInputActive()) return
         when (it) {
             is FcitxEvent.InputPanelEvent -> {
-                inputPanel = it.data
-                if (service.isHandwritingInputActive()) return
-                val acceptedReceipt = if (
-                    service.isChineseT9InputModeActive()
-                ) {
-                    val ticket = service.getChineseT9InputSnapshot(inputPanel).compositionTicket()
-                    chineseT9CandidateLoadingState.onEngineInputPanel(
-                        data = paged,
-                        ticket = ticket,
-                        enginePreedit = inputPanel.preedit.toString()
-                    )
+                if (service.isChineseT9InputModeActive()) {
+                    pendingChinesePanel = it
                 } else {
-                    null
+                    inputPanel = it.data
+                    refreshAfterSourceEvent(null)
                 }
-                refreshAfterSourceEvent(acceptedReceipt)
             }
             is FcitxEvent.PagedCandidateEvent -> {
-                paged = it.data
-                if (service.isHandwritingInputActive()) return
                 if (service.isChineseT9InputModeActive()) {
-                    chinesePredictionCandidateSession.onCandidateEvent()
-                }
-                val acceptedReceipt = if (
-                    service.isChineseT9InputModeActive()
-                ) {
-                    val ticket = service.getChineseT9InputSnapshot(inputPanel).compositionTicket()
-                    chineseT9CandidateLoadingState.onEngineCandidates(
-                        data = it.data,
-                        ticket = ticket,
-                        enginePreedit = inputPanel.preedit.toString()
-                    )
+                    val panel = pendingChinesePanel
+                    pendingChinesePanel = null
+                    if (panel != null && panel.origin == it.origin) {
+                        acceptChineseFrame(panel.data, it.data, it.origin.commandId)
+                    }
                 } else {
-                    null
+                    paged = it.data
+                    refreshAfterSourceEvent(null)
                 }
-                refreshAfterSourceEvent(acceptedReceipt)
             }
             else -> {}
         }
     }
 
+    private fun acceptChineseFrame(
+        panel: FcitxEvent.InputPanelEvent.Data,
+        candidates: FcitxEvent.PagedCandidateEvent.Data,
+        commandId: Long
+    ) {
+        val current = service.getChineseT9CompositionTicket()
+        val receipt = if (current.digitSequence.isNotEmpty()) {
+            service.chineseT9ReceiptForSource(commandId) ?: return
+        } else {
+            // An idle prediction has no composing input. A delayed composing frame must not
+            // resurrect a surface after clear, editor change, or a language handoff.
+            if (!panel.preedit.isEmpty()) return
+            ChineseT9InputReceipt(current, traceInputId = null)
+        }
+        if (!ChineseT9CandidateFreshness.matches(
+                candidates, current.scheme, current.digitSequence, panel.preedit.toString()
+            )
+        ) return
+        inputPanel = panel
+        paged = candidates
+        chinesePredictionCandidateSession.onCandidateEvent()
+        val accepted = chineseT9CandidateLoadingState.onEngineFrame(
+            candidates, receipt, panel.preedit.toString()
+        )
+        refreshAfterSourceEvent(accepted)
+    }
+
     fun clearTransientState() {
+        pendingChinesePanel = null
         T9ResponsivenessTrace.cancelActiveInput()
         t9RefreshGeneration.cancel()
         floatingWindowController.onSurfaceHidden()
@@ -695,8 +704,7 @@ class CandidatesView(
         t9CandidateUiSnapshotPipeline.resetChineseLocalBudgetState()
         val waiting = chineseT9CandidateLoadingState.startIfNeeded(
             chineseT9Active = service.isChineseT9InputModeActive(),
-            receipt = receipt,
-            requireSourcePair = true
+            receipt = receipt
         )
         if (waiting) {
             // Keep the last complete visual frame while making its shortcuts inert. The matching
@@ -809,7 +817,7 @@ class CandidatesView(
         if (!service.isChineseT9InputModeActive()) return null
         if (service.getT9CompositionKeyCount() <= 0) return null
         val shown = t9CandidateUiSnapshotPipeline.currentShownSnapshot?.paged ?: paged
-        val snapshot = service.getChineseT9InputSnapshot(inputPanel)
+        val snapshot = service.getChineseT9InputSnapshot()
         val key = snapshot.presentationKey(
             pendingPunctuationText = null,
             inputPanel = inputPanel,
@@ -907,7 +915,7 @@ class CandidatesView(
             null
         }
         val chineseSnapshot = if (chineseT9Active) {
-            service.getChineseT9InputSnapshot(inputPanel)
+            service.getChineseT9InputSnapshot()
         } else {
             null
         }
@@ -994,8 +1002,7 @@ class CandidatesView(
             },
             finish = {
                 val manuallyCompleted = service.completeT9ChineseCandidateSelection(
-                    candidate = selectedCandidate,
-                    fallbackResolvedPrefix = matchedPrefix
+                    candidate = selectedCandidate
                 )
                 if (manuallyCompleted) {
                     chinesePredictionCandidateSession.cancel(predictionArm)

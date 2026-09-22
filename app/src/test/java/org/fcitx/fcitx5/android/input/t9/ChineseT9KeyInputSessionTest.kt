@@ -19,7 +19,7 @@ class ChineseT9KeyInputSessionTest {
         val receipt = receipt(traceInputId = 7L)
         val session = ChineseT9KeyInputSession<FakeEngine, String>(
             enqueueEngineOperation = pending::add,
-            dispatchKeyStroke = { strokes += it }
+            dispatchKeyStroke = { key, _ -> strokes += key }
         )
 
         session.submit(ChineseT9KeyCommand.TextInput("down", receipt))
@@ -35,7 +35,7 @@ class ChineseT9KeyInputSessionTest {
         val engine = FakeEngine()
         val session = ChineseT9KeyInputSession<FakeEngine, String>(
             enqueueEngineOperation = pending::add,
-            dispatchKeyStroke = { strokes += it }
+            dispatchKeyStroke = { key, _ -> strokes += key }
         )
 
         session.submit(ChineseT9KeyCommand.Stroke("first", receipt(1L)))
@@ -46,13 +46,36 @@ class ChineseT9KeyInputSessionTest {
     }
 
     @Test
+    fun clearInvalidatesQueuedKeysButAnotherRevisionInTheSameSessionDoesNot() = runBlocking {
+        val pending = mutableListOf<suspend FakeEngine.() -> Unit>()
+        val engine = FakeEngine()
+        var epoch = 0L
+        val session = ChineseT9KeyInputSession<FakeEngine, String>(
+            enqueueEngineOperation = pending::add,
+            dispatchKeyStroke = { key, _ -> strokes += key },
+            isCurrentSession = { it.compositionTicket.sessionEpoch == epoch }
+        )
+        session.submit(ChineseT9KeyCommand.TextInput("old", receipt(1L)))
+        epoch++
+        fun currentReceipt(revision: Long) = receipt(revision).let {
+            it.copy(compositionTicket = it.compositionTicket.copy(sessionEpoch = epoch))
+        }
+        session.submit(ChineseT9KeyCommand.TextInput("first", currentReceipt(2L)))
+        session.submit(ChineseT9KeyCommand.TextInput("second", currentReceipt(3L)))
+
+        pending.forEach { it.invoke(engine) }
+
+        assertEquals(listOf("first", "second"), engine.strokes)
+    }
+
+    @Test
     fun traceCallbacksKeepTheCommandReceiptIdentity() = runBlocking {
         val pending = mutableListOf<suspend FakeEngine.() -> Unit>()
         val events = mutableListOf<Pair<String, ChineseT9InputReceipt>>()
         val receipt = receipt(traceInputId = 11L)
         val session = ChineseT9KeyInputSession<FakeEngine, String>(
             enqueueEngineOperation = pending::add,
-            dispatchKeyStroke = { strokes += it },
+            dispatchKeyStroke = { key, _ -> strokes += key },
             onDispatchStarted = { events += "start" to it },
             onDispatchCompleted = { events += "complete" to it }
         )

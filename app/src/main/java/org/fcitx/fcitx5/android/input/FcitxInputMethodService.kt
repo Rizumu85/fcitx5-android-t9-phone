@@ -95,6 +95,9 @@ import org.fcitx.fcitx5.android.input.t9.ChineseT9EngineStatusPolicy
 import org.fcitx.fcitx5.android.input.t9.ChineseT9InputReceipt
 import org.fcitx.fcitx5.android.input.t9.ChineseT9KeyCommand
 import org.fcitx.fcitx5.android.input.t9.ChineseT9KeyInputSession
+import org.fcitx.fcitx5.android.input.t9.ChineseT9CompositionSession
+import org.fcitx.fcitx5.android.input.t9.ChineseT9RimeBridge
+import org.fcitx.fcitx5.android.input.t9.ChineseT9SourceRegistry
 import org.fcitx.fcitx5.android.input.t9.ChineseT9InputSnapshot
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSnapshotKey
 import org.fcitx.fcitx5.android.input.t9.ChineseT9PresentationSource
@@ -479,6 +482,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     private fun clearT9CompositionState() {
         chineseT9Composition.clear()
+        chineseT9Sources.clear()
         chineseT9SelectionCommitSession.cancel()
         chineseT9EngineOperation.discardPending()
     }
@@ -554,12 +558,19 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             return true
         }
         if (shouldReopenLastResolvedSegment()) {
-            val consumed = popLastResolvedSegment(fcitx)
-            if (consumed) refreshT9UiOnMain()
-            return consumed
+            return withContext(Dispatchers.Main.immediate) { reopenLastPinyinSelection() }
         }
-        chineseT9Composition.backspaceFromVirtualKey()
-        refreshT9UiOnMain()
+        val source = withContext(Dispatchers.Main.immediate) {
+            chineseT9Composition.backspaceFromVirtualKey()
+            val receipt = currentChineseT9InputReceipt()
+            if (receipt.compositionTicket.digitSequence.isEmpty()) {
+                candidatesView?.hideT9CandidateUiImmediately()
+            } else {
+                candidatesView?.waitForT9EngineCandidatesThenRefresh(receipt)
+            }
+            chineseT9Sources.register(receipt)
+        }
+        fcitx.withCandidateSource(source) { }
         return false
     }
 
@@ -571,16 +582,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun shouldReopenLastResolvedSegment(): Boolean =
         chineseT9Composition.shouldReopenLastResolvedSegment(isChineseT9InputModeActive())
 
-    /**
-     * Undo the last pinyin selection by prepending its source digits to the unresolved suffix.
-     * Engine-backed selections are also restored inside Rime so candidate narrowing follows the
-     * same state as the Kotlin presentation model.
-     */
-    private suspend fun popLastResolvedSegment(fcitx: FcitxAPI): Boolean {
-        return chineseT9Composition.popLastResolvedSegment(
-            api = fcitx,
-            candidatePagingMode = candidatePagingModeForCurrentInputDevice()
-        )
+    /** Reopening changes only the reading annotation; the source keys remain untouched. */
+    private fun reopenLastPinyinSelection(): Boolean {
+        val projection = chineseT9Composition.popLastResolvedSegment() ?: return false
+        enqueuePinyinProjection(projection)
+        return true
     }
 
     fun clearHiddenChineseT9CompositionIfCandidateUiSuppressed() {
@@ -2092,11 +2098,22 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             onPendingDropped = ::handleUnavailableRimeOperation
         )
     }
+    private val chineseT9Sources = ChineseT9SourceRegistry()
     private val chineseT9KeyInputSession by lazy {
         ChineseT9KeyInputSession<FcitxAPI, ChineseT9FcitxKeyStroke>(
             enqueueEngineOperation = chineseT9EngineOperation::enqueue,
-            dispatchKeyStroke = { key ->
-                sendKey(key.sym, key.states, key.scanCode, key.up, key.timestamp)
+            dispatchKeyStroke = { key, receipt ->
+                val source = withContext(Dispatchers.Main.immediate) { chineseT9Sources.register(receipt) }
+                withCandidateSource(source) {
+                    sendKey(key.sym, key.states, key.scanCode, key.up, key.timestamp)
+                }
+            },
+            isCurrentSession = { receipt ->
+                withContext(Dispatchers.Main.immediate) {
+                    val current = chineseT9Composition.compositionTicket()
+                    isChineseT9InputModeActive() && current.scheme == receipt.compositionTicket.scheme &&
+                        current.sessionEpoch == receipt.compositionTicket.sessionEpoch
+                }
             },
             onDispatchStarted = { receipt ->
                 T9ResponsivenessTrace.markEngineDispatchStarted(receipt.traceInputId)
@@ -2568,13 +2585,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     private fun forwardChineseT9SeparatorShortPress(): Boolean {
         chineseT9Composition.appendSeparator()
-        candidatesView?.refreshT9Ui()
-        postFcitxJob {
-            val input = getRimeInput()
-            if (input.isNotEmpty()) {
-                replaceRimeInput(input.length, 0, "'", input.length + 1)
-            }
-        }
+        enqueuePinyinProjection(chineseT9Composition.pinyinProjection())
         return true
     }
 
@@ -2850,12 +2861,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     // ==================== T9 Pinyin selection bar ====================
 
-    /** Current T9 segment (digits 2-9 after last apostrophe) for pinyin candidates. */
+    /** First unresolved source segment, bounded by an explicit separator. */
     fun getCurrentT9Segment(): String = chineseT9Composition.currentSegment()
 
-    fun getChineseT9InputSnapshot(data: FcitxEvent.InputPanelEvent.Data): ChineseT9InputSnapshot {
-        return chineseT9Composition.snapshot(data.preedit.toString())
-    }
+    fun getChineseT9InputSnapshot(): ChineseT9InputSnapshot = chineseT9Composition.snapshot()
 
     /** Total scheme-owned code keys in the current Chinese T9 composition. */
     fun getT9CompositionKeyCount(): Int = chineseT9Composition.keyCount()
@@ -2864,6 +2873,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     fun getChineseT9CompositionTicket(): ChineseT9CompositionTicket =
         chineseT9Composition.compositionTicket()
+
+    fun chineseT9ReceiptForSource(source: Long): ChineseT9InputReceipt? =
+        chineseT9Sources.find(source, chineseT9Composition.compositionTicket())
 
     fun isCurrentChineseT9Composition(ticket: ChineseT9CompositionTicket): Boolean =
         isChineseT9InputModeActive() &&
@@ -2930,16 +2942,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         chineseT9Composition.literalCommitText(preview)
 
     fun completeT9ChineseCandidateSelection(
-        candidate: FcitxEvent.Candidate,
-        fallbackResolvedPrefix: String?
+        candidate: FcitxEvent.Candidate
     ): Boolean {
         if (currentT9Mode != T9InputMode.CHINESE) return false
         val rawPreedit = chineseT9Composition.consumeSelectedCandidateReading(
-            candidate = candidate,
-            fallbackResolvedPrefix = fallbackResolvedPrefix
+            candidate = candidate
         ) ?: return false
         if (candidate.text.isEmpty()) return false
-        chineseT9Composition.prepareReplay(rawPreedit)
         val receipt = currentChineseT9InputReceipt()
         t9CandidateFocusController.stageForNextFrame(T9CandidateFocus.BOTTOM)
         val waitsForReplacementFrame =
@@ -2979,7 +2988,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         receipt: ChineseT9InputReceipt
     ) {
         val ticket = receipt.compositionTicket
+        if (ticket.scheme == ChineseT9Scheme.PINYIN) {
+            enqueuePinyinProjection(chineseT9Composition.pinyinProjection(), receipt)
+            return
+        }
         val replayScheme = ticket.scheme
+        val source = chineseT9Sources.register(receipt)
         chineseT9EngineOperation.enqueue(
             acceptBefore = { isCurrentChineseT9Composition(ticket) },
             execute = {
@@ -2989,15 +3003,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                     // cannot replace that complete frame with transient prefix candidates.
                     candidatesView?.rearmT9AtomicEngineTransitionForReplay(receipt)
                 }
-                setCandidatePagingMode(candidatePagingModeForCurrentInputDevice())
-                reset()
-                rawPreedit.forEach { ch ->
-                    val acceptedDigit = ch.digitToIntOrNull()
-                        ?.takeIf(replayScheme::acceptsCompositionDigit)
-                    val acceptedSeparator =
-                        ch == '\'' && replayScheme == ChineseT9Scheme.PINYIN
-                    if (acceptedDigit != null || acceptedSeparator) {
-                        sendKey(ch)
+                withCandidateSource(source) {
+                    setCandidatePagingMode(candidatePagingModeForCurrentInputDevice())
+                    reset()
+                    rawPreedit.forEach { ch ->
+                        if (ch.digitToIntOrNull()?.let(replayScheme::acceptsCompositionDigit) == true) {
+                            sendKey(ch)
+                        }
                     }
                 }
             },
@@ -3011,30 +3023,35 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         expected: String
     ): Boolean = chineseT9Composition.candidateMatchesResolvedPrefix(candidate, expected)
 
-    /**
-     * Record the user's pinyin choice and try to narrow Rime itself by replacing the matching
-     * T9 digit span with "pinyin'". The composition session owns the Kotlin-side state; this
-     * adapter only mirrors that selection into Rime.
-     */
+    /** Rime receives the full source projection so every explicit reading survives later edits. */
     private fun selectT9Pinyin(pinyin: String): Boolean {
-        val request = chineseT9Composition.selectPinyin(pinyin) ?: return false
-        val ticket = chineseT9Composition.compositionTicket()
+        val projection = chineseT9Composition.selectPinyin(pinyin) ?: return false
         // The old top-focused frame stays intact until the resolved reading is mirrored into
         // Rime. Publishing focus alone would pair new interaction state with old reading chips.
         t9CandidateFocusController.stageForNextFrame(T9CandidateFocus.BOTTOM)
-        chineseT9EngineOperation.enqueue(
-            acceptBefore = { isCurrentChineseT9Composition(ticket) },
-            execute = {
-                chineseT9Composition.mirrorPinyinSelection(this, request)
-                chineseT9Composition.compositionTicket()
-            },
-            // Mirroring intentionally advances the session revision. Validate the resulting
-            // ticket rather than weakening stale-operation checks to ignore revisions.
-            acceptAfter = ::isCurrentChineseT9Composition,
-            finish = { candidatesView?.refreshT9Ui() },
-            reject = { candidatesView?.refreshT9Ui() }
-        )
+        enqueuePinyinProjection(projection)
         return true
+    }
+
+    private fun enqueuePinyinProjection(
+        projection: ChineseT9CompositionSession.EngineProjection,
+        receipt: ChineseT9InputReceipt = currentChineseT9InputReceipt()
+    ) {
+        val source = chineseT9Sources.register(receipt)
+        candidatesView?.beginT9AtomicEngineTransition(receipt)
+        chineseT9EngineOperation.enqueue(
+            // New input in this session follows this choice; it must not cancel the choice.
+            acceptBefore = {
+                isChineseT9InputModeActive() && chineseT9Composition.acceptsPinyinProjection(projection)
+            },
+            execute = {
+                withCandidateSource(source) { ChineseT9RimeBridge.from(this).apply(projection) }
+            },
+            acceptAfter = { chineseT9Composition.acceptsPinyinProjection(projection) },
+            finish = { applied ->
+                if (!applied) handleUnavailableRimeOperation()
+            }
+        )
     }
 
     fun commitT9ReadingSelection(reading: String): Boolean {
@@ -3192,13 +3209,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 )
             }
             PhysicalDeleteCoordinator.Decision.ReopenResolvedSegment -> {
-                postFcitxJob {
-                    if (popLastResolvedSegment(this)) {
-                        this@FcitxInputMethodService.lifecycleScope.launch {
-                            candidatesView?.refreshT9Ui()
-                        }
-                    }
-                }
+                reopenLastPinyinSelection()
                 PhysicalInputRouter.Result(
                     handled = true,
                     consumeKeyUp = input.keyCode,

@@ -26,7 +26,8 @@ sealed interface ChineseT9KeyCommand<out KeyStroke> {
 
 class ChineseT9KeyInputSession<Engine, KeyStroke>(
     private val enqueueEngineOperation: (suspend Engine.() -> Unit) -> Unit,
-    private val dispatchKeyStroke: suspend Engine.(KeyStroke) -> Unit,
+    private val dispatchKeyStroke: suspend Engine.(KeyStroke, ChineseT9InputReceipt) -> Unit,
+    private val isCurrentSession: suspend (ChineseT9InputReceipt) -> Boolean = { true },
     private val onDispatchStarted: (ChineseT9InputReceipt) -> Unit = {},
     private val onDispatchCompleted: (ChineseT9InputReceipt) -> Unit = {}
 ) {
@@ -34,11 +35,12 @@ class ChineseT9KeyInputSession<Engine, KeyStroke>(
         // Input commands stay lossless and ordered in the existing engine operation lane. Only
         // presentation generations may be conflated; combining commands here would change text.
         enqueueEngineOperation {
+            if (!isCurrentSession(command.receipt)) return@enqueueEngineOperation
             onDispatchStarted(command.receipt)
             try {
                 when (command) {
-                    is ChineseT9KeyCommand.Stroke -> dispatchKeyStroke(command.stroke)
-                    is ChineseT9KeyCommand.TextInput -> dispatchKeyStroke(command.keyDown)
+                    is ChineseT9KeyCommand.Stroke -> dispatchKeyStroke(command.stroke, command.receipt)
+                    is ChineseT9KeyCommand.TextInput -> dispatchKeyStroke(command.keyDown, command.receipt)
                 }
             } finally {
                 onDispatchCompleted(command.receipt)

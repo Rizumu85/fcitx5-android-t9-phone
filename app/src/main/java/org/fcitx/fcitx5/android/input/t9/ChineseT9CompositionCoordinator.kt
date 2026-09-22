@@ -6,7 +6,6 @@
 package org.fcitx.fcitx5.android.input.t9
 
 import android.view.KeyEvent
-import org.fcitx.fcitx5.android.core.FcitxAPI
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.core.FormattedText
 
@@ -104,23 +103,16 @@ class ChineseT9CompositionCoordinator(
             handleRawCodeKeyDown(keyCode)
         }
 
-    suspend fun popLastResolvedSegment(api: FcitxAPI, candidatePagingMode: Int): Boolean {
-        if (scheme != ChineseT9Scheme.PINYIN) return false
-        val popped = session.popLastResolvedSegment() ?: return false
-        if (popped.segment.engineBacked) {
-            ChineseT9RimeBridge.from(session, api).restoreResolvedSegment(
-                segment = popped.segment,
-                previousUnresolved = popped.previousUnresolved,
-                fallbackRawPreedit = popped.fallbackRawPreedit,
-                candidatePagingMode = candidatePagingMode
-            )
-        }
-        return true
-    }
+    fun popLastResolvedSegment(): ChineseT9CompositionSession.EngineProjection? =
+        if (scheme == ChineseT9Scheme.PINYIN) session.popLastResolvedSegment() else null
 
-    fun snapshot(inputPreedit: String): ChineseT9InputSnapshot {
+    fun pinyinProjection(): ChineseT9CompositionSession.EngineProjection = session.projection()
+
+    fun acceptsPinyinProjection(projection: ChineseT9CompositionSession.EngineProjection): Boolean =
+        scheme == ChineseT9Scheme.PINYIN && session.accepts(projection)
+
+    fun snapshot(): ChineseT9InputSnapshot {
         if (scheme != ChineseT9Scheme.PINYIN) return rawCodeSnapshot()
-        session.syncFromPreedit(inputPreedit)
         val rawSequence = session.rawSequence()
         return ChineseT9InputSnapshot(
             rawSequence = rawSequence,
@@ -129,9 +121,9 @@ class ChineseT9CompositionCoordinator(
             fullComposition = session.fullComposition(),
             model = session.model,
             keyCount = rawSequence.count { it in '2'..'9' },
-            filterPrefixes = resolvedPinyinFilterPrefixes(session.model),
-            hasPendingPinyinSelection = session.pendingSelection != null,
+            filterPrefixes = emptyList(),
             sessionRevision = session.revision,
+            sessionEpoch = session.epoch,
             scheme = scheme
         )
     }
@@ -141,14 +133,16 @@ class ChineseT9CompositionCoordinator(
             scheme = scheme,
             rawSequence = session.rawSequence(),
             digitSequence = session.digitSequence(),
-            sessionRevision = session.revision
+            sessionRevision = session.revision,
+            sessionEpoch = session.epoch
         )
         ChineseT9Scheme.STROKE,
         ChineseT9Scheme.ZHUYIN -> ChineseT9CompositionTicket(
             scheme = scheme,
             rawSequence = rawCodeSession.rawCode,
             digitSequence = rawCodeSession.digitSequence,
-            sessionRevision = rawCodeSession.revision
+            sessionRevision = rawCodeSession.revision,
+            sessionEpoch = session.epoch
         )
     }
 
@@ -165,7 +159,7 @@ class ChineseT9CompositionCoordinator(
     }
 
     fun currentSegment(): String = when (scheme) {
-        ChineseT9Scheme.PINYIN -> session.currentSegment(::firstUnresolvedRawSegment)
+        ChineseT9Scheme.PINYIN -> session.currentSegment()
         ChineseT9Scheme.STROKE,
         ChineseT9Scheme.ZHUYIN -> rawCodeSession.currentSegment
     }
@@ -243,18 +237,7 @@ class ChineseT9CompositionCoordinator(
         return normalized == expected || normalized.startsWith("$expected ")
     }
 
-    fun consumeResolvedPrefix(prefix: String): String? =
-        if (scheme != ChineseT9Scheme.PINYIN) null else session.consumeResolvedPrefix(
-            prefix = prefix,
-            removeResolvedPrefixFromRawSource = ::removeResolvedPrefixFromRawSource,
-            firstUnresolvedRawSegment = ::firstUnresolvedRawSegment
-        )
-
-    fun prepareReplay(rawPreedit: String) {
-        if (scheme == ChineseT9Scheme.PINYIN) session.prepareReplay(rawPreedit)
-    }
-
-    fun selectPinyin(pinyin: String): ChineseT9CompositionSession.PinyinSelectionRequest? =
+    fun selectPinyin(pinyin: String): ChineseT9CompositionSession.EngineProjection? =
         if (scheme == ChineseT9Scheme.PINYIN) session.selectPinyin(pinyin) else null
 
     fun selectZhuyinReading(reading: String): Boolean {
@@ -267,14 +250,8 @@ class ChineseT9CompositionCoordinator(
         return true
     }
 
-    suspend fun mirrorPinyinSelection(
-        api: FcitxAPI,
-        request: ChineseT9CompositionSession.PinyinSelectionRequest
-    ): Boolean = ChineseT9RimeBridge.from(session, api).mirrorPinyinSelection(request)
-
     fun consumeSelectedCandidateReading(
-        candidate: FcitxEvent.Candidate,
-        fallbackResolvedPrefix: String? = null
+        candidate: FcitxEvent.Candidate
     ): String? {
         if (scheme == ChineseT9Scheme.ZHUYIN) {
             val reading = T9ZhuyinResolver.normalizeCandidateReading(candidate.comment)
@@ -296,7 +273,6 @@ class ChineseT9CompositionCoordinator(
             .split(' ')
             .filter { it.isNotEmpty() }
         return session.consumeSelectedCandidateReading(commentSegments)
-            ?: fallbackResolvedPrefix?.let(::consumeResolvedPrefix)
     }
 
     private fun handleRawCodeKeyDown(
@@ -351,8 +327,8 @@ class ChineseT9CompositionCoordinator(
             } else {
                 emptyList()
             },
-            hasPendingPinyinSelection = false,
             sessionRevision = rawCodeSession.revision,
+            sessionEpoch = session.epoch,
             scheme = scheme,
             hasInvalidReading = zhuyinResolution is T9ZhuyinResolver.Result.Invalid,
             explicitReadingOptions = if (scheme == ChineseT9Scheme.ZHUYIN) {
@@ -364,18 +340,6 @@ class ChineseT9CompositionCoordinator(
         )
     }
 
-    private fun resolvedPinyinFilterPrefixes(model: T9CompositionModel): List<String> {
-        val resolvedSegments = model.resolvedSegments
-        val resolved = resolvedSegments.map { it.pinyin }
-        if (resolved.isEmpty()) return emptyList()
-        if (model.pendingSelection != null || resolvedSegments.all { it.engineBacked }) {
-            return emptyList()
-        }
-        return (resolved.size downTo 1)
-            .map { count -> resolved.take(count).joinToString(" ") }
-            .distinct()
-    }
-
     private fun resolvedSegmentsForFilterPrefix(prefix: String): List<T9ResolvedSegment>? {
         val resolved = session.resolvedSegments
         for (count in 1..resolved.size) {
@@ -385,26 +349,4 @@ class ChineseT9CompositionCoordinator(
         return null
     }
 
-    private fun firstUnresolvedRawSegment(
-        raw: String,
-        resolved: List<T9ResolvedSegment>
-    ): String = removeResolvedPrefixFromRawSource(raw, resolved)
-        .split('\'')
-        .firstOrNull { segment -> segment.any { it in '2'..'9' } }
-        ?.filter { it in '2'..'9' }
-        .orEmpty()
-
-    private fun removeResolvedPrefixFromRawSource(
-        raw: String,
-        resolved: List<T9ResolvedSegment>
-    ): String {
-        var rest = raw.filter { it in '2'..'9' || it == '\'' }
-        resolved.forEach { segment ->
-            if (rest.startsWith(segment.sourceDigits)) {
-                rest = rest.drop(segment.sourceDigits.length)
-                if (rest.startsWith('\'')) rest = rest.drop(1)
-            }
-        }
-        return rest
-    }
 }

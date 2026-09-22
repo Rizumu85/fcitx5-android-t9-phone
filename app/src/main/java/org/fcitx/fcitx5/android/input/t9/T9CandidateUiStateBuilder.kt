@@ -174,7 +174,6 @@ class T9CandidateUiStateBuilder(
             ) {
                 pendingPunctuationPaged?.let(pipeline::buildT9PendingPunctuationPaged)
             }
-            val pendingT9PinyinSelection = chineseSnapshot?.hasPendingPinyinSelection == true
             val compositionKeyCount = chineseSnapshot?.keyCount ?: 0
             val sourcePlan = T9CandidateSourceControlPlanner.plan(
                 T9CandidateSourceControlPlanner.Input(
@@ -183,7 +182,6 @@ class T9CandidateUiStateBuilder(
                     rawCandidatesEmpty = input.rawPaged.candidates.isEmpty(),
                     pendingPunctuationActive = pendingPunctuationPaged != null,
                     compositionKeyCount = compositionKeyCount,
-                    pendingPinyinSelection = pendingT9PinyinSelection,
                     filterPrefixesEmpty = t9FilterPrefixes.isEmpty(),
                     chineseScheme = chineseSnapshot?.scheme,
                     chinesePredictionPhase = input.chinesePredictionPhase,
@@ -264,7 +262,6 @@ class T9CandidateUiStateBuilder(
                         chinesePredictionActive = input.chinesePredictionPhase ==
                             ChinesePredictionCandidateSession.Phase.VISIBLE,
                         suppressEmptyCandidates = sourcePlan.suppressEmptyCandidates,
-                        pendingPinyinSelection = sourcePlan.pendingPinyinSelection,
                         waitForChineseCandidates = sourcePlan.waitForChineseCandidates
                     )
                 )

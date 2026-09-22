@@ -6,339 +6,120 @@
 package org.fcitx.fcitx5.android.input.t9
 
 class ChineseT9CompositionSession {
-
-    data class PopResolvedSegmentResult(
-        val segment: T9ResolvedSegment,
-        val previousUnresolved: String,
-        val fallbackRawPreedit: String
-    )
-
-    data class PinyinSelectionRequest(
-        val selectedSegment: T9ResolvedSegment,
-        val originalSegment: String,
-        val remainingDigits: String,
-        val consumeExplicitSeparator: Boolean,
-        val replaceFromStart: Boolean
-    )
-
-    private val tracker = T9CompositionTracker()
+    data class EngineProjection(val epoch: Long, val revision: Long, val input: String)
 
     var model = T9CompositionModel()
         private set
-
     var revision: Long = 0
         private set
+    var epoch: Long = 0
+        private set
 
-    private var observedNonEmptyPreedit = false
-    private var ignoreEmptyPreeditUntilReplay = false
-
-    val hasResolvedSegments: Boolean
-        get() = model.hasResolvedSegments
-
-    val pendingSelection: T9PendingSelection?
-        get() = model.pendingSelection
-
-    val resolvedSegments: List<T9ResolvedSegment>
-        get() = model.resolvedSegments
-
-    val unresolvedDigits: String
-        get() = model.unresolvedDigits
-
-    val rawPreedit: String
-        get() = model.rawPreedit
+    val hasResolvedSegments: Boolean get() = model.hasResolvedSegments
+    val resolvedSegments: List<T9ResolvedSegment> get() = model.resolvedSegments
+    val unresolvedDigits: String get() = model.unresolvedDigits
+    val rawPreedit: String get() = model.rawPreedit
 
     fun clear() {
-        tracker.clear()
-        setModel(T9CompositionModel())
-        observedNonEmptyPreedit = false
-        ignoreEmptyPreeditUntilReplay = false
+        // Clearing even an empty document invalidates work from the previous editor/session.
+        epoch++
+        revision++
+        model = T9CompositionModel()
     }
 
-    fun hasState(): Boolean = !tracker.isEmpty() || model != T9CompositionModel()
+    fun hasState(): Boolean = model.rawPreedit.isNotEmpty()
 
     fun appendDigit(digit: Char) {
-        tracker.appendDigit(digit)
-        updateFromTracker()
+        if (digit in '2'..'9') update(model.copy(rawPreedit = model.rawPreedit + digit))
     }
 
-    fun appendSeparator() {
-        tracker.appendApostrophe()
-        updateFromTracker()
-    }
+    fun appendSeparator() = update(model.copy(rawPreedit = model.rawPreedit + '\''))
 
     fun backspace() {
-        tracker.backspace()
-        updateFromTracker()
+        if (!hasState()) return
+        val raw = model.rawPreedit.dropLast(1)
+        update(model.copy(
+            rawPreedit = raw,
+            resolvedSegments = model.resolvedSegments.takeWhile { it.sourceEnd <= raw.length }
+        ))
     }
 
     fun replace(rawComposition: String) {
-        tracker.replace(rawComposition)
-        updateFromTracker(preserveResolved = false)
+        clear()
+        update(T9CompositionModel(rawPreedit = rawComposition.filter { it in '2'..'9' || it == '\'' }))
     }
 
-    fun updateFromTracker(preserveResolved: Boolean = model.hasResolvedSegments) {
-        val unresolvedDigits = tracker.getCurrentSegment()
-        val nextModel = if (preserveResolved) {
-            val resolvedSource = model.resolvedSegments.joinToString("") { it.sourceDigits }
-            val rawPreedit = if (
-                resolvedSource.isNotEmpty() &&
-                model.rawPreedit.startsWith("$resolvedSource'")
-            ) {
-                "$resolvedSource'${tracker.getFullComposition()}"
+    fun rawSequence(): String = model.rawPreedit
+    fun digitSequence(): String = model.rawPreedit.filter { it in '2'..'9' }
+    fun keyCount(): Int = model.rawPreedit.count { it in '2'..'9' }
+    fun fullComposition(): String = model.rawPreedit
+    fun currentSegment(): String = model.rawPreedit.substring(model.unresolvedStart).substringBefore('\'')
+
+    fun shouldReopenLastResolvedSegment(): Boolean = model.hasResolvedSegments
+
+    fun popLastResolvedSegment(): EngineProjection? {
+        if (!model.hasResolvedSegments) return null
+        // Undo removes a reading annotation, never reconstructs the user's original keystrokes.
+        update(model.copy(resolvedSegments = model.resolvedSegments.dropLast(1)))
+        return projection()
+    }
+
+    fun selectPinyin(pinyin: String): EngineProjection? {
+        val segment = currentSegment()
+        val reading = pinyin.lowercase()
+        val length = T9PinyinUtils.matchedPrefixLength(segment, reading)
+        if (length <= 0) return null
+        update(model.copy(resolvedSegments = model.resolvedSegments + T9ResolvedSegment(
+            pinyin = reading,
+            sourceDigits = segment.take(length),
+            sourceStart = model.unresolvedStart
+        )))
+        return projection()
+    }
+
+    fun projection(): EngineProjection = EngineProjection(epoch, revision, model.engineInput())
+
+    fun accepts(projection: EngineProjection): Boolean = projection.epoch == epoch
+
+    fun consumeSelectedCandidateReading(commentSegments: List<String>): String? {
+        if (!hasState() || commentSegments.isEmpty()) return null
+        val raw = model.rawPreedit
+        var cursor = 0
+        for (reading in commentSegments) {
+            while (raw.getOrNull(cursor) == '\'') cursor++
+            if (cursor >= raw.length) break
+            val selected = model.resolvedSegments.firstOrNull { it.sourceStart == cursor }
+            if (selected != null) {
+                if (!selected.matchesReading(reading)) return null
+                cursor = selected.sourceEnd
             } else {
-                resolvedSource + tracker.getFullComposition()
-            }
-            model.copy(
-                unresolvedDigits = unresolvedDigits,
-                rawPreedit = rawPreedit,
-                pendingSelection = model.pendingSelection?.takeIf {
-                    it.remainingDigits == unresolvedDigits
-                }
-            )
-        } else {
-            T9CompositionModel(
-                unresolvedDigits = unresolvedDigits,
-                rawPreedit = tracker.getFullComposition()
-            )
-        }
-        setModel(nextModel)
-    }
-
-    fun syncFromPreedit(rawPreedit: String) {
-        if (rawPreedit.isEmpty()) {
-            if (ignoreEmptyPreeditUntilReplay) return
-            if (!tracker.isEmpty()) return
-            if (observedNonEmptyPreedit && hasState()) {
-                clear()
-            }
-            return
-        }
-        ignoreEmptyPreeditUntilReplay = false
-        observedNonEmptyPreedit = true
-        if (tracker.isEmpty() && !model.hasResolvedSegments && model.rawPreedit.isEmpty()) {
-            setModel(model.copy(rawPreedit = rawPreedit))
-        }
-    }
-
-    fun prepareReplay(rawPreedit: String) {
-        ignoreEmptyPreeditUntilReplay = rawPreedit.isNotEmpty()
-    }
-
-    fun rawSequence(): String =
-        if (model.rawPreedit.any { it in '2'..'9' || it == '\'' }) {
-            model.rawPreedit.filter { it in '2'..'9' || it == '\'' }
-        } else if (!tracker.isEmpty()) {
-            tracker.getFullComposition()
-        } else {
-            model.resolvedSegments.joinToString("") { it.sourceDigits } + model.unresolvedDigits
-        }
-
-    fun digitSequence(): String = rawSequence().filter { it in '2'..'9' }
-
-    fun keyCount(): Int = rawSequence().count { it in '2'..'9' }
-
-    fun fullComposition(): String = tracker.getFullComposition()
-
-    fun selectableSegment(): String = tracker.getSelectableSegment()
-
-    fun currentSegment(
-        firstUnresolvedRawSegment: (raw: String, resolved: List<T9ResolvedSegment>) -> String
-    ): String =
-        if (model.rawPreedit.contains('\'')) {
-            firstUnresolvedRawSegment(rawSequence(), model.resolvedSegments)
-        } else if (model.hasResolvedSegments) {
-            firstUnresolvedRawSegment(rawSequence(), model.resolvedSegments)
-                .ifEmpty { model.unresolvedDigits }
-        } else {
-            tracker.getSelectableSegment()
-        }
-
-    fun shouldReopenLastResolvedSegment(): Boolean = model.resolvedSegments.isNotEmpty()
-
-    fun popLastResolvedSegment(): PopResolvedSegmentResult? {
-        val last = model.resolvedSegments.lastOrNull() ?: return null
-        val newResolved = model.resolvedSegments.dropLast(1)
-        val previousUnresolved = model.unresolvedDigits
-        val restoredUnresolved = last.sourceDigits + model.unresolvedDigits
-        val restoredRawPreedit = model.rawPreedit
-            .takeIf { it.contains('\'') }
-            ?: newResolved.joinToString("") { it.sourceDigits } + restoredUnresolved
-        tracker.replace(restoredRawPreedit)
-        setModel(
-            T9CompositionModel(
-                resolvedSegments = newResolved,
-                unresolvedDigits = restoredUnresolved,
-                rawPreedit = restoredRawPreedit,
-                pendingSelection = null,
-            )
-        )
-        return PopResolvedSegmentResult(
-            segment = last,
-            previousUnresolved = previousUnresolved,
-            fallbackRawPreedit = restoredRawPreedit
-        )
-    }
-
-    fun markAllResolvedSegmentsEngineUnbacked(rawPreedit: String) {
-        setModel(
-            model.copy(
-                resolvedSegments = model.resolvedSegments.map { it.copy(engineBacked = false) },
-                rawPreedit = rawPreedit
-            )
-        )
-    }
-
-    fun selectPinyin(pinyin: String): PinyinSelectionRequest? {
-        val segment = currentSegment(::defaultFirstUnresolvedRawSegment)
-        if (segment.isEmpty() || pinyin.isEmpty()) return null
-        val matchedPrefixLength = T9PinyinUtils.matchedPrefixLength(segment, pinyin)
-        if (matchedPrefixLength <= 0) return null
-        val selectedDigits = segment.take(matchedPrefixLength)
-        val remainingDigits = segment.drop(matchedPrefixLength)
-        val selectedSegment = T9ResolvedSegment(pinyin, selectedDigits)
-        val rawBeforeSelection = rawSequence()
-        val hadManualSeparator = !model.hasResolvedSegments && tracker.hasManualSeparator()
-        if (hadManualSeparator) {
-            tracker.replaceSelectableSegmentThroughFirstSeparator(remainingDigits)
-        } else {
-            tracker.replaceCurrentSegment(remainingDigits)
-        }
-        val unresolvedDigits = tracker.getCurrentSegment()
-        val newResolved = model.resolvedSegments + selectedSegment
-        setModel(
-            model.copy(
-                resolvedSegments = newResolved,
-                unresolvedDigits = unresolvedDigits,
-                rawPreedit = rawBeforeSelection.takeIf { hadManualSeparator }
-                    ?: newResolved.joinToString("") { it.sourceDigits } + unresolvedDigits,
-                pendingSelection = T9PendingSelection(selectedSegment, unresolvedDigits)
-            )
-        )
-        return PinyinSelectionRequest(
-            selectedSegment = selectedSegment,
-            originalSegment = segment,
-            remainingDigits = unresolvedDigits,
-            consumeExplicitSeparator = hadManualSeparator,
-            replaceFromStart = hadManualSeparator
-        )
-    }
-
-    fun markSelectionEngineBacked(
-        selectedSegment: T9ResolvedSegment,
-        remainingDigits: String
-    ) {
-        val resolved = model.resolvedSegments.toMutableList()
-        val index = resolved.indexOfFirst {
-            it.pinyin == selectedSegment.pinyin &&
-                it.sourceDigits == selectedSegment.sourceDigits &&
-                !it.engineBacked
-        }
-        if (index < 0) return
-        resolved[index] = resolved[index].copy(engineBacked = true)
-        val nextPending = model.pendingSelection?.takeUnless {
-            it.segment.pinyin == selectedSegment.pinyin &&
-                it.segment.sourceDigits == selectedSegment.sourceDigits &&
-                it.remainingDigits == remainingDigits
-        }
-        setModel(
-            model.copy(
-                resolvedSegments = resolved,
-                pendingSelection = nextPending
-            )
-        )
-    }
-
-    fun clearPendingSelection(
-        selectedSegment: T9ResolvedSegment,
-        remainingDigits: String
-    ) {
-        val pending = model.pendingSelection ?: return
-        if (pending.segment.pinyin == selectedSegment.pinyin &&
-            pending.segment.sourceDigits == selectedSegment.sourceDigits &&
-            pending.remainingDigits == remainingDigits
-        ) {
-            setModel(model.copy(pendingSelection = null))
-        }
-    }
-
-    fun consumeResolvedPrefix(
-        prefix: String,
-        removeResolvedPrefixFromRawSource: (raw: String, resolved: List<T9ResolvedSegment>) -> String,
-        firstUnresolvedRawSegment: (raw: String, resolved: List<T9ResolvedSegment>) -> String
-    ): String? {
-        val resolved = model.resolvedSegments
-        if (resolved.isEmpty()) return null
-        var matchedCount = 0
-        for (count in 1..resolved.size) {
-            if (resolved.take(count).joinToString(" ") { it.pinyin } == prefix) {
-                matchedCount = count
-                break
+                val digits = T9PinyinUtils.pinyinToT9Keys(reading)
+                val available = raw.substring(cursor).substringBefore('\'')
+                if (digits.isEmpty() || !available.startsWith(digits)) return null
+                cursor += digits.length
             }
         }
-        if (matchedCount <= 0) return null
-        val consumedResolved = resolved.take(matchedCount)
-        val remainingResolved = resolved.drop(matchedCount)
-        val rawPreedit = removeResolvedPrefixFromRawSource(rawSequence(), consumedResolved)
-        val remainingUnresolvedDigits = firstUnresolvedRawSegment(rawPreedit, remainingResolved)
-        tracker.replace(rawPreedit)
-        setModel(
-            model.copy(
-                resolvedSegments = remainingResolved,
-                unresolvedDigits = remainingUnresolvedDigits,
-                rawPreedit = rawPreedit,
-                pendingSelection = null
-            )
-        )
-        return rawPreedit
-    }
-
-    fun consumeSelectedCandidateReading(
-        commentSegments: List<String>
-    ): String? {
-        val rawDigits = rawSequence().filter { it in '2'..'9' }
-        if (rawDigits.isEmpty() || commentSegments.isEmpty()) return null
-        var consumedDigits = ""
-        for (segment in commentSegments) {
-            val segmentDigits = T9PinyinUtils.pinyinToT9Keys(segment)
-            if (segmentDigits.isEmpty()) break
-            val nextConsumed = consumedDigits + segmentDigits
-            if (!rawDigits.startsWith(nextConsumed)) break
-            consumedDigits = nextConsumed
-        }
-        if (consumedDigits.isEmpty()) return null
-        val remainingDigits = rawDigits.drop(consumedDigits.length)
-        if (remainingDigits.isEmpty()) {
+        if (cursor == 0) return null
+        while (raw.getOrNull(cursor) == '\'') cursor++
+        if (cursor == raw.length) {
             clear()
         } else {
-            tracker.replace(remainingDigits)
-            setModel(
-                T9CompositionModel(
-                    unresolvedDigits = remainingDigits,
-                    rawPreedit = remainingDigits
-                )
-            )
+            // A prefix commit must not undo choices on the unread suffix (including initials).
+            update(model.copy(
+                rawPreedit = raw.substring(cursor),
+                resolvedSegments = model.resolvedSegments.filter { it.sourceStart >= cursor }
+                    .map { it.copy(sourceStart = it.sourceStart - cursor) }
+            ))
         }
-        return remainingDigits
+        return rawSequence()
     }
 
-    private fun setModel(next: T9CompositionModel) {
-        if (model == next) return
-        model = next
-        revision += 1
-    }
-
-    private fun defaultFirstUnresolvedRawSegment(
-        raw: String,
-        resolved: List<T9ResolvedSegment>
-    ): String {
-        var remaining = raw
-        resolved.forEach { segment ->
-            if (remaining.startsWith(segment.sourceDigits)) {
-                remaining = remaining.drop(segment.sourceDigits.length)
-            }
-        }
-        return remaining.split('\'').firstOrNull { part ->
-            part.any { it in '2'..'9' }
-        }.orEmpty().filter { it in '2'..'9' }
+    private fun update(next: T9CompositionModel) {
+        val normalized = next.copy(
+            unresolvedDigits = next.rawPreedit.substring(next.unresolvedStart).filter { it in '2'..'9' }
+        )
+        if (model == normalized) return
+        model = normalized
+        revision++
     }
 }

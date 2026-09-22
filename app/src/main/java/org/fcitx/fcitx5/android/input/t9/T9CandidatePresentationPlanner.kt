@@ -21,7 +21,6 @@ object T9CandidatePresentationPlanner {
         val chineseT9Active: Boolean,
         val chinesePredictionActive: Boolean = false,
         val suppressEmptyCandidates: Boolean,
-        val pendingPinyinSelection: Boolean,
         val waitForChineseCandidates: Boolean
     )
 
@@ -66,7 +65,7 @@ object T9CandidatePresentationPlanner {
         val cursorSource = when {
             input.pendingPunctuationPaged != null -> input.pendingPunctuationPaged
             input.smartEnglishPaged != null -> input.smartEnglishPaged
-            input.suppressEmptyCandidates || input.pendingPinyinSelection || input.waitForChineseCandidates ->
+            input.suppressEmptyCandidates || input.waitForChineseCandidates ->
                 T9PagedCandidates.Empty
             input.chineseT9Active -> candidateSource
             else -> rawPaged
@@ -80,7 +79,6 @@ object T9CandidatePresentationPlanner {
                 !useBulkFiltered &&
                 !usePendingBulkDisplay &&
                 !input.suppressEmptyCandidates &&
-                !input.pendingPinyinSelection &&
                 !input.waitForChineseCandidates &&
                 !input.chinesePredictionActive &&
                 input.chineseT9Active,

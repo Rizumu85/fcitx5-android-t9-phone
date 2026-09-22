@@ -92,6 +92,29 @@ class ChineseT9CustomDictionariesTest {
     }
 
     @Test
+    fun customCandidatesRespectSelectedSpellingInsteadOfOnlyMatchingDigits() {
+        val phrases = phraseDictionary().apply {
+            replaceEntries(listOf(
+                ChineseT9CustomPhrase("哥哥", "ge'ge"),
+                ChineseT9CustomPhrase("呵呵", "he'he")
+            ))
+        }
+        val source = ChineseT9CustomCandidateSource(
+            phrases,
+            EnglishCustomDictionaryCoordinator(T9EnglishDictionary(null), chineseEnglishDictionary()) { false }
+        )
+        val session = ChineseT9CompositionSession().apply {
+            replace("4343")
+            selectPinyin("ge")
+        }
+        val snapshot = chineseSnapshot("4343").copy(model = session.model)
+
+        val candidates = source.buildCustomCandidates(snapshot, englishCandidatesEnabled = true)
+
+        assertEquals(listOf("哥哥"), candidates!!.data.candidates.map { it.text })
+    }
+
+    @Test
     fun customSourcePrependsDirectCandidatesAndFiltersEngineEnglishWhenDisabled() {
         val phraseDictionary = phraseDictionary().apply {
             replaceEntries(listOf(ChineseT9CustomPhrase("你好", "nihao")))
@@ -155,7 +178,6 @@ class ChineseT9CustomDictionariesTest {
         model = T9CompositionModel(unresolvedDigits = digits, rawPreedit = digits),
         keyCount = digits.length,
         filterPrefixes = emptyList(),
-        hasPendingPinyinSelection = false,
         sessionRevision = 1L,
         scheme = ChineseT9Scheme.PINYIN
     )

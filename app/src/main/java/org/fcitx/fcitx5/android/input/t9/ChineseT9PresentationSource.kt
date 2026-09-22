@@ -82,22 +82,8 @@ class ChineseT9PresentationSource(
         }
 
     fun compositionModelDisplay(model: T9CompositionModel): FormattedText? {
-        if (!model.hasResolvedSegments && model.unresolvedDigits.isEmpty()) {
-            return null
-        }
-        if (model.rawPreedit.contains('\'')) {
-            var rawDisplay = model.rawPreedit
-            model.resolvedSegments.forEach { segment ->
-                rawDisplay = rawDisplay.replaceFirst(segment.sourceDigits, segment.pinyin)
-            }
-            return buildPreeditDisplay(rawDisplay)
-        }
-        val parts = model.resolvedSegments.map { it.pinyin }.toMutableList()
-        if (model.unresolvedDigits.isNotEmpty()) {
-            parts += T9PinyinUtils.t9KeyToPinyin(model.unresolvedDigits).firstOrNull()
-                ?: model.unresolvedDigits
-        }
-        return formatText(parts.joinToString(" "))
+        if (!model.hasResolvedSegments) return buildPreeditDisplay(model.rawPreedit)
+        return formatText(buildSelectedPreview("", model.rawPreedit, model.resolvedSegments))
     }
 
     companion object {
@@ -125,9 +111,41 @@ class ChineseT9PresentationSource(
         fun commentSegmentMatchesResolvedSegment(
             commentSegment: String,
             resolvedSegment: T9ResolvedSegment
-        ): Boolean {
-            if (commentSegment == resolvedSegment.pinyin) return true
-            return T9PinyinUtils.pinyinToT9Keys(commentSegment) == resolvedSegment.sourceDigits
+        ): Boolean = resolvedSegment.matchesReading(commentSegment)
+
+        private fun buildSelectedPreview(
+            comment: String,
+            raw: String,
+            resolved: List<T9ResolvedSegment>
+        ): String = buildString {
+            val comments = comment.split(' ').filter(String::isNotEmpty)
+            val matchesPrefix = resolved.indices.all { index ->
+                comments.getOrNull(index)?.let(resolved[index]::matchesReading) == true
+            }
+            var cursor = 0
+            resolved.forEach { selected ->
+                append(raw.substring(cursor, selected.sourceStart))
+                append(selected.pinyin)
+                cursor = selected.sourceEnd
+                if (raw.getOrNull(cursor) == '\'') {
+                    append('\'')
+                    cursor++
+                } else if (cursor < raw.length) {
+                    append(' ')
+                }
+            }
+            val remaining = raw.substring(cursor)
+            if (remaining.isNotEmpty()) {
+                // Candidate comments explain only the unread suffix. Equal T9 digits do not
+                // authorize replacing an explicitly selected spelling (ge is not he).
+                val suffixComment = if (matchesPrefix) comments.drop(resolved.size).joinToString(" ") else ""
+                val preview = buildCandidatePreviewReading(
+                    suffixComment, remaining, remaining.filter { it in '2'..'9' }, emptyList()
+                )
+                append(preview.ifEmpty {
+                    remaining.split('\'').joinToString("'") { buildDigitSegmentDisplay(it) }
+                })
+            }
         }
 
         private fun buildCandidatePreviewReading(
@@ -136,12 +154,14 @@ class ChineseT9PresentationSource(
             typedDigits: String,
             resolvedSegments: List<T9ResolvedSegment>
         ): String {
+            if (resolvedSegments.isNotEmpty()) {
+                return buildSelectedPreview(normalizedComment, rawTyped, resolvedSegments)
+            }
             if (normalizedComment.isEmpty()) return ""
             if (rawTyped.contains('\'')) {
                 return buildSeparatorAwareCandidatePreviewReading(
                     normalizedComment = normalizedComment,
-                    rawTyped = rawTyped,
-                    resolvedSegments = resolvedSegments
+                    rawTyped = rawTyped
                 )
             }
             if (typedDigits.isEmpty()) return ""
@@ -194,61 +214,19 @@ class ChineseT9PresentationSource(
 
         private fun buildSeparatorAwareCandidatePreviewReading(
             normalizedComment: String,
-            rawTyped: String,
-            resolvedSegments: List<T9ResolvedSegment>
+            rawTyped: String
         ): String {
-            val typedSegments = rawTyped.filter { it in '2'..'9' || it == '\'' }
-                .split('\'')
-                .map { segment -> segment.filter { it in '2'..'9' } }
-            if (typedSegments.isEmpty()) return ""
+            val typedSegments = rawTyped.filter { it in '2'..'9' || it == '\'' }.split('\'')
             val commentSegments = normalizedComment.split(' ').filter { it.isNotEmpty() }
             var commentIndex = 0
-            var resolvedIndex = 0
-            val parts = typedSegments.map { digits ->
-                if (digits.isEmpty()) return@map ""
-                val resolved = resolvedSegments.getOrNull(resolvedIndex)
-                    ?.takeIf { digits.startsWith(it.sourceDigits) }
-                val resolvedDisplay = resolved?.pinyin.orEmpty()
-                var remainingDigits = digits
-                if (resolved != null) {
-                    remainingDigits = digits.drop(resolved.sourceDigits.length)
-                    commentIndex = advancePreviewCommentIndexForResolved(
-                        commentSegments,
-                        commentIndex,
-                        resolved
-                    )
-                    resolvedIndex++
-                }
-                if (remainingDigits.isEmpty()) {
-                    resolvedDisplay
-                } else {
-                    val (candidateDisplay, nextCommentIndex) =
-                        buildCandidatePreviewForRawSegment(
-                            commentSegments,
-                            commentIndex,
-                            remainingDigits
-                        )
-                    commentIndex = nextCommentIndex
-                    resolvedDisplay + (
-                        candidateDisplay ?: buildDigitSegmentDisplay(remainingDigits).replace(" ", "")
-                    )
-                }
+            return typedSegments.joinToString("'") { digits ->
+                if (digits.isEmpty()) return@joinToString ""
+                val (display, nextIndex) = buildCandidatePreviewForRawSegment(
+                    commentSegments, commentIndex, digits
+                )
+                commentIndex = nextIndex
+                display ?: buildDigitSegmentDisplay(digits).replace(" ", "")
             }
-            val display = parts.joinToString("'")
-            return if (rawTyped.lastOrNull() == '\'') "$display'" else display
-        }
-
-        private fun advancePreviewCommentIndexForResolved(
-            commentSegments: List<String>,
-            startIndex: Int,
-            resolved: T9ResolvedSegment
-        ): Int {
-            if (commentSegments.getOrNull(startIndex)
-                    ?.let { commentSegmentMatchesResolvedSegment(it, resolved) } == true
-            ) {
-                return startIndex + 1
-            }
-            return (startIndex + 1).coerceAtMost(commentSegments.size)
         }
 
         private fun buildCandidatePreviewForRawSegment(

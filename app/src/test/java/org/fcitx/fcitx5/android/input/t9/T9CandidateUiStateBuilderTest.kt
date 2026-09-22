@@ -246,7 +246,6 @@ class T9CandidateUiStateBuilderTest {
                 model = T9CompositionModel(),
                 keyCount = 0,
                 filterPrefixes = emptyList(),
-                hasPendingPinyinSelection = false,
                 sessionRevision = 2
             )
         ).copy(rawPaged = paged("旧")))
@@ -459,7 +458,6 @@ class T9CandidateUiStateBuilderTest {
             model = T9CompositionModel(unresolvedDigits = "2", rawPreedit = "2"),
             keyCount = 1,
             filterPrefixes = emptyList(),
-            hasPendingPinyinSelection = false,
             sessionRevision = 1
         )
 

@@ -317,7 +317,6 @@ class T9CandidateSourceControlPlannerTest {
         rawCandidatesEmpty: Boolean = false,
         pendingPunctuationActive: Boolean = false,
         compositionKeyCount: Int = 1,
-        pendingPinyinSelection: Boolean = false,
         filterPrefixesEmpty: Boolean = true,
         chineseScheme: ChineseT9Scheme = ChineseT9Scheme.PINYIN,
         chinesePredictionPhase: ChinesePredictionCandidateSession.Phase =
@@ -331,7 +330,6 @@ class T9CandidateSourceControlPlannerTest {
             rawCandidatesEmpty = rawCandidatesEmpty,
             pendingPunctuationActive = pendingPunctuationActive,
             compositionKeyCount = compositionKeyCount,
-            pendingPinyinSelection = pendingPinyinSelection,
             filterPrefixesEmpty = filterPrefixesEmpty,
             chineseScheme = chineseScheme,
             chinesePredictionPhase = chinesePredictionPhase,

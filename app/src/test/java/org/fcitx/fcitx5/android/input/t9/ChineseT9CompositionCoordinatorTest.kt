@@ -17,6 +17,21 @@ import org.junit.Test
 class ChineseT9CompositionCoordinatorTest {
 
     @Test
+    fun sameCodeCommentCannotOverrideAnExplicitChoice() {
+        val coordinator = coordinator()
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_4)
+        coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
+        coordinator.selectPinyin("ge")
+        val ticket = coordinator.compositionTicket()
+        val snapshot = coordinator.snapshot()
+        val preview = coordinator.presentation(snapshot.presentationKey(null, "he", "he", 0))
+        assertEquals("ge", preview.topReading.toString())
+        assertFalse(coordinator.candidateMatchesResolvedPrefix(FcitxEvent.Candidate("", "和", "he"), "ge"))
+        coordinator.snapshot()
+        assertEquals(ticket, coordinator.compositionTicket())
+    }
+
+    @Test
     fun cursorUpdatePreservesLocalCompositionWhileEngineIsRecovering() {
         val coordinator = coordinator()
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_6)
@@ -40,7 +55,7 @@ class ChineseT9CompositionCoordinatorTest {
         val coordinator = coordinator()
 
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_4)
-        val snapshot = coordinator.snapshot("g")
+        val snapshot = coordinator.snapshot()
 
         assertEquals("4", snapshot.rawSequence)
         assertEquals("4", snapshot.currentSegment)
@@ -51,14 +66,14 @@ class ChineseT9CompositionCoordinatorTest {
     fun selectedPinyinPrefixCanBeMatchedAndConsumedThroughOneInterface() {
         val coordinator = coordinator()
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_4)
-        coordinator.snapshot("g")
+        coordinator.snapshot()
 
         val request = coordinator.selectPinyin("g")
         val candidate = FcitxEvent.Candidate(label = "", text = "个", comment = "g")
 
         assertTrue(request != null)
         assertTrue(coordinator.candidateMatchesResolvedPrefix(candidate, "g"))
-        assertEquals("", coordinator.consumeResolvedPrefix("g"))
+        assertEquals("", coordinator.consumeSelectedCandidateReading(candidate))
         assertFalse(coordinator.hasState())
     }
 
@@ -70,7 +85,7 @@ class ChineseT9CompositionCoordinatorTest {
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_1)
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_6)
         val stateBeforeEnginePreedit = coordinator.inputState(hasComposingText = false)
-        val snapshot = coordinator.snapshot("一？")
+        val snapshot = coordinator.snapshot()
         val presentation = coordinator.presentation(
             snapshot.presentationKey(
                 pendingPunctuationText = null,
@@ -100,7 +115,7 @@ class ChineseT9CompositionCoordinatorTest {
         coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_8)
-        val snapshot = coordinator.snapshot("38")
+        val snapshot = coordinator.snapshot()
         val presentation = coordinator.presentation(
             snapshot.presentationKey(
                 pendingPunctuationText = null,
@@ -122,7 +137,7 @@ class ChineseT9CompositionCoordinatorTest {
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_8)
 
-        val snapshot = coordinator.snapshot("")
+        val snapshot = coordinator.snapshot()
         val presentation = coordinator.presentation(
             snapshot.presentationKey(
                 pendingPunctuationText = null,
@@ -148,7 +163,7 @@ class ChineseT9CompositionCoordinatorTest {
             KeyEvent.KEYCODE_3,
             KeyEvent.KEYCODE_8
         ).forEach(coordinator::handleForwardedKeyDown)
-        val snapshot = coordinator.snapshot("")
+        val snapshot = coordinator.snapshot()
         val presentation = coordinator.presentation(
             snapshot.presentationKey(
                 pendingPunctuationText = null,
@@ -175,7 +190,7 @@ class ChineseT9CompositionCoordinatorTest {
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_8)
 
-        val available = coordinator.snapshot("")
+        val available = coordinator.snapshot()
         val availablePresentation = coordinator.presentation(
             available.presentationKey(
                 pendingPunctuationText = null,
@@ -190,7 +205,7 @@ class ChineseT9CompositionCoordinatorTest {
         assertTrue(available.filterPrefixes.isEmpty())
         assertTrue(coordinator.selectZhuyinReading("ㄏㄠ"))
 
-        val selected = coordinator.snapshot("")
+        val selected = coordinator.snapshot()
         assertEquals(listOf("ㄏㄠ"), selected.filterPrefixes)
         assertTrue("ㄏㄠ" in selected.explicitReadingOptions)
         assertTrue(
@@ -215,7 +230,7 @@ class ChineseT9CompositionCoordinatorTest {
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_8)
         assertTrue(coordinator.selectZhuyinReading("ㄏㄠ"))
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_DEL)
-        val changed = coordinator.snapshot("")
+        val changed = coordinator.snapshot()
         assertTrue(changed.explicitReadingOptions.isNotEmpty())
         assertTrue(changed.explicitReadingOptions.all {
             T9ZhuyinResolver.digitsForReading(it) == "3"
@@ -229,7 +244,7 @@ class ChineseT9CompositionCoordinatorTest {
         coordinator.activateScheme(ChineseT9Scheme.ZHUYIN)
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
 
-        val snapshot = coordinator.snapshot("")
+        val snapshot = coordinator.snapshot()
         val presentation = coordinator.presentation(
             snapshot.presentationKey(
                 pendingPunctuationText = null,
@@ -250,7 +265,7 @@ class ChineseT9CompositionCoordinatorTest {
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
         coordinator.handleForwardedKeyDown(KeyEvent.KEYCODE_3)
 
-        val snapshot = coordinator.snapshot("")
+        val snapshot = coordinator.snapshot()
         val presentation = coordinator.presentation(
             snapshot.presentationKey(
                 pendingPunctuationText = null,
@@ -298,7 +313,7 @@ class ChineseT9CompositionCoordinatorTest {
         )
 
         assertEquals("38", remaining)
-        assertEquals("38", coordinator.snapshot("").rawSequence)
+        assertEquals("38", coordinator.snapshot().rawSequence)
         assertTrue(coordinator.readingCandidates().isNotEmpty())
     }
 

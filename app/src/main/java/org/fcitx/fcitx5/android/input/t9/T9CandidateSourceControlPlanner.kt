@@ -29,7 +29,6 @@ object T9CandidateSourceControlPlanner {
         val rawCandidatesEmpty: Boolean,
         val pendingPunctuationActive: Boolean,
         val compositionKeyCount: Int,
-        val pendingPinyinSelection: Boolean,
         val filterPrefixesEmpty: Boolean,
         val chineseScheme: ChineseT9Scheme?,
         val chinesePredictionPhase: ChinesePredictionCandidateSession.Phase =
@@ -45,7 +44,6 @@ object T9CandidateSourceControlPlanner {
         val suppressEmptyCandidates: Boolean,
         val bulkAction: BulkAction,
         val filterAction: FilterAction,
-        val pendingPinyinSelection: Boolean,
         private val pendingPunctuationActive: Boolean,
         private val filterPrefixesEmpty: Boolean,
         private val invalidReading: Boolean
@@ -53,7 +51,6 @@ object T9CandidateSourceControlPlanner {
         fun shouldBuildLocalBudget(hasBulkFilteredPage: Boolean, bulkFilterPending: Boolean): Boolean =
             surface == Surface.CHINESE &&
                 !suppressEmptyCandidates &&
-                !pendingPinyinSelection &&
                 !pendingPunctuationActive &&
                 !invalidReading &&
                 filterPrefixesEmpty &&
@@ -91,7 +88,6 @@ object T9CandidateSourceControlPlanner {
                 chineseT9Active = chineseActive,
                 compositionKeyCount = input.compositionKeyCount,
                 hasPendingPunctuation = input.pendingPunctuationActive,
-                pendingPinyinSelection = input.pendingPinyinSelection,
                 rawCandidatesEmpty = input.rawCandidatesEmpty
             )
         val suppressEmptyCandidates = chineseActive &&
@@ -108,7 +104,6 @@ object T9CandidateSourceControlPlanner {
         val bulkAction = if (
             !chineseActive ||
             suppressEmptyCandidates ||
-            input.pendingPinyinSelection ||
             waitForChineseCandidates ||
             chinesePredictionVisible ||
             input.invalidReading ||
@@ -120,7 +115,7 @@ object T9CandidateSourceControlPlanner {
             BulkAction.REQUEST
         }
         val filterAction = when {
-            suppressEmptyCandidates || input.pendingPinyinSelection || waitForChineseCandidates ||
+            suppressEmptyCandidates || waitForChineseCandidates ||
                 input.invalidReading ->
                 FilterAction.EMPTY
             chinesePredictionVisible -> FilterAction.PASSTHROUGH
@@ -137,7 +132,6 @@ object T9CandidateSourceControlPlanner {
             suppressEmptyCandidates = suppressEmptyCandidates,
             bulkAction = bulkAction,
             filterAction = filterAction,
-            pendingPinyinSelection = input.pendingPinyinSelection,
             pendingPunctuationActive = input.pendingPunctuationActive,
             filterPrefixesEmpty = input.filterPrefixesEmpty,
             invalidReading = input.invalidReading

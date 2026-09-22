@@ -53,6 +53,11 @@ class ChineseT9CustomCandidateSource(
                         add(FcitxEvent.Candidate(label = "", text = word, comment = ""))
                     }
             }
+        }.filter { candidate ->
+            val readings = candidate.comment.split(' ').filter(String::isNotEmpty)
+            snapshot.model.resolvedSegments.withIndex().all { (index, selected) ->
+                readings.getOrNull(index)?.let(selected::matchesReading) == true
+            }
         }.distinctBy(FcitxEvent.Candidate::text)
         if (candidates.isEmpty()) return null
         val originalIndices = IntArray(candidates.size) { offset ->
