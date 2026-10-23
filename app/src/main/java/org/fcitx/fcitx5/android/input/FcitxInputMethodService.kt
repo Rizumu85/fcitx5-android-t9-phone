@@ -481,9 +481,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var composingText = FormattedText.Empty
 
     private fun clearT9CompositionState() {
+        flushPendingT9Selection()
         chineseT9Composition.clear()
         chineseT9Sources.clear()
-        chineseT9SelectionCommitSession.cancel()
         chineseT9EngineOperation.discardPending()
     }
 
@@ -1310,6 +1310,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         cursor: Int,
         preserveChineseT9Composition: Boolean
     ) {
+        // A selected Hanzi still waiting for its replacement frame precedes any later commit.
+        flushPendingT9Selection()
         invalidateNumberExpressionForInput()
         val ic = currentInputConnection ?: return
         if (physicalSelectionMode) {
@@ -2951,6 +2953,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         candidate: FcitxEvent.Candidate
     ): Boolean {
         if (currentT9Mode != T9InputMode.CHINESE) return false
+        flushPendingT9Selection()
         val rawPreedit = chineseT9Composition.consumeSelectedCandidateReading(
             candidate = candidate
         ) ?: return false
@@ -2987,6 +2990,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         val text = chineseT9SelectionCommitSession.consumeScheduled(receipt) ?: return false
         commitTextPreservingChineseT9Composition(text)
         return true
+    }
+
+    private fun flushPendingT9Selection() {
+        val text = chineseT9SelectionCommitSession.takeUnreleased() ?: return
+        commitTextPreservingChineseT9Composition(text)
     }
 
     private fun replayT9RawComposition(

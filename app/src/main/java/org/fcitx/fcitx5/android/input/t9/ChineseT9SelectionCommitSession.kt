@@ -28,10 +28,27 @@ class ChineseT9SelectionCommitSession {
 
     fun markSourceReady(receipt: ChineseT9InputReceipt): Boolean {
         val value = pending?.takeIf {
-            it.receipt == receipt && it.phase == Phase.ARMED
+            it.phase == Phase.ARMED &&
+                (it.receipt == receipt || supersedes(receipt, it.receipt))
         } ?: return false
-        pending = value.copy(phase = Phase.SOURCE_READY)
+        pending = value.copy(receipt = receipt, phase = Phase.SOURCE_READY)
         return true
+    }
+
+    /**
+     * Accepted frames always belong to the current composition. When a key typed ahead of the
+     * replacement frame makes a newer one current, the armed receipt can never be accepted, so the
+     * selected text follows the newer frame instead of being stranded.
+     */
+    private fun supersedes(
+        receipt: ChineseT9InputReceipt,
+        armed: ChineseT9InputReceipt
+    ): Boolean {
+        val next = receipt.compositionTicket
+        val previous = armed.compositionTicket
+        return next.scheme == previous.scheme &&
+            next.sessionEpoch == previous.sessionEpoch &&
+            next.sessionRevision > previous.sessionRevision
     }
 
     fun markFrameRendered(ticket: ChineseT9CompositionTicket?): Boolean {
@@ -57,7 +74,13 @@ class ChineseT9SelectionCommitSession {
         return value.text
     }
 
-    fun cancel() {
+    /**
+     * The user already chose this text, so ending the composition or arming another selection must
+     * commit it immediately rather than drop it.
+     */
+    fun takeUnreleased(): String? {
+        val value = pending ?: return null
         pending = null
+        return value.text
     }
 }
