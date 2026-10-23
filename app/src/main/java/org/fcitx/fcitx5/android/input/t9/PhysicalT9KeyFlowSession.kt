@@ -11,6 +11,7 @@ internal class PhysicalT9KeyFlowSession {
     // Long-press state intentionally lives outside mode Modules so a key-down in one mode and the
     // matching key-up after a mode switch still resolve through one physical-key timeline.
     private val keyLongPressFlags = BooleanArray(KeyEvent.KEYCODE_STAR + 1)
+    private val deferredIdleCompositionKeys = BooleanArray(KeyEvent.KEYCODE_STAR + 1)
 
     var poundLongPressTriggered: Boolean = false
     var pendingSmartEnglishDigitKeyCode: Int? = null
@@ -29,6 +30,18 @@ internal class PhysicalT9KeyFlowSession {
         if (keyCode in keyLongPressFlags.indices) {
             keyLongPressFlags[keyCode] = value
         }
+    }
+
+    fun setIdleCompositionKeyDeferred(keyCode: Int, value: Boolean) {
+        if (keyCode in deferredIdleCompositionKeys.indices) {
+            deferredIdleCompositionKeys[keyCode] = value
+        }
+    }
+
+    fun consumeDeferredIdleCompositionKey(keyCode: Int): Boolean {
+        if (deferredIdleCompositionKeys.getOrNull(keyCode) != true) return false
+        deferredIdleCompositionKeys[keyCode] = false
+        return true
     }
 
     fun deferVoiceInputUntilKeyUp(keyCode: Int) {

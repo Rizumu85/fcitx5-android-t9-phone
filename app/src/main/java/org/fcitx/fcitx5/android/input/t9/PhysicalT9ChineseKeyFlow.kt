@@ -383,19 +383,36 @@ internal class PhysicalT9ChineseKeyFlow(
         state: State,
         digit: Int
     ): Decision? = when (input.action) {
-        KeyEvent.ACTION_DOWN -> handleChineseShortcutDigitDown(
-            input = input,
-            state = state,
-            longPressWhenComposing = listOf(Command.CommitHanziShortcut(input.keyCode)),
-            longPressWhenIdle = listOf(Command.CommitText(digit.toString())),
-            shortPressIdleFallsThrough = true
-        )
+        KeyEvent.ACTION_DOWN -> {
+            // Forwarding an idle down would start a composition before the press is classified,
+            // so a held key could never reach its literal-digit long press. Idle keys therefore
+            // defer to release, exactly like keys typed while composing.
+            val deferIdle = input.repeatCount == 0 &&
+                state.compositionKeyCount == 0 &&
+                !state.chineseComposing
+            if (input.repeatCount == 0) {
+                session.setIdleCompositionKeyDeferred(input.keyCode, deferIdle)
+            }
+            if (deferIdle) {
+                setDigitLongPressFlag(input.keyCode, false)
+                Decision(handled = true)
+            } else {
+                handleChineseShortcutDigitDown(
+                    input = input,
+                    state = state,
+                    longPressWhenComposing = listOf(Command.CommitHanziShortcut(input.keyCode)),
+                    longPressWhenIdle = listOf(Command.CommitText(digit.toString())),
+                    shortPressIdleFallsThrough = true
+                )
+            }
+        }
         KeyEvent.ACTION_UP -> {
             val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
+            val deferredIdle = session.consumeDeferredIdleCompositionKey(input.keyCode)
             setDigitLongPressFlag(input.keyCode, false)
             when {
                 wasLongPress -> Decision(handled = true)
-                state.compositionKeyCount > 0 -> Decision(
+                deferredIdle || state.compositionKeyCount > 0 -> Decision(
                     handled = true,
                     commands = listOf(Command.ForwardChineseT9KeyShortPress(input.keyCode))
                 )

@@ -167,8 +167,8 @@ class PhysicalT9KeyHandler(
     private fun handleCommandKeyFlow(input: KeyInput): KeyResult {
         val state = stateCapture.capture(input)
         val decision = keyFlow.handle(input, state) ?: return KeyResult(handled = false)
-        // First Chinese digits intentionally continue through the outer mapped-key route. They
-        // still start a generation here, while command-free long-press deferrals do not.
+        // Chinese keys that continue through the outer mapped-key route still start a generation
+        // here, while command-free press deferrals do not.
         val forwardsThroughOuterRoute = state.mode == Mode.CHINESE &&
             !decision.handled &&
             decision.consumedKeyUp == input.keyCode

@@ -9,13 +9,14 @@ import android.view.KeyEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PhysicalT9KeyHandlerTest {
 
     @Test
-    fun firstChineseDigitStartsTraceBeforeOuterForwarding() {
+    fun firstChineseDigitDefersToReleaseAndStartsTraceWhenForwarded() {
         T9ResponsivenessTrace.configure(enabled = true)
         try {
             val host = FakeHost(
@@ -25,12 +26,16 @@ class PhysicalT9KeyHandlerTest {
             )
             val handler = PhysicalT9KeyHandler(host)
 
-            val result = handler.handleKeyDown(
+            val down = handler.handleKeyDown(
                 keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN)
             )
 
-            assertFalse(result.handled)
-            assertEquals(KeyEvent.KEYCODE_2, result.consumedKeyUp)
+            assertTrue(down.handled)
+            assertNull(down.consumedKeyUp)
+            assertEquals(emptyList<Int>(), host.forwardedChineseT9Keys)
+
+            assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP)).handled)
+            assertEquals(listOf(KeyEvent.KEYCODE_2), host.forwardedChineseT9Keys)
             assertNotNull(T9ResponsivenessTrace.activeInputId())
         } finally {
             T9ResponsivenessTrace.configure(enabled = false)
@@ -342,15 +347,16 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
-    fun chineseIdlePredictiveDigitShortPressFallsThroughToOuterInputFlow() {
+    fun chineseIdlePredictiveDigitShortPressForwardsThroughHostOnRelease() {
         val host = FakeHost(mode = PhysicalT9KeyHandler.Mode.CHINESE)
         val handler = PhysicalT9KeyHandler(host)
 
         val down = handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN))
 
-        assertFalse(down.handled)
-        assertEquals(KeyEvent.KEYCODE_2, down.consumedKeyUp)
-        assertFalse(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP)).handled)
+        assertTrue(down.handled)
+        assertNull(down.consumedKeyUp)
+        assertTrue(handler.handleKeyUp(keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP)).handled)
+        assertEquals(listOf(KeyEvent.KEYCODE_2), host.forwardedChineseT9Keys)
         assertEquals(emptyList<String>(), host.committedTexts)
     }
 

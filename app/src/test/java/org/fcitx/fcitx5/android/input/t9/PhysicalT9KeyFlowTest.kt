@@ -1048,7 +1048,7 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
-    fun chinesePredictiveDigitShortPressFallsThroughWhenIdleButForwardsWhenComposing() {
+    fun chinesePredictiveDigitShortPressForwardsOnKeyUpWhenIdleOrComposing() {
         val idleFlow = PhysicalT9KeyFlow()
 
         val idleDown = idleFlow.handle(
@@ -1060,9 +1060,13 @@ class PhysicalT9KeyFlowTest {
             state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
         )
 
-        assertEquals(false, idleDown?.handled)
-        assertEquals(KeyEvent.KEYCODE_2, idleDown?.consumedKeyUp)
-        assertNull(idleUp)
+        assertEquals(true, idleDown?.handled)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), idleDown?.commands)
+        assertNull(idleDown?.consumedKeyUp)
+        assertEquals(
+            listOf(PhysicalT9KeyFlow.Command.ForwardChineseT9KeyShortPress(KeyEvent.KEYCODE_2)),
+            idleUp?.commands
+        )
 
         val composingFlow = PhysicalT9KeyFlow()
         composingFlow.handle(
@@ -1112,12 +1116,18 @@ class PhysicalT9KeyFlowTest {
             input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN),
             state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
         )
+        // The idle down is deferred, so the composition is still empty when the repeat arrives.
         val idleRepeat = idleFlow.handle(
             input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN, repeatCount = 1),
             state(mode = PhysicalT9KeyHandler.Mode.CHINESE, heldPastLongPressDelay = true)
         )
+        val idleUp = idleFlow.handle(
+            input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP),
+            state(mode = PhysicalT9KeyHandler.Mode.CHINESE)
+        )
 
         assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitText("2")), idleRepeat?.commands)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), idleUp?.commands)
     }
 
     @Test
@@ -1201,8 +1211,8 @@ class PhysicalT9KeyFlowTest {
             )
         )
 
-        assertEquals(false, firstDown?.handled)
-        assertEquals(KeyEvent.KEYCODE_1, firstDown?.consumedKeyUp)
+        assertEquals(true, firstDown?.handled)
+        assertNull(firstDown?.consumedKeyUp)
         assertEquals(
             listOf(PhysicalT9KeyFlow.Command.ForwardChineseT9KeyShortPress(KeyEvent.KEYCODE_6)),
             sixUp?.commands
