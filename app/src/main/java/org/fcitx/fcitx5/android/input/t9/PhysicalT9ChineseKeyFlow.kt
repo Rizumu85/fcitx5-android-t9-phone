@@ -391,7 +391,7 @@ internal class PhysicalT9ChineseKeyFlow(
                 state.compositionKeyCount == 0 &&
                 !state.chineseComposing
             if (input.repeatCount == 0) {
-                session.setIdleCompositionKeyDeferred(input.keyCode, deferIdle)
+                session.setIdleDigitDeferred(input.keyCode, deferIdle)
             }
             if (deferIdle) {
                 setDigitLongPressFlag(input.keyCode, false)
@@ -408,7 +408,7 @@ internal class PhysicalT9ChineseKeyFlow(
         }
         KeyEvent.ACTION_UP -> {
             val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
-            val deferredIdle = session.consumeDeferredIdleCompositionKey(input.keyCode)
+            val deferredIdle = session.consumeDeferredIdleDigit(input.keyCode)
             setDigitLongPressFlag(input.keyCode, false)
             when {
                 wasLongPress -> Decision(handled = true)
@@ -427,18 +427,39 @@ internal class PhysicalT9ChineseKeyFlow(
         state: State,
         digit: Int
     ): Decision? = when (input.action) {
-        KeyEvent.ACTION_DOWN -> handleChineseShortcutDigitDown(
-            input = input,
-            state = state,
-            longPressWhenComposing = listOf(Command.CommitHanziShortcut(input.keyCode)),
-            longPressWhenIdle = listOf(Command.CommitText(digit.toString())),
-            shortPressIdleFallsThrough = true
-        )
+        KeyEvent.ACTION_DOWN -> {
+            // An idle down that falls through reaches the editor as a literal digit before the
+            // press is classified, so a long press would type the digit twice. Like composition
+            // digits, idle 7..9 defer to release.
+            val deferIdle = input.repeatCount == 0 &&
+                state.compositionKeyCount == 0 &&
+                !state.chineseComposing
+            if (input.repeatCount == 0) {
+                session.setIdleDigitDeferred(input.keyCode, deferIdle)
+            }
+            if (deferIdle) {
+                setDigitLongPressFlag(input.keyCode, false)
+                Decision(handled = true)
+            } else {
+                handleChineseShortcutDigitDown(
+                    input = input,
+                    state = state,
+                    longPressWhenComposing = listOf(Command.CommitHanziShortcut(input.keyCode)),
+                    longPressWhenIdle = listOf(Command.CommitText(digit.toString())),
+                    shortPressIdleFallsThrough = true
+                )
+            }
+        }
         KeyEvent.ACTION_UP -> {
             val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
+            val deferredIdle = session.consumeDeferredIdleDigit(input.keyCode)
             setDigitLongPressFlag(input.keyCode, false)
             when {
                 wasLongPress -> Decision(handled = true)
+                deferredIdle -> Decision(
+                    handled = true,
+                    commands = listOf(Command.CommitText(digit.toString()))
+                )
                 state.compositionKeyCount > 0 -> Decision(handled = true)
                 else -> null
             }

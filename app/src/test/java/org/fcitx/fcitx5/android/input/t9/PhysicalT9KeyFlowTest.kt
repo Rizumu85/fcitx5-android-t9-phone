@@ -1222,6 +1222,38 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
+    fun strokeIdleUnusedDigitTypesOneLiteralDigitForShortAndLongPress() {
+        fun strokeIdle() = state(
+            mode = PhysicalT9KeyHandler.Mode.CHINESE,
+            chineseScheme = ChineseT9Scheme.STROKE
+        )
+
+        val shortFlow = PhysicalT9KeyFlow()
+        val shortDown = shortFlow.handle(input(KeyEvent.KEYCODE_7, KeyEvent.ACTION_DOWN), strokeIdle())
+        val shortUp = shortFlow.handle(input(KeyEvent.KEYCODE_7, KeyEvent.ACTION_UP), strokeIdle())
+
+        assertEquals(true, shortDown?.handled)
+        assertNull(shortDown?.consumedKeyUp)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), shortDown?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitText("7")), shortUp?.commands)
+
+        val longFlow = PhysicalT9KeyFlow()
+        longFlow.handle(input(KeyEvent.KEYCODE_8, KeyEvent.ACTION_DOWN), strokeIdle())
+        val repeat = longFlow.handle(
+            input(KeyEvent.KEYCODE_8, KeyEvent.ACTION_DOWN, repeatCount = 1),
+            state(
+                mode = PhysicalT9KeyHandler.Mode.CHINESE,
+                chineseScheme = ChineseT9Scheme.STROKE,
+                heldPastLongPressDelay = true
+            )
+        )
+        val longUp = longFlow.handle(input(KeyEvent.KEYCODE_8, KeyEvent.ACTION_UP), strokeIdle())
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.CommitText("8")), repeat?.commands)
+        assertEquals(emptyList<PhysicalT9KeyFlow.Command>(), longUp?.commands)
+    }
+
+    @Test
     fun zhuyinZeroComposesAndStrokePoundCommitsCodePreview() {
         val zhuyinFlow = PhysicalT9KeyFlow()
         zhuyinFlow.handle(
