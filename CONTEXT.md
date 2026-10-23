@@ -66,7 +66,15 @@ scan, Rime call, coroutine wait, or Android view measurement.
 
 Long-press and key-pairing state belongs to `PhysicalT9KeyFlowSession`. Device
 events are classified by held duration and repeat state; new rules must not
-reintroduce service-side repeat fallbacks.
+reintroduce service-side repeat fallbacks. Chinese composition digits reach the
+engine on release, including the first idle digit: forwarding an idle down
+would start a composition before the press is classified and make the
+literal-digit long press unreachable.
+
+Multi-tap letters, punctuation previews, and pending partial selections belong
+to one editor. Finishing input finalizes them while that editor is still bound;
+`onStartInput(restarting = true)` drops them because no `onFinishInput`
+precedes it.
 
 Idle long `0` may be configured for voice in Pinyin/Stroke and English, but only
 when no composition, punctuation, multi-tap character, or shortcut candidate
@@ -293,7 +301,10 @@ release the final receipt.
 `ChineseT9SelectionCommitSession` then advances through source-ready and
 frame-rendered phases, and the editor commit is posted only from the candidate
 view's draw traversal. This ordering prevents either a new focus over stale
-readings or committed editor text beside the obsolete candidate page.
+readings or committed editor text beside the obsolete candidate page. Selected
+text is never dropped: a newer accepted frame in the same session epoch releases
+it when typed-ahead input superseded its own frame, and another selection, any
+other commit, or a composition clear commits it first.
 The compact top preview is always a single-line viewport and keeps the active
 tail visible when a long reading exceeds the screen width. Fixed-height T9
 preedit centers its lone visible row, and compact text rows use representative
