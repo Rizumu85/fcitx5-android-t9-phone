@@ -3434,6 +3434,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         // right cursor position, try to workaround this would simply introduce more bugs.
         selection.resetTo(attribute.initialSelStart, attribute.initialSelEnd)
         updateSelectionBackCallback(attribute.initialSelStart != attribute.initialSelEnd)
+        // onStartInput(restarting = true) arrives without onFinishInput, so transient T9 state
+        // from the previous binding is dropped here instead of reaching the new editor.
+        chineseT9SelectionCommitSession.takeUnreleased()
+        t9MultiTapCoordinator.reset()
+        t9PunctuationCoordinator.cancel()
         resetComposingState()
         resetPhysicalSelectionState()
         smartEnglishCoordinator.warmupIfEnabled()
@@ -3798,6 +3803,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     override fun onFinishInputView(finishingInput: Boolean) {
         Timber.d("onFinishInputView: finishingInput=$finishingInput")
         endHandwritingInput()
+        finishEditorScopedT9State()
         resetNumberModeIfInitialized()
         updateSelectionBackCallback(false)
         decorLocationUpdated = false
@@ -3822,6 +3828,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         Timber.d("onFinishInput")
         fcitxInputFocusRequested = false
         endHandwritingInput()
+        finishEditorScopedT9State()
         resetNumberModeIfInitialized()
         updateSelectionBackCallback(false)
         inputDeviceMgr.onFinishInput()
@@ -3835,6 +3842,15 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             focus(false)
         }
         capabilityFlags = CapabilityFlags.DefaultFlags
+    }
+
+    /**
+     * Finalize per-editor T9 state while this editor is still bound, so a pending multi-tap
+     * timeout or hidden punctuation preview cannot act on the next editor.
+     */
+    private fun finishEditorScopedT9State() {
+        t9MultiTapCoordinator.reset()
+        t9PunctuationCoordinator.cancel()
     }
 
     override fun onUnbindInput() {
