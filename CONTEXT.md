@@ -69,7 +69,8 @@ events are classified by held duration and repeat state; new rules must not
 reintroduce service-side repeat fallbacks. Chinese composition digits reach the
 engine on release, including the first idle digit: forwarding an idle down
 would start a composition before the press is classified and make the
-literal-digit long press unreachable.
+literal-digit long press unreachable. Idle Stroke `7..9`, which the engine does
+not use, likewise commit their literal digit on release.
 
 Multi-tap letters, punctuation previews, and pending partial selections belong
 to one editor. Finishing input finalizes them while that editor is still bound;
