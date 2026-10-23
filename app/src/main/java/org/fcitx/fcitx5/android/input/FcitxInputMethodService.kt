@@ -3616,9 +3616,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 clearTransientInputUiState()
                 currentInputConnection?.finishComposingText()
             }
+            // T9 composition is main-thread state and was cleared synchronously above. Clearing it
+            // again from this Fcitx job would run off the main thread and could wipe a key typed
+            // after this cursor update.
             postFcitxJob {
                 if (!isEmpty()) {
-                    clearT9CompositionState()
                     reset()
                 }
             }
