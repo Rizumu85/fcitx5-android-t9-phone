@@ -118,4 +118,39 @@ object InputMethodUtil {
         val target = findVoiceInputTarget(preferredId) ?: return false
         return switchInputMethod(service, target.id, target.subtype)
     }
+
+    /** The setup step that would make voice input available when no target resolves. */
+    sealed interface VoiceInputSetup {
+        /** A recognizable voice IME is installed but disabled in Android settings. */
+        data class EnableVoiceInputMethod(val labels: List<String>) : VoiceInputSetup
+
+        /**
+         * Enabled IMEs exist but none identifies itself as voice input. Full keyboards with a
+         * built-in voice key publish no voice metadata, so the user has to name one explicitly.
+         */
+        data object ChoosePreferredVoiceInput : VoiceInputSetup
+
+        /** Only unrecognized IMEs are installed, and none of them is enabled. */
+        data object EnableAnyInputMethod : VoiceInputSetup
+
+        data object InstallVoiceInputMethod : VoiceInputSetup
+    }
+
+    fun voiceInputSetup(): VoiceInputSetup {
+        val enabledIds = enabledExternalInputMethods().mapTo(HashSet()) { it.id }
+        val disabled = appContext.inputMethodManager.inputMethodList.filter {
+            it.serviceName != serviceName && it.id !in enabledIds
+        }
+        val disabledVoice = disabled.filter {
+            it.firstVoiceSubtype() != null || hasVoiceInputIdentityHint(it.voiceIdentity())
+        }
+        return when {
+            disabledVoice.isNotEmpty() -> VoiceInputSetup.EnableVoiceInputMethod(
+                disabledVoice.map { it.loadLabel(appContext.packageManager).toString() }
+            )
+            enabledIds.isNotEmpty() -> VoiceInputSetup.ChoosePreferredVoiceInput
+            disabled.isNotEmpty() -> VoiceInputSetup.EnableAnyInputMethod
+            else -> VoiceInputSetup.InstallVoiceInputMethod
+        }
+    }
 }

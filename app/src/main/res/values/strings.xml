@@ -501,5 +501,11 @@
     <string name="t9_idle_long_zero_behavior">Long-press 0 for voice input</string>
     <string name="t9_idle_long_zero_literal">Input 0</string>
     <string name="t9_idle_long_zero_voice">Voice input</string>
-    <string name="voice_input_not_available">Enable a voice input method in Android settings first</string>
+    <string name="voice_input_setup_title">Voice input is not set up</string>
+    <string name="voice_input_setup_enable_named">%1$s is installed but not enabled. Enable it in the system keyboard list, then press voice input again.</string>
+    <string name="voice_input_setup_separator">, </string>
+    <string name="voice_input_setup_choose_preferred">No enabled keyboard is recognized as voice input. If one of your keyboards has a voice key, choose it under Preferred voice input.</string>
+    <string name="voice_input_setup_enable_any">No voice input method is enabled. Enable a keyboard that supports voice input in the system keyboard list, then choose it under Preferred voice input.</string>
+    <string name="voice_input_setup_install">No voice input method is installed. Install a keyboard that supports voice input first, then choose it under Preferred voice input.</string>
+    <string name="voice_input_setup_open_settings">Open settings</string>
 </resources>

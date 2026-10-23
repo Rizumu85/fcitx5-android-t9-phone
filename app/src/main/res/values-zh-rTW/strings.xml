@@ -494,5 +494,11 @@
     <string name="t9_idle_long_zero_behavior">長按 0 語音輸入</string>
     <string name="t9_idle_long_zero_literal">輸入數字 0</string>
     <string name="t9_idle_long_zero_voice">語音輸入</string>
-    <string name="voice_input_not_available">請先在系統設定中啟用語音輸入法</string>
+    <string name="voice_input_setup_title">語音輸入尚未設定</string>
+    <string name="voice_input_setup_enable_named">已安裝「%1$s」，但尚未啟用。請在系統鍵盤清單中開啟它，然後再按語音鍵。</string>
+    <string name="voice_input_setup_separator">」「</string>
+    <string name="voice_input_setup_choose_preferred">已啟用的輸入法中沒有辨識出語音輸入。如果某個輸入法帶有語音鍵，請在「首選語音輸入」中選擇它。</string>
+    <string name="voice_input_setup_enable_any">尚未啟用語音輸入法。請在系統鍵盤清單中開啟一個支援語音的輸入法，再在「首選語音輸入」中選擇它。</string>
+    <string name="voice_input_setup_install">尚未安裝語音輸入法。請先安裝一個支援語音的輸入法，再在「首選語音輸入」中選擇它。</string>
+    <string name="voice_input_setup_open_settings">前往設定</string>
 </resources>

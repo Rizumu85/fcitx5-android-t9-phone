@@ -79,6 +79,7 @@ import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.cursor.CursorRange
 import org.fcitx.fcitx5.android.input.cursor.CursorTracker
+import org.fcitx.fcitx5.android.input.dialog.VoiceInputSetupPrompt
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingCoordinator
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingLanguage
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingStroke
@@ -144,6 +145,7 @@ import org.fcitx.fcitx5.android.utils.withBatchEdit
 import splitties.bitflags.hasFlag
 import splitties.dimensions.dp
 import splitties.resources.styledColor
+import splitties.views.dsl.core.withTheme
 import timber.log.Timber
 import kotlin.math.max
 import kotlin.math.min
@@ -361,7 +363,21 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 keyboardPrefs.preferredVoiceInput.getValue()
             )
         ) {
-            Toast.makeText(this, R.string.voice_input_not_available, Toast.LENGTH_SHORT).show()
+            showVoiceInputSetupPrompt()
+        }
+    }
+
+    private fun showVoiceInputSetupPrompt() {
+        val setup = InputMethodUtil.voiceInputSetup()
+        // An attached dialog needs the visible IME window. Physical keys can still arrive while it
+        // is hidden, so fall back to a toast instead of risking a BadTokenException.
+        val shown = decorView.windowToken != null && runCatching {
+            showDialog(
+                VoiceInputSetupPrompt.build(withTheme(R.style.Theme_InputViewTheme), setup)
+            )
+        }.isSuccess
+        if (!shown) {
+            Toast.makeText(this, R.string.voice_input_setup_title, Toast.LENGTH_SHORT).show()
         }
     }
 

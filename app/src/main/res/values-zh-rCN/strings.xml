@@ -501,5 +501,11 @@
     <string name="t9_idle_long_zero_behavior">长按 0 语音输入</string>
     <string name="t9_idle_long_zero_literal">输入数字 0</string>
     <string name="t9_idle_long_zero_voice">语音输入</string>
-    <string name="voice_input_not_available">请先在系统设置中启用语音输入法</string>
+    <string name="voice_input_setup_title">语音输入尚未设置</string>
+    <string name="voice_input_setup_enable_named">已安装「%1$s」，但尚未启用。请在系统键盘列表中开启它，然后再按语音键。</string>
+    <string name="voice_input_setup_separator">」「</string>
+    <string name="voice_input_setup_choose_preferred">已启用的输入法中没有识别出语音输入。如果某个输入法带有语音键，请在「首选语音输入」中选择它。</string>
+    <string name="voice_input_setup_enable_any">尚未启用语音输入法。请在系统键盘列表中开启一个支持语音的输入法，再在「首选语音输入」中选择它。</string>
+    <string name="voice_input_setup_install">尚未安装语音输入法。请先安装一个支持语音的输入法，再在「首选语音输入」中选择它。</string>
+    <string name="voice_input_setup_open_settings">去设置</string>
 </resources>
