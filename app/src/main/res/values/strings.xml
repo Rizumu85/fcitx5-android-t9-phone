@@ -363,6 +363,8 @@
     <string name="download_rime_plugin_update_compact">Rime %1$s</string>
     <string name="download_rime_config_update_compact">Dictionary %1$s</string>
     <string name="update_download_started">Download started. Installation will open when it is ready.</string>
+    <string name="update_download_preparing">Choosing a download source…</string>
+    <string name="update_download_verification_failed">The downloaded update failed verification and was deleted. Please try again.</string>
     <string name="rime_config_update_installed">T9 Rime configuration updated. Rime is reloading.</string>
     <string name="rime_config_update_failed">Could not apply the downloaded T9 Rime configuration.</string>
     <string name="no_update_available">Already up to date</string>

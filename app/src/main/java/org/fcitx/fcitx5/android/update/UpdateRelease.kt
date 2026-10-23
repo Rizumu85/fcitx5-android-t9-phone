@@ -28,7 +28,9 @@ data class UpdateArtifact(
 ) {
     data class Asset(
         val name: String,
-        val downloadUrl: String
+        val downloadUrl: String,
+        /** Lowercase hex SHA-256 published by GitHub, when the release metadata is trusted. */
+        val sha256: String? = null
     )
 }
 
@@ -105,14 +107,34 @@ object UpdateReleaseParser {
     @Serializable
     private data class GithubAsset(
         val name: String,
-        @SerialName("browser_download_url") val downloadUrl: String
-    )
+        @SerialName("browser_download_url") val downloadUrl: String,
+        val digest: String? = null
+    ) {
+        fun toAsset(trustDigest: Boolean) = UpdateArtifact.Asset(
+            name = name,
+            downloadUrl = downloadUrl,
+            sha256 = digest
+                ?.takeIf { trustDigest && it.startsWith(Sha256DigestPrefix) }
+                ?.removePrefix(Sha256DigestPrefix)
+                ?.lowercase()
+        )
+    }
 
-    fun parseAppReleases(payload: String): List<UpdateRelease> =
+    /**
+     * Metadata served by a third-party mirror cannot vouch for a file: the same operator could
+     * also serve the download. Its digests are therefore discarded, and only download URLs on
+     * this project's own GitHub releases remain.
+     */
+    fun parseAppReleases(
+        payload: String,
+        trustDigests: Boolean = true
+    ): List<UpdateRelease> =
         json.decodeFromString<List<GithubRelease>>(payload)
             .filterNot { it.draft || it.prerelease }
             .mapNotNull { release ->
-                val assets = release.assets.map { UpdateArtifact.Asset(it.name, it.downloadUrl) }
+                val assets = release.assets
+                    .filter { trustDigests || it.downloadUrl.startsWith(APP_DOWNLOAD_PREFIX) }
+                    .map { it.toAsset(trustDigests) }
                 val version = release.tagName.removePrefix("v")
                 val artifacts = buildList {
                     assets.filter { it.name.matches(APP_APK) }.takeIf(List<*>::isNotEmpty)?.let {
@@ -133,13 +155,18 @@ object UpdateReleaseParser {
                 release.toUpdateRelease(UpdateReleaseChannel.APP, version, artifacts)
             }
 
-    fun parseRimeConfigReleases(payload: String): List<UpdateRelease> =
+    /** Applies the same mirrored-metadata rule as [parseAppReleases]. */
+    fun parseRimeConfigReleases(
+        payload: String,
+        trustDigests: Boolean = true
+    ): List<UpdateRelease> =
         json.decodeFromString<List<GithubRelease>>(payload)
             .filterNot { it.draft || it.prerelease }
             .mapNotNull { release ->
                 val assets = release.assets
                     .filter { it.name == RIME_CONFIG_ARCHIVE }
-                    .map { UpdateArtifact.Asset(it.name, it.downloadUrl) }
+                    .filter { trustDigests || it.downloadUrl.startsWith(RIME_CONFIG_DOWNLOAD_PREFIX) }
+                    .map { it.toAsset(trustDigests) }
                 val version = release.tagName.removePrefix("v")
                 val artifacts = assets.takeIf(List<*>::isNotEmpty)?.let {
                     listOf(
@@ -174,6 +201,11 @@ object UpdateReleaseParser {
     private val RIME_PLUGIN_APK =
         Regex("org\\.fcitx\\.fcitx5\\.android\\.plugin\\.rime-[^-]+-.+-release\\.apk")
     private const val RIME_CONFIG_ARCHIVE = "rime-ice-t9-phone-main.zip"
+    private const val APP_DOWNLOAD_PREFIX =
+        "https://github.com/Rizumu85/fcitx5-android-t9-phone/releases/download/"
+    private const val RIME_CONFIG_DOWNLOAD_PREFIX =
+        "https://github.com/Rizumu85/rime-ice-t9-phone/releases/download/"
+    private const val Sha256DigestPrefix = "sha256:"
 }
 
 object UpdateVersion {

@@ -7,6 +7,7 @@ package org.fcitx.fcitx5.android.update
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -42,6 +43,99 @@ class UpdateReleaseTest {
 
         assertEquals(UpdateComponent.RIME_CONFIG, artifacts.single().component)
         assertEquals("3.1.0", artifacts.single().version)
+    }
+
+    @Test
+    fun `asset digests are parsed as lowercase sha256 hex`() {
+        val releases = UpdateReleaseParser.parseRimeConfigReleases(
+            releasesJson(
+                version = "3.1.0",
+                assets = listOf("rime-ice-t9-phone-main.zip" to "config"),
+                digest = "sha256:ABCDEF0123"
+            )
+        )
+
+        assertEquals("abcdef0123", releases.single().artifacts.single().assets.single().sha256)
+    }
+
+    @Test
+    fun `config digests from mirrored metadata are not trusted`() {
+        val url = "https://github.com/Rizumu85/rime-ice-t9-phone/releases/download/" +
+            "v3.1.0/rime-ice-t9-phone-main.zip"
+        val releases = UpdateReleaseParser.parseRimeConfigReleases(
+            releasesJson(
+                version = "3.1.0",
+                assets = listOf("rime-ice-t9-phone-main.zip" to url),
+                digest = "sha256:abcdef0123"
+            ),
+            trustDigests = false
+        )
+
+        val asset = releases.single().artifacts.single().assets.single()
+        assertEquals(url, asset.downloadUrl)
+        assertNull(asset.sha256)
+    }
+
+    @Test
+    fun `mirrored metadata cannot redirect the config archive to another host`() {
+        val releases = UpdateReleaseParser.parseRimeConfigReleases(
+            releasesJson(
+                version = "3.1.0",
+                assets = listOf(
+                    "rime-ice-t9-phone-main.zip" to
+                        "https://github.com/someone-else/repo/releases/download/v3.1.0/rime-ice-t9-phone-main.zip"
+                )
+            ),
+            trustDigests = false
+        )
+
+        assertTrue(releases.isEmpty())
+    }
+
+    @Test
+    fun `non sha256 digests are ignored`() {
+        val releases = UpdateReleaseParser.parseAppReleases(
+            releasesJson(
+                version = "4.4.0",
+                assets = listOf("org.fcitx.fcitx5.android-4.4.0-arm64-v8a-release.apk" to "app"),
+                digest = "md5:abcdef"
+            )
+        )
+
+        assertNull(releases.single().artifacts.single().assets.single().sha256)
+    }
+
+    @Test
+    fun `mirror candidates follow the direct GitHub url and skip other hosts`() {
+        val url = "https://github.com/owner/repo/releases/download/v1/file.zip"
+
+        val candidates = UpdateDownloadSources.candidates(url)
+
+        assertEquals(url, candidates.first())
+        assertEquals(UpdateDownloadSources.MirrorPrefixes.map { it + url }, candidates.drop(1))
+        assertEquals(
+            listOf("https://example.com/file.zip"),
+            UpdateDownloadSources.candidates("https://example.com/file.zip")
+        )
+    }
+
+    @Test
+    fun `api fetch prefers GitHub and marks mirrored payloads`() {
+        val url = "https://api.github.com/repos/owner/repo/releases"
+
+        val direct = UpdateDownloadSources.fetchApi(url) { "direct:$it" }
+        val mirrored = UpdateDownloadSources.fetchApi(url) { requested ->
+            if (requested == url) error("blocked") else "mirror:$requested"
+        }
+
+        assertEquals(UpdateDownloadSources.ApiPayload("direct:$url", viaMirror = false), direct)
+        assertEquals(
+            UpdateDownloadSources.ApiPayload(
+                "mirror:${UpdateDownloadSources.ApiMirrorPrefixes.first()}$url",
+                viaMirror = true
+            ),
+            mirrored
+        )
     }
 
     @Test
@@ -156,7 +250,11 @@ class UpdateReleaseTest {
         artifacts = listOf(artifact(component, version, "$component-$version" to version))
     )
 
-    private fun releasesJson(version: String, assets: List<Pair<String, String>>): String =
+    private fun releasesJson(
+        version: String,
+        assets: List<Pair<String, String>>,
+        digest: String? = null
+    ): String =
         """
         [{
             "tag_name": "v$version",
@@ -166,7 +264,8 @@ class UpdateReleaseTest {
             "published_at": "2026-07-14T00:00:00Z",
             "assets": [
               ${assets.joinToString(",") { (name, url) ->
-                  """{"name":"$name","browser_download_url":"$url"}"""
+                  val digestField = digest?.let { ""","digest":"$it"""" }.orEmpty()
+                  """{"name":"$name","browser_download_url":"$url"$digestField}"""
               }}
             ]
         }]

@@ -8,6 +8,8 @@ package org.fcitx.fcitx5.android.update
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import org.fcitx.fcitx5.android.R
@@ -33,11 +35,21 @@ object UpdateCheckUi {
     }
 
     private fun startDownload(context: Context, artifact: UpdateArtifact) {
-        if (UpdateDownloader.enqueue(context, artifact)) {
-            Toast.makeText(context, R.string.update_download_started, Toast.LENGTH_SHORT).show()
-        } else {
-            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(artifact.pageUrl)))
-        }
+        Toast.makeText(context, R.string.update_download_preparing, Toast.LENGTH_SHORT).show()
+        val appContext = context.applicationContext
+        Thread({
+            // Source selection probes GitHub and its mirrors before DownloadManager takes over.
+            val enqueued = runCatching { UpdateDownloader.enqueue(appContext, artifact) }
+                .getOrDefault(false)
+            Handler(Looper.getMainLooper()).post {
+                if (enqueued) {
+                    Toast.makeText(appContext, R.string.update_download_started, Toast.LENGTH_SHORT)
+                        .show()
+                } else {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(artifact.pageUrl)))
+                }
+            }
+        }, "UpdateDownloadSource").start()
     }
 
     fun showUpToDate(context: Context) {

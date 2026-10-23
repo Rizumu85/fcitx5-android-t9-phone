@@ -20,8 +20,10 @@ import java.net.URL
 class UpdateChecker(
     private val installedVersions: InstalledUpdateVersions,
     private val supportedComponents: Set<UpdateComponent>,
-    private val fetchAppReleases: suspend () -> String = { fetchReleases(AppReleasesUrl) },
-    private val fetchRimeConfigReleases: suspend () -> String = {
+    private val fetchAppReleases: suspend () -> UpdateDownloadSources.ApiPayload = {
+        fetchReleases(AppReleasesUrl)
+    },
+    private val fetchRimeConfigReleases: suspend () -> UpdateDownloadSources.ApiPayload = {
         fetchReleases(RimeConfigReleasesUrl)
     }
 ) {
@@ -35,11 +37,18 @@ class UpdateChecker(
 
     suspend fun check(): Result = coroutineScope {
         val appResult = async {
-            runCatching { UpdateReleaseParser.parseAppReleases(fetchAppReleases()) }
+            runCatching {
+                val payload = fetchAppReleases()
+                UpdateReleaseParser.parseAppReleases(payload.json, trustDigests = !payload.viaMirror)
+            }
         }
         val configResult = async {
             runCatching {
-                UpdateReleaseParser.parseRimeConfigReleases(fetchRimeConfigReleases())
+                val payload = fetchRimeConfigReleases()
+                UpdateReleaseParser.parseRimeConfigReleases(
+                    payload.json,
+                    trustDigests = !payload.viaMirror
+                )
             }
         }
         val results = listOf(appResult.await(), configResult.await())
@@ -62,18 +71,21 @@ class UpdateChecker(
         private const val RimeConfigReleasesUrl =
             "https://api.github.com/repos/Rizumu85/rime-ice-t9-phone/releases?per_page=100"
 
-        private suspend fun fetchReleases(url: String): String = withContext(Dispatchers.IO) {
-            val connection = URL(url).openConnection() as HttpURLConnection
-            try {
-                connection.connectTimeout = 5_000
-                connection.readTimeout = 8_000
-                connection.setRequestProperty("Accept", "application/vnd.github+json")
-                connection.setRequestProperty("User-Agent", "Fcitx5-Android-T9-Updater")
-                connection.inputStream.bufferedReader().use { it.readText() }
-            } finally {
-                connection.disconnect()
+        private suspend fun fetchReleases(url: String): UpdateDownloadSources.ApiPayload =
+            withContext(Dispatchers.IO) {
+                UpdateDownloadSources.fetchApi(url) { requestUrl ->
+                    val connection = URL(requestUrl).openConnection() as HttpURLConnection
+                    try {
+                        connection.connectTimeout = 5_000
+                        connection.readTimeout = 8_000
+                        connection.setRequestProperty("Accept", "application/vnd.github+json")
+                        connection.setRequestProperty("User-Agent", "Fcitx5-Android-T9-Updater")
+                        connection.inputStream.bufferedReader().use { it.readText() }
+                    } finally {
+                        connection.disconnect()
+                    }
+                }
             }
-        }
     }
 }
 

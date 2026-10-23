@@ -26,7 +26,24 @@ object RimeConfigProvisioningTransport {
 
         val directory = requireNotNull(archive.parentFile).apply(File::mkdirs)
         val partial = directory.resolve("rime-ice-t9-phone-$version.zip.part")
-        val connection = URL(downloadUrl).openConnection() as HttpURLConnection
+        // The pinned digest authenticates the archive, so mirrors are safe fallbacks here.
+        var failure: Throwable? = null
+        UpdateDownloadSources.candidates(downloadUrl).forEach { url ->
+            runCatching { download(url, partial, expectedSha256) }
+                .onSuccess {
+                    archive.delete()
+                    check(partial.renameTo(archive)) {
+                        "Unable to checkpoint the downloaded Rime configuration"
+                    }
+                    return archive
+                }
+                .onFailure { failure = it }
+        }
+        throw failure ?: IllegalStateException("No Rime configuration source is available")
+    }
+
+    private fun download(url: String, partial: File, expectedSha256: String) {
+        val connection = URL(url).openConnection() as HttpURLConnection
         try {
             connection.instanceFollowRedirects = true
             connection.connectTimeout = 10_000
@@ -56,11 +73,6 @@ object RimeConfigProvisioningTransport {
             partial.delete()
             "Downloaded Rime configuration failed SHA-256 verification"
         }
-        archive.delete()
-        check(partial.renameTo(archive)) {
-            "Unable to checkpoint the downloaded Rime configuration"
-        }
-        return archive
     }
 
     fun adopt(

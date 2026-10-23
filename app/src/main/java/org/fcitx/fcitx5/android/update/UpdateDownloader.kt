@@ -52,6 +52,7 @@ object UpdateDownloader {
     private const val ZipMimeType = "application/zip"
     private val json = Json { ignoreUnknownKeys = true }
 
+    /** Probes download sources over the network, so it must not run on the main thread. */
     fun enqueue(
         context: Context,
         artifact: UpdateArtifact,
@@ -60,6 +61,14 @@ object UpdateDownloader {
         if (hasPending(context, artifact.component, artifact.version)) return true
         val asset = UpdateAssetSelector.asset(artifact, Build.SUPPORTED_ABIS.toList())
             ?: return false
+        val expectedSha256 = options.expectedSha256 ?: asset.sha256
+        // Without a trusted digest only GitHub's TLS authenticates the file, so it never falls
+        // back to a mirror. The app APK is the exception: it always replaces this signed package,
+        // and the installer rejects any other signature. The plugin may be a first install.
+        val downloadUrl = UpdateDownloadSources.select(
+            url = asset.downloadUrl,
+            allowMirrors = expectedSha256 != null || artifact.component == UpdateComponent.APP
+        )
         val manager = context.getSystemService(DownloadManager::class.java)
         val mimeType = if (artifact.component == UpdateComponent.RIME_CONFIG) {
             ZipMimeType
@@ -71,7 +80,7 @@ object UpdateDownloader {
         context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
             ?.resolve(asset.name)
             ?.delete()
-        val request = DownloadManager.Request(Uri.parse(asset.downloadUrl))
+        val request = DownloadManager.Request(Uri.parse(downloadUrl))
             .setTitle(asset.name)
             .setMimeType(mimeType)
             .setNotificationVisibility(
@@ -89,7 +98,7 @@ object UpdateDownloader {
                         component = artifact.component,
                         version = artifact.version,
                         automatic = options.automatic,
-                        expectedSha256 = options.expectedSha256
+                        expectedSha256 = expectedSha256
                     )
                 )
             )
@@ -196,12 +205,60 @@ class UpdateDownloadReceiver : BroadcastReceiver() {
         if (pending.component == UpdateComponent.RIME_CONFIG) {
             installRimeConfig(context.applicationContext, manager, id, pending)
         } else {
-            val uri = manager.getUriForDownloadedFile(id) ?: return
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW, uri)
-                    .setDataAndType(uri, "application/vnd.android.package-archive")
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            )
+            openApkInstaller(context.applicationContext, manager, id, pending)
+        }
+    }
+
+    private fun openApkInstaller(
+        context: Context,
+        manager: DownloadManager,
+        downloadId: Long,
+        pending: UpdateDownloader.Pending
+    ) {
+        val result = goAsync()
+        Thread({
+            val uri = manager.getUriForDownloadedFile(downloadId)
+            // A mirror may serve a truncated or replaced file; never hand it to the installer.
+            val verified = uri != null && pending.expectedSha256?.let { expected ->
+                runCatching {
+                    ParcelFileDescriptor.AutoCloseInputStream(
+                        manager.openDownloadedFile(downloadId)
+                    ).use { it.sha256() }.equals(expected, ignoreCase = true)
+                }.getOrDefault(false)
+            } != false
+            android.os.Handler(context.mainLooper).post {
+                if (verified) {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, uri)
+                            .setDataAndType(uri, "application/vnd.android.package-archive")
+                            .addFlags(
+                                Intent.FLAG_ACTIVITY_NEW_TASK or
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                            )
+                    )
+                } else {
+                    manager.remove(downloadId)
+                    Toast.makeText(
+                        context,
+                        R.string.update_download_verification_failed,
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+                result.finish()
+            }
+        }, "UpdateApkVerify").start()
+    }
+
+    private fun java.io.InputStream.sha256(): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        while (true) {
+            val count = read(buffer)
+            if (count < 0) break
+            digest.update(buffer, 0, count)
+        }
+        return digest.digest().joinToString(separator = "") { byte ->
+            "%02x".format(byte.toInt() and 0xff)
         }
     }
 

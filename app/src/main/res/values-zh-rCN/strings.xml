@@ -363,6 +363,8 @@
     <string name="download_rime_plugin_update_compact">Rime %1$s</string>
     <string name="download_rime_config_update_compact">词库 %1$s</string>
     <string name="update_download_started">已开始下载，完成后会自动打开安装或应用更新。</string>
+    <string name="update_download_preparing">正在选择下载线路…</string>
+    <string name="update_download_verification_failed">下载的更新文件校验失败，已删除，请重试。</string>
     <string name="rime_config_update_installed">九键 Rime 配置已更新，正在重新加载 Rime。</string>
     <string name="rime_config_update_failed">无法应用下载的九键 Rime 配置。</string>
     <string name="no_update_available">已是最新版本</string>
