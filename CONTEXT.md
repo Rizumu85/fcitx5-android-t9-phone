@@ -350,8 +350,11 @@ Settings is fixed and cannot be removed.
 Voice selection is an enabled IME target with an optional subtype. Explicit
 preferences support standalone voice IMEs without subtype metadata; automatic
 selection prefers declared voice subtypes and conservative voice-service
-identity hints. Target resolution happens when invoked, and unavailable targets
-show feedback instead of failing silently. The full contract is recorded in
+identity hints. Target resolution happens when invoked. When nothing resolves,
+the IME explains the missing step in a dialog (enable an installed voice IME,
+choose a preferred one among enabled full keyboards, or install one) and opens
+the matching settings page only after confirmation, because an idle long `0`
+can trigger voice by accident. The full contract is recorded in
 `docs/adr/0002-voice-input-and-toolbar-contract.md`.
 
 ## Handwriting
@@ -455,6 +458,14 @@ Release builds can download and install both APK components; debug builds only
 offer configuration updates because release APKs cannot replace debug package
 IDs. Configuration archives are overlaid without deleting user files while
 Fcitx is stopped, then their release version is recorded before Rime restarts.
+`UpdateDownloadSources` keeps GitHub as the first choice so working networks and
+proxies are unaffected. A short streaming probe decides whether to fall back to
+public GitHub prefix mirrors for downloads and the release API. Mirrors are
+untrusted transport: every mirrored file must match a SHA-256 published by
+GitHub or pinned in the app. Metadata fetched through a mirror cannot vouch for
+a file, so its digests are dropped and only this project's GitHub release URLs
+remain; without a trusted digest only the app APK, which the installer
+signature-checks, may download through a mirror.
 
 `RimeConfigProvisioner` owns the app release's required configuration version,
 immutable URL, digest, health check, single-lane download deduplication, bounded
