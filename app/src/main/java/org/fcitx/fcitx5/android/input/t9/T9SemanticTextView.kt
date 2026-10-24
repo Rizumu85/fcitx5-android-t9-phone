@@ -25,8 +25,8 @@ class T9SemanticTextView @JvmOverloads constructor(
 ) : TextView(context, attrs) {
     private val symbolPath = Path()
     private val symbolPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val visibleClip = Rect()
     private val opticalSampleBounds = Rect()
+    private var opticalSampleSource: CharSequence? = null
     private var opticalSample = ""
     private var opticalSampleTextSize = -1f
     private var opticalSampleTypeface: Typeface? = null
@@ -76,12 +76,11 @@ class T9SemanticTextView @JvmOverloads constructor(
         // Product decision: the return action is semantic artwork rather than a font glyph.
         // Centering it in the actual content box keeps custom fonts and compact preview rows from
         // changing its apparent size or baseline.
-        // Floating candidate windows can preserve a translated hardware-canvas clip. Deriving the
-        // local drawing origin from that clip matches TextView's own renderer instead of assuming
-        // the visible viewport starts at canvas coordinate zero.
-        val hasClip = canvas.getClipBounds(visibleClip)
-        val originX = if (hasClip) visibleClip.left.toFloat() else 0f
-        val originY = if (hasClip) visibleClip.top.toFloat() else 0f
+        // TextView renders in scrolled content coordinates, so the visible box starts at the
+        // view's own scroll offset. The canvas clip is not a reliable origin: dirty-rect and
+        // parent clips cover only part of the view and would shift the glyph.
+        val originX = scrollX.toFloat()
+        val originY = scrollY.toFloat()
         val contentLeft = originX + compoundPaddingLeft
         val contentRight = originX + width - compoundPaddingRight
         val contentTop = originY + extendedPaddingTop
@@ -121,7 +120,14 @@ class T9SemanticTextView @JvmOverloads constructor(
     }
 
     private fun opticalTranslationY(): Float {
-        val sample = T9TextOpticalCenter.representativeSample(text)
+        // The sample depends only on the text; avoid re-deriving it on every frame.
+        val source = text
+        val sample = if (source === opticalSampleSource) {
+            opticalSample
+        } else {
+            T9TextOpticalCenter.representativeSample(source)
+        }
+        opticalSampleSource = source
         if (
             sample != opticalSample ||
             paint.textSize != opticalSampleTextSize ||
@@ -167,7 +173,7 @@ class T9SemanticTextView @JvmOverloads constructor(
 
     companion object {
         fun handles(text: CharSequence): Boolean =
-            text.toString() == T9PunctuationSession.NewlineSymbol
+            text.contentEquals(T9PunctuationSession.NewlineSymbol)
 
         fun measureWidth(paint: Paint, text: String, symbolScale: Float = 1f): Float =
             if (handles(text)) paint.textSize * symbolScale * ADVANCE_EM else paint.measureText(text)
