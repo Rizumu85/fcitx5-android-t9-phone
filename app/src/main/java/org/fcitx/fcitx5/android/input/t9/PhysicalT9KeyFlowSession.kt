@@ -14,13 +14,25 @@ internal class PhysicalT9KeyFlowSession {
     private val deferredIdleDigitKeys = BooleanArray(KeyEvent.KEYCODE_STAR + 1)
 
     var poundLongPressTriggered: Boolean = false
-    var pendingSmartEnglishDigitKeyCode: Int? = null
-    var pendingSmartEnglishDigit: Int = -1
+    // Physical T9 users roll presses: the next digit can go down before the previous one is
+    // released, so every held digit keeps its own pending press until its own release.
+    private val pendingSmartEnglishDigitKeys = BooleanArray(KeyEvent.KEYCODE_STAR + 1)
     private var deferredVoiceInputKeyCode: Int? = null
 
     fun resetSmartEnglishPendingDigit() {
-        pendingSmartEnglishDigitKeyCode = null
-        pendingSmartEnglishDigit = -1
+        pendingSmartEnglishDigitKeys.fill(false)
+    }
+
+    fun setSmartEnglishDigitPending(keyCode: Int, value: Boolean) {
+        if (keyCode in pendingSmartEnglishDigitKeys.indices) {
+            pendingSmartEnglishDigitKeys[keyCode] = value
+        }
+    }
+
+    fun consumeSmartEnglishDigitPending(keyCode: Int): Boolean {
+        if (pendingSmartEnglishDigitKeys.getOrNull(keyCode) != true) return false
+        pendingSmartEnglishDigitKeys[keyCode] = false
+        return true
     }
 
     fun isDigitLongPressFlagSet(keyCode: Int): Boolean =

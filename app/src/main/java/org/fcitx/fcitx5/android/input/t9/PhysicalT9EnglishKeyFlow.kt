@@ -275,12 +275,11 @@ internal class PhysicalT9EnglishKeyFlow(
         KeyEvent.ACTION_DOWN -> {
             if (input.repeatCount == 0) {
                 setDigitLongPressFlag(input.keyCode, false)
-                session.pendingSmartEnglishDigitKeyCode = input.keyCode
-                session.pendingSmartEnglishDigit = digit
+                session.setSmartEnglishDigitPending(input.keyCode, true)
                 Decision(handled = true)
             } else if (!isDigitLongPressFlagSet(input.keyCode) && state.heldPastLongPressDelay) {
                 setDigitLongPressFlag(input.keyCode, true)
-                resetSmartEnglishPendingDigit()
+                session.setSmartEnglishDigitPending(input.keyCode, false)
                 Decision(
                     handled = true,
                     commands = if (state.hasSmartEnglishCandidates) {
@@ -298,11 +297,9 @@ internal class PhysicalT9EnglishKeyFlow(
             }
         }
         KeyEvent.ACTION_UP -> {
-            if (session.pendingSmartEnglishDigitKeyCode != input.keyCode) {
+            if (!session.consumeSmartEnglishDigitPending(input.keyCode)) {
                 return Decision(handled = true)
             }
-            val pendingDigit = session.pendingSmartEnglishDigit
-            resetSmartEnglishPendingDigit()
             val wasLongPress = isDigitLongPressFlagSet(input.keyCode)
             setDigitLongPressFlag(input.keyCode, false)
             Decision(
@@ -310,7 +307,7 @@ internal class PhysicalT9EnglishKeyFlow(
                 commands = if (wasLongPress) {
                     emptyList()
                 } else {
-                    listOf(Command.AppendSmartEnglishDigit(pendingDigit))
+                    listOf(Command.AppendSmartEnglishDigit(digit))
                 }
             )
         }
@@ -553,9 +550,5 @@ internal class PhysicalT9EnglishKeyFlow(
         }
         KeyEvent.ACTION_UP -> Decision(handled = true)
         else -> null
-    }
-
-    private fun resetSmartEnglishPendingDigit() {
-        session.resetSmartEnglishPendingDigit()
     }
 }

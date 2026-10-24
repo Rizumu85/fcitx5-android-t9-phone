@@ -295,6 +295,19 @@ class PhysicalT9KeyFlowTest {
     }
 
     @Test
+    fun smartEnglishRolledPressesAppendEveryDigitInReleaseOrder() {
+        val flow = PhysicalT9KeyFlow()
+
+        flow.handle(input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN), state())
+        flow.handle(input(KeyEvent.KEYCODE_3, KeyEvent.ACTION_DOWN), state())
+        val twoUp = flow.handle(input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP), state())
+        val threeUp = flow.handle(input(KeyEvent.KEYCODE_3, KeyEvent.ACTION_UP), state())
+
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.AppendSmartEnglishDigit(2)), twoUp?.commands)
+        assertEquals(listOf(PhysicalT9KeyFlow.Command.AppendSmartEnglishDigit(3)), threeUp?.commands)
+    }
+
+    @Test
     fun smartEnglishDigitLongPressCommitsShortcutAndSuppressesKeyUpDigit() {
         val flow = PhysicalT9KeyFlow()
         flow.handle(input(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN), state())
