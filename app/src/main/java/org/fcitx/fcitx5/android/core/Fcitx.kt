@@ -267,9 +267,12 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
             }
         }
 
+        // Each Chinese T9 key emits several events and several collectors read them. A short
+        // main-thread stall (InputView rebuild, cold start, GC) must not drop the oldest ones,
+        // which can include a CommitStringEvent carrying the user's text.
         private val eventFlow_ =
             MutableSharedFlow<FcitxEvent<*>>(
-                extraBufferCapacity = 15,
+                extraBufferCapacity = 256,
                 onBufferOverflow = BufferOverflow.DROP_OLDEST
             )
 
