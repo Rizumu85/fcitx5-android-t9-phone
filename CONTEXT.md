@@ -46,7 +46,10 @@ them as fallback branches.
 `PhysicalInputRouter` owns route priority across transient number panels,
 selection actions, password handling, Physical T9, mapped delete recovery, and
 ordinary forwarded keys. Routes share one handled/consume-key-up result so a
-key cannot be interpreted twice.
+key cannot be interpreted twice. Each held key owns its own consumed release,
+and a transient panel that closes on a key's first down also owns that key's
+repeats, so a held key never leaks into the routes behind the panel. A release
+the system cancels is never a short press.
 
 Back is an input-method delete key only while the input panel is shown. An
 editor binding can outlive that panel and must not retain Back ownership.
@@ -254,11 +257,18 @@ accepts predictions with the existing spacing policy.
 Dictionaries are warmed outside the first-key path. Candidate and prediction
 lookups use immutable revisioned snapshots and sequence/page caches.
 `SmartEnglishPersistence` publishes learned data in memory immediately and
-coalesces atomic writes on one background writer. Password and
-no-personalized-learning editors never add learned words.
+coalesces atomic writes on one background writer. Password,
+no-personalized-learning, email, and URL editors never add learned words.
+The learning buffer mirrors the editor word: backspace removes its last letter,
+while deleting into an earlier word, moving the cursor, or typing a contraction
+suspends learning until the next word boundary. Learned pairs are bounded per
+context word and in total. A dictionary file that cannot be decoded is kept as
+`<name>.unreadable` before a later save may replace it.
 
 Dictionary management screens use the same persistence interface as runtime
-prediction, so edits are visible without polling files.
+prediction, so edits are visible without polling files. They apply only their
+own additions and removals, because the IME may keep learning while a screen is
+open.
 
 ## Punctuation
 
@@ -477,12 +487,16 @@ Download completion is read through the requesting app's
 URIs are not assumed to be reopenable by the app.
 Application startup and matching Rime plugin package changes may request
 provisioning, but only this Module decides whether work is required. Automatic
-failure is quiet and preserves the previous tree. Rime synchronization remains
+failure is quiet and preserves the previous tree: the archive is extracted and
+validated before Fcitx stops, and an overlay that fails in process restores
+the files it replaced and clears its marker. Rime synchronization remains
 explicit user-data maintenance and is never part of installation.
 Source overlay and native compilation form one durable transaction: installation
 writes a deployment-required marker, native startup owns the full deployment,
 and only the final Rime `Ready` clears the marker and becomes visible to input
-readiness consumers.
+readiness consumers. A deployment request that fails is retried on a later
+`Ready` a bounded number of times, then `Ready` is forwarded rather than held
+forever.
 Native Rime process startup still performs a lightweight source-change check
 against its durable compiled workspace. The plugin publishes this as `Starting`
 and retains that classification even though librime uses its deploy notification
