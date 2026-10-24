@@ -11,6 +11,8 @@ import android.view.inputmethod.EditorInfo
 import android.widget.FrameLayout
 import androidx.core.content.ContextCompat
 import androidx.transition.Slide
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.CapabilityFlag
 import org.fcitx.fcitx5.android.core.CapabilityFlags
@@ -275,6 +277,15 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
     private fun CapabilityFlags.withoutPassword() =
         CapabilityFlags(flags and CapabilityFlag.Password.flag.inv())
 
+    /** Remembers [ime] as the restore target and shows its name once it becomes active. */
+    private fun awaitInputMethodDisplay(ime: InputMethodEntry) {
+        lastNonPasswordInputMethod = ime.uniqueName
+        lastNonPasswordInputMethodEntry = ime
+        pendingInputMethodDisplayAfterTemporary = ime
+        pendingInputMethodDisplayAttached = false
+        suppressPasswordInputMethodDisplayAfterTemporary = true
+    }
+
     private fun rememberNonPasswordInputMethod(ime: InputMethodEntry?) {
         if (ime == null || ime.uniqueName == PasswordInputMethod) return
         lastNonPasswordInputMethod = ime.uniqueName
@@ -388,16 +399,23 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
         val capabilityFlagsBeforeTemporary = currentCapabilityFlags
         capabilityFlagsBeforeTemporaryTextKeyboard = capabilityFlagsBeforeTemporary
         service.postFcitxJob {
+            // Fcitx jobs run off the main thread; the remembered input methods are main-thread
+            // state shared with onStartInput and the layout callbacks.
             val currentIme = inputMethodEntryCached
+            val rememberedIme = withContext(Dispatchers.Main.immediate) {
+                lastNonPasswordInputMethodEntry
+            }
             val previousIme = if (currentIme.uniqueName != PasswordInputMethod) {
                 currentIme
             } else {
-                lastNonPasswordInputMethodEntry
+                rememberedIme
                     ?: enabledIme().firstOrNull { it.uniqueName != PasswordInputMethod }
             }?.takeIf { it.uniqueName != PasswordInputMethod }
-            rememberNonPasswordInputMethod(previousIme)
-            imeEntryBeforeTemporaryTextKeyboard = previousIme
-            imeBeforeTemporaryTextKeyboard = previousIme?.uniqueName
+            withContext(Dispatchers.Main.immediate) {
+                rememberNonPasswordInputMethod(previousIme)
+                imeEntryBeforeTemporaryTextKeyboard = previousIme
+                imeBeforeTemporaryTextKeyboard = previousIme?.uniqueName
+            }
             setCapFlags(
                 CapabilityFlags(
                     capabilityFlagsBeforeTemporary.flags or CapabilityFlag.Password.flag
@@ -458,18 +476,16 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
         service.postFcitxJob {
             setCapFlags(effectiveCapFlags)
             if (inputMethodEntryCached.uniqueName != PasswordInputMethod) return@postFcitxJob
-            val restoreIme = lastNonPasswordInputMethod?.takeIf { it != PasswordInputMethod }
+            val restoreIme = withContext(Dispatchers.Main.immediate) {
+                lastNonPasswordInputMethod?.takeIf { it != PasswordInputMethod }
+            }
             if (restoreIme != null) {
                 activateIme(restoreIme)
                 return@postFcitxJob
             }
             val enabledInputMethods = enabledIme()
             enabledInputMethods.firstOrNull { it.uniqueName != PasswordInputMethod }?.let {
-                lastNonPasswordInputMethod = it.uniqueName
-                lastNonPasswordInputMethodEntry = it
-                pendingInputMethodDisplayAfterTemporary = it
-                pendingInputMethodDisplayAttached = false
-                suppressPasswordInputMethodDisplayAfterTemporary = true
+                withContext(Dispatchers.Main.immediate) { awaitInputMethodDisplay(it) }
                 activateIme(it.uniqueName)
             }
         }
@@ -487,24 +503,25 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
         service.postFcitxJob {
             if (inputMethodEntryCached.uniqueName != PasswordInputMethod) return@postFcitxJob
             setCapFlags(capFlags)
-            val restoreIme = previousIme
-                ?.takeIf { it != PasswordInputMethod }
-                ?: lastNonPasswordInputMethod?.takeIf { it != PasswordInputMethod }
+            val restoreIme = withContext(Dispatchers.Main.immediate) {
+                val target = previousIme
+                    ?.takeIf { it != PasswordInputMethod }
+                    ?: lastNonPasswordInputMethod?.takeIf { it != PasswordInputMethod }
+                if (target != null) {
+                    pendingInputMethodDisplayAfterTemporary = lastNonPasswordInputMethodEntry
+                        ?.takeIf { it.uniqueName == target }
+                    pendingInputMethodDisplayAttached = false
+                    suppressPasswordInputMethodDisplayAfterTemporary = true
+                }
+                target
+            }
             if (restoreIme != null) {
-                pendingInputMethodDisplayAfterTemporary = lastNonPasswordInputMethodEntry
-                    ?.takeIf { it.uniqueName == restoreIme }
-                pendingInputMethodDisplayAttached = false
-                suppressPasswordInputMethodDisplayAfterTemporary = true
                 activateIme(restoreIme)
                 return@postFcitxJob
             }
             val enabledInputMethods = enabledIme()
             enabledInputMethods.firstOrNull { it.uniqueName != PasswordInputMethod }?.let {
-                lastNonPasswordInputMethod = it.uniqueName
-                lastNonPasswordInputMethodEntry = it
-                pendingInputMethodDisplayAfterTemporary = it
-                pendingInputMethodDisplayAttached = false
-                suppressPasswordInputMethodDisplayAfterTemporary = true
+                withContext(Dispatchers.Main.immediate) { awaitInputMethodDisplay(it) }
                 activateIme(it.uniqueName)
             }
         }
