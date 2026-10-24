@@ -802,6 +802,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             inputDeviceMgr.setCandidatesView(newCandidatesView)
             candidatesView = newCandidatesView
         }
+        // A replacement view knows no parent size or cursor anchor until the editor reports one.
+        if (!inputDeviceMgr.isVirtualKeyboard) {
+            currentInputConnection?.monitorCursorAnchor(immediate = true)
+        }
         return newCandidatesView
     }
 
