@@ -16,6 +16,8 @@ class FloatingCandidateWindowController(
         val visibility: Int
         val width: Int
         val height: Int
+        val parentViewWidth: Int
+        val parentViewHeight: Int
         var maxWidth: Int
 
         fun requestLayout()
@@ -120,7 +122,11 @@ class FloatingCandidateWindowController(
     }
 
     fun updatePosition(config: PositionConfig) {
-        val (parentWidth, parentHeight) = parentSize
+        // A recreated candidate view starts without an editor-reported parent size, and nothing
+        // resends the cursor anchor until the editor's cursor moves. Fall back to the host's own
+        // parent so a pending surface still reveals instead of staying invisible while typing.
+        val parentWidth = parentSize[0].takeIf { it > 0f } ?: host.parentViewWidth.toFloat()
+        val parentHeight = parentSize[1].takeIf { it > 0f } ?: host.parentViewHeight.toFloat()
         if (parentWidth > 0) {
             val windowMargin = (config.horizontalMarginPx - config.shadowOutsetPx).coerceAtLeast(0)
             // The viewport is a hard bound; a preferred minimum may be wider on compact or
@@ -140,20 +146,21 @@ class FloatingCandidateWindowController(
             host.requestLayout()
             return
         }
-        if (parentWidth <= 0 || parentHeight <= 0) {
-            host.setTranslation(0f, 0f)
-            return
-        }
+        val positioned = parentWidth > 0 && parentHeight > 0
         val (_, bottom, top) = anchorPosition
         val width = host.width
         val height = host.height
         val selfHeight = height.toFloat()
-        val translationX = (config.horizontalMarginPx - config.shadowOutsetPx)
-            .coerceAtLeast(0)
-            .toFloat()
+        val translationX = if (positioned) {
+            (config.horizontalMarginPx - config.shadowOutsetPx).coerceAtLeast(0).toFloat()
+        } else {
+            0f
+        }
         val bottomLimit = parentHeight - bottomInsets
         val bottomSpace = bottomLimit - bottom
-        val translationY = if (preferAboveInputPanel && inputPanelTop > 0) {
+        val translationY = if (!positioned) {
+            0f
+        } else if (preferAboveInputPanel && inputPanelTop > 0) {
             // Handwriting is operated at the bottom of the screen. Its choices belong next to the
             // tray, not to a remote editor cursor that the user's hand is no longer watching.
             (inputPanelTop - config.inputPanelGapPx - selfHeight)
@@ -184,6 +191,7 @@ class FloatingCandidateWindowController(
             width,
             height
         )
-        shouldUpdatePosition = false
+        // Without any parent size the top-left reveal is provisional; retry on the next frame.
+        shouldUpdatePosition = !positioned
     }
 }

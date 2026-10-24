@@ -154,6 +154,47 @@ class FloatingCandidateWindowControllerTest {
         assertEquals(false, controller.isWaitingForPosition)
     }
 
+    @Test
+    fun revealsPendingSurfaceFromHostParentWhenEditorParentSizeIsUnknown() {
+        val host = FakeHost(visibility = View.INVISIBLE, width = 120, height = 40)
+        host.parentViewWidth = 300
+        host.parentViewHeight = 500
+        val controller = FloatingCandidateWindowController(host)
+
+        controller.showWhenPositioned(contentReady = true)
+        controller.onPreDraw(config(horizontalMarginPx = 16, shadowOutsetPx = 4))
+
+        assertEquals(View.VISIBLE, host.visibility)
+        assertEquals(12f, host.translationX)
+        assertEquals(276, host.maxWidth)
+        assertEquals(1, host.showTouchCalls)
+    }
+
+    @Test
+    fun revealsPendingSurfaceAtOriginWhenNoParentSizeIsKnown() {
+        val host = FakeHost(visibility = View.INVISIBLE, width = 120, height = 40)
+        val controller = FloatingCandidateWindowController(host)
+
+        controller.updateCursorAnchor(
+            anchor = floatArrayOf(10f, 120f, 0f, 80f),
+            parent = floatArrayOf(0f, 0f),
+            config = config()
+        )
+        controller.showWhenPositioned(contentReady = true)
+        controller.onPreDraw(config())
+
+        assertEquals(View.VISIBLE, host.visibility)
+        assertEquals(0f, host.translationX)
+        assertEquals(0f, host.translationY)
+        assertEquals(1, host.showTouchCalls)
+
+        host.parentViewWidth = 300
+        host.parentViewHeight = 500
+        controller.onPreDraw(config())
+
+        assertEquals(120f, host.translationY)
+    }
+
     private fun config(
         horizontalMarginPx: Int = 12,
         shadowOutsetPx: Int = 4,
@@ -170,6 +211,8 @@ class FloatingCandidateWindowControllerTest {
         override var width: Int,
         override var height: Int
     ) : FloatingCandidateWindowController.Host {
+        override var parentViewWidth: Int = 0
+        override var parentViewHeight: Int = 0
         override var maxWidth: Int = 0
         var requestLayoutCalls: Int = 0
         var invalidateCalls: Int = 0

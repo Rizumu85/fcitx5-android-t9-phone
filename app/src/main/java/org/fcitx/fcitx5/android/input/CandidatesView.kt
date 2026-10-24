@@ -151,6 +151,12 @@ class CandidatesView(
             override val height: Int
                 get() = this@CandidatesView.height
 
+            override val parentViewWidth: Int
+                get() = (this@CandidatesView.parent as? View)?.width ?: 0
+
+            override val parentViewHeight: Int
+                get() = (this@CandidatesView.parent as? View)?.height ?: 0
+
             override var maxWidth: Int
                 get() = this@CandidatesView.maxWidth
                 set(value) {
