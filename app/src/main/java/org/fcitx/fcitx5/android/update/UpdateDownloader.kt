@@ -159,8 +159,10 @@ object UpdateDownloader {
         val manager = context.getSystemService(DownloadManager::class.java)
         pendingEntries(context).forEach { (id, pending) ->
             if (pending.automatic && pending.component == component && pending.version == version) {
-                manager.remove(id)
+                // remove() broadcasts ACTION_DOWNLOAD_COMPLETE right away. Forget the entry first
+                // so the receiver does not treat the cancelled download as a finished archive.
                 consumePending(context, id)
+                manager.remove(id)
             }
         }
     }
@@ -182,6 +184,9 @@ object UpdateDownloader {
             }
         }
     }
+
+    internal fun isSuccessful(manager: DownloadManager, id: Long): Boolean =
+        manager.status(id) == DownloadManager.STATUS_SUCCESSFUL
 
     private fun DownloadManager.status(id: Long): Int? =
         query(DownloadManager.Query().setFilterById(id)).use { cursor ->
@@ -208,6 +213,9 @@ class UpdateDownloadReceiver : BroadcastReceiver() {
         val pending = id.takeIf { it >= 0 }?.let { UpdateDownloader.consumePending(context, it) }
             ?: return
         val manager = context.getSystemService(DownloadManager::class.java)
+        // The broadcast also reports failed and removed downloads; only a finished file can be
+        // opened, and reading a removed one fails with an ACCESS_ALL_DOWNLOADS denial.
+        if (!UpdateDownloader.isSuccessful(manager, id)) return
         if (pending.component == UpdateComponent.RIME_CONFIG) {
             installRimeConfig(context.applicationContext, manager, id, pending)
         } else {
