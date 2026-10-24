@@ -3129,7 +3129,20 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         flushPendingT9Selection()
         val rawPreedit = chineseT9Composition.consumeSelectedCandidateReading(
             candidate = candidate
-        ) ?: return false
+        ) ?: run {
+            // Rime has applied a partial selection whose span the app cannot read from the
+            // candidate comment (an emoji or Lua candidate without one). Leaving it would pair
+            // Rime's shortened input with the full local source, reject every later frame, and
+            // freeze the candidates. Restore Rime to the local source instead; the choice is lost
+            // but input stays usable.
+            if (activeChineseT9Scheme == ChineseT9Scheme.PINYIN && hasT9CompositionState()) {
+                enqueuePinyinProjection(
+                    chineseT9Composition.pinyinProjection(),
+                    discardEngineSelection = true
+                )
+            }
+            return false
+        }
         // A partial selection is committed by the app, not by a Rime commit event.
         pendingWholeSelectionTicket = null
         if (candidate.text.isEmpty()) return false
@@ -3225,9 +3238,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return true
     }
 
+    /**
+     * @param discardEngineSelection reset Rime first. Replacing the input with identical text keeps
+     * Rime's confirmed selections, so undoing a selection the app could not mirror needs a reset.
+     */
     private fun enqueuePinyinProjection(
         projection: ChineseT9CompositionSession.EngineProjection,
-        receipt: ChineseT9InputReceipt = currentChineseT9InputReceipt()
+        receipt: ChineseT9InputReceipt = currentChineseT9InputReceipt(),
+        discardEngineSelection: Boolean = false
     ) {
         val source = chineseT9Sources.register(receipt)
         candidatesView?.beginT9AtomicEngineTransition(receipt)
@@ -3237,7 +3255,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 isChineseT9InputModeActive() && chineseT9Composition.acceptsPinyinProjection(projection)
             },
             execute = {
-                withCandidateSource(source) { ChineseT9RimeBridge.from(this).apply(projection) }
+                withCandidateSource(source) {
+                    if (discardEngineSelection) reset()
+                    ChineseT9RimeBridge.from(this).apply(projection)
+                }
             },
             acceptAfter = { chineseT9Composition.acceptsPinyinProjection(projection) },
             finish = { applied ->
