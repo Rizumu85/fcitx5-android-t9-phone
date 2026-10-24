@@ -1972,8 +1972,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             beforeModeChange = {
                 resetNumberModeIfInitialized()
                 resetMultiTapState()
-                smartEnglishCoordinator.reset()
+                // Learn the finished word first; reset then clears the prediction context it seeds.
                 smartEnglishCoordinator.flushLearningWord()
+                smartEnglishCoordinator.reset()
             },
             onEnglishModeEntered = {
                 smartEnglishCoordinator.onModeEntered()
@@ -3873,8 +3874,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             monitorCursorAnchor(false)
         }
         resetComposingState()
-        smartEnglishCoordinator.reset()
         smartEnglishCoordinator.flushLearningWord()
+        smartEnglishCoordinator.reset()
         candidatesView?.clearTransientState()
         inputView?.clearTransientState()
         clearPasswordInputPreview()
@@ -3893,8 +3894,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         updateSelectionBackCallback(false)
         inputDeviceMgr.onFinishInput()
         clearT9CompositionState()
-        smartEnglishCoordinator.reset()
         smartEnglishCoordinator.flushLearningWord()
+        smartEnglishCoordinator.reset()
         candidatesView?.clearTransientState()
         inputView?.clearTransientState()
         clearPasswordInputPreview()
