@@ -676,7 +676,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         physicalSelectionRangeActive = false
         physicalSelectionActionPanelActive = false
         inputView?.hideSelectionActionHints()
-        numberModeController.dismissTransientPanel()
+        // Every onStartInput lands here; constructing the controller just to dismiss a panel
+        // that cannot exist would defeat its first-use initialization.
+        resetNumberModeIfInitialized()
         lastSelectionReplacementKeyUptime = 0L
     }
 
