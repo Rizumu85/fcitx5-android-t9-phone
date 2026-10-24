@@ -14,7 +14,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import org.fcitx.fcitx5.android.input.t9.PhysicalT9KeyPolicy
-import java.util.Locale
+import java.math.BigDecimal
+import java.math.MathContext
+import java.math.RoundingMode
 
 class NumberModeController(
     private val scope: CoroutineScope,
@@ -38,6 +40,10 @@ class NumberModeController(
         val handled: Boolean,
         val consumedKeyUp: Int? = null
     )
+
+    private companion object {
+        const val MaxPlainIntegerDigits = 20
+    }
 
     private val operatorMap = mapOf(
         KeyEvent.KEYCODE_1 to "-",
@@ -197,34 +203,45 @@ class NumberModeController(
             isExpressionChar(it)
         }.trim()
         if (expression.isBlank() || expression.none { it.isDigit() || it == 'π' }) return null
-        return runCatching {
-            val value = NumberExpressionParser(expression).parse()
-            if (approximate) formatApproximateNumberResult(value) else formatNumberResult(value)
-        }.getOrNull()
+        // Text such as "Tel 138 1234+1" ends in an expression preceded by unrelated numbers. Try the
+        // longest whitespace-delimited suffix that parses instead of multiplying across the gap.
+        return expressionSuffixes(expression).firstNotNullOfOrNull { candidate ->
+            runCatching {
+                val value = NumberExpressionParser(candidate).parse()
+                // Division by zero must not offer "Infinity" or "NaN" as a committable result.
+                check(value.isFinite())
+                if (approximate) formatApproximateNumberResult(value) else formatNumberResult(value)
+            }.getOrNull()
+        }
     }
+
+    private fun expressionSuffixes(expression: String): Sequence<String> =
+        sequenceOf(expression) + expression.indices.asSequence()
+            .filter { expression[it].isWhitespace() }
+            .map { expression.substring(it + 1).trim() }
+            .filter { suffix -> suffix.any { it.isDigit() || it == 'π' } }
 
     private fun isExpressionChar(char: Char): Boolean = char.isDigit() || when (char) {
         '.', '+', '-', '*', '/', '%', '(', ')', ' ', 'π' -> true
         else -> false
     }
 
-    private fun formatNumberResult(value: Double): String {
-        if (!value.isFinite()) return value.toString()
-        val long = value.toLong()
-        return if (value == long.toDouble()) long.toString() else {
-            String.format(Locale.US, "%.10f", value)
-                .trimEnd('0')
-                .trimEnd('.')
-        }
-    }
+    // Twelve significant digits hide binary noise (0.1+0.2, 1e23) without rounding small results
+    // such as 0.000000000012 down to zero the way a fixed decimal count would.
+    private fun formatNumberResult(value: Double): String =
+        plainDecimal(BigDecimal.valueOf(value).round(MathContext(12, RoundingMode.HALF_UP)))
 
-    private fun formatApproximateNumberResult(value: Double): String {
-        if (!value.isFinite()) return value.toString()
-        val long = value.toLong()
-        return if (value == long.toDouble()) long.toString() else {
-            String.format(Locale.US, "%.2f", value)
-                .trimEnd('0')
-                .trimEnd('.')
+    private fun formatApproximateNumberResult(value: Double): String =
+        plainDecimal(BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP))
+
+    private fun plainDecimal(value: BigDecimal): String {
+        if (value.signum() == 0) return "0"
+        val stripped = value.stripTrailingZeros()
+        // Plain notation would print hundreds of digits for huge results.
+        return if (stripped.precision() - stripped.scale() > MaxPlainIntegerDigits) {
+            stripped.toString()
+        } else {
+            stripped.toPlainString()
         }
     }
 
@@ -253,12 +270,15 @@ class NumberModeController(
         private fun parseTerm(): Double {
             var value = parseFactor()
             while (true) {
+                // Implicit multiplication such as 2(3) or 2π needs adjacency; "138 1234" is two
+                // separate numbers, not a product.
+                val adjacent = startsFactor()
                 skipSpaces()
                 value = when {
                     match('*') -> value * parseFactor()
                     match('/') -> value / parseFactor()
                     match('%') -> value % parseFactor()
-                    startsFactor() -> value * parseFactor()
+                    adjacent -> value * parseFactor()
                     else -> return value
                 }
             }
@@ -278,7 +298,6 @@ class NumberModeController(
         }
 
         private fun startsFactor(): Boolean {
-            skipSpaces()
             if (index >= text.length) return false
             return text[index].isDigit() || text[index] == '.' || text[index] == '(' || text[index] == 'π'
         }

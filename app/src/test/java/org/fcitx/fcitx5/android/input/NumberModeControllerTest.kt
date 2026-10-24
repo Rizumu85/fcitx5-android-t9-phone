@@ -37,6 +37,48 @@ class NumberModeControllerTest {
     }
 
     @Test
+    fun divisionByZeroOffersNoResult() {
+        val host = Host(editorText = "5/0")
+        val controller = host.controller()
+
+        controller.commitOperator("=")
+        host.drain()
+
+        assertTrue(host.equalsChoices.isEmpty())
+        assertFalse(controller.hasTransientPanel)
+    }
+
+    @Test
+    fun unrelatedNumbersBeforeTheExpressionAreNotMultiplied() {
+        val host = Host(editorText = "Tel 138 1234+1")
+        val controller = host.controller()
+
+        controller.commitOperator("=")
+        host.drain()
+
+        assertEquals(listOf("=" to "1235"), host.equalsChoices)
+    }
+
+    @Test
+    fun resultsKeepSmallValuesAndHideBinaryNoise() {
+        listOf(
+            "0.1+0.2" to "0.3",
+            "1/100000000000" to "0.00000000001",
+            "1e" to null,
+            "3-3" to "0",
+            "2(3)" to "6"
+        ).forEach { (expression, expected) ->
+            val host = Host(editorText = expression)
+            val controller = host.controller()
+
+            controller.commitOperator("=")
+            host.drain()
+
+            assertEquals(expression, expected?.let { listOf("=" to it) } ?: emptyList<Pair<String, String>>(), host.equalsChoices)
+        }
+    }
+
+    @Test
     fun committedOperatorSuffixIsExcludedFromExpression() {
         val host = Host(editorText = "2*(3+4)")
         val controller = host.controller()
