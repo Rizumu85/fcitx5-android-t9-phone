@@ -27,6 +27,7 @@ abstract class EnglishCustomWordsFragment(
     private val viewModel: MainViewModel by activityViewModels()
     private val dictionaries = EnglishCustomDictionaryCoordinator.Shared
     private var uiInitialized = false
+    private var savedEntries: List<String> = emptyList()
 
     private val ui: BaseDynamicListUi<String> by lazy {
         object : BaseDynamicListUi<String>(
@@ -36,7 +37,7 @@ abstract class EnglishCustomWordsFragment(
                 converter = { T9EnglishDictionary.normalizeLearnedWord(it).orEmpty() },
                 validator = { T9EnglishDictionary.normalizeLearnedWord(it) != null }
             ),
-            dictionaries.words(scope)
+            dictionaries.words(scope).also { savedEntries = it }
         ) {
             init {
                 addTouchCallback()
@@ -75,8 +76,19 @@ abstract class EnglishCustomWordsFragment(
         saveWords()
     }
 
+    /**
+     * The IME keeps learning while this screen is open, so the displayed list can be stale.
+     * Applying only this screen's additions and removals to the current store keeps those words.
+     */
     private fun saveWords() {
-        dictionaries.replaceWords(scope, ui.entries)
+        val edited = ui.entries
+        val removed = savedEntries.toSet() - edited.toSet()
+        val added = edited.filterNot(savedEntries.toSet()::contains)
+        dictionaries.replaceWords(
+            scope,
+            (dictionaries.words(scope).filterNot(removed::contains) + added).distinct()
+        )
+        savedEntries = edited
     }
 
     override fun onStart() {

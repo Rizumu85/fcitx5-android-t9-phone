@@ -24,6 +24,7 @@ class SmartEnglishLearnedPredictionsFragment :
     private val viewModel: MainViewModel by activityViewModels()
     private val dictionary = SmartEnglishPredictionDictionary.Shared
     private var uiInitialized = false
+    private var savedEntries: List<LearnedPredictionPair> = emptyList()
 
     private val ui: BaseDynamicListUi<LearnedPredictionPair> by lazy {
         object : BaseDynamicListUi<LearnedPredictionPair>(
@@ -34,6 +35,7 @@ class SmartEnglishLearnedPredictionsFragment :
                 validator = { LearnedPredictionPair.parse(it) != null }
             ),
             initialEntries = dictionary.learnedPairs().toLearnedPredictionPairs()
+                .also { savedEntries = it }
         ) {
             init {
                 addTouchCallback()
@@ -73,9 +75,21 @@ class SmartEnglishLearnedPredictionsFragment :
         savePairs()
     }
 
+    /**
+     * Runtime learning keeps adding pairs and raising scores while this screen is open. Only this
+     * screen's own edits are applied to the current store, so those changes are not reverted.
+     */
     private fun savePairs() {
+        val edited = ui.entries
+        val removed = (savedEntries.toSet() - edited.toSet()).map { it.previous to it.next }.toSet()
+        val added = edited.filterNot(savedEntries.toSet()::contains)
+        val addedKeys = added.map { it.previous to it.next }.toSet()
+        val merged = dictionary.learnedPairs().toLearnedPredictionPairs()
+            .filterNot { (it.previous to it.next) in removed || (it.previous to it.next) in addedKeys } +
+            added
+        savedEntries = edited
         dictionary.replaceLearnedPairs(
-            ui.entries.groupBy { it.previous }
+            merged.groupBy { it.previous }
                 .mapValues { (_, pairs) ->
                     pairs.map {
                         SmartEnglishPredictionDictionary.Prediction(it.next, it.score)
