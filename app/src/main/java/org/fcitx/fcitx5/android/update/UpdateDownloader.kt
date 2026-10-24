@@ -5,7 +5,11 @@
 
 package org.fcitx.fcitx5.android.update
 
+import android.app.ActivityManager
 import android.app.DownloadManager
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -14,10 +18,12 @@ import android.os.Build
 import android.os.Environment
 import android.os.ParcelFileDescriptor
 import android.widget.Toast
+import androidx.core.app.NotificationCompat
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.fcitx.fcitx5.android.R
+import org.fcitx.fcitx5.android.utils.notificationManager
 
 object UpdateAssetSelector {
     fun asset(
@@ -228,14 +234,18 @@ class UpdateDownloadReceiver : BroadcastReceiver() {
             } != false
             android.os.Handler(context.mainLooper).post {
                 if (verified) {
-                    context.startActivity(
-                        Intent(Intent.ACTION_VIEW, uri)
-                            .setDataAndType(uri, "application/vnd.android.package-archive")
-                            .addFlags(
-                                Intent.FLAG_ACTIVITY_NEW_TASK or
-                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                            )
-                    )
+                    val installIntent = Intent(Intent.ACTION_VIEW, uri)
+                        .setDataAndType(uri, "application/vnd.android.package-archive")
+                        .addFlags(
+                            Intent.FLAG_ACTIVITY_NEW_TASK or
+                                Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    if (
+                        activityStartLikelyAllowed() ||
+                        !postInstallNotification(context, installIntent, pending.component)
+                    ) {
+                        context.startActivity(installIntent)
+                    }
                 } else {
                     manager.remove(downloadId)
                     Toast.makeText(
@@ -247,6 +257,54 @@ class UpdateDownloadReceiver : BroadcastReceiver() {
                 result.finish()
             }
         }, "UpdateApkVerify").start()
+    }
+
+    /**
+     * Android 10+ silently drops activity starts from a receiver while the app has no visible
+     * window, which is the usual case once a long download finishes.
+     */
+    private fun activityStartLikelyAllowed(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return true
+        val state = ActivityManager.RunningAppProcessInfo()
+        ActivityManager.getMyMemoryState(state)
+        return state.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+    }
+
+    /** Returns false when notifications are unavailable, so the caller can still try a start. */
+    private fun postInstallNotification(
+        context: Context,
+        installIntent: Intent,
+        component: UpdateComponent
+    ): Boolean {
+        val manager = context.notificationManager
+        if (!manager.areNotificationsEnabled()) return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    InstallChannelId,
+                    context.getText(R.string.update_available),
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply { description = InstallChannelId }
+            )
+        }
+        val notification = NotificationCompat.Builder(context, InstallChannelId)
+            .setSmallIcon(R.drawable.ic_baseline_download_24)
+            .setContentTitle(context.getText(R.string.app_name))
+            .setContentText(context.getText(R.string.update_ready_to_install))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(
+                PendingIntent.getActivity(
+                    context,
+                    component.ordinal,
+                    installIntent,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+            )
+            .setAutoCancel(true)
+            .build()
+        return runCatching {
+            manager.notify(InstallNotificationId + component.ordinal, notification)
+        }.isSuccess
     }
 
     private fun java.io.InputStream.sha256(): String {
@@ -287,5 +345,10 @@ class UpdateDownloadReceiver : BroadcastReceiver() {
             }
             result.finish()
         }, "RimeConfigUpdate").start()
+    }
+
+    private companion object {
+        const val InstallChannelId = "update-install"
+        const val InstallNotificationId = 0x7570
     }
 }

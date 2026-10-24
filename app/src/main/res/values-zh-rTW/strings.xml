@@ -359,6 +359,7 @@
     <string name="update_download_started">已開始下載，完成後會自動開啟安裝或套用更新。</string>
     <string name="update_download_preparing">正在選擇下載線路…</string>
     <string name="update_download_verification_failed">下載的更新檔案驗證失敗，已刪除，請重試。</string>
+    <string name="update_ready_to_install">更新已下載，輕觸即可安裝。</string>
     <string name="rime_config_update_installed">九鍵 Rime 設定已更新，正在重新載入 Rime。</string>
     <string name="rime_config_update_failed">無法套用下載的九鍵 Rime 設定。</string>
     <string name="no_update_available">已是最新版本</string>

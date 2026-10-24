@@ -365,6 +365,7 @@
     <string name="update_download_started">Download started. Installation will open when it is ready.</string>
     <string name="update_download_preparing">Choosing a download source…</string>
     <string name="update_download_verification_failed">The downloaded update failed verification and was deleted. Please try again.</string>
+    <string name="update_ready_to_install">Update downloaded. Tap to install.</string>
     <string name="rime_config_update_installed">T9 Rime configuration updated. Rime is reloading.</string>
     <string name="rime_config_update_failed">Could not apply the downloaded T9 Rime configuration.</string>
     <string name="no_update_available">Already up to date</string>
