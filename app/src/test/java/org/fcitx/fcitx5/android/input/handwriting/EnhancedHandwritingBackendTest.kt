@@ -8,8 +8,10 @@ package org.fcitx.fcitx5.android.input.handwriting
 import java.util.concurrent.Executors
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -64,12 +66,41 @@ class EnhancedHandwritingBackendTest {
         }
     }
 
+    @Test
+    fun closeReleasesEnginesOnWorkerAndPreventsRecreation() {
+        val executor = Executors.newSingleThreadExecutor { task -> Thread(task, WorkerThreadName) }
+        executor.asCoroutineDispatcher().use { dispatcher ->
+            val engine = RecordingEngine(downloaded = true)
+            var factoryCalls = 0
+            val backend = MlKitEnhancedHandwritingBackend(dispatcher) {
+                factoryCalls++
+                engine
+            }
+
+            runBlocking {
+                assertTrue(backend.prepare(HandwritingLanguage.CHINESE))
+                backend.close()
+                // The single worker runs queued work in order, so this waits for the release.
+                withContext(dispatcher) {}
+            }
+
+            assertEquals(1, engine.closeCalls)
+            assertTrue(engine.closeThread.orEmpty().startsWith(WorkerThreadName))
+            assertThrows(IllegalStateException::class.java) {
+                runBlocking { backend.prepare(HandwritingLanguage.CHINESE) }
+            }
+            assertEquals(1, factoryCalls)
+        }
+    }
+
     private class RecordingEngine(
         private val downloaded: Boolean
     ) : EnhancedHandwritingEngine {
         val workerThreads = mutableListOf<String>()
         var warmupCalls = 0
         var recognitionCalls = 0
+        var closeCalls = 0
+        var closeThread: String? = null
 
         fun recordFactoryThread() {
             workerThreads += Thread.currentThread().name
@@ -93,7 +124,10 @@ class EnhancedHandwritingBackendTest {
             return listOf(HandwritingRecognition("字", 1f)).take(request.limit)
         }
 
-        override fun close() = Unit
+        override fun close() {
+            closeThread = Thread.currentThread().name
+            closeCalls++
+        }
     }
 
     private fun stroke() = HandwritingStroke(

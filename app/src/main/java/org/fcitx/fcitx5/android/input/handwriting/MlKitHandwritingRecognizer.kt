@@ -18,6 +18,7 @@ internal class MlKitHandwritingRecognizer(
 ) : EnhancedHandwritingEngine {
     private val model by lazy(modelManager::model)
     private var recognizer: DigitalInkRecognizer? = null
+    private var closed = false
 
     override suspend fun isDownloaded(): Boolean = modelManager.isDownloaded()
 
@@ -65,11 +66,16 @@ internal class MlKitHandwritingRecognizer(
     private suspend fun recognizeInk(ink: Ink, context: RecognitionContext) =
         client().recognize(ink, context).await()
 
-    private fun client(): DigitalInkRecognizer = recognizer ?: DigitalInkRecognition.getClient(
-        DigitalInkRecognizerOptions.builder(model).build()
-    ).also { recognizer = it }
+    private fun client(): DigitalInkRecognizer {
+        // A request suspended in a Google task can resume after close; it must not leak a client.
+        check(!closed) { "Handwriting recognizer is closed" }
+        return recognizer ?: DigitalInkRecognition.getClient(
+            DigitalInkRecognizerOptions.builder(model).build()
+        ).also { recognizer = it }
+    }
 
     override fun close() {
+        closed = true
         recognizer?.close()
         recognizer = null
     }

@@ -6,7 +6,9 @@
 package org.fcitx.fcitx5.android.input.handwriting
 
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 internal val MlKitHandwritingDispatcher: CoroutineDispatcher =
@@ -38,6 +40,7 @@ internal class MlKitEnhancedHandwritingBackend(
     }
 ) : EnhancedHandwritingBackend {
     private val engines = mutableMapOf<HandwritingLanguage, EnhancedHandwritingEngine>()
+    private var closed = false
 
     override suspend fun prepare(language: HandwritingLanguage): Boolean = withContext(dispatcher) {
         val workerEngine = engine(language)
@@ -56,14 +59,21 @@ internal class MlKitEnhancedHandwritingBackend(
     }
 
     override fun close() {
-        engines.values.forEach(EnhancedHandwritingEngine::close)
-        engines.clear()
+        // Service teardown calls this on the main thread. Releasing on the model lane keeps the
+        // engines single-owner, and the flag stops a queued request from recreating a client.
+        CoroutineScope(dispatcher).launch {
+            closed = true
+            engines.values.forEach(EnhancedHandwritingEngine::close)
+            engines.clear()
+        }
     }
 
-    private fun engine(language: HandwritingLanguage): EnhancedHandwritingEngine =
-        engines[language] ?: engineFactory(language).also {
+    private fun engine(language: HandwritingLanguage): EnhancedHandwritingEngine {
+        check(!closed) { "Enhanced handwriting backend is closed" }
+        return engines[language] ?: engineFactory(language).also {
             // Model identifiers, Firebase registration, and native client setup are intentionally
             // first touched on this worker; constructing them from a toolbar click blocked input.
             engines[language] = it
         }
+    }
 }
