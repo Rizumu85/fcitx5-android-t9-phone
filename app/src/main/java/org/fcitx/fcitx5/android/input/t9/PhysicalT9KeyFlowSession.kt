@@ -56,6 +56,15 @@ internal class PhysicalT9KeyFlowSession {
         return true
     }
 
+    /** Forgets every pending decision of a press whose release was cancelled by the system. */
+    fun cancelPress(keyCode: Int) {
+        setDigitLongPressFlag(keyCode, false)
+        setIdleDigitDeferred(keyCode, false)
+        setSmartEnglishDigitPending(keyCode, false)
+        clearDeferredVoiceInput(keyCode)
+        if (keyCode == KeyEvent.KEYCODE_POUND) poundLongPressTriggered = false
+    }
+
     fun deferVoiceInputUntilKeyUp(keyCode: Int) {
         deferredVoiceInputKeyCode = keyCode
     }

@@ -332,6 +332,20 @@ class PhysicalT9KeyHandlerTest {
     }
 
     @Test
+    fun cancelledReleaseIsNotAShortPress() {
+        val host = FakeHost(mode = PhysicalT9KeyHandler.Mode.NUMBER)
+        val handler = PhysicalT9KeyHandler(host)
+
+        handler.handleKeyDown(keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_DOWN))
+        val up = handler.handleKeyUp(
+            keyInput(KeyEvent.KEYCODE_2, KeyEvent.ACTION_UP).copy(flags = KeyEvent.FLAG_CANCELED)
+        )
+
+        assertTrue(up.handled)
+        assertEquals(emptyList<String>(), host.committedTexts)
+    }
+
+    @Test
     fun chineseCompositionDigitShortPressForwardsThroughHost() {
         val host = FakeHost(
             mode = PhysicalT9KeyHandler.Mode.CHINESE,

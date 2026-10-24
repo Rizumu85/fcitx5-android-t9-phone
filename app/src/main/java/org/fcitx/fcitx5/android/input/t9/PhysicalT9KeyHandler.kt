@@ -161,6 +161,12 @@ class PhysicalT9KeyHandler(
 
     fun handleKeyUp(input: KeyInput): KeyResult = T9ResponsivenessTrace.measure("PhysicalT9KeyHandler.keyUp") {
         if (!host.isInInputMode) return KeyResult(handled = false)
+        // The system cancels a release when focus moves or another surface takes the gesture.
+        // It is not a short press, so it must not type a digit, open punctuation, or send Return.
+        if (input.flags and KeyEvent.FLAG_CANCELED != 0) {
+            keyFlow.cancelPress(input.keyCode)
+            return KeyResult(handled = true)
+        }
         handleCommandKeyFlow(input).takeIf { it.handled }?.let { return it }
         return KeyResult(handled = false)
     }

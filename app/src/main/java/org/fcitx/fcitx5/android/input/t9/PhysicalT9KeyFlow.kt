@@ -109,6 +109,10 @@ class PhysicalT9KeyFlow {
     private val englishFlow = PhysicalT9EnglishKeyFlow(session)
     private val numberFlow = PhysicalT9NumberKeyFlow(session)
 
+    fun cancelPress(keyCode: Int) {
+        session.cancelPress(keyCode)
+    }
+
     fun resetSmartEnglishPendingDigit() {
         session.resetSmartEnglishPendingDigit()
     }
