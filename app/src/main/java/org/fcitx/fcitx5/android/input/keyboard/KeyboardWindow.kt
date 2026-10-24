@@ -292,13 +292,20 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
         lastNonPasswordInputMethodEntry = ime
     }
 
-    private fun firstEnabledNonPasswordInputMethodNow(): InputMethodEntry? {
-        return runCatching {
-            fcitx.runImmediately {
-                enabledIme().firstOrNull { it.uniqueName != PasswordInputMethod }
-            }
-        }.getOrNull()
+    // Layout callbacks run on the main thread. runImmediately blocked it behind the whole Fcitx
+    // queue (for example during Rime deployment); the enabled list changes only through settings,
+    // so a copy refreshed off the main thread is sufficient.
+    private var enabledInputMethodsCache: List<InputMethodEntry>? = null
+
+    private fun refreshEnabledInputMethods() {
+        service.postFcitxJob {
+            val enabled = enabledIme().toList()
+            withContext(Dispatchers.Main.immediate) { enabledInputMethodsCache = enabled }
+        }
     }
+
+    private fun firstEnabledNonPasswordInputMethodNow(): InputMethodEntry? =
+        enabledInputMethodsCache?.firstOrNull { it.uniqueName != PasswordInputMethod }
 
     private fun displayInputMethodForLayout(
         ime: InputMethodEntry,
@@ -307,11 +314,7 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
         if (targetLayout == TemporaryFullKeyboard.Name || ime.uniqueName != PasswordInputMethod) {
             return ime
         }
-        val enabledInputMethods = runCatching {
-            fcitx.runImmediately {
-                enabledIme().toList()
-            }
-        }.getOrNull()
+        val enabledInputMethods = enabledInputMethodsCache
         if (enabledInputMethods?.any { it.uniqueName == PasswordInputMethod } == true) {
             return ime
         }
@@ -579,6 +582,7 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
     }
 
     override fun onImeUpdate(ime: InputMethodEntry) {
+        refreshEnabledInputMethods()
         if (!temporaryTextKeyboard && !currentCapabilityFlags.has(CapabilityFlag.Password)) {
             rememberNonPasswordInputMethod(ime)
         }
@@ -618,6 +622,7 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
     }
 
     override fun onAttached() {
+        refreshEnabledInputMethods()
         currentKeyboard?.let {
             it.keyActionListener = keyActionListener
             it.popupActionListener = popupActionListener
