@@ -1149,12 +1149,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 return
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                currentInputConnection.deleteSurroundingTextInCodePoints(1, 0)
+                currentInputConnection?.deleteSurroundingTextInCodePoints(1, 0)
             } else {
-                currentInputConnection.deleteSurroundingText(1, 0)
+                currentInputConnection?.deleteSurroundingText(1, 0)
             }
         } else {
-            currentInputConnection.commitText("", 0)
+            currentInputConnection?.commitText("", 0)
         }
     }
 
@@ -1366,7 +1366,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             KeyEvent.KEYCODE_DPAD_RIGHT -> end + offset
             else -> return
         }
-        currentInputConnection.setSelection(target, target)
+        // Virtual keys arrive asynchronously from Fcitx and can outlive the editor binding.
+        currentInputConnection?.setSelection(target, target)
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT -> movePasswordInputPreviewCursor(-1)
             KeyEvent.KEYCODE_DPAD_RIGHT -> movePasswordInputPreviewCursor(1)
