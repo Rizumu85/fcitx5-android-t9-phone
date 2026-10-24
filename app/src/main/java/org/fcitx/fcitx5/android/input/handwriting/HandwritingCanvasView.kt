@@ -134,7 +134,8 @@ class HandwritingCanvasView(
 
     private fun finishStroke(event: MotionEvent) {
         val strokeId = activeStrokeId ?: return
-        val pointerIndex = event.findPointerIndex(activePointerId).takeIf { it >= 0 } ?: return
+        val pointerIndex = event.findPointerIndex(activePointerId).takeIf { it >= 0 }
+            ?: return cancelStroke(event)
         appendEventPoints(event, pointerIndex, includeHistory = true)
         renderLedger.expectLocalStrokeCompletion(strokeId)
         inkView.finishStroke(event, activePointerId, strokeId)
@@ -147,11 +148,15 @@ class HandwritingCanvasView(
     }
 
     private fun cancelStroke(event: MotionEvent) {
-        activeStrokeId?.let { inkView.cancelStroke(it, event) }
+        val strokeId = activeStrokeId ?: return
+        inkView.cancelStroke(strokeId, event)
         activeStrokeId = null
         activePointerId = MotionEvent.INVALID_POINTER_ID
         activePoints.clear()
         parent?.requestDisallowInterceptTouchEvent(false)
+        // ACTION_DOWN already invalidated recognition. An empty stroke is the abandoned-stroke
+        // signal, so the coordinator can recognize the remaining strokes again.
+        onStrokeFinished(HandwritingStroke(emptyList()))
     }
 
     private fun appendEventPoints(

@@ -180,7 +180,11 @@ internal class HandwritingCoordinator(
     }
 
     fun addStroke(stroke: HandwritingStroke) {
-        if (!active || stroke.points.isEmpty()) return
+        if (!active) return
+        if (stroke.points.isEmpty()) {
+            cancelStroke()
+            return
+        }
         invalidatePronunciationFeedback()
         strokes = strokes + stroke
         invalidatePublishedCandidates()
@@ -188,6 +192,23 @@ internal class HandwritingCoordinator(
         noMatch = false
         publishState()
         scheduleRecognition()
+    }
+
+    /**
+     * A down that ended in cancel already invalidated the previous recognition. Without this the
+     * earlier strokes would stay on the tray with no candidates and commit would stay refused.
+     */
+    private fun cancelStroke() {
+        if (strokes.isEmpty()) {
+            activeBackend = null
+            recognizing = false
+            publishState()
+            scheduleEnhancedPreparation()
+        } else {
+            recognizing = true
+            publishState()
+            scheduleRecognition()
+        }
     }
 
     fun undoStroke(): Boolean {
