@@ -10,8 +10,13 @@ class SmartEnglishT9Controller private constructor(
     private val resourcesReady: () -> Boolean,
     private val lifecycle: SmartEnglishLifecycle
 ) {
+    /**
+     * Constructing the engine reads the learned-word and pair files. Deferring it lets the IME
+     * service start without disk reads on the main thread; preload builds it on the IO thread.
+     */
     constructor(
-        suggestionEngine: EnglishSuggestionEngine = EnglishSuggestionEngine.Shared,
+        suggestionEngine: Lazy<EnglishSuggestionEngine> =
+            lazy(LazyThreadSafetyMode.SYNCHRONIZED) { EnglishSuggestionEngine.Shared },
         candidateLimit: Int,
         noMatchText: String,
         isActive: () -> Boolean,
@@ -19,17 +24,33 @@ class SmartEnglishT9Controller private constructor(
         commitText: (String) -> Unit,
         refreshUi: () -> Unit
     ) : this(
-        preloadResources = suggestionEngine::preload,
-        resourcesReady = suggestionEngine::isReady,
+        preloadResources = { suggestionEngine.value.preload() },
+        resourcesReady = { suggestionEngine.isInitialized() && suggestionEngine.value.isReady },
         lifecycle = SmartEnglishLifecycle(
-            candidateProvider = suggestionEngine::candidatesForDigits,
-            predictionProvider = suggestionEngine::predictionsAfter,
-            learnWord = suggestionEngine::learnWord,
-            learnPredictionPair = suggestionEngine::learnPair,
-            dictionaryReady = suggestionEngine::isReady,
-            predictionReady = suggestionEngine::isReady,
-            dictionaryGeneration = suggestionEngine::dictionaryGeneration,
-            predictionGeneration = suggestionEngine::predictionGeneration,
+            candidateProvider = { digits, limit ->
+                suggestionEngine.value.candidatesForDigits(digits, limit)
+            },
+            predictionProvider = { words, limit ->
+                suggestionEngine.value.predictionsAfter(words, limit)
+            },
+            learnWord = { suggestionEngine.value.learnWord(it) },
+            learnPredictionPair = { previous, next -> suggestionEngine.value.learnPair(previous, next) },
+            dictionaryReady = { suggestionEngine.isInitialized() && suggestionEngine.value.isReady },
+            predictionReady = { suggestionEngine.isInitialized() && suggestionEngine.value.isReady },
+            dictionaryGeneration = {
+                if (suggestionEngine.isInitialized()) {
+                    suggestionEngine.value.dictionaryGeneration
+                } else {
+                    Long.MIN_VALUE
+                }
+            },
+            predictionGeneration = {
+                if (suggestionEngine.isInitialized()) {
+                    suggestionEngine.value.predictionGeneration
+                } else {
+                    Long.MIN_VALUE
+                }
+            },
             candidateLimit = candidateLimit,
             noMatchText = noMatchText,
             isActive = isActive,
