@@ -63,6 +63,21 @@ class T9CandidateSurfacePlannerTest {
         assertEquals(478, requireNotNull(plan.pinyinSurface).pinyinBarWidthPx)
     }
 
+    @Test
+    fun statusRowWidthMakesPinyinSurfaceReadyWithoutCandidates() {
+        val plan = T9CandidateSurfacePlanner.plan(
+            input(
+                candidates = emptyList(),
+                candidateVisualWidthPx = 90
+            )
+        )
+
+        assertEquals(null, plan.candidatePolicyWidthPx)
+        val pinyinSurface = requireNotNull(plan.pinyinSurface)
+        assertTrue(pinyinSurface.contentReady)
+        assertNotNull(pinyinSurface.rowWidthPx)
+    }
+
     private fun input(
         candidates: List<String>,
         pinyinFallbackViewportWidthPx: Int? = null,

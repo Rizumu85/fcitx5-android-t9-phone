@@ -70,7 +70,17 @@ class T9CandidateSurfaceAndroidAdapter(
             }
         }
         if (candidateStatus != null) {
-            onShortcutCandidateMeasured(activeGenerationId, null)
+            // A status frame (for example Rime still preparing) may keep its pinyin row while
+            // carrying no candidates. The status text is the candidate row, so its width must
+            // make the surface content-ready; otherwise the first frame never reveals.
+            candidateStatusView.measure(
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            )
+            onShortcutCandidateMeasured(
+                activeGenerationId,
+                candidateStatusView.measuredWidth.takeIf { it > 0 }
+            )
             return
         }
         if (showShortcutLabels) {
