@@ -150,4 +150,10 @@ class SmartEnglishT9Coordinator(
 
     fun flushLearningWord() =
         controller.flushLearningWord()
+
+    fun onEditorBackspace() =
+        controller.onEditorBackspace()
+
+    fun interruptLearningWord() =
+        controller.interruptLearningWord()
 }

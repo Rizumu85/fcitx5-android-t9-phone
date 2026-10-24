@@ -133,4 +133,10 @@ class SmartEnglishT9Controller private constructor(
 
     fun flushLearningWord() =
         lifecycle.flushLearningWord()
+
+    fun onEditorBackspace() =
+        lifecycle.onEditorBackspace()
+
+    fun interruptLearningWord() =
+        lifecycle.interruptLearningWord()
 }

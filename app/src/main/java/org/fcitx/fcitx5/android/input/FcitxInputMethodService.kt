@@ -1215,8 +1215,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         val ic = currentInputConnection ?: return false
         plan.predictedCursor?.let(selection::predict)
         when (plan.kind) {
-            PhysicalDeleteCoordinator.DeleteKind.SELECTION -> ic.commitText("", 1)
+            PhysicalDeleteCoordinator.DeleteKind.SELECTION -> {
+                smartEnglishCoordinator.interruptLearningWord()
+                ic.commitText("", 1)
+            }
             PhysicalDeleteCoordinator.DeleteKind.BEFORE_CURSOR -> {
+                smartEnglishCoordinator.onEditorBackspace()
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     ic.deleteSurroundingTextInCodePoints(1, 0)
                 } else {
@@ -3666,6 +3670,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         } else {
             // cursor update can't match any prediction: it's treated as a user input
             selection.resetTo(newSelStart, newSelEnd)
+            smartEnglishCoordinator.interruptLearningWord()
         }
         // skip selection range update, we only care about selection cursor (zero width) here
         if (newSelStart != newSelEnd) return

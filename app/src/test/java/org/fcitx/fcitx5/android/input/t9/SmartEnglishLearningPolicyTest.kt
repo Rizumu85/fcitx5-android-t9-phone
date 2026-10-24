@@ -52,6 +52,22 @@ class SmartEnglishLearningPolicyTest {
     }
 
     @Test
+    fun doesNotLearnEmailOrUrlFields() {
+        listOf(
+            InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS,
+            InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS,
+            InputType.TYPE_TEXT_VARIATION_URI
+        ).forEach { variation ->
+            assertFalse(
+                SmartEnglishLearningPolicy.shouldLearnWords(
+                    inputType = InputType.TYPE_CLASS_TEXT or variation,
+                    imeOptions = 0
+                )
+            )
+        }
+    }
+
+    @Test
     fun learnsPlainNumbersButNotNumberPasswords() {
         assertTrue(
             SmartEnglishLearningPolicy.shouldLearnWords(

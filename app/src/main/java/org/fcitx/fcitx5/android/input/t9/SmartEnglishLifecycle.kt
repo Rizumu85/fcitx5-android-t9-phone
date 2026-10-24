@@ -97,6 +97,10 @@ internal class SmartEnglishLifecycle(
     private var snapshotValue: SmartEnglishSnapshot? = null
     private var predictionCandidatesGeneration = Long.MIN_VALUE
     private val learningWord = StringBuilder()
+    // Set when the editor word no longer matches what was typed (deleting into an earlier word,
+    // moving the cursor, or a contraction the a-z dictionary cannot hold). Nothing is learned
+    // until the next word boundary.
+    private var learningWordInterrupted = false
     private val recentWords = ArrayDeque<String>()
     private var caseState = CaseState.OFF
     private var inputRevision = 0L
@@ -281,19 +285,42 @@ internal class SmartEnglishLifecycle(
 
     fun recordLearningChar(char: Char) {
         if (!shouldLearnWords()) {
-            learningWord.clear()
+            clearLearningWord()
             return
         }
-        if (char in 'a'..'z' || char in 'A'..'Z') {
-            learningWord.append(char.lowercaseChar())
-        } else {
-            flushLearningWord()
+        when {
+            char in 'a'..'z' || char in 'A'..'Z' -> {
+                if (!learningWordInterrupted) learningWord.append(char.lowercaseChar())
+            }
+            // "don't" must not teach "don".
+            char == '\'' && learningWord.isNotEmpty() -> learningWordInterrupted = true
+            else -> flushLearningWord()
         }
     }
 
+    /** Keeps the learning buffer aligned with a single character deleted before the cursor. */
+    fun onEditorBackspace() {
+        if (learningWord.isNotEmpty() && !learningWordInterrupted) {
+            learningWord.deleteCharAt(learningWord.lastIndex)
+        } else {
+            interruptLearningWord()
+        }
+    }
+
+    /** The cursor moved or text changed outside typing, so the buffered word is unreliable. */
+    fun interruptLearningWord() {
+        learningWord.clear()
+        learningWordInterrupted = true
+    }
+
+    private fun clearLearningWord() {
+        learningWord.clear()
+        learningWordInterrupted = false
+    }
+
     fun flushLearningWord() {
-        if (!shouldLearnWords()) {
-            learningWord.clear()
+        if (!shouldLearnWords() || learningWordInterrupted) {
+            clearLearningWord()
             return
         }
         if (learningWord.isNotEmpty()) {

@@ -73,6 +73,36 @@ class SmartEnglishLifecycleTest {
         assertEquals("morning", lifecycle.snapshot().paged?.candidates?.first()?.text)
     }
 
+    @Test
+    fun backspacedLettersLeaveTheLearnedWord() {
+        val host = Host(learn = true)
+        val lifecycle = host.lifecycle()
+
+        "teh".forEach(lifecycle::recordLearningChar)
+        lifecycle.onEditorBackspace()
+        lifecycle.onEditorBackspace()
+        "he ".forEach(lifecycle::recordLearningChar)
+
+        assertEquals(listOf("the"), host.learnedWords)
+    }
+
+    @Test
+    fun contractionsAndDeletingIntoAnEarlierWordTeachNothing() {
+        val host = Host(learn = true)
+        val lifecycle = host.lifecycle()
+
+        "don't ".forEach(lifecycle::recordLearningChar)
+        "hello ".forEach(lifecycle::recordLearningChar)
+        lifecycle.onEditorBackspace()
+        lifecycle.onEditorBackspace()
+        "p ".forEach(lifecycle::recordLearningChar)
+        "cursor".forEach(lifecycle::recordLearningChar)
+        lifecycle.interruptLearningWord()
+        "word ".forEach(lifecycle::recordLearningChar)
+
+        assertEquals(listOf("hello"), host.learnedWords)
+    }
+
     private class Host(
         private val learn: Boolean = false,
         var predictionIsReady: Boolean = true
