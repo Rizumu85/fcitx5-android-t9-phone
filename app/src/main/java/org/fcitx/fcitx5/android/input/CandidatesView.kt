@@ -1287,6 +1287,11 @@ class CandidatesView(
         floatingWindowController.updateCursorAnchor(anchor, parent, floatingWindowPositionConfig())
     }
 
+    /** Fallback anchor for editors without a valid CursorAnchorInfo. */
+    fun updateCursorAnchor(@Size(2) parent: FloatArray) {
+        floatingWindowController.updateBottomAnchor(parent, floatingWindowPositionConfig())
+    }
+
     fun updateInputPanelTop(inputPanelTop: Int) {
         floatingWindowController.setInputPanelTop(inputPanelTop)
     }

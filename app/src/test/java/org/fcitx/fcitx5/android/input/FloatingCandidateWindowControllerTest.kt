@@ -123,6 +123,17 @@ class FloatingCandidateWindowControllerTest {
     }
 
     @Test
+    fun bottomAnchorFallbackStaysAboveNavigationBarInsets() {
+        val host = FakeHost(visibility = View.VISIBLE, width = 120, height = 80)
+        val controller = FloatingCandidateWindowController(host)
+        controller.setBottomInsets(48)
+
+        controller.updateBottomAnchor(parent = floatArrayOf(300f, 600f), config = config())
+
+        assertEquals(472f, host.translationY)
+    }
+
+    @Test
     fun handwritingSurfaceTracksInputPanelInsteadOfEditorCursor() {
         val host = FakeHost(visibility = View.VISIBLE, width = 120, height = 80)
         val controller = FloatingCandidateWindowController(host)

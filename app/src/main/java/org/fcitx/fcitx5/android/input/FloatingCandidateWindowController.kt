@@ -121,6 +121,22 @@ class FloatingCandidateWindowController(
         updatePosition(config)
     }
 
+    /**
+     * Anchors the surface to the bottom-left corner above the navigation bar. Only for editors
+     * whose CursorAnchorInfo is missing or invalid; on API 35+ the content size includes the
+     * navigation bar area, so the plain bottom edge would place candidates behind it.
+     */
+    fun updateBottomAnchor(@Size(2) parent: FloatArray, config: PositionConfig) {
+        val (parentWidth, parentHeight) = parent
+        val bottom = parentHeight - bottomInsets
+        anchorPosition[0] = 0f
+        anchorPosition[1] = bottom
+        anchorPosition[2] = bottom
+        parentSize[0] = parentWidth
+        parentSize[1] = parentHeight
+        updatePosition(config)
+    }
+
     fun updatePosition(config: PositionConfig) {
         // A recreated candidate view starts without an editor-reported parent size, and nothing
         // resends the cursor anchor until the editor's cursor moves. Fall back to the host's own
