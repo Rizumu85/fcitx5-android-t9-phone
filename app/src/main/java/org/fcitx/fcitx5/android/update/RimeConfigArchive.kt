@@ -66,27 +66,72 @@ object RimeConfigArchive {
         return contentRoot
     }
 
-    fun overlay(contentRoot: File, destinationDir: File) {
-        destinationDir.mkdirs()
-        contentRoot.listFiles().orEmpty().forEach { sourceFile ->
-            copyOverlay(sourceFile, destinationDir.resolve(sourceFile.name))
+    /**
+     * Copies [contentRoot] over [destinationDir] without deleting user files. If any copy fails,
+     * every replaced file is restored and [afterRollback] runs once the previous tree is intact.
+     */
+    fun overlay(contentRoot: File, destinationDir: File, afterRollback: () -> Unit = {}) {
+        // Each entry is a managed destination and its backup, or null when the file is new.
+        val journal = mutableListOf<Pair<File, File?>>()
+        try {
+            destinationDir.mkdirs()
+            contentRoot.listFiles().orEmpty().forEach { sourceFile ->
+                copyOverlay(sourceFile, destinationDir.resolve(sourceFile.name), journal)
+            }
+        } catch (error: Throwable) {
+            // An in-process failure must leave the previous working tree, not a permanently
+            // journaled partial one. Only process death relies on the marker for later repair.
+            if (rollBack(journal)) {
+                runCatching(afterRollback).exceptionOrNull()?.let(error::addSuppressed)
+            }
+            throw error
         }
+        journal.forEach { (_, backup) -> backup?.delete() }
     }
 
-    private fun copyOverlay(source: File, destination: File) {
+    private fun copyOverlay(source: File, destination: File, journal: MutableList<Pair<File, File?>>) {
         if (source.isDirectory) {
             destination.mkdirs()
             source.listFiles().orEmpty().forEach { child ->
-                copyOverlay(child, destination.resolve(child.name))
+                copyOverlay(child, destination.resolve(child.name), journal)
             }
             return
         }
         destination.parentFile?.mkdirs()
         val temporary = destination.resolveSibling(".${destination.name}.update")
-        source.copyTo(temporary, overwrite = true)
-        if (!temporary.renameTo(destination)) {
-            temporary.copyTo(destination, overwrite = true)
+        try {
+            source.copyTo(temporary, overwrite = true)
+            val backup = if (destination.exists()) {
+                destination.resolveSibling(".${destination.name}.backup").also { backup ->
+                    backup.delete()
+                    move(destination, backup)
+                }
+            } else {
+                null
+            }
+            journal += destination to backup
+            move(temporary, destination)
+        } finally {
             temporary.delete()
+        }
+    }
+
+    private fun rollBack(journal: List<Pair<File, File?>>): Boolean =
+        journal.asReversed().fold(true) { restored, (destination, backup) ->
+            runCatching {
+                if (backup == null) {
+                    check(!destination.exists() || destination.delete())
+                } else {
+                    check(backup.exists())
+                    move(backup, destination)
+                }
+            }.isSuccess && restored
+        }
+
+    private fun move(source: File, target: File) {
+        if (!source.renameTo(target)) {
+            source.copyTo(target, overwrite = true)
+            source.delete()
         }
     }
 

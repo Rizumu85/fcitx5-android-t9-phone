@@ -180,11 +180,19 @@ object RimeConfigVersionStore {
         context.getSharedPreferences(PreferenceName, Context.MODE_PRIVATE)
             .getString(ArchiveSha256Key, null)
 
-    fun beginInstall(context: Context, version: String) {
-        writeMarker(
-            rimeDir(context).resolve(RimeConfigDeploymentHealth.InstallInProgressMarker),
-            version
-        )
+    /** Returns false when an interrupted earlier transaction already left the tree unhealthy. */
+    fun beginInstall(context: Context, version: String): Boolean {
+        val marker = rimeDir(context).resolve(RimeConfigDeploymentHealth.InstallInProgressMarker)
+        val treeWasConsistent = !marker.exists()
+        writeMarker(marker, version)
+        return treeWasConsistent
+    }
+
+    fun abortInstall(context: Context) {
+        val marker = rimeDir(context).resolve(RimeConfigDeploymentHealth.InstallInProgressMarker)
+        check(!marker.exists() || marker.delete()) {
+            "Unable to abort the Rime configuration transaction"
+        }
     }
 
     fun record(context: Context, version: String, archiveSha256: String? = null) {

@@ -67,10 +67,16 @@ object RimeConfigInstaller {
             FcitxDaemon.withFcitxStopped {
                 // Journal only after the complete archive has passed validation, but before the
                 // first managed file can replace a working copy.
-                RimeConfigVersionStore.beginInstall(context, pending.version)
+                val previousTreeConsistent =
+                    RimeConfigVersionStore.beginInstall(context, pending.version)
                 RimeConfigArchive.overlay(
                     contentRoot = contentRoot,
-                    destinationDir = RimeConfigVersionStore.rimeDir(context)
+                    destinationDir = RimeConfigVersionStore.rimeDir(context),
+                    afterRollback = {
+                        // A restored tree is trustworthy only if no earlier transaction was
+                        // interrupted; otherwise keep the marker so provisioning still repairs it.
+                        if (previousTreeConsistent) RimeConfigVersionStore.abortInstall(context)
+                    }
                 )
                 RimeConfigVersionStore.record(
                     context = context,
