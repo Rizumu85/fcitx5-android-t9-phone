@@ -8,11 +8,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.concurrent.ConcurrentLinkedQueue
-import kotlin.coroutines.Continuation
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
 class FcitxLifecycleRegistry : FcitxLifecycle {
 
@@ -29,12 +29,16 @@ class FcitxLifecycleRegistry : FcitxLifecycle {
     override val currentState: FcitxLifecycle.State
         get() = internalState
 
+    @Volatile
     private var internalState = FcitxLifecycle.State.STOPPED
+
+    // The state enum is reassigned inside the critical section, so it cannot be its own lock.
+    private val transitionLock = Any()
 
     override val lifecycleScope: CoroutineScope =
         FcitxLifecycleCoroutineScope(this).also { addObserver(it) }
 
-    fun postEvent(event: FcitxLifecycle.Event) = synchronized(internalState) {
+    fun postEvent(event: FcitxLifecycle.Event) = synchronized(transitionLock) {
         when (event) {
             FcitxLifecycle.Event.ON_START -> {
                 ensureAt(FcitxLifecycle.State.STOPPED)
@@ -126,20 +130,24 @@ fun <T> FcitxLifecycle.launchWhenStopped(block: suspend CoroutineScope.() -> T) 
     lifecycleScope.launch { whenStopped(block) }
 
 private class AtStateHelper(val lifecycle: FcitxLifecycle, val state: FcitxLifecycle.State) {
-    private val observer = FcitxLifecycleObserver {
-        if (lifecycle.currentState == state)
-            continuation?.resume(Unit)
-    }
-
-    init {
-        lifecycle.addObserver(observer)
-    }
-
-    private var continuation: Continuation<Unit>? = null
-
     suspend fun <T> run(block: suspend CoroutineScope.() -> T): T {
-        suspendCoroutine { continuation = it }
-        lifecycle.removeObserver(observer)
+        suspendCancellableCoroutine { continuation ->
+            val resumed = AtomicBoolean(false)
+            lateinit var observer: FcitxLifecycleObserver
+            fun resumeIfAtState() {
+                if (lifecycle.currentState == state && resumed.compareAndSet(false, true)) {
+                    lifecycle.removeObserver(observer)
+                    continuation.resume(Unit)
+                }
+            }
+            observer = FcitxLifecycleObserver { resumeIfAtState() }
+            lifecycle.addObserver(observer)
+            continuation.invokeOnCancellation { lifecycle.removeObserver(observer) }
+            // The transition may have happened after the caller's state check but before the
+            // observer was registered. Missing it would leave this job, and every Fcitx job queued
+            // behind it, suspended until the service is recreated.
+            resumeIfAtState()
+        }
         return block(lifecycle.lifecycleScope)
     }
 }
