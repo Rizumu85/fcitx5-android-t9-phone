@@ -3824,8 +3824,19 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             return // do nothing if prediction matches
         } else {
             // cursor update can't match any prediction: it's treated as a user input
+            // Compare with the last position the editor reported, not with a stale prediction.
+            val cursorMoved = !selection.current.rangeEquals(newSelStart, newSelEnd)
             selection.resetTo(newSelStart, newSelEnd)
-            smartEnglishCoordinator.interruptLearningWord()
+            // Multi-tap shows and commits its pending letter without exact predictions. A
+            // collapsed cursor at the end of the editor's composing range, or one that did not
+            // move at all, is the IME's own update; only a real move invalidates the word being
+            // learned.
+            val ownComposingUpdate = newComposingEnd >= 0 &&
+                newSelStart == newSelEnd &&
+                newSelEnd == newComposingEnd
+            if (cursorMoved && !ownComposingUpdate) {
+                smartEnglishCoordinator.interruptLearningWord()
+            }
         }
         // skip selection range update, we only care about selection cursor (zero width) here
         if (newSelStart != newSelEnd) return
