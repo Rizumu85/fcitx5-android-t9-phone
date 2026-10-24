@@ -31,6 +31,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InlineSuggestionsRequest
 import android.view.inputmethod.InlineSuggestionsResponse
+import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodSubtype
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
@@ -1148,6 +1149,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 hasTextAfterCursor = null
             )
         }
+        surroundingDeleteSnapshot(ic, tracked)?.let { return it }
         val extracted = ic.getExtractedText(ExtractedTextRequest(), 0)
         val extractedText = extracted?.text
         val extractedStart = extracted?.selectionStart ?: -1
@@ -1175,6 +1177,37 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             } else {
                 null
             }
+        )
+    }
+
+    /**
+     * Held Back repeats this for every deleted character. One character on each side of the
+     * selection answers both "is the editor empty" and "where is the real selection" without the
+     * full-document copy that ExtractedText performs in editors that ignore hintMaxChars.
+     */
+    private fun surroundingDeleteSnapshot(
+        ic: InputConnection,
+        tracked: PhysicalDeleteCoordinator.Selection
+    ): PhysicalDeleteCoordinator.EditorSnapshot? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
+        val surrounding = runCatching { ic.getSurroundingText(1, 1, 0) }.getOrNull() ?: return null
+        val text = surrounding.text
+        val start = surrounding.selectionStart
+        val end = surrounding.selectionEnd
+        if (start < 0 || end < start || end > text.length) return null
+        // The default InputConnection implementation reports offset -1 when it cannot place the
+        // window in the document; the absolute selection is then unknown.
+        val offset = surrounding.offset
+        return PhysicalDeleteCoordinator.EditorSnapshot(
+            trackedSelection = tracked,
+            extractedTextEmpty = text.isEmpty(),
+            extractedSelection = if (offset >= 0) {
+                PhysicalDeleteCoordinator.Selection(offset + start, offset + end)
+            } else {
+                null
+            },
+            hasTextBeforeCursor = start > 0,
+            hasTextAfterCursor = text.length > end
         )
     }
 
@@ -1669,13 +1702,17 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             physicalSelectionAnchor = cursor
             physicalSelectionFocus = cursor
         }
-        val extractedLength = ic.getExtractedText(ExtractedTextRequest(), 0)
-            ?.text
-            ?.length
-            ?: Int.MAX_VALUE
-        val nextFocus = (physicalSelectionFocus + delta)
-            .coerceAtLeast(0)
-            .coerceAtMost(extractedLength)
+        // Only a focus at the selection end can run past the text. Asking the editor for one
+        // character there avoids copying the whole document over IPC on every DPAD press, and an
+        // editor that cannot answer keeps the focus in place instead of drifting past the end.
+        val canMoveForward = delta <= 0 ||
+            physicalSelectionFocus < physicalSelectionAnchor ||
+            ic.getTextAfterCursor(1, 0)?.isNotEmpty() == true
+        val nextFocus = if (canMoveForward) {
+            (physicalSelectionFocus + delta).coerceAtLeast(0)
+        } else {
+            physicalSelectionFocus
+        }
         if (nextFocus == physicalSelectionFocus) return true
         physicalSelectionFocus = nextFocus
         val start = min(physicalSelectionAnchor, physicalSelectionFocus)
