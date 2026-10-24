@@ -1095,7 +1095,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     val im = event.data.uniqueName
                     val subtype = SubtypeManager.subtypeOf(im) ?: return
-                    skipNextSubtypeChange = im
+                    pendingSubtypeNotifications.addLast(im)
+                    while (pendingSubtypeNotifications.size > MaxPendingSubtypeNotifications) {
+                        pendingSubtypeNotifications.removeFirst()
+                    }
                     // [^1]: notify system that input method subtype has changed
                     switchInputMethod(InputMethodUtil.componentName, subtype)
                 }
@@ -3570,7 +3573,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
      * Input method should only be changed when user changes subtype in system input method picker
      * manually.
      */
-    private var skipNextSubtypeChange: String? = null
+    // Entering and leaving a password field produces rime -> keyboard-us -> rime in quick
+    // succession. One remembered notification let the late keyboard-us callback look like a user
+    // choice and re-activate it, so every pending notification is kept in order.
+    private val pendingSubtypeNotifications = ArrayDeque<String>()
 
     override fun onCurrentInputMethodSubtypeChanged(newSubtype: InputMethodSubtype) {
         super.onCurrentInputMethodSubtypeChanged(newSubtype)
@@ -3579,8 +3585,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             Timber.d("onCurrentInputMethodSubtypeChanged: im=$im")
             // don't change input method if this "subtype change" was our notify to system
             // see [^1]
-            if (skipNextSubtypeChange == im) {
-                skipNextSubtypeChange = null
+            val notified = pendingSubtypeNotifications.indexOf(im)
+            if (notified >= 0) {
+                repeat(notified + 1) { pendingSubtypeNotifications.removeFirst() }
                 return
             }
             postFcitxJob {
@@ -4098,6 +4105,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         private const val EXPLICIT_SELECTION_DELETE_WINDOW_MS = 500L
         private const val SELECTION_REPLACEMENT_KEY_WINDOW_MS = 300L
         private const val SmartEnglishCandidateLimit = 80
+        private const val MaxPendingSubtypeNotifications = 4
         private const val SmartEnglishNoMatchText = "No match"
         private const val ChinesePredictionRimeOption = "prediction"
         private const val RIME_INPUT_METHOD = "rime"
