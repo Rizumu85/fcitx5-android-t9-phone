@@ -59,32 +59,36 @@ object RimeConfigInstaller {
             // Extraction and validation stay outside the daemon lock: FcitxDaemon.connect takes the
             // same lock on the IME main thread, so a slow 20 MB unzip there would risk an ANR.
             val stagingDir = context.cacheDir.resolve("rime-config-update")
-            val contentRoot = openArchive().use { input ->
-                RimeConfigArchive.stage(source = input, stagingDir = stagingDir)
+            try {
+                val contentRoot = openArchive().use { input ->
+                    RimeConfigArchive.stage(source = input, stagingDir = stagingDir)
+                }
+                // Rime reads a related YAML graph rather than one file. Excluding native startup
+                // from the overlay is what makes the receipt a trustworthy all-or-nothing boundary.
+                FcitxDaemon.withFcitxStopped {
+                    // Journal only after the complete archive has passed validation, but before
+                    // the first managed file can replace a working copy.
+                    val previousTreeConsistent =
+                        RimeConfigVersionStore.beginInstall(context, pending.version)
+                    RimeConfigArchive.overlay(
+                        contentRoot = contentRoot,
+                        destinationDir = RimeConfigVersionStore.rimeDir(context),
+                        afterRollback = {
+                            // A restored tree is trustworthy only if no earlier transaction was
+                            // interrupted; otherwise the marker stays so provisioning repairs it.
+                            if (previousTreeConsistent) RimeConfigVersionStore.abortInstall(context)
+                        }
+                    )
+                    RimeConfigVersionStore.record(
+                        context = context,
+                        version = pending.version,
+                        archiveSha256 = archiveSha256
+                    )
+                }
+            } finally {
+                // A failed attempt must not leave up to 256 MB of extracted files in the cache.
+                stagingDir.deleteRecursively()
             }
-            // Rime reads a related YAML graph rather than one file. Excluding native startup from
-            // the overlay is what makes the receipt a trustworthy all-or-nothing boundary.
-            FcitxDaemon.withFcitxStopped {
-                // Journal only after the complete archive has passed validation, but before the
-                // first managed file can replace a working copy.
-                val previousTreeConsistent =
-                    RimeConfigVersionStore.beginInstall(context, pending.version)
-                RimeConfigArchive.overlay(
-                    contentRoot = contentRoot,
-                    destinationDir = RimeConfigVersionStore.rimeDir(context),
-                    afterRollback = {
-                        // A restored tree is trustworthy only if no earlier transaction was
-                        // interrupted; otherwise keep the marker so provisioning still repairs it.
-                        if (previousTreeConsistent) RimeConfigVersionStore.abortInstall(context)
-                    }
-                )
-                RimeConfigVersionStore.record(
-                    context = context,
-                    version = pending.version,
-                    archiveSha256 = archiveSha256
-                )
-            }
-            stagingDir.deleteRecursively()
         }
     }.onFailure {
         Timber.e(it, "Failed to install Rime configuration ${pending.version}")

@@ -89,7 +89,11 @@ object RimeConfigArchive {
         journal.forEach { (_, backup) -> backup?.delete() }
     }
 
-    private fun copyOverlay(source: File, destination: File, journal: MutableList<Pair<File, File?>>) {
+    private fun copyOverlay(
+        source: File,
+        destination: File,
+        journal: MutableList<Pair<File, File?>>
+    ) {
         if (source.isDirectory) {
             destination.mkdirs()
             source.listFiles().orEmpty().forEach { child ->

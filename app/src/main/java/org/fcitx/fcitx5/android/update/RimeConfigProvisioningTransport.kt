@@ -37,7 +37,10 @@ object RimeConfigProvisioningTransport {
                     }
                     return archive
                 }
-                .onFailure { failure = it }
+                .onFailure {
+                    failure = it
+                    partial.delete()
+                }
         }
         throw failure ?: IllegalStateException("No Rime configuration source is available")
     }
@@ -70,7 +73,6 @@ object RimeConfigProvisioningTransport {
         }
 
         require(partial.sha256().equals(expectedSha256, ignoreCase = true)) {
-            partial.delete()
             "Downloaded Rime configuration failed SHA-256 verification"
         }
     }
@@ -91,10 +93,14 @@ object RimeConfigProvisioningTransport {
         }
         val adopting = archive.resolveSibling("${archive.name}.adopting")
         adopting.parentFile?.mkdirs()
-        source.copyTo(adopting, overwrite = true)
-        archive.delete()
-        check(adopting.renameTo(archive)) {
-            "Unable to checkpoint the completed Rime configuration"
+        try {
+            source.copyTo(adopting, overwrite = true)
+            archive.delete()
+            check(adopting.renameTo(archive)) {
+                "Unable to checkpoint the completed Rime configuration"
+            }
+        } finally {
+            adopting.delete()
         }
         return archive
     }
