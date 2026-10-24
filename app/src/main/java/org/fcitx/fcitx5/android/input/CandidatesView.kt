@@ -993,6 +993,7 @@ class CandidatesView(
                         source = compositionTicket,
                         enabled = service.isChinesePredictionEnabled()
                     )
+                    service.notePendingChineseT9Selection(compositionTicket)
                 }
                 accepted
             },
@@ -1015,6 +1016,7 @@ class CandidatesView(
             },
             reject = {
                 chinesePredictionCandidateSession.cancel(predictionArm)
+                service.clearPendingChineseT9Selection(compositionTicket)
                 refreshT9Ui()
             }
         )

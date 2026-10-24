@@ -982,8 +982,10 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun handleFcitxEvent(event: FcitxEvent<*>) {
         when (event) {
             is FcitxEvent.CommitStringEvent -> {
+                val keysTypedAfterSelection = takeKeysTypedAfterPendingSelection()
                 clearT9CompositionState()
                 commitText(event.data.text, event.data.cursor)
+                restoreKeysTypedAfterCommit(keysTypedAfterSelection)
             }
             is FcitxEvent.KeyEvent -> event.data.let event@{
                 if (it.states.virtual) {
@@ -2944,6 +2946,53 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun chineseT9ReceiptForSource(source: Long): ChineseT9InputReceipt? =
         chineseT9Sources.find(source, chineseT9Composition.compositionTicket())
 
+    /**
+     * A candidate that consumes the whole input is committed by Rime itself. Keys typed between
+     * choosing it and Rime's commit belong to the next composition; clearing the composition for
+     * the commit would otherwise drop them both locally and from the engine queue.
+     */
+    private var pendingWholeSelectionTicket: ChineseT9CompositionTicket? = null
+
+    fun notePendingChineseT9Selection(ticket: ChineseT9CompositionTicket) {
+        pendingWholeSelectionTicket = ticket
+    }
+
+    fun clearPendingChineseT9Selection(ticket: ChineseT9CompositionTicket) {
+        if (pendingWholeSelectionTicket == ticket) pendingWholeSelectionTicket = null
+    }
+
+    private fun takeKeysTypedAfterPendingSelection(): String {
+        val selected = pendingWholeSelectionTicket ?: return ""
+        pendingWholeSelectionTicket = null
+        if (currentT9Mode != T9InputMode.CHINESE) return ""
+        val current = chineseT9Composition.compositionTicket()
+        if (current.scheme != selected.scheme || current.sessionEpoch != selected.sessionEpoch) {
+            return ""
+        }
+        if (!current.rawSequence.startsWith(selected.rawSequence)) return ""
+        return current.rawSequence.substring(selected.rawSequence.length)
+    }
+
+    private fun restoreKeysTypedAfterCommit(keys: String) {
+        if (keys.isEmpty() || currentT9Mode != T9InputMode.CHINESE) return
+        keys.forEach { key ->
+            val keyCode = when (key) {
+                '\'' -> KeyEvent.KEYCODE_1
+                in '0'..'9' -> KeyEvent.KEYCODE_0 + key.digitToInt()
+                else -> return@forEach
+            }
+            chineseT9Composition.handleForwardedKeyDown(keyCode)
+        }
+        if (!hasT9CompositionState()) return
+        // The cleared composition dropped any queued key commands. Replacing the engine input
+        // with the restored source is correct whether or not Rime already saw those keys.
+        val receipt = currentChineseT9InputReceipt()
+        if (activeChineseT9Scheme != ChineseT9Scheme.PINYIN) {
+            candidatesView?.waitForT9EngineCandidatesThenRefresh(receipt)
+        }
+        replayT9RawComposition(chineseT9Composition.snapshot().rawSequence, receipt)
+    }
+
     private fun isSameChineseT9Session(ticket: ChineseT9CompositionTicket): Boolean =
         isChineseT9InputModeActive() &&
             activeChineseT9Scheme == ticket.scheme &&
@@ -3021,6 +3070,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         val rawPreedit = chineseT9Composition.consumeSelectedCandidateReading(
             candidate = candidate
         ) ?: return false
+        // A partial selection is committed by the app, not by a Rime commit event.
+        pendingWholeSelectionTicket = null
         if (candidate.text.isEmpty()) return false
         val receipt = currentChineseT9InputReceipt()
         t9CandidateFocusController.stageForNextFrame(T9CandidateFocus.BOTTOM)
