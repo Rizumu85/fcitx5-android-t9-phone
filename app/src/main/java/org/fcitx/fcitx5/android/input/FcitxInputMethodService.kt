@@ -2944,6 +2944,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun chineseT9ReceiptForSource(source: Long): ChineseT9InputReceipt? =
         chineseT9Sources.find(source, chineseT9Composition.compositionTicket())
 
+    private fun isSameChineseT9Session(ticket: ChineseT9CompositionTicket): Boolean =
+        isChineseT9InputModeActive() &&
+            activeChineseT9Scheme == ticket.scheme &&
+            chineseT9Composition.compositionTicket().sessionEpoch == ticket.sessionEpoch
+
     fun isCurrentChineseT9Composition(ticket: ChineseT9CompositionTicket): Boolean =
         isChineseT9InputModeActive() &&
             activeChineseT9Scheme == ticket.scheme &&
@@ -3067,8 +3072,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
         val replayScheme = ticket.scheme
         val source = chineseT9Sources.register(receipt)
+        // Keys typed after this partial commit are queued behind the replay and reach Rime after
+        // it, so a newer keystroke must not cancel the replay. Cancelling it left Rime holding
+        // the committed prefix while the local raw code had already dropped it.
         chineseT9EngineOperation.enqueue(
-            acceptBefore = { isCurrentChineseT9Composition(ticket) },
+            acceptBefore = { isSameChineseT9Session(ticket) },
             execute = {
                 withContext(Dispatchers.Main.immediate) {
                     // Rime first emits a useful remaining-candidate frame for the selected text.
@@ -3086,7 +3094,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                     }
                 }
             },
-            acceptAfter = { isCurrentChineseT9Composition(ticket) },
+            acceptAfter = { isSameChineseT9Session(ticket) },
             finish = {}
         )
     }
