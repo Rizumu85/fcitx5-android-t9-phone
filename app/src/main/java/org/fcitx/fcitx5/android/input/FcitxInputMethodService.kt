@@ -290,7 +290,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             cycleCase = { smartEnglishCaseCoordinator.cycle() },
             handleMultiTapKey = { keyCode -> t9MultiTapCoordinator.handleKey(keyCode) },
             commitMultiTapChar = { t9MultiTapCoordinator.commitPending() },
-            cancelMultiTapChar = { t9MultiTapCoordinator.cancelPending() },
+            cancelMultiTapChar = {
+                // Clearing the pending letter's composing span moves the cursor back one unit;
+                // predict it so the cursor update is not mistaken for the user moving the cursor.
+                if (t9MultiTapCoordinator.hasPendingChar) selection.predictOffset(-1)
+                t9MultiTapCoordinator.cancelPending()
+            },
             undoMultiTapPress = { t9MultiTapCoordinator.undoLastPress() }
         ),
         candidates = PhysicalT9KeyHostAdapter.CandidateActions(
@@ -1395,7 +1400,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun commitTextInternal(
         text: String,
         cursor: Int,
-        preserveChineseT9Composition: Boolean
+        preserveChineseT9Composition: Boolean,
+        replacedUntrackedComposingLength: Int = 0
     ) {
         // A selected Hanzi still waiting for its replacement frame precedes any later commit.
         flushPendingT9Selection()
@@ -1420,7 +1426,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         }
         // committed text should replace composing (if any), replace selected range (if any),
         // or simply prepend before cursor
-        val start = if (composing.isEmpty()) selection.latest.start else composing.start
+        val start = if (composing.isEmpty()) {
+            selection.latest.start - replacedUntrackedComposingLength
+        } else {
+            composing.start
+        }
         resetComposingStateForCommit(preserveChineseT9Composition)
         if (cursor == -1) {
             selection.predict(start + text.length)
@@ -2095,7 +2105,17 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             event.eventTime - event.downTime >= physicalLongPressDelay.toLong()
 
     private val t9MultiTapCoordinator = T9MultiTapCoordinator(
-        commitText = { text -> commitText(text) },
+        commitText = { text ->
+            // A multi-tap letter always replaces its own composing span, which the Fcitx composing
+            // tracker does not know about. Predicting from the span start keeps the cursor tracker
+            // exact; an overshoot would make the next delete look like the user moving the cursor.
+            commitTextInternal(
+                text,
+                cursor = -1,
+                preserveChineseT9Composition = false,
+                replacedUntrackedComposingLength = text.length
+            )
+        },
         setComposingText = { text -> currentInputConnection?.setComposingText(text, 1) },
         finishComposingText = { currentInputConnection?.finishComposingText() },
         applyCase = { char -> smartEnglishCoordinator.applyCase(char) },
@@ -3812,6 +3832,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         newComposingEnd: Int,
         updateIndex: Int
     ) {
+        // consume() records the new position, so remember the last reported one first.
+        val reportedStart = selection.current.start
+        val reportedEnd = selection.current.end
         if (selection.consume(newSelStart, newSelEnd)) {
             // try restore composing range in case it was dropped by InputFilter
             // but only when prediction matches, since InputFilter can also change editor content
@@ -3825,7 +3848,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         } else {
             // cursor update can't match any prediction: it's treated as a user input
             // Compare with the last position the editor reported, not with a stale prediction.
-            val cursorMoved = !selection.current.rangeEquals(newSelStart, newSelEnd)
+            val cursorMoved = reportedStart != newSelStart || reportedEnd != newSelEnd
             selection.resetTo(newSelStart, newSelEnd)
             // Multi-tap shows and commits its pending letter without exact predictions. A
             // collapsed cursor at the end of the editor's composing range, or one that did not
