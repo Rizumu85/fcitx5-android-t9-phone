@@ -315,7 +315,12 @@ view's draw traversal. This ordering prevents either a new focus over stale
 readings or committed editor text beside the obsolete candidate page. Selected
 text is never dropped: a newer accepted frame in the same session epoch releases
 it when typed-ahead input superseded its own frame, and another selection, any
-other commit, or a composition clear commits it first.
+other commit, or a composition clear commits it first. Keys typed right after
+OK only extend the source and are queued behind the selection, so the selection
+still completes. A partial selection whose span cannot be read from the
+candidate comment resets Rime to the unchanged local source rather than leaving
+the two out of step; the companion configuration therefore keeps reading
+comments on emoji candidates.
 The compact top preview is always a single-line viewport and keeps the active
 tail visible when a long reading exceeds the screen width. Fixed-height T9
 preedit centers its lone visible row, and compact text rows use representative
