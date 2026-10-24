@@ -2378,7 +2378,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                     rimeAvailabilitySession.current.isReady &&
                     rimeSchemaSelectionSession.isCurrent(attempt)
             }
-            if (!maySelect) return@postFcitxJob
+            if (!maySelect) {
+                // Leaving the attempt in flight would make every later request for the same
+                // scheme return null, holding input at schema selection until Rime restarts.
+                withContext(Dispatchers.Main.immediate) {
+                    rimeSchemaSelectionSession.abandon(attempt)
+                }
+                return@postFcitxJob
+            }
             val selected = setRimeSchema(attempt.target.rimeSchemaId)
             withContext(Dispatchers.Main.immediate) {
                 if (selected) {
@@ -2404,6 +2411,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                         is RimeSchemaSelectionSession.Failure.Retry ->
                             scheduleRimeSchemaSelectionRetry(failure)
                         RimeSchemaSelectionSession.Failure.Exhausted -> {
+                            // A missing schema must not leave a phantom handoff that hides later
+                            // status and makes the next long-* cycle from the failed target.
+                            chineseT9SchemeCycle.clearRequest()
                             chineseT9EngineOperation.discardPending()
                             discardChineseCompositionForUnavailableRime(
                                 showUnavailableStatus = true

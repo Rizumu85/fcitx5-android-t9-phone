@@ -39,6 +39,11 @@ class ChineseT9SchemeCycleSession {
         return target
     }
 
+    /** The requested scheme can no longer be selected, so cycling restarts from the active one. */
+    fun clearRequest() {
+        requested = null
+    }
+
     fun observeActive(scheme: ChineseT9Scheme): ActivationPresentation {
         val pending = requested ?: return ActivationPresentation.SHOW_CONFIRMATION
         if (pending == scheme) requested = null

@@ -76,6 +76,14 @@ class RimeSchemaSelectionSession(
         return true
     }
 
+    /**
+     * The attempt could not be issued because Rime stopped being the active, ready input method.
+     * The user's target stays desired; a later request or resume may issue a fresh attempt.
+     */
+    fun abandon(attempt: Attempt) {
+        if (isCurrent(attempt)) inFlight = null
+    }
+
     fun onFailure(attempt: Attempt): Failure {
         if (!isCurrent(attempt)) return Failure.Stale
         inFlight = null

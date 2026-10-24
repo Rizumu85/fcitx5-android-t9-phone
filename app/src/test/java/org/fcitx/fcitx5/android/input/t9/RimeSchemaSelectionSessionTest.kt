@@ -24,6 +24,18 @@ class RimeSchemaSelectionSessionTest {
     }
 
     @Test
+    fun `abandoned attempt lets a repeated request issue a new one`() {
+        val session = RimeSchemaSelectionSession(retryDelaysMs = listOf(10L))
+        val first = session.request(ChineseT9Scheme.STROKE, engineReady = true)!!
+
+        session.abandon(first)
+        val second = session.request(ChineseT9Scheme.STROKE, engineReady = true)
+
+        assertEquals(ChineseT9Scheme.STROKE, second?.target)
+        assertFalse(session.isCurrent(first))
+    }
+
+    @Test
     fun `transient failure retries and success clears the desired target`() {
         val session = RimeSchemaSelectionSession(retryDelaysMs = listOf(10L, 20L))
         val first = session.request(ChineseT9Scheme.STROKE, engineReady = true)!!

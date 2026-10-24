@@ -116,4 +116,16 @@ class ChineseT9SchemeCycleTest {
         session.observeActive(ChineseT9Scheme.STROKE)
         assertFalse(session.hasPendingHandoff)
     }
+
+    @Test
+    fun clearedRequestCyclesFromTheActiveSchemeAgain() {
+        val session = ChineseT9SchemeCycleSession()
+        val all = ChineseT9Scheme.entries
+
+        assertEquals(ChineseT9Scheme.STROKE, session.requestNext(ChineseT9Scheme.PINYIN, all))
+        session.clearRequest()
+
+        assertFalse(session.hasPendingHandoff)
+        assertEquals(ChineseT9Scheme.STROKE, session.requestNext(ChineseT9Scheme.PINYIN, all))
+    }
 }
