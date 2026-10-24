@@ -569,27 +569,47 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
      * must then skip sending a regular backspace to fcitx. Returns false for the normal
      * shrink-unresolved-suffix path (caller still forwards the backspace to fcitx/Rime).
      */
+    private sealed interface VirtualBackspaceStep {
+        data object NotChinese : VirtualBackspaceStep
+        data object PredictionDismissed : VirtualBackspaceStep
+        data class Reopened(val handled: Boolean) : VirtualBackspaceStep
+        data class Deleted(val source: Long) : VirtualBackspaceStep
+    }
+
     suspend fun handleVirtualT9Backspace(fcitx: FcitxAPI): Boolean {
-        if (currentT9Mode != T9InputMode.CHINESE) return false
-        if (candidatesView?.dismissChinesePredictionCandidates() == true) {
-            fcitx.reset()
-            return true
-        }
-        if (shouldReopenLastResolvedSegment()) {
-            return withContext(Dispatchers.Main.immediate) { reopenLastPinyinSelection() }
-        }
-        val source = withContext(Dispatchers.Main.immediate) {
-            chineseT9Composition.backspaceFromVirtualKey()
-            val receipt = currentChineseT9InputReceipt()
-            if (receipt.compositionTicket.digitSequence.isEmpty()) {
-                candidatesView?.hideT9CandidateUiImmediately()
-            } else {
-                candidatesView?.waitForT9EngineCandidatesThenRefresh(receipt)
+        // This runs in a Fcitx job. Composition and candidate views are main-thread state, so the
+        // whole decision is made there; only the engine calls stay on the Fcitx side.
+        val step = withContext(Dispatchers.Main.immediate) {
+            when {
+                currentT9Mode != T9InputMode.CHINESE -> VirtualBackspaceStep.NotChinese
+                candidatesView?.dismissChinesePredictionCandidates() == true ->
+                    VirtualBackspaceStep.PredictionDismissed
+                shouldReopenLastResolvedSegment() ->
+                    VirtualBackspaceStep.Reopened(reopenLastPinyinSelection())
+                else -> {
+                    chineseT9Composition.backspaceFromVirtualKey()
+                    val receipt = currentChineseT9InputReceipt()
+                    if (receipt.compositionTicket.digitSequence.isEmpty()) {
+                        candidatesView?.hideT9CandidateUiImmediately()
+                    } else {
+                        candidatesView?.waitForT9EngineCandidatesThenRefresh(receipt)
+                    }
+                    VirtualBackspaceStep.Deleted(chineseT9Sources.register(receipt))
+                }
             }
-            chineseT9Sources.register(receipt)
         }
-        fcitx.withCandidateSource(source) { }
-        return false
+        return when (step) {
+            VirtualBackspaceStep.NotChinese -> false
+            VirtualBackspaceStep.PredictionDismissed -> {
+                fcitx.reset()
+                true
+            }
+            is VirtualBackspaceStep.Reopened -> step.handled
+            is VirtualBackspaceStep.Deleted -> {
+                fcitx.withCandidateSource(step.source) { }
+                false
+            }
+        }
     }
 
     /**
