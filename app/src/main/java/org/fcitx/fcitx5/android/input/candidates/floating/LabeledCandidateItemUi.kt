@@ -39,6 +39,18 @@ class LabeledCandidateItemUi(
     private var lastCandidateText = ""
     private var lastCandidateComment = ""
     private var lastShortcutUsesNaturalTailWidth = false
+    // TextView.setText and setMaxWidth always request layout, which re-measures the whole floating
+    // window. Focus steps only change colors, so text and width limits are applied on change only.
+    private var renderedTextKey: Any? = null
+
+    private data class SpannedTextKey(
+        val label: String,
+        val text: String,
+        val comment: String,
+        val labelColor: Int,
+        val textColor: Int,
+        val commentColor: Int
+    )
 
     private val candidateText = T9SemanticTextView(ctx).apply {
         setupTextView(this)
@@ -102,7 +114,7 @@ class LabeledCandidateItemUi(
         applyShortcutWidthLimit(if (usesShortcutLabel) shortcutMaxWidthPx else null)
         applyShortcutLineMetrics(usesShortcutLabel)
         root.gravity = if (usesShortcutLabel) Gravity.CENTER else Gravity.CENTER_VERTICAL
-        root.minimumWidth = if (usesShortcutLabel) {
+        val minimumWidth = if (usesShortcutLabel) {
             if (lastShortcutUsesNaturalTailWidth) {
                 // Product decision: the final visible T9 shortcut chip is measured by its text.
                 // Otherwise the minimum tap target becomes visible as inconsistent blank space
@@ -113,6 +125,9 @@ class LabeledCandidateItemUi(
             }
         } else {
             0
+        }
+        if (root.minimumWidth != minimumWidth) {
+            root.minimumWidth = minimumWidth
         }
         candidateText.includeFontPadding = true
         // T9 shortcut chips use real child views instead of newline spans. RecyclerView/Flexbox
@@ -153,20 +168,31 @@ class LabeledCandidateItemUi(
         val altFg = if (active) theme.genericActiveForegroundColor else theme.candidateCommentColor
         if (t9InputModeEnabled && shortcutLabel != null) {
             candidateText.setTextColor(fg)
-            candidateText.text = candidate.text
+            if (renderedTextKey != candidate.text) {
+                candidateText.text = candidate.text
+                renderedTextKey = candidate.text
+            }
             shortcutText.setTextColor(if (active) theme.genericActiveForegroundColor else theme.candidateCommentColor)
-            shortcutText.text = shortcutLabel
+            if (!TextUtils.equals(shortcutText.text, shortcutLabel)) {
+                shortcutText.text = shortcutLabel
+            }
             shortcutText.visibility = View.VISIBLE
         } else {
-            candidateText.text = buildSpannedString {
-                color(labelFg) { append(candidate.label) }
-                color(fg) { append(candidate.text) }
-                if (candidate.comment.isNotBlank()) {
-                    append(" ")
-                    color(altFg) { append(candidate.comment) }
+            val key = SpannedTextKey(candidate.label, candidate.text, candidate.comment, labelFg, fg, altFg)
+            if (renderedTextKey != key) {
+                candidateText.text = buildSpannedString {
+                    color(labelFg) { append(candidate.label) }
+                    color(fg) { append(candidate.text) }
+                    if (candidate.comment.isNotBlank()) {
+                        append(" ")
+                        color(altFg) { append(candidate.comment) }
+                    }
                 }
+                renderedTextKey = key
             }
-            shortcutText.text = ""
+            if (shortcutText.text.isNotEmpty()) {
+                shortcutText.text = ""
+            }
             shortcutText.visibility = View.GONE
         }
         if (candidate.label != lastCandidateLabel ||
@@ -195,14 +221,21 @@ class LabeledCandidateItemUi(
 
     private fun applyShortcutWidthLimit(maxRootWidthPx: Int?) {
         if (maxRootWidthPx == null || maxRootWidthPx <= 0) {
-            candidateText.maxWidth = Int.MAX_VALUE
-            candidateText.ellipsize = null
+            applyTextWidthLimit(Int.MAX_VALUE, null)
             return
         }
         val textMaxWidth = (maxRootWidthPx - root.paddingLeft - root.paddingRight)
             .coerceAtLeast(candidateText.textSize.toInt())
-        candidateText.maxWidth = textMaxWidth
-        candidateText.ellipsize = TextUtils.TruncateAt.END
+        applyTextWidthLimit(textMaxWidth, TextUtils.TruncateAt.END)
+    }
+
+    private fun applyTextWidthLimit(maxWidthPx: Int, ellipsize: TextUtils.TruncateAt?) {
+        if (candidateText.maxWidth != maxWidthPx) {
+            candidateText.maxWidth = maxWidthPx
+        }
+        if (candidateText.ellipsize != ellipsize) {
+            candidateText.ellipsize = ellipsize
+        }
     }
 
     private fun applyShortcutLineMetrics(usesShortcutLabel: Boolean) {

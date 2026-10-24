@@ -200,11 +200,16 @@ class T9PinyinChipAdapter(
         }
 
         fun submit(items: List<String>, highlightedIndex: Int, highlightActive: Boolean) {
+            val itemsChanged = this.items != items
             this.items = items
             this.highlightedIndex = highlightedIndex.coerceIn(0, items.lastIndex.coerceAtLeast(0))
             this.highlightActive = highlightActive
-            recalculateBounds()
-            requestLayout()
+            // Focus and highlight steps only repaint; requesting layout here would re-measure the
+            // whole floating window on every directional key.
+            if (itemsChanged) {
+                recalculateBounds()
+                requestLayout()
+            }
             invalidate()
         }
 
