@@ -399,7 +399,7 @@ class PhysicalT9KeyFlowTest {
 
         assertEquals(
             listOf(
-                PhysicalT9KeyFlow.Command.CancelMultiTapChar,
+                PhysicalT9KeyFlow.Command.CommitMultiTapChar,
                 PhysicalT9KeyFlow.Command.CommitText("0")
             ),
             repeat?.commands
@@ -1486,7 +1486,7 @@ class PhysicalT9KeyFlowTest {
 
         assertEquals(
             listOf(
-                PhysicalT9KeyFlow.Command.CancelMultiTapChar,
+                PhysicalT9KeyFlow.Command.UndoMultiTapPress,
                 PhysicalT9KeyFlow.Command.CommitText("2")
             ),
             repeat?.commands

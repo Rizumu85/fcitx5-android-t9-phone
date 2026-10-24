@@ -256,6 +256,10 @@ class PhysicalT9CommandExecutorTest {
         override fun cancelMultiTapChar() {
             calls += "cancelMultiTapChar"
         }
+
+        override fun undoMultiTapPress() {
+            calls += "undoMultiTapPress"
+        }
         override fun appendSmartEnglishDigit(digit: Int) {
             calls += "appendSmartEnglishDigit:$digit"
         }

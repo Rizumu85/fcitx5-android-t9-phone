@@ -64,8 +64,9 @@ internal class PhysicalT9EnglishKeyFlow(
                         state.isSmartEnglishActive && state.hasSmartEnglishCandidates -> listOf(
                             Command.CommitSmartEnglishShortcut(KeyEvent.KEYCODE_1)
                         )
+                        // The pending letter belongs to an earlier key press, so it is kept.
                         else -> listOf(
-                            Command.CancelMultiTapChar,
+                            Command.CommitMultiTapChar,
                             Command.CommitText("1"),
                             Command.FlushEnglishLearningWord
                         )
@@ -189,7 +190,7 @@ internal class PhysicalT9EnglishKeyFlow(
                         emptyList()
                     } else {
                         listOf(
-                            Command.CancelMultiTapChar,
+                            Command.CommitMultiTapChar,
                             Command.CommitText("0")
                         )
                     }
@@ -332,8 +333,10 @@ internal class PhysicalT9EnglishKeyFlow(
                 setDigitLongPressFlag(input.keyCode, true)
                 Decision(
                     handled = true,
+                    // This key's own down already started or cycled a letter; only that press is
+                    // reverted.
                     commands = listOf(
-                        Command.CancelMultiTapChar,
+                        Command.UndoMultiTapPress,
                         Command.CommitText(digit.toString())
                     )
                 )

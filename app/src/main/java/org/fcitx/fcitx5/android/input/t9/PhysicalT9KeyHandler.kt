@@ -97,6 +97,7 @@ class PhysicalT9KeyHandler(
         fun handleMultiTapKey(keyCode: Int): Boolean
         fun commitMultiTapChar(): Boolean
         fun cancelMultiTapChar()
+        fun undoMultiTapPress()
         fun appendSmartEnglishDigit(digit: Int)
         fun resetSmartEnglishT9()
         fun commitSmartEnglishCandidate(

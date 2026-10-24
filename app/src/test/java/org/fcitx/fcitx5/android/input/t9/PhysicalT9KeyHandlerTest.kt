@@ -921,6 +921,7 @@ class PhysicalT9KeyHandlerTest {
         override fun handleMultiTapKey(keyCode: Int): Boolean = false
         override fun commitMultiTapChar(): Boolean = false
         override fun cancelMultiTapChar() = Unit
+        override fun undoMultiTapPress() = Unit
 
         override fun appendSmartEnglishDigit(digit: Int) {
             appendedSmartEnglishDigits += digit

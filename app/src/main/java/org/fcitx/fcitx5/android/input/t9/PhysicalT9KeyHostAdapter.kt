@@ -52,7 +52,8 @@ class PhysicalT9KeyHostAdapter(
         val cycleCase: () -> Unit,
         val handleMultiTapKey: (Int) -> Boolean,
         val commitMultiTapChar: () -> Boolean,
-        val cancelMultiTapChar: () -> Unit
+        val cancelMultiTapChar: () -> Unit,
+        val undoMultiTapPress: () -> Unit
     )
 
     data class CandidateActions(
@@ -200,6 +201,9 @@ class PhysicalT9KeyHostAdapter(
 
     override fun cancelMultiTapChar() =
         english.cancelMultiTapChar()
+
+    override fun undoMultiTapPress() =
+        english.undoMultiTapPress()
 
     override fun appendSmartEnglishDigit(digit: Int) =
         english.appendSmartEnglishDigit(digit)

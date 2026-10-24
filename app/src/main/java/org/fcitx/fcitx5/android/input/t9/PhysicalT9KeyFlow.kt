@@ -46,6 +46,7 @@ class PhysicalT9KeyFlow {
         object CommitPendingPunctuation : Command()
         object CancelPendingPunctuation : Command()
         object CancelMultiTapChar : Command()
+        object UndoMultiTapPress : Command()
         object ShowChinesePunctuationCandidates : Command()
         object ShowEnglishPunctuationCandidates : Command()
         object CommitChineseCandidateAndShowPunctuation : Command()

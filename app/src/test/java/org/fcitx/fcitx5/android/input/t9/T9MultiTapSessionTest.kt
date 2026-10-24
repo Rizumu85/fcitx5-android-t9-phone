@@ -27,6 +27,26 @@ class T9MultiTapSessionTest {
     }
 
     @Test
+    fun undoingACyclingPressRestoresTheLetterShownBeforeIt() {
+        val session = T9MultiTapSession()
+        session.handleKey(KeyEvent.KEYCODE_2, 0L)
+        session.handleKey(KeyEvent.KEYCODE_2, 300L)
+
+        assertEquals('a', session.undoLastPress())
+        assertFalse(session.hasPendingChar)
+    }
+
+    @Test
+    fun undoingAFreshPressLeavesNothingToCommit() {
+        val session = T9MultiTapSession()
+        session.handleKey(KeyEvent.KEYCODE_2, 0L)
+        session.handleKey(KeyEvent.KEYCODE_3, 300L)
+
+        assertNull(session.undoLastPress())
+        assertFalse(session.hasPendingChar)
+    }
+
+    @Test
     fun differentKeyCommitsPreviousAndStartsNewPendingCharacter() {
         val session = T9MultiTapSession()
         session.handleKey(KeyEvent.KEYCODE_2, 0L)

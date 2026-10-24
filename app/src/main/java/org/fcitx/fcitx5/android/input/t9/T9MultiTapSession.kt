@@ -20,6 +20,7 @@ class T9MultiTapSession(
     private var lastTime = 0L
     private var index = 0
     private var pendingChar: Char? = null
+    private var pendingBeforeLastPress: Char? = null
 
     val hasPendingChar: Boolean
         get() = pendingChar != null
@@ -30,10 +31,12 @@ class T9MultiTapSession(
         val letters = keyMap[keyCode] ?: return null
         val committedPrevious =
             if (keyCode == lastKey && eventTimeMillis - lastTime < timeoutMillis) {
+                pendingBeforeLastPress = pendingChar
                 index = (index + 1) % letters.length
                 null
             } else {
                 val committed = pendingChar
+                pendingBeforeLastPress = null
                 index = 0
                 committed
             }
@@ -54,6 +57,16 @@ class T9MultiTapSession(
         return committed
     }
 
+    /**
+     * Reverts the latest press, which a long press turns into a literal digit. When that press only
+     * cycled an existing letter, the letter shown before it is returned so it can still be committed.
+     */
+    fun undoLastPress(): Char? {
+        val previous = pendingBeforeLastPress
+        clear()
+        return previous
+    }
+
     fun cancelPending(): Boolean {
         val hadPending = pendingChar != null
         clear()
@@ -68,6 +81,7 @@ class T9MultiTapSession(
 
     private fun clear() {
         pendingChar = null
+        pendingBeforeLastPress = null
         lastKey = -1
         lastTime = 0L
         index = 0

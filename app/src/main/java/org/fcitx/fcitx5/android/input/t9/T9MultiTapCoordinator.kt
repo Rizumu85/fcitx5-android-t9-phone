@@ -78,6 +78,19 @@ class T9MultiTapCoordinator(
         return true
     }
 
+    fun undoLastPress(): Boolean {
+        timeoutScheduler.cancel()
+        val hadPending = session.hasPendingChar
+        session.undoLastPress()?.let { previous ->
+            commitLetter(previous)
+            return true
+        }
+        if (!hadPending) return false
+        setComposingText("")
+        finishComposingText()
+        return true
+    }
+
     fun reset(): Boolean {
         timeoutScheduler.cancel()
         if (!session.reset()) return false

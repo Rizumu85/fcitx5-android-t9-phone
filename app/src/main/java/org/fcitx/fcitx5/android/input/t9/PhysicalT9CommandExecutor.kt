@@ -38,6 +38,8 @@ internal class PhysicalT9CommandExecutor(
                 host.dismissChinesePrediction()
             PhysicalT9KeyFlow.Command.CancelMultiTapChar ->
                 host.cancelMultiTapChar()
+            PhysicalT9KeyFlow.Command.UndoMultiTapPress ->
+                host.undoMultiTapPress()
             is PhysicalT9KeyFlow.Command.HandleMultiTapKey ->
                 host.handleMultiTapKey(command.keyCode)
             PhysicalT9KeyFlow.Command.CommitMultiTapChar ->

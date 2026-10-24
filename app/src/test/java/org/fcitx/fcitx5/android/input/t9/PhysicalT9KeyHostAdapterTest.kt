@@ -111,7 +111,8 @@ class PhysicalT9KeyHostAdapterTest {
                 cycleCase = {},
                 handleMultiTapKey = { false },
                 commitMultiTapChar = { false },
-                cancelMultiTapChar = {}
+                cancelMultiTapChar = {},
+                undoMultiTapPress = {}
             ),
             candidates = PhysicalT9KeyHostAdapter.CandidateActions(
                 commitHanziShortcut = { false },

@@ -288,7 +288,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             cycleCase = { smartEnglishCaseCoordinator.cycle() },
             handleMultiTapKey = { keyCode -> t9MultiTapCoordinator.handleKey(keyCode) },
             commitMultiTapChar = { t9MultiTapCoordinator.commitPending() },
-            cancelMultiTapChar = { t9MultiTapCoordinator.cancelPending() }
+            cancelMultiTapChar = { t9MultiTapCoordinator.cancelPending() },
+            undoMultiTapPress = { t9MultiTapCoordinator.undoLastPress() }
         ),
         candidates = PhysicalT9KeyHostAdapter.CandidateActions(
             commitHanziShortcut = t9CandidateShortcutCommitter::commitHanziKey,
