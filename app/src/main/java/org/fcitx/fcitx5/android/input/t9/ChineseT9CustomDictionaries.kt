@@ -7,6 +7,8 @@ package org.fcitx.fcitx5.android.input.t9
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonArray
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.utils.appContext
 import java.io.File
@@ -131,10 +133,15 @@ class ChineseT9CustomPhraseDictionary internal constructor(
             encodeDefaults = true
         }
 
-        private fun decodePhrases(lines: List<String>): List<ChineseT9CustomPhrase> =
-            runCatching {
-                PhraseJson.decodeFromString<List<ChineseT9CustomPhrase>>(lines.joinToString("\n"))
-            }.getOrDefault(emptyList())
+        // One malformed entry (or one written by another version) must not discard the rest:
+        // the next save would otherwise overwrite every phrase with an empty list. An unreadable
+        // file as a whole throws, so persistence keeps a copy before replacing it.
+        internal fun decodePhrases(lines: List<String>): List<ChineseT9CustomPhrase> =
+            PhraseJson.parseToJsonElement(lines.joinToString("\n")).jsonArray.mapNotNull { element ->
+                runCatching {
+                    PhraseJson.decodeFromJsonElement<ChineseT9CustomPhrase>(element)
+                }.getOrNull()
+            }
 
         private fun normalizeEntries(
             rawEntries: Iterable<ChineseT9CustomPhrase>

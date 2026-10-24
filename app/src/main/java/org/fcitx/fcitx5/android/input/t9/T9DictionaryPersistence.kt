@@ -5,6 +5,7 @@
 
 package org.fcitx.fcitx5.android.input.t9
 
+import timber.log.Timber
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.Executor
@@ -25,7 +26,7 @@ internal class T9DictionaryPersistence<T>(
     @Volatile
     private var currentSnapshot: T = file
         ?.takeIf(File::isFile)
-        ?.let { runCatching { decode(it.readLines()) }.getOrNull() }
+        ?.let(::readOrPreserve)
         ?: defaultValue
 
     fun snapshot(): T = currentSnapshot
@@ -50,8 +51,23 @@ internal class T9DictionaryPersistence<T>(
                 }
             } ?: return
             runCatching { atomicWrite(requireNotNull(file), encode(snapshot)) }
+                .onFailure { Timber.w(it, "Unable to save ${file?.name}; keeping it in memory") }
         }
     }
+
+    /**
+     * A file that cannot be decoded is about to be replaced by the next save. Keep a copy beside
+     * it first so a corrupt or newer-format dictionary is never destroyed silently.
+     */
+    private fun readOrPreserve(source: File): T? =
+        runCatching { decode(source.readLines()) }
+            .onFailure { error ->
+                Timber.w(error, "Unable to read ${source.name}; preserving a copy")
+                runCatching {
+                    source.copyTo(File(source.parentFile, "${source.name}.unreadable"), overwrite = true)
+                }
+            }
+            .getOrNull()
 
     companion object {
         internal val DefaultExecutor: Executor = Executors.newSingleThreadExecutor { runnable ->
