@@ -40,6 +40,55 @@ class RimeConfigDeploymentSessionTest {
     }
 
     @Test
+    fun `failed deployment request is retried on a later ready`() {
+        val session = RimeConfigDeploymentSession()
+
+        assertEquals(
+            RimeConfigDeploymentSession.Effect.REQUEST_FULL_DEPLOYMENT,
+            session.onAvailability(ready, RimeConfigDeploymentRequirement.REQUIRED)
+        )
+        session.onRequestFailed()
+        assertEquals(
+            RimeConfigDeploymentSession.Effect.REQUEST_FULL_DEPLOYMENT,
+            session.onAvailability(ready, RimeConfigDeploymentRequirement.REQUIRED)
+        )
+        assertEquals(
+            RimeConfigDeploymentSession.Effect.FORWARD,
+            session.onAvailability(deploying, RimeConfigDeploymentRequirement.REQUIRED)
+        )
+        assertEquals(
+            RimeConfigDeploymentSession.Effect.COMPLETE_FULL_DEPLOYMENT,
+            session.onAvailability(ready, RimeConfigDeploymentRequirement.REQUIRED)
+        )
+    }
+
+    @Test
+    fun `ready is forwarded once deployment requests are exhausted`() {
+        val session = RimeConfigDeploymentSession()
+
+        repeat(3) {
+            assertEquals(
+                RimeConfigDeploymentSession.Effect.REQUEST_FULL_DEPLOYMENT,
+                session.onAvailability(ready, RimeConfigDeploymentRequirement.REQUIRED)
+            )
+        }
+        assertEquals(
+            RimeConfigDeploymentSession.Effect.FORWARD,
+            session.onAvailability(ready, RimeConfigDeploymentRequirement.REQUIRED)
+        )
+        assertEquals(
+            RimeConfigDeploymentSession.Effect.FORWARD,
+            session.onAvailability(ready, RimeConfigDeploymentRequirement.REQUIRED)
+        )
+
+        session.reset()
+        assertEquals(
+            RimeConfigDeploymentSession.Effect.REQUEST_FULL_DEPLOYMENT,
+            session.onAvailability(ready, RimeConfigDeploymentRequirement.REQUIRED)
+        )
+    }
+
+    @Test
     fun `incomplete source tree never publishes a misleading ready state`() {
         val session = RimeConfigDeploymentSession()
 

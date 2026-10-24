@@ -23,6 +23,7 @@ internal class RimeConfigDeploymentSession {
     }
 
     private var phase = Phase.IDLE
+    private var requests = 0
 
     fun onAvailability(
         state: FcitxEvent.RimeAvailabilityEvent.State,
@@ -30,6 +31,7 @@ internal class RimeConfigDeploymentSession {
     ): Effect {
         if (requirement == RimeConfigDeploymentRequirement.NONE) {
             phase = Phase.IDLE
+            requests = 0
             return Effect.FORWARD
         }
         if (requirement == RimeConfigDeploymentRequirement.WAIT_FOR_SOURCE) {
@@ -43,11 +45,19 @@ internal class RimeConfigDeploymentSession {
 
         return when (state) {
             FcitxEvent.RimeAvailabilityEvent.State.Ready -> when (phase) {
-                Phase.IDLE -> {
+                // A Ready without Deploying after a request means the plugin did not start the
+                // maintenance run. Retry a bounded number of times, then publish the lightweight
+                // Ready rather than block Chinese input until Fcitx restarts. The durable marker
+                // stays, so the next native start requests the full deployment again.
+                Phase.IDLE,
+                Phase.REQUESTED -> if (requests < MaxRequests) {
                     phase = Phase.REQUESTED
+                    requests++
                     Effect.REQUEST_FULL_DEPLOYMENT
+                } else {
+                    phase = Phase.IDLE
+                    Effect.FORWARD
                 }
-                Phase.REQUESTED -> Effect.HOLD_READY
                 Phase.DEPLOYING -> {
                     phase = Phase.COMPLETED
                     Effect.COMPLETE_FULL_DEPLOYMENT
@@ -69,7 +79,20 @@ internal class RimeConfigDeploymentSession {
         }
     }
 
+    /**
+     * The caller publishes the Ready it was holding, since no deployment will replace it. A later
+     * Ready requests deployment again while attempts remain.
+     */
+    fun onRequestFailed() {
+        phase = Phase.IDLE
+    }
+
     fun reset() {
         phase = Phase.IDLE
+        requests = 0
+    }
+
+    private companion object {
+        const val MaxRequests = 3
     }
 }

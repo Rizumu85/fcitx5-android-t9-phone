@@ -650,12 +650,13 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
                         // A lightweight Rime Ready event proves only that librime started. Hide it
                         // until the archive's newly introduced schemas finish their owned compile.
                         Timber.i("Starting required full Rime configuration deployment")
-                        runCatching {
+                        val requested = runCatching {
                             setFcitxAddonSubConfig("rime", "deploy", RawConfig())
                         }.onFailure {
                             Timber.e(it, "Unable to start required Rime deployment")
-                        }
-                        return false
+                        }.isSuccess
+                        if (requested) return false
+                        rimeConfigDeploymentSession.onRequestFailed()
                     }
                     RimeConfigDeploymentSession.Effect.COMPLETE_FULL_DEPLOYMENT -> {
                         if (!RimeConfigVersionStore.completeDeployment(context)) {
