@@ -53,4 +53,17 @@ class T9PunctuationSessionTest {
         assertEquals("\n", session.commit())
     }
 
+
+    @Test
+    fun toggleNeverTurnsASymbolIntoNewlineOrBack() {
+        val session = T9PunctuationSession(includeNewline = true)
+        session.showChineseCandidates()
+        session.selectCandidate(32)
+
+        assertEquals("^", session.toggleSet())
+
+        session.selectCandidate(32)
+        assertEquals(T9PunctuationSession.NewlineSymbol, session.pendingText)
+        assertEquals(T9PunctuationSession.NewlineSymbol, session.toggleSet())
+    }
 }

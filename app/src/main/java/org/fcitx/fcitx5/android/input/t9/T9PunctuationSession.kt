@@ -93,10 +93,18 @@ class T9PunctuationSession(
             Set.ENGLISH -> Set.CHINESE
         }
         val nextList = punctuationList(nextSet)
-        state = state.copy(
-            set = nextSet,
-            index = state.index.coerceIn(nextList.indices)
-        )
+        // The sets differ in length and the newline action sits after the last symbol. Clamping
+        // a raw index would turn "÷" into a committed newline, or the newline into "÷".
+        val nextIndex = if (newlineEntry != null && state.entry == newlineEntry) {
+            nextList.lastIndex
+        } else {
+            val symbolCount = when (nextSet) {
+                Set.CHINESE -> chinesePunctuation.size
+                Set.ENGLISH -> englishPunctuation.size
+            }
+            state.index.coerceIn(0, symbolCount - 1)
+        }
+        state = state.copy(set = nextSet, index = nextIndex)
         return showPending()
     }
 
