@@ -80,6 +80,38 @@ class PhysicalInputRouterTest {
         assertEquals(listOf("delete-down"), calls)
     }
 
+    @Test
+    fun transientSurfaceThatClosedOnFirstDownKeepsRepeatsOfThatKey() {
+        val calls = mutableListOf<String>()
+        var panelOpen = true
+        val router = PhysicalInputRouter(
+            keyDownRoutes = listOf(
+                PhysicalInputRouter.Route {
+                    if (!panelOpen) return@Route null
+                    panelOpen = false
+                    calls += "panel"
+                    PhysicalInputRouter.Result(
+                        handled = true,
+                        consumeKeyUp = it.keyCode,
+                        ownsGesture = true
+                    )
+                },
+                route(calls, "fallback", handled = true)
+            ),
+            keyUpBeforePairingRoutes = emptyList(),
+            keyUpAfterPairingRoutes = emptyList()
+        )
+
+        assertTrue(handleDown(router, KeyEvent.KEYCODE_2))
+        assertTrue(handleDown(router, KeyEvent.KEYCODE_2, repeatCount = 1))
+        assertTrue(handleDown(router, KeyEvent.KEYCODE_2, repeatCount = 2))
+        assertTrue(handleUp(router, KeyEvent.KEYCODE_2))
+        assertEquals(listOf("panel"), calls)
+
+        assertTrue(handleDown(router, KeyEvent.KEYCODE_2))
+        assertEquals(listOf("panel", "fallback"), calls)
+    }
+
     private fun backRouter(calls: MutableList<String>, visible: () -> Boolean) = PhysicalInputRouter(
         mapInput = { _, _ -> error("An unowned Back must never be remapped") },
         ownsBackKey = visible,

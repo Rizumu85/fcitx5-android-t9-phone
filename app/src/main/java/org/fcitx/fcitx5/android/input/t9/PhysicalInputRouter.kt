@@ -35,7 +35,12 @@ class PhysicalInputRouter(
     data class Result(
         val handled: Boolean,
         val consumeKeyUp: Int? = null,
-        val tracePath: String? = null
+        val tracePath: String? = null,
+        /**
+         * The route consumed the first down of a transient surface that may close on it. Repeats
+         * of the held key then belong to nobody and must not leak into later routes.
+         */
+        val ownsGesture: Boolean = false
     )
 
     fun interface Route {
@@ -44,6 +49,7 @@ class PhysicalInputRouter(
 
     private var consumedKeyUp: Int? = null
     private var backKeyOwnedByIme: Boolean? = null
+    private var gestureOwnedKeyCode: Int? = null
 
     fun handleKeyDown(keyCode: Int, event: KeyEvent, repeatCount: Int): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
@@ -56,14 +62,20 @@ class PhysicalInputRouter(
             // more text; the next press belongs to the app even if its editor still has focus.
             if (!visible) return true
         }
+        if (repeatCount > 0 && gestureOwnedKeyCode == keyCode) return true
+        if (repeatCount == 0 && gestureOwnedKeyCode == keyCode) gestureOwnedKeyCode = null
         val startedNanos = T9ResponsivenessTrace.captureInputStartNanos()
         val activeTraceAtStart = T9ResponsivenessTrace.activeInputId()
         val result = runRoutes(keyDownRoutes, Input(keyCode, event, mapInput))
         recordOwnedRouteEffect(result, startedNanos, activeTraceAtStart)
+        if (repeatCount == 0 && result?.handled == true && result.ownsGesture) {
+            gestureOwnedKeyCode = keyCode
+        }
         return result?.handled == true
     }
 
     fun handleKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (gestureOwnedKeyCode == keyCode) gestureOwnedKeyCode = null
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             val visible = ownsBackKey()
             val owned = backKeyOwnedByIme ?: visible
@@ -93,6 +105,7 @@ class PhysicalInputRouter(
 
     fun reset() {
         consumedKeyUp = null
+        gestureOwnedKeyCode = null
         // Composition/panel resets do not transfer an in-flight Back release to another owner.
     }
 

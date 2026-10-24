@@ -3120,7 +3120,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return PhysicalInputRouter.Result(
             handled = result.handled,
             consumeKeyUp = result.consumedKeyUp,
-            tracePath = "NUMBER/TRANSIENT_PANEL"
+            tracePath = "NUMBER/TRANSIENT_PANEL",
+            ownsGesture = result.handled
         )
             .takeIf { it.handled || it.consumeKeyUp != null }
     }
@@ -3132,7 +3133,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             handlePhysicalSelectionActionPanelKeyDown(input.keyCode, input.event),
             input.keyCode,
             "EDITOR/SELECTION_ACTION"
-        )
+        )?.copy(ownsGesture = true)
 
     private fun routeHandwritingKeyDown(
         input: PhysicalInputRouter.Input
