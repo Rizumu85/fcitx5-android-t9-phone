@@ -3054,9 +3054,21 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     fun canFinishChineseT9CandidateSelection(ticket: ChineseT9CompositionTicket): Boolean {
         if (!isChineseT9InputModeActive() || activeChineseT9Scheme != ticket.scheme) return false
         val current = chineseT9Composition.compositionTicket()
-        // Rime may synchronously commit and clear the selected composition before this callback;
-        // a different non-empty ticket means the user has already started newer input.
-        return current == ticket || current.rawSequence.isEmpty()
+        // Rime may synchronously commit and clear the selected composition before this callback.
+        // Keys typed after OK only extend the source and are queued behind the selection, so
+        // Rime has already applied it; abandoning the local half here would leave Rime holding
+        // the selected Hanzi while the app still shows every digit, and freeze the candidates.
+        return current == ticket || current.rawSequence.isEmpty() ||
+            isExtendedChineseT9Composition(ticket)
+    }
+
+    /** True when the composition only gained keys after [ticket], within the same session. */
+    fun isExtendedChineseT9Composition(ticket: ChineseT9CompositionTicket): Boolean {
+        if (!isChineseT9InputModeActive() || activeChineseT9Scheme != ticket.scheme) return false
+        val current = chineseT9Composition.compositionTicket()
+        return current.sessionEpoch == ticket.sessionEpoch &&
+            current.rawSequence.length > ticket.rawSequence.length &&
+            current.rawSequence.startsWith(ticket.rawSequence)
     }
 
     /** Scheme-owned reading options for the compact top candidate row. */

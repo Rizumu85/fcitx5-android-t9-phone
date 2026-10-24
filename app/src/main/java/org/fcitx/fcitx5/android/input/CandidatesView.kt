@@ -995,11 +995,17 @@ class CandidatesView(
         var predictionArm: ChinesePredictionCandidateSession.ArmToken? = null
         chineseT9EngineOperation.enqueue(
             acceptBefore = {
-                val accepted = service.isCurrentChineseT9Composition(compositionTicket) &&
-                    t9CandidateUiSnapshotPipeline.currentChineseSelectionTicket(
-                        originalIndex = originalIndex,
-                        candidate = selectedCandidate
-                    ) == sourceTicket
+                val accepted = (
+                    service.isCurrentChineseT9Composition(compositionTicket) &&
+                        t9CandidateUiSnapshotPipeline.currentChineseSelectionTicket(
+                            originalIndex = originalIndex,
+                            candidate = selectedCandidate
+                        ) == sourceTicket
+                    ) ||
+                    // A key typed right after OK invalidates the shown frame, but its engine
+                    // command is queued behind this selection, so Rime still holds the list the
+                    // user chose from. Dropping the choice would silently lose the selected Hanzi.
+                    service.isExtendedChineseT9Composition(compositionTicket)
                 if (accepted) {
                     predictionArm = chinesePredictionCandidateSession.arm(
                         source = compositionTicket,
