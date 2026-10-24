@@ -20,8 +20,8 @@ class T9EnglishDictionary internal constructor(learnedFile: File?) {
         encode = { words -> words.sorted().joinToString(separator = "\n", postfix = "\n") }
     )
     private val learnedWordSet = learnedPersistence.snapshot().toMutableSet()
-    private var learnedExactWordsByDigits: Map<String, List<String>> = emptyMap()
-    private var learnedPrefixWordsByDigits: Map<String, List<String>> = emptyMap()
+    private val learnedExactWordsByDigits = linkedMapOf<String, MutableList<String>>()
+    private val learnedPrefixWordsByDigits = linkedMapOf<String, MutableList<String>>()
     private val candidateCache = object : LinkedHashMap<String, List<String>>(
         CandidateCacheSize,
         0.75f,
@@ -106,7 +106,9 @@ class T9EnglishDictionary internal constructor(learnedFile: File?) {
     fun learn(rawWord: String) {
         val word = normalizeLearnedWord(rawWord) ?: return
         if (!learnedWordSet.add(word)) return
-        rebuildLearnedIndexes()
+        // Appending one word keeps the same order as a full rebuild without re-indexing every
+        // learned word on each commit.
+        indexLearnedWord(word)
         invalidateCandidateCache()
         dictionaryGeneration += 1
         learnedPersistence.replace(learnedWordSet.toSet())
@@ -170,17 +172,17 @@ class T9EnglishDictionary internal constructor(learnedFile: File?) {
     }
 
     private fun rebuildLearnedIndexes() {
-        val exact = linkedMapOf<String, MutableList<String>>()
-        val prefixes = linkedMapOf<String, MutableList<String>>()
-        learnedWordSet.forEach { word ->
-            val digits = word.toT9Digits()
-            exact.getOrPut(digits) { mutableListOf() } += word
-            for (prefixLength in 1 until digits.length) {
-                prefixes.getOrPut(digits.substring(0, prefixLength)) { mutableListOf() } += word
-            }
+        learnedExactWordsByDigits.clear()
+        learnedPrefixWordsByDigits.clear()
+        learnedWordSet.forEach(::indexLearnedWord)
+    }
+
+    private fun indexLearnedWord(word: String) {
+        val digits = word.toT9Digits()
+        learnedExactWordsByDigits.getOrPut(digits) { mutableListOf() } += word
+        for (prefixLength in 1 until digits.length) {
+            learnedPrefixWordsByDigits.getOrPut(digits.substring(0, prefixLength)) { mutableListOf() } += word
         }
-        learnedExactWordsByDigits = exact
-        learnedPrefixWordsByDigits = prefixes
     }
 
     private fun loadBuiltInIndex(): T9EnglishBuiltInIndex =

@@ -110,10 +110,9 @@ class SmartEnglishPredictionDictionary(
         val previous = normalizePredictionWord(previousRaw) ?: return
         val next = normalizePredictionWord(nextRaw) ?: return
         if (previous == next) return
-        val mutable = learnedPredictionsByPrevious
-            .mapValues { (_, predictions) -> predictions.toMutableList() }
-            .toMutableMap()
-        val predictions = mutable.getOrPut(previous) { mutableListOf() }
+        // Published maps stay immutable for readers, but only the touched entry is rebuilt; the
+        // others are shared instead of deep-copied and re-sorted on every committed word.
+        val predictions = learnedPredictionsByPrevious[previous].orEmpty().toMutableList()
         val existingIndex = predictions.indexOfFirst { it.word == next }
         if (existingIndex >= 0) {
             val existing = predictions[existingIndex]
@@ -121,9 +120,17 @@ class SmartEnglishPredictionDictionary(
         } else {
             predictions += Prediction(next, 1)
         }
-        learnedPredictionsByPrevious = mutable.mapValues { (_, predictions) ->
-            predictions.sortedWith(PredictionQuality)
+        val updated = learnedPredictionsByPrevious.toMutableMap()
+        updated[previous] = predictions.sortedWith(PredictionQuality).take(MaxPredictionsPerWord)
+        // Every consecutive word pair is learned, so the store needs a bound. The weakest context
+        // word goes first.
+        if (updated.size > MaxLearnedContextWords) {
+            updated.entries
+                .filter { it.key != previous }
+                .minByOrNull { entry -> entry.value.sumOf(Prediction::score) }
+                ?.let { updated.remove(it.key) }
         }
+        learnedPredictionsByPrevious = updated
         predictionCache.clear()
         predictionGeneration += 1
         learnedPersistence.replace(learnedPredictionsByPrevious)
@@ -179,6 +186,8 @@ class SmartEnglishPredictionDictionary(
 
         private const val BuiltInPredictionAsset = "t9/english-next.tsv"
         private const val PredictionCacheSize = 96
+        private const val MaxPredictionsPerWord = 32
+        private const val MaxLearnedContextWords = 5000
 
         private val PredictionQuality = compareByDescending<Prediction> { it.score }
             .thenBy { it.word }
