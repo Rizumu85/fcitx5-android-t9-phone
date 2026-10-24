@@ -12,12 +12,11 @@ import java.util.zip.ZipInputStream
 object RimeConfigArchive {
     private const val MaxEntries = 2_000
     private const val MaxExpandedBytes = 256L * 1024L * 1024L
-    fun install(
-        source: InputStream,
-        stagingDir: File,
-        destinationDir: File,
-        beforeOverlay: () -> Unit = {}
-    ) {
+    /**
+     * Extracts and validates the complete archive without touching the live Rime tree, returning
+     * the directory whose children [overlay] copies into it.
+     */
+    fun stage(source: InputStream, stagingDir: File): File {
         stagingDir.deleteRecursively()
         stagingDir.mkdirs()
         val roots = linkedSetOf<String>()
@@ -64,14 +63,14 @@ object RimeConfigArchive {
         require(missingSources.isEmpty()) {
             "Archive is missing required T9 Rime sources: ${missingSources.joinToString()}"
         }
-        // Callers journal the transaction only after the complete archive has passed validation,
-        // but before the first managed file can replace a working copy.
-        beforeOverlay()
+        return contentRoot
+    }
+
+    fun overlay(contentRoot: File, destinationDir: File) {
         destinationDir.mkdirs()
         contentRoot.listFiles().orEmpty().forEach { sourceFile ->
             copyOverlay(sourceFile, destinationDir.resolve(sourceFile.name))
         }
-        stagingDir.deleteRecursively()
     }
 
     private fun copyOverlay(source: File, destination: File) {

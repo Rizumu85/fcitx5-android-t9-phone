@@ -6,6 +6,7 @@
 package org.fcitx.fcitx5.android.update
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.io.ByteArrayInputStream
@@ -16,12 +17,12 @@ import java.util.zip.ZipOutputStream
 
 class RimeConfigArchiveTest {
     @Test
-    fun `install strips repository root and preserves user files`() {
+    fun `stage and overlay strip repository root and preserves user files`() {
         val root = Files.createTempDirectory("rime-update-test").toFile()
         val destination = root.resolve("rime").apply { mkdirs() }
         destination.resolve("custom.user.yaml").writeText("keep")
 
-        RimeConfigArchive.install(
+        val contentRoot = RimeConfigArchive.stage(
             source = archive(
                 "rime-ice-t9-phone-main/t9.schema.yaml" to "new schema",
                 "rime-ice-t9-phone-main/t9_stroke.schema.yaml" to "stroke schema",
@@ -29,9 +30,10 @@ class RimeConfigArchiveTest {
                 "rime-ice-t9-phone-main/predict.db" to "prediction database",
                 "rime-ice-t9-phone-main/cn_dicts/base.dict.yaml" to "dictionary"
             ),
-            stagingDir = root.resolve("staging"),
-            destinationDir = destination
+            stagingDir = root.resolve("staging")
         )
+        assertFalse(destination.resolve("t9.schema.yaml").exists())
+        RimeConfigArchive.overlay(contentRoot, destination)
 
         assertEquals("new schema", destination.resolve("t9.schema.yaml").readText())
         assertEquals("dictionary", destination.resolve("cn_dicts/base.dict.yaml").readText())
@@ -40,35 +42,30 @@ class RimeConfigArchiveTest {
     }
 
     @Test
-    fun `install rejects an incomplete required source family`() {
+    fun `stage rejects an incomplete required source family`() {
         val root = Files.createTempDirectory("rime-update-test").toFile()
-        var overlayStarted = false
 
         assertThrows(IllegalArgumentException::class.java) {
-            RimeConfigArchive.install(
+            RimeConfigArchive.stage(
                 source = archive(
                     "rime-ice-t9-phone-main/t9.schema.yaml" to "pinyin schema",
                     "rime-ice-t9-phone-main/t9_stroke.schema.yaml" to "stroke schema",
                     "rime-ice-t9-phone-main/t9_zhuyin.schema.yaml" to "zhuyin schema"
                 ),
-                stagingDir = root.resolve("staging"),
-                destinationDir = root.resolve("rime"),
-                beforeOverlay = { overlayStarted = true }
+                stagingDir = root.resolve("staging")
             )
         }
-        assertEquals(false, overlayStarted)
         root.deleteRecursively()
     }
 
     @Test
-    fun `install rejects paths outside staging directory`() {
+    fun `stage rejects paths outside staging directory`() {
         val root = Files.createTempDirectory("rime-update-test").toFile()
 
         assertThrows(IllegalArgumentException::class.java) {
-            RimeConfigArchive.install(
+            RimeConfigArchive.stage(
                 source = archive("../t9.schema.yaml" to "unsafe"),
-                stagingDir = root.resolve("staging"),
-                destinationDir = root.resolve("rime")
+                stagingDir = root.resolve("staging")
             )
         }
         root.deleteRecursively()
