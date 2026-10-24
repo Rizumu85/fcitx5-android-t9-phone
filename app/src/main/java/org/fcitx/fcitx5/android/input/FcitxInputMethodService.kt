@@ -1841,6 +1841,14 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private lateinit var lastKnownConfig: Configuration
 
     override fun onConfigurationChanged(newConfig: Configuration) {
+        // The engine reset below empties Rime. Keyboard, keyboardHidden and uiMode changes skip
+        // super, so onStartInput never clears the T9 composition; without this the app would keep
+        // digits that Rime no longer has, and the next key would pair a stale preview with new
+        // candidates.
+        if (currentT9Mode == T9InputMode.CHINESE && hasT9CompositionState()) {
+            clearT9CompositionState()
+            clearTransientInputUiState()
+        }
         postFcitxJob { reset() }
         /**
          * skip keyboard|keyboardHidden changes, because we have [inputDeviceMgr]
