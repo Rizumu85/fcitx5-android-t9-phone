@@ -112,6 +112,25 @@ class PhysicalInputRouterTest {
         assertEquals(listOf("panel", "fallback"), calls)
     }
 
+    @Test
+    fun overlappingHeldKeysEachKeepTheirConsumedRelease() {
+        val calls = mutableListOf<String>()
+        val router = PhysicalInputRouter(
+            keyDownRoutes = listOf(PhysicalInputRouter.Route {
+                PhysicalInputRouter.Result(handled = true, consumeKeyUp = it.keyCode)
+            }),
+            keyUpBeforePairingRoutes = emptyList(),
+            keyUpAfterPairingRoutes = listOf(route(calls, "unpaired-up", handled = false))
+        )
+
+        handleDown(router, KeyEvent.KEYCODE_2)
+        handleDown(router, KeyEvent.KEYCODE_DPAD_LEFT)
+
+        assertTrue(handleUp(router, KeyEvent.KEYCODE_2))
+        assertTrue(handleUp(router, KeyEvent.KEYCODE_DPAD_LEFT))
+        assertTrue(calls.isEmpty())
+    }
+
     private fun backRouter(calls: MutableList<String>, visible: () -> Boolean) = PhysicalInputRouter(
         mapInput = { _, _ -> error("An unowned Back must never be remapped") },
         ownsBackKey = visible,

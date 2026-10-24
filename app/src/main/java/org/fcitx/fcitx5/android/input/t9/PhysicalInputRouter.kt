@@ -47,7 +47,8 @@ class PhysicalInputRouter(
         fun handle(input: Input): Result?
     }
 
-    private var consumedKeyUp: Int? = null
+    // Several keys can be held at once; each consumed down owns its own release.
+    private val consumedKeyUps = mutableSetOf<Int>()
     private var backKeyOwnedByIme: Boolean? = null
     private var gestureOwnedKeyCode: Int? = null
 
@@ -66,7 +67,7 @@ class PhysicalInputRouter(
         if (repeatCount == 0 && gestureOwnedKeyCode == keyCode) gestureOwnedKeyCode = null
         val startedNanos = T9ResponsivenessTrace.captureInputStartNanos()
         val activeTraceAtStart = T9ResponsivenessTrace.activeInputId()
-        val result = runRoutes(keyDownRoutes, Input(keyCode, event, mapInput))
+        val result = runRoutes(keyDownRoutes, Input(keyCode, event, mapInput), claimsRelease = true)
         recordOwnedRouteEffect(result, startedNanos, activeTraceAtStart)
         if (repeatCount == 0 && result?.handled == true && result.ownsGesture) {
             gestureOwnedKeyCode = keyCode
@@ -81,7 +82,7 @@ class PhysicalInputRouter(
             val owned = backKeyOwnedByIme ?: visible
             backKeyOwnedByIme = null
             if (!owned || !visible) {
-                if (consumedKeyUp == keyCode) consumedKeyUp = null
+                consumedKeyUps -= keyCode
                 return owned
             }
         }
@@ -90,12 +91,11 @@ class PhysicalInputRouter(
         val input = Input(keyCode, event, mapInput)
         val beforePairing = runRoutes(keyUpBeforePairingRoutes, input)
         if (beforePairing?.handled == true) {
-            if (consumedKeyUp == input.keyCode) consumedKeyUp = null
+            consumedKeyUps -= input.keyCode
             recordOwnedRouteEffect(beforePairing, startedNanos, activeTraceAtStart)
             return true
         }
-        if (consumedKeyUp == input.keyCode) {
-            consumedKeyUp = null
+        if (consumedKeyUps.remove(input.keyCode)) {
             return true
         }
         val afterPairing = runRoutes(keyUpAfterPairingRoutes, input)
@@ -104,15 +104,18 @@ class PhysicalInputRouter(
     }
 
     fun reset() {
-        consumedKeyUp = null
+        consumedKeyUps.clear()
         gestureOwnedKeyCode = null
         // Composition/panel resets do not transfer an in-flight Back release to another owner.
     }
 
-    private fun runRoutes(routes: List<Route>, input: Input): Result? {
+    // Only a down can claim a future release; a claim made while releasing would linger.
+    private fun runRoutes(routes: List<Route>, input: Input, claimsRelease: Boolean = false): Result? {
         routes.forEach { route ->
             val result = route.handle(input) ?: return@forEach
-            result.consumeKeyUp?.let { consumedKeyUp = it }
+            if (claimsRelease) {
+                result.consumeKeyUp?.let { consumedKeyUps += it }
+            }
             if (result.handled) return result
         }
         return null
