@@ -228,10 +228,9 @@ internal class SmartEnglishLifecycle(
     ): Boolean {
         if (!isActive()) return false
         val selected = if (session.hasDigits) {
-            session.selectedRawCandidate(pairRankedCandidates(), index) ?: run {
-                reset()
-                return true
-            }
+            // No match (or a dictionary still warming up) must not silently discard every typed
+            // key. Confirmation is consumed without committing, and the digits stay editable.
+            session.selectedRawCandidate(pairRankedCandidates(), index) ?: return true
         } else {
             predictionSession.selectedCandidate(index) ?: return false
         }

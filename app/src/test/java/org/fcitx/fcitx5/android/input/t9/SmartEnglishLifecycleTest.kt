@@ -103,6 +103,18 @@ class SmartEnglishLifecycleTest {
         assertEquals(listOf("hello"), host.learnedWords)
     }
 
+    @Test
+    fun confirmingWithoutAMatchKeepsTheTypedDigits() {
+        val host = Host()
+        val lifecycle = host.lifecycle()
+        listOf(9, 9, 9).forEach(lifecycle::appendDigit)
+
+        assertTrue(lifecycle.commitCandidate())
+
+        assertTrue(host.committedTexts.isEmpty())
+        assertTrue(lifecycle.hasDigits)
+    }
+
     private class Host(
         private val learn: Boolean = false,
         var predictionIsReady: Boolean = true
