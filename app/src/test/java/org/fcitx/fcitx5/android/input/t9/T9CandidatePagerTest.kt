@@ -289,6 +289,32 @@ class T9CandidatePagerTest {
         assertArrayEquals(intArrayOf(9), second.originalIndices)
     }
 
+    @Test
+    fun measuresEachCandidateOnceWhilePaginating() {
+        val pager = T9CandidatePager()
+        var measurements = 0
+        pager.update(
+            signature = "incremental",
+            candidates = List(25) { index -> IndexedValue(index, candidate("w$index")) },
+            characterBudget = 24,
+            widthBudget = T9CandidateWidthBudget(
+                maxWidthPx = 100,
+                candidateSpacingPx = 2,
+                candidateHorizontalPaddingPx = 1,
+                minimumCandidateWidthPx = 1,
+                rowHorizontalPaddingPx = 2,
+                measureTextWidthPx = {
+                    measurements += 1
+                    it.length * 5
+                }
+            )
+        )
+
+        assertEquals(25, measurements)
+        // 7 * 12 natural widths + 6 * 2 spacing + 2 * 2 edge padding = 100, the exact budget.
+        assertEquals(7, requireNotNull(pager.currentPage()).candidates.size)
+    }
+
     private fun candidate(text: String): FcitxEvent.Candidate =
         FcitxEvent.Candidate(label = "", text = text, comment = "")
 

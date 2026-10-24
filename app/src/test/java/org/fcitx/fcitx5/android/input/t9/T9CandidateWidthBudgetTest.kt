@@ -27,6 +27,15 @@ class T9CandidateWidthBudgetTest {
         )
 
         assertEquals(62, budget.rowWidthPx(candidates))
+        assertEquals(
+            budget.rowWidthPx(candidates, hasTrailingItem = true, trailingItemWidthPx = 7),
+            budget.rowWidthForNaturalWidthsPx(
+                naturalWidthSumPx = candidates.sumOf { budget.naturalCandidateWidthPx(it) },
+                candidateCount = candidates.size,
+                hasTrailingItem = true,
+                trailingItemWidthPx = 7
+            )
+        )
     }
 
 }

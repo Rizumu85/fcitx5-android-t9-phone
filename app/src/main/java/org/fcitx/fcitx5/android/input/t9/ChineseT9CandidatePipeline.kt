@@ -19,6 +19,8 @@ class ChineseT9CandidatePipeline(
     )
 
     private val localBudgetPager = T9CandidatePager()
+    private val filteredPager = T9CandidatePager()
+    private var filteredPagerCandidates: List<IndexedValue<FcitxEvent.Candidate>>? = null
     private val bulkCandidateLoader = T9BulkCandidateLoader(
         characterBudget = characterBudget,
         widthBudget = widthBudget,
@@ -54,6 +56,8 @@ class ChineseT9CandidatePipeline(
         shownCandidateSignature = ""
         shownCursorContextSignature = ""
         hanziCursorIndex = -1
+        filteredPager.reset()
+        filteredPagerCandidates = null
     }
 
     fun resetBulkFilter() {
@@ -174,9 +178,14 @@ class ChineseT9CandidatePipeline(
                 originalIndices = intArrayOf()
             ) to null
         }
-        val pager = T9CandidatePager()
-        pager.update("filtered", matched.candidates, characterBudget(), widthBudget())
-        val page = pager.currentPage() ?: return source to matched.prefix
+        // Every refresh (focus moves included) re-filters the same page. Reuse the previous
+        // pagination while the matched candidates and budgets are unchanged; only page 0 is read.
+        if (matched.candidates != filteredPagerCandidates) {
+            filteredPager.reset()
+            filteredPagerCandidates = matched.candidates
+        }
+        filteredPager.update("filtered", matched.candidates, characterBudget(), widthBudget())
+        val page = filteredPager.currentPage() ?: return source to matched.prefix
         if (page.candidates.size == data.candidates.size &&
             page.originalIndices.contentEquals(source.originalIndices)
         ) {

@@ -37,11 +37,26 @@ class T9CandidateWidthBudget(
         trailingItemWidthPx: Int = 0
     ): Int {
         if (candidates.isEmpty()) return 0
-        val candidateWidths = candidates.map(::naturalCandidateWidthPx)
-        val spacingCount = candidates.lastIndex + if (hasTrailingItem) 1 else 0
+        return rowWidthForNaturalWidthsPx(
+            naturalWidthSumPx = candidates.sumOf { naturalCandidateWidthPx(it) },
+            candidateCount = candidates.size,
+            hasTrailingItem = hasTrailingItem,
+            trailingItemWidthPx = trailingItemWidthPx
+        )
+    }
+
+    /** Row width from already summed [naturalCandidateWidthPx] values, for incremental paging. */
+    fun rowWidthForNaturalWidthsPx(
+        naturalWidthSumPx: Int,
+        candidateCount: Int,
+        hasTrailingItem: Boolean = false,
+        trailingItemWidthPx: Int = 0
+    ): Int {
+        if (candidateCount <= 0) return 0
+        val spacingCount = candidateCount - 1 + if (hasTrailingItem) 1 else 0
         // Product decision: candidate focus is expressed by color and background, not transforms.
         // Natural widths therefore remain the single paging and layout geometry.
-        return candidateWidths.sum() +
+        return naturalWidthSumPx +
             candidateSpacingPx.coerceAtLeast(0) * spacingCount +
             trailingItemWidthPx.coerceAtLeast(0) +
             rowHorizontalPaddingPx.coerceAtLeast(0) * 2

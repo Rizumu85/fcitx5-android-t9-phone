@@ -58,6 +58,8 @@ class T9CandidateSurfaceGeometry(
     private var pinyinRowWidthsCacheValue: T9PinyinRowWidthCalculator.Widths? = null
     private var pinyinChipWidthsCacheKey: PinyinChipWidthsCacheKey? = null
     private var pinyinChipWidthsCacheValue: List<Int> = emptyList()
+    private var widthBudgetCacheKey: Metrics? = null
+    private var widthBudgetCacheValue: T9CandidateWidthBudget? = null
 
     fun beginFrame(generationId: Long) {
         activeGenerationId = generationId
@@ -70,15 +72,22 @@ class T9CandidateSurfaceGeometry(
         candidateVisualWidthPx = measured
     }
 
-    fun widthBudget(metrics: Metrics): T9CandidateWidthBudget =
-        T9CandidateWidthBudget(
+    fun widthBudget(metrics: Metrics): T9CandidateWidthBudget {
+        // Paging, layout, and reveal ask for the budget many times per frame; reuse it while the
+        // metrics are unchanged instead of rebuilding it and its signature each time.
+        if (metrics == widthBudgetCacheKey) widthBudgetCacheValue?.let { return it }
+        return T9CandidateWidthBudget(
             maxWidthPx = metrics.maxRowWidthPx,
             candidateSpacingPx = metrics.candidateSpacingPx,
             candidateHorizontalPaddingPx = metrics.candidateHorizontalPaddingPx,
             minimumCandidateWidthPx = metrics.minimumCandidateWidthPx,
             rowHorizontalPaddingPx = metrics.rowHorizontalPaddingPx,
             measureTextWidthPx = measureCandidateTextWidthPx
-        )
+        ).also {
+            widthBudgetCacheKey = metrics
+            widthBudgetCacheValue = it
+        }
+    }
 
     fun pinyinSurfacePlan(
         input: SurfaceInput,

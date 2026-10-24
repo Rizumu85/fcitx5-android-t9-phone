@@ -200,15 +200,22 @@ class T9CandidatePager {
     ): List<MutableList<IndexedValue<FcitxEvent.Candidate>>> {
         val pages = mutableListOf<MutableList<IndexedValue<FcitxEvent.Candidate>>>()
         var current = mutableListOf<IndexedValue<FcitxEvent.Candidate>>()
+        // Running cost of `current`, so each append is checked without re-measuring the page.
+        var currentCost = 0
         candidates.forEach { candidate ->
             // T9 pages map directly to the physical 1-0 shortcuts, so a page must never expose
             // more candidates than the user can select by number even when short English words
             // would fit the character budget.
-            if (current.isNotEmpty() && !pageFits(current + candidate, budget, widthBudget)) {
+            val cost = candidateCost(candidate, widthBudget)
+            if (current.isNotEmpty() &&
+                !costFits(current.size + 1, currentCost + cost, budget, widthBudget)
+            ) {
                 pages += current
                 current = mutableListOf()
+                currentCost = 0
             }
             current += candidate
+            currentCost += cost
         }
         if (current.isNotEmpty()) {
             pages += current
@@ -242,15 +249,33 @@ class T9CandidatePager {
         candidates: List<IndexedValue<FcitxEvent.Candidate>>,
         budget: Int,
         widthBudget: T9CandidateWidthBudget?
+    ): Boolean = costFits(
+        count = candidates.size,
+        totalCost = candidates.sumOf { candidateCost(it, widthBudget) },
+        budget = budget,
+        widthBudget = widthBudget
+    )
+
+    // Character cost keeps the first layout deterministic before Android can measure the row.
+    // Once measured geometry exists, retaining both caps leaves visible space while moving
+    // candidates to the next page; the renderer's width model is then the only visual budget.
+    private fun candidateCost(
+        candidate: IndexedValue<FcitxEvent.Candidate>,
+        widthBudget: T9CandidateWidthBudget?
+    ): Int = widthBudget?.naturalCandidateWidthPx(candidate.value)
+        ?: T9CandidateBudget.candidateCost(candidate.value.text)
+
+    private fun costFits(
+        count: Int,
+        totalCost: Int,
+        budget: Int,
+        widthBudget: T9CandidateWidthBudget?
     ): Boolean {
-        if (candidates.size > T9CandidateBudget.MAX_CANDIDATES_PER_PAGE) return false
-        // Character cost keeps the first layout deterministic before Android can measure the row.
-        // Once measured geometry exists, retaining both caps leaves visible space while moving
-        // candidates to the next page; the renderer's width model is then the only visual budget.
+        if (count > T9CandidateBudget.MAX_CANDIDATES_PER_PAGE) return false
         return if (widthBudget == null) {
-            candidates.sumOf { T9CandidateBudget.candidateCost(it.value.text) } <= budget
+            totalCost <= budget
         } else {
-            widthBudget.rowWidthPx(candidates.map { it.value }) <= widthBudget.maxWidthPx
+            widthBudget.rowWidthForNaturalWidthsPx(totalCost, count) <= widthBudget.maxWidthPx
         }
     }
 }

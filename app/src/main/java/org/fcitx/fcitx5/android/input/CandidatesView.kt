@@ -308,7 +308,13 @@ class CandidatesView(
         refreshNow = ::updateUi
     )
     private val t9PinyinMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
+    private var t9PinyinMeasureTextSizePx = Float.NaN
+    private var t9PinyinMeasureFont: String? = null
+    private var t9PinyinOverflowHintTextWidthPx: Int? = null
     private val t9CandidateMeasurePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG)
+    private var t9CandidateMeasureTextSizePx = Float.NaN
+    private var t9CandidateMeasureFont: String? = null
+    private val t9CandidateTextWidthCache = linkedMapOf<String, Int>()
     private val t9CandidateSurfaceGeometry = T9CandidateSurfaceGeometry(
         measurePinyinTextWidthPx = ::measureT9PinyinTextWidthPx,
         measureCandidateTextWidthPx = ::measureT9CandidateTextWidthPx
@@ -1094,27 +1100,54 @@ class CandidatesView(
         }
     }
 
-    private fun measureT9PinyinTextWidthPx(text: String): Int {
-        val paint = t9PinyinMeasurePaint.apply {
-            textSize = compactTopRowFontSizeSp * ctx.resources.displayMetrics.scaledDensity
-            InputUiFont.applyTo(this)
+    private fun preparedT9PinyinMeasurePaint(): TextPaint {
+        val textSizePx = compactTopRowFontSizeSp * ctx.resources.displayMetrics.scaledDensity
+        val font = prefs.keyboard.inputUiFont.getValue()
+        if (textSizePx != t9PinyinMeasureTextSizePx || font != t9PinyinMeasureFont) {
+            t9PinyinMeasurePaint.textSize = textSizePx
+            InputUiFont.applyTo(t9PinyinMeasurePaint)
+            t9PinyinMeasureTextSizePx = textSizePx
+            t9PinyinMeasureFont = font
+            t9PinyinOverflowHintTextWidthPx = null
         }
+        return t9PinyinMeasurePaint
+    }
+
+    private fun measureT9PinyinTextWidthPx(text: String): Int {
+        val paint = preparedT9PinyinMeasurePaint()
         return ceil(paint.measureText(text).toDouble()).toInt()
     }
 
-    private fun measureT9CandidateTextWidthPx(text: String): Int {
-        val paint = t9CandidateMeasurePaint.apply {
-            textSize = fontSize * ctx.resources.displayMetrics.scaledDensity
-            InputUiFont.applyTo(this)
+    /**
+     * Candidate widths are measured by paging, row layout, pinyin planning, and reveal for every
+     * frame. Configure the paint and cache widths per (text size, font); a change clears the cache.
+     */
+    private fun preparedT9CandidateMeasurePaint(): TextPaint {
+        val textSizePx = fontSize * ctx.resources.displayMetrics.scaledDensity
+        val font = prefs.keyboard.inputUiFont.getValue()
+        if (textSizePx != t9CandidateMeasureTextSizePx || font != t9CandidateMeasureFont) {
+            t9CandidateMeasurePaint.textSize = textSizePx
+            InputUiFont.applyTo(t9CandidateMeasurePaint)
+            t9CandidateMeasureTextSizePx = textSizePx
+            t9CandidateMeasureFont = font
+            t9CandidateTextWidthCache.clear()
         }
-        return T9SemanticTextView.measureWidth(paint, text).roundToInt()
+        return t9CandidateMeasurePaint
+    }
+
+    private fun measureT9CandidateTextWidthPx(text: String): Int {
+        val paint = preparedT9CandidateMeasurePaint()
+        t9CandidateTextWidthCache[text]?.let { return it }
+        if (t9CandidateTextWidthCache.size >= T9_CANDIDATE_TEXT_WIDTH_CACHE_SIZE) {
+            t9CandidateTextWidthCache.keys.firstOrNull()?.let(t9CandidateTextWidthCache::remove)
+        }
+        return T9SemanticTextView.measureWidth(paint, text).roundToInt().also { width ->
+            t9CandidateTextWidthCache[text] = width
+        }
     }
 
     private fun isT9CandidateRenderable(candidate: FcitxEvent.Candidate): Boolean {
-        val paint = t9CandidateMeasurePaint.apply {
-            textSize = fontSize * ctx.resources.displayMetrics.scaledDensity
-            InputUiFont.applyTo(this)
-        }
+        val paint = preparedT9CandidateMeasurePaint()
         return T9SemanticTextView.handles(candidate.text) || paint.hasGlyph(candidate.text)
     }
 
@@ -1147,8 +1180,11 @@ class CandidatesView(
     }
 
     private fun pinyinOverflowHintTextWidthPx(): Int {
+        preparedT9PinyinMeasurePaint()
+        t9PinyinOverflowHintTextWidthPx?.let { return it }
         return measureT9PinyinTextWidthPx("\u2026")
             .coerceAtLeast(dp(T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP))
+            .also { t9PinyinOverflowHintTextWidthPx = it }
     }
 
     private fun pinyinRowMaxWidthPx(): Int {
@@ -1338,5 +1374,6 @@ class CandidatesView(
         private const val T9_PINYIN_ROW_OVERFLOW_HINT_MIN_WIDTH_DP = 10
         private const val T9_PINYIN_ROW_FOLDED_EDGE_SAFETY_DP = 2
         private const val T9_PAGINATION_WIDTH_DP = 20
+        private const val T9_CANDIDATE_TEXT_WIDTH_CACHE_SIZE = 512
     }
 }
