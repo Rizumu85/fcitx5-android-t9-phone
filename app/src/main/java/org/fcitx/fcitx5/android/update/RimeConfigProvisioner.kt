@@ -66,106 +66,132 @@ object RimeConfigProvisioner {
             matchingDownloadPending = false
         )
         if (preliminaryDecision == RimeConfigProvisioningPolicy.Decision.READY) return
+        // A disabled or vendor-broken DownloadManager must not strand provisioning before the
+        // direct-transfer fallback, so its failures route straight to that fallback.
+        val downloadManagerPending = runCatching {
+            UpdateDownloader.hasPending(context, UpdateComponent.RIME_CONFIG, version)
+        }.onFailure {
+            Timber.w(it, "Unable to query DownloadManager for Rime configuration")
+        }
         val decision = RimeConfigProvisioningPolicy.decide(
             installedVersion = installedVersion,
             requiredVersion = version,
             healthy = healthy,
-            matchingDownloadPending = UpdateDownloader.hasPending(
-                context,
-                UpdateComponent.RIME_CONFIG,
-                version
-            )
+            matchingDownloadPending = downloadManagerPending.getOrDefault(false)
         )
 
         if (!running.compareAndSet(false, true)) return
         try {
-            if (decision == RimeConfigProvisioningPolicy.Decision.DOWNLOAD) {
-                UpdateDownloader.enqueue(
-                    context = context,
-                    artifact = requiredArtifact(),
-                    options = UpdateDownloader.Options(
-                        automatic = true,
-                        expectedSha256 = BuildConfig.RIME_CONFIG_BASELINE_SHA256
+            val downloadManagerUsable = when {
+                downloadManagerPending.isFailure -> false
+                decision != RimeConfigProvisioningPolicy.Decision.DOWNLOAD -> true
+                else -> runCatching {
+                    UpdateDownloader.enqueue(
+                        context = context,
+                        artifact = requiredArtifact(),
+                        options = UpdateDownloader.Options(
+                            automatic = true,
+                            expectedSha256 = BuildConfig.RIME_CONFIG_BASELINE_SHA256
+                        )
                     )
-                )
+                }.onFailure {
+                    Timber.w(it, "Unable to enqueue Rime configuration download")
+                }.getOrDefault(false)
             }
-            schedulePoll(context, attempt = 0)
+            if (downloadManagerUsable) {
+                schedulePoll(context, attempt = 0)
+            } else {
+                schedulePoll(context, attempt = PollDelaysSeconds.lastIndex, delaySeconds = 0L)
+            }
         } catch (error: Throwable) {
             running.set(false)
             throw error
         }
     }
 
-    private fun schedulePoll(context: Context, attempt: Int) {
+    private fun schedulePoll(
+        context: Context,
+        attempt: Int,
+        delaySeconds: Long = PollDelaysSeconds[attempt]
+    ) {
         executor.schedule(
             {
-                if (isReady(context)) {
-                    UpdateDownloader.cancelAutomatic(
-                        context,
-                        UpdateComponent.RIME_CONFIG,
-                        BuildConfig.RIME_CONFIG_BASELINE_VERSION
-                    )
-                    running.set(false)
-                    return@schedule
+                val finished = try {
+                    poll(context, attempt)
+                } catch (error: Throwable) {
+                    // The scheduled executor would swallow this silently; leaving `running` set
+                    // would then disable provisioning for the rest of the process.
+                    Timber.w(error, "Rime configuration provisioning failed")
+                    true
                 }
-                val archive = completedArchive(context)
-                if (archive != null) {
-                    UpdateDownloader.cancelAutomatic(
-                        context,
-                        UpdateComponent.RIME_CONFIG,
-                        BuildConfig.RIME_CONFIG_BASELINE_VERSION
-                    )
-                    val installed = RimeConfigInstaller.install(
-                        context,
-                        archive,
-                        BuildConfig.RIME_CONFIG_BASELINE_VERSION,
-                        BuildConfig.RIME_CONFIG_BASELINE_SHA256
-                    )
-                    if (installed.isSuccess) {
-                        running.set(false)
-                        return@schedule
-                    }
-                }
-
-                if (attempt < PollDelaysSeconds.lastIndex) {
-                    schedulePoll(context, attempt + 1)
-                    return@schedule
-                }
-
-                // The system downloader is the persistent primary path. A direct transfer is a
-                // bounded fallback for vendor DownloadManager implementations that never finish
-                // redirected release assets even though ordinary app networking still works.
-                val fallback = runCatching {
-                    val downloaded = RimeConfigProvisioningTransport.obtain(
-                        cacheDir = context.cacheDir,
-                        version = BuildConfig.RIME_CONFIG_BASELINE_VERSION,
-                        downloadUrl = BuildConfig.RIME_CONFIG_BASELINE_URL,
-                        expectedSha256 = BuildConfig.RIME_CONFIG_BASELINE_SHA256
-                    )
-                    RimeConfigInstaller.install(
-                        context,
-                        downloaded,
-                        BuildConfig.RIME_CONFIG_BASELINE_VERSION,
-                        BuildConfig.RIME_CONFIG_BASELINE_SHA256
-                    ).getOrThrow()
-                }
-                if (fallback.isSuccess) {
-                    UpdateDownloader.cancelAutomatic(
-                        context,
-                        UpdateComponent.RIME_CONFIG,
-                        BuildConfig.RIME_CONFIG_BASELINE_VERSION
-                    )
-                } else {
-                    Timber.w(
-                        fallback.exceptionOrNull(),
-                        "Rime configuration provisioning paused"
-                    )
-                }
-                running.set(false)
+                if (finished) running.set(false)
             },
-            PollDelaysSeconds[attempt],
+            delaySeconds,
             TimeUnit.SECONDS
         )
+    }
+
+    /** Returns false only when a later attempt has been scheduled. */
+    private fun poll(context: Context, attempt: Int): Boolean {
+        if (isReady(context)) {
+            cancelAutomaticDownload(context)
+            return true
+        }
+        val archive = completedArchive(context)
+        if (archive != null) {
+            cancelAutomaticDownload(context)
+            val installed = RimeConfigInstaller.install(
+                context,
+                archive,
+                BuildConfig.RIME_CONFIG_BASELINE_VERSION,
+                BuildConfig.RIME_CONFIG_BASELINE_SHA256
+            )
+            if (installed.isSuccess) return true
+        }
+
+        if (attempt < PollDelaysSeconds.lastIndex) {
+            schedulePoll(context, attempt + 1)
+            return false
+        }
+
+        // The system downloader is the persistent primary path. A direct transfer is a
+        // bounded fallback for vendor DownloadManager implementations that never finish
+        // redirected release assets even though ordinary app networking still works.
+        val fallback = runCatching {
+            val downloaded = RimeConfigProvisioningTransport.obtain(
+                cacheDir = context.cacheDir,
+                version = BuildConfig.RIME_CONFIG_BASELINE_VERSION,
+                downloadUrl = BuildConfig.RIME_CONFIG_BASELINE_URL,
+                expectedSha256 = BuildConfig.RIME_CONFIG_BASELINE_SHA256
+            )
+            RimeConfigInstaller.install(
+                context,
+                downloaded,
+                BuildConfig.RIME_CONFIG_BASELINE_VERSION,
+                BuildConfig.RIME_CONFIG_BASELINE_SHA256
+            ).getOrThrow()
+        }
+        if (fallback.isSuccess) {
+            cancelAutomaticDownload(context)
+        } else {
+            Timber.w(
+                fallback.exceptionOrNull(),
+                "Rime configuration provisioning paused"
+            )
+        }
+        return true
+    }
+
+    private fun cancelAutomaticDownload(context: Context) {
+        runCatching {
+            UpdateDownloader.cancelAutomatic(
+                context,
+                UpdateComponent.RIME_CONFIG,
+                BuildConfig.RIME_CONFIG_BASELINE_VERSION
+            )
+        }.onFailure {
+            Timber.w(it, "Unable to cancel automatic Rime configuration download")
+        }
     }
 
     private fun completedArchive(context: Context): java.io.File? {
