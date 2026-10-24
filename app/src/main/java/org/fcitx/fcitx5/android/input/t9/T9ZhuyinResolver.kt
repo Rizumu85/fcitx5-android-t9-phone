@@ -16,9 +16,23 @@ class T9ZhuyinResolver(
 
     private data class Segment(val reading: String, val complete: Boolean)
 
-    private data class Path(val segments: List<Segment>) {
-        val display: String = segments.joinToString(" ") { it.reading }
-        val completeSegmentCount: Int = segments.count(Segment::complete)
+    // Built by prepending one segment to an already ranked suffix. Keeping only the ranking keys
+    // avoids copying the whole segment list for every candidate path on every keystroke.
+    private class Path(
+        val display: String,
+        val segmentCount: Int,
+        val completeSegmentCount: Int
+    ) {
+        companion object {
+            fun of(segment: Segment) =
+                Path(segment.reading, 1, if (segment.complete) 1 else 0)
+
+            fun prepend(segment: Segment, suffix: Path) = Path(
+                display = segment.reading + " " + suffix.display,
+                segmentCount = suffix.segmentCount + 1,
+                completeSegmentCount = suffix.completeSegmentCount + if (segment.complete) 1 else 0
+            )
+        }
     }
 
     private data class OptionKey(val digits: String, val selectedReading: String)
@@ -158,7 +172,7 @@ class T9ZhuyinResolver(
                     if (segmentIndex < selectedSegments.lastIndex) continue
                     prefixByDigits[code].orEmpty().forEach { segment ->
                         if (segmentMatchesSelection(segment.reading, selectedSegments, segmentIndex)) {
-                            paths += Path(listOf(segment))
+                            paths += Path.of(segment)
                         }
                     }
                 } else {
@@ -167,7 +181,7 @@ class T9ZhuyinResolver(
                             return@forEach
                         }
                         pathsFrom(end, segmentIndex + 1).forEach { suffix ->
-                            paths += Path(listOf(segment) + suffix.segments)
+                            paths += Path.prepend(segment, suffix)
                         }
                     }
                 }
@@ -176,7 +190,7 @@ class T9ZhuyinResolver(
             return paths
                 .distinctBy(Path::display)
                 .sortedWith(
-                    compareBy<Path> { it.segments.size }
+                    compareBy<Path> { it.segmentCount }
                         .thenByDescending(Path::completeSegmentCount)
                         .thenBy(Path::display)
                 )
